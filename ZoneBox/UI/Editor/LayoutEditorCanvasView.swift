@@ -1040,10 +1040,10 @@ private enum ResizeGlyph {
         // 0° = east, 90° = north. Two angles near the corner peak.
         let degrees: [CGFloat]
         switch (ox > 0, oy > 0) {
-        case (true, true):   degrees = [34, 56]           // NE
-        case (false, true):  degrees = [124, 146]         // NW
-        case (true, false):  degrees = [-34, -56]         // SE
-        case (false, false): degrees = [180 + 34, 180 + 56] // SW
+        case (true, true):   degrees = [CGFloat(34), CGFloat(56)]
+        case (false, true):  degrees = [CGFloat(124), CGFloat(146)]
+        case (true, false):  degrees = [CGFloat(-34), CGFloat(-56)]
+        case (false, false): degrees = [CGFloat(214), CGFloat(236)]
         }
 
         for deg in degrees {
