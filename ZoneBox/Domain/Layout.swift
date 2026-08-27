@@ -137,4 +137,19 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
         }
         return copy
     }
+
+    /// Tab / Shift+Tab order: packed zone numbers, wrapping. Skips in-progress create drags.
+    public func cycledZoneID(from selected: UUID?, forward: Bool) -> UUID? {
+        let ordered = zones
+            .filter { $0.name != "__creating" }
+            .sorted { $0.number < $1.number }
+        guard !ordered.isEmpty else { return nil }
+        guard let selected, let idx = ordered.firstIndex(where: { $0.id == selected }) else {
+            return forward ? ordered.first?.id : ordered.last?.id
+        }
+        let next = forward
+            ? (idx + 1) % ordered.count
+            : (idx - 1 + ordered.count) % ordered.count
+        return ordered[next].id
+    }
 }

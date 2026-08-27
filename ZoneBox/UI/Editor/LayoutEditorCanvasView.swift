@@ -3,11 +3,18 @@ import ZoneBoxCore
 
 final class LayoutEditorCanvasView: NSView {
     var layout: Layout {
-        didSet { needsDisplay = true }
+        didSet {
+            if let selectedID, !layout.zones.contains(where: { $0.id == selectedID }) {
+                self.selectedID = nil
+            }
+            needsDisplay = true
+        }
     }
     var primaryFlipHeight: CGFloat
     var workAreaAX: CGRect
-    var selectedID: UUID?
+    var selectedID: UUID? {
+        didSet { needsDisplay = true }
+    }
     var onChange: ((Layout) -> Void)?
     var onCancel: (() -> Void)?
     var onInteractionChange: ((Bool) -> Void)?
@@ -51,6 +58,8 @@ final class LayoutEditorCanvasView: NSView {
         var primaryHandle: Handle
         var neighborID: UUID?
         var neighborHandle: Handle?
+
+        var isLinked: Bool { neighborID != nil }
     }
 
     private var drag: DragKind?
@@ -58,6 +67,8 @@ final class LayoutEditorCanvasView: NSView {
     private let closeButtonSize: CGFloat = 22
     private let closeButtonInset: CGFloat = 8
     private let edgeSlop: CGFloat = 12
+    /// Wider than a single-edge hit so the always-visible linked sash is easy to grab.
+    private let linkedEdgeSlop: CGFloat = 20
     private let minSeamOverlap: CGFloat = 36
     private let cornerClearance: CGFloat = 18
     private let cornerSlop: CGFloat = 18
@@ -127,7 +138,8 @@ final class LayoutEditorCanvasView: NSView {
         NSColor.black.withAlphaComponent(0.12).setFill()
         bounds.fill()
 
-        for zone in layout.zones.sorted(by: { $0.number < $1.number }) {
+        let zones = layout.zones.sorted(by: { $0.number < $1.number })
+        for zone in zones {
             let rect = viewRect(for: canvasRect(of: zone))
             guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
             let selected = zone.id == selectedID
@@ -149,11 +161,16 @@ final class LayoutEditorCanvasView: NSView {
                 at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
                 withAttributes: attrs
             )
-            drawCloseButton(in: closeButtonRect(for: rect), highlighted: selected)
         }
 
         if let edge = visibleSplitHandle() {
             drawSplitHandle(edge)
+        }
+
+        for zone in zones {
+            let rect = viewRect(for: canvasRect(of: zone))
+            guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
+            drawCloseButton(in: closeButtonRect(for: rect), highlighted: zone.id == selectedID)
         }
     }
 
@@ -336,6 +353,10 @@ final class LayoutEditorCanvasView: NSView {
             onCancel?()
             return
         }
+        if event.keyCode == 48 {
+            cycleSelection(forward: !event.modifierFlags.contains(.shift))
+            return
+        }
         if event.keyCode == 51 || event.keyCode == 117 {
             if let selectedID {
                 deleteZone(id: selectedID)
@@ -345,8 +366,22 @@ final class LayoutEditorCanvasView: NSView {
         super.keyDown(with: event)
     }
 
+    override func insertTab(_ sender: Any?) {
+        cycleSelection(forward: true)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        cycleSelection(forward: false)
+    }
+
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
+    }
+
+    func cycleSelection(forward: Bool) {
+        guard drag == nil else { return }
+        window?.makeFirstResponder(self)
+        selectedID = layout.cycledZoneID(from: selectedID, forward: forward)
     }
 
     private func createDefaultZone(at point: CGPoint) {
@@ -472,9 +507,9 @@ final class LayoutEditorCanvasView: NSView {
             setCanvasRect(secondID, pair.right)
             let x = CGFloat((pair.left.x + pair.left.width) * Double(w))
             if var edge = hoverEdge {
-                edge.grabber = CGPoint(x: x, y: point.y)
                 edge.seamStart.x = x
                 edge.seamEnd.x = x
+                edge.grabber = grabberAlongSeam(edge, point: CGPoint(x: x, y: point.y))
                 hoverEdge = edge
             }
         case .resizeHeight:
@@ -485,9 +520,9 @@ final class LayoutEditorCanvasView: NSView {
             setCanvasRect(secondID, pair.bottom)
             let y = CGFloat((1 - pair.top.y - pair.top.height) * Double(h))
             if var edge = hoverEdge {
-                edge.grabber = CGPoint(x: point.x, y: y)
                 edge.seamStart.y = y
                 edge.seamEnd.y = y
+                edge.grabber = grabberAlongSeam(edge, point: CGPoint(x: point.x, y: y))
                 hoverEdge = edge
             }
         case .resizeDiagonalNESW, .resizeDiagonalNWSE:
@@ -520,10 +555,11 @@ final class LayoutEditorCanvasView: NSView {
         }
         let onEdge: (EdgeInteraction, CGFloat) -> Void = { consider($0, distance: $1, slop: self.edgeSlop) }
 
-        for i in items.indices {
-            for j in items.indices where i != j {
-                considerVerticalPair(left: items[i], right: items[j], point: point, consider: onEdge)
-                considerHorizontalPair(top: items[i], bottom: items[j], point: point, consider: onEdge)
+        for seam in allSharedSeams(in: items) {
+            if let distance = linkedHitDistance(seam, point: point) {
+                var hit = seam
+                hit.grabber = grabberAlongSeam(seam, point: point)
+                consider(hit, distance: distance, slop: linkedEdgeSlop)
             }
         }
         for item in items {
@@ -567,62 +603,130 @@ final class LayoutEditorCanvasView: NSView {
         }
     }
 
-    private func considerVerticalPair(
-        left: (Zone, CGRect),
-        right: (Zone, CGRect),
-        point: CGPoint,
-        consider: (EdgeInteraction, CGFloat) -> Void
-    ) {
+    private func grabberAlongSeam(_ seam: EdgeInteraction, point: CGPoint) -> CGPoint {
+        switch seam.axis {
+        case .resizeWidth:
+            let lo = min(seam.seamStart.y, seam.seamEnd.y) + cornerClearance
+            let hi = max(seam.seamStart.y, seam.seamEnd.y) - cornerClearance
+            let y = lo <= hi ? min(max(point.y, lo), hi) : (seam.seamStart.y + seam.seamEnd.y) / 2
+            return CGPoint(x: seam.seamStart.x, y: y)
+        case .resizeHeight:
+            let lo = min(seam.seamStart.x, seam.seamEnd.x) + cornerClearance
+            let hi = max(seam.seamStart.x, seam.seamEnd.x) - cornerClearance
+            let x = lo <= hi ? min(max(point.x, lo), hi) : (seam.seamStart.x + seam.seamEnd.x) / 2
+            return CGPoint(x: x, y: seam.seamStart.y)
+        case .resizeDiagonalNESW, .resizeDiagonalNWSE:
+            return seam.grabber
+        }
+    }
+
+    private func rotation(for axis: SplitAxis) -> CGFloat {
+        switch axis {
+        case .resizeWidth: 0
+        case .resizeHeight: .pi / 2
+        case .resizeDiagonalNESW: .pi / 4
+        case .resizeDiagonalNWSE: -.pi / 4
+        }
+    }
+
+    private func outwardUnit(for handle: Handle) -> CGPoint {
+        switch handle {
+        case .e: CGPoint(x: 1, y: 0)
+        case .w: CGPoint(x: -1, y: 0)
+        case .n: CGPoint(x: 0, y: 1)
+        case .s: CGPoint(x: 0, y: -1)
+        case .ne: CGPoint(x: 1, y: 1)
+        case .nw: CGPoint(x: -1, y: 1)
+        case .se: CGPoint(x: 1, y: -1)
+        case .sw: CGPoint(x: -1, y: -1)
+        }
+    }
+
+    private func zoneRects() -> [(Zone, CGRect)] {
+        layout.zones.compactMap { zone in
+            let rect = viewRect(for: canvasRect(of: zone))
+            guard !rect.isNull, rect.width > 1, rect.height > 1 else { return nil }
+            return (zone, rect)
+        }
+    }
+
+    private func allSharedSeams(in items: [(Zone, CGRect)]? = nil) -> [EdgeInteraction] {
+        let items = items ?? zoneRects()
+        var result: [EdgeInteraction] = []
+        for i in items.indices {
+            for j in items.indices where i != j {
+                if let pair = verticalPair(left: items[i], right: items[j]) {
+                    result.append(pair)
+                }
+                if let pair = horizontalPair(top: items[i], bottom: items[j]) {
+                    result.append(pair)
+                }
+            }
+        }
+        return result
+    }
+
+    private func verticalPair(left: (Zone, CGRect), right: (Zone, CGRect)) -> EdgeInteraction? {
         let leftRect = left.1
         let rightRect = right.1
-        guard abs(leftRect.maxX - rightRect.minX) <= edgeSlop else { return }
+        guard abs(leftRect.maxX - rightRect.minX) <= edgeSlop else { return nil }
         let lo = max(leftRect.minY, rightRect.minY)
         let hi = min(leftRect.maxY, rightRect.maxY)
-        guard hi - lo >= minSeamOverlap else { return }
-        guard point.y >= lo + cornerClearance, point.y <= hi - cornerClearance else { return }
+        guard hi - lo >= minSeamOverlap else { return nil }
         let x = (leftRect.maxX + rightRect.minX) / 2
-        consider(
-            EdgeInteraction(
-                axis: .resizeWidth,
-                grabber: CGPoint(x: x, y: point.y),
-                seamStart: CGPoint(x: x, y: lo),
-                seamEnd: CGPoint(x: x, y: hi),
-                primaryID: left.0.id,
-                primaryHandle: .e,
-                neighborID: right.0.id,
-                neighborHandle: .w
-            ),
-            abs(point.x - x)
+        return EdgeInteraction(
+            axis: .resizeWidth,
+            grabber: CGPoint(x: x, y: (lo + hi) / 2),
+            seamStart: CGPoint(x: x, y: lo),
+            seamEnd: CGPoint(x: x, y: hi),
+            primaryID: left.0.id,
+            primaryHandle: .e,
+            neighborID: right.0.id,
+            neighborHandle: .w
         )
     }
 
-    private func considerHorizontalPair(
-        top: (Zone, CGRect),
-        bottom: (Zone, CGRect),
-        point: CGPoint,
-        consider: (EdgeInteraction, CGFloat) -> Void
-    ) {
+    private func horizontalPair(top: (Zone, CGRect), bottom: (Zone, CGRect)) -> EdgeInteraction? {
         let topRect = top.1
         let bottomRect = bottom.1
-        guard abs(topRect.minY - bottomRect.maxY) <= edgeSlop else { return }
+        guard abs(topRect.minY - bottomRect.maxY) <= edgeSlop else { return nil }
         let lo = max(topRect.minX, bottomRect.minX)
         let hi = min(topRect.maxX, bottomRect.maxX)
-        guard hi - lo >= minSeamOverlap else { return }
-        guard point.x >= lo + cornerClearance, point.x <= hi - cornerClearance else { return }
+        guard hi - lo >= minSeamOverlap else { return nil }
         let y = (topRect.minY + bottomRect.maxY) / 2
-        consider(
-            EdgeInteraction(
-                axis: .resizeHeight,
-                grabber: CGPoint(x: point.x, y: y),
-                seamStart: CGPoint(x: lo, y: y),
-                seamEnd: CGPoint(x: hi, y: y),
-                primaryID: top.0.id,
-                primaryHandle: .s,
-                neighborID: bottom.0.id,
-                neighborHandle: .n
-            ),
-            abs(point.y - y)
+        return EdgeInteraction(
+            axis: .resizeHeight,
+            grabber: CGPoint(x: (lo + hi) / 2, y: y),
+            seamStart: CGPoint(x: lo, y: y),
+            seamEnd: CGPoint(x: hi, y: y),
+            primaryID: top.0.id,
+            primaryHandle: .s,
+            neighborID: bottom.0.id,
+            neighborHandle: .n
         )
+    }
+
+    private func linkedHitDistance(_ seam: EdgeInteraction, point: CGPoint) -> CGFloat? {
+        let verticalSeam = seam.axis == .resizeWidth
+        if ResizeGlyph.linkedHitRect(center: seam.grabber, verticalSeam: verticalSeam).contains(point) {
+            return 0
+        }
+        switch seam.axis {
+        case .resizeWidth:
+            let lo = min(seam.seamStart.y, seam.seamEnd.y)
+            let hi = max(seam.seamStart.y, seam.seamEnd.y)
+            guard point.y >= lo + cornerClearance, point.y <= hi - cornerClearance else { return nil }
+            let distance = abs(point.x - seam.seamStart.x)
+            return distance <= linkedEdgeSlop ? distance : nil
+        case .resizeHeight:
+            let lo = min(seam.seamStart.x, seam.seamEnd.x)
+            let hi = max(seam.seamStart.x, seam.seamEnd.x)
+            guard point.x >= lo + cornerClearance, point.x <= hi - cornerClearance else { return nil }
+            let distance = abs(point.y - seam.seamStart.y)
+            return distance <= linkedEdgeSlop ? distance : nil
+        case .resizeDiagonalNESW, .resizeDiagonalNWSE:
+            return nil
+        }
     }
 
     private func considerSingleEdges(
@@ -862,27 +966,12 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func drawSplitHandle(_ edge: EdgeInteraction) {
-        switch edge.axis {
-        case .resizeWidth, .resizeHeight:
-            let seam = NSBezierPath()
-            seam.move(to: edge.seamStart)
-            seam.line(to: edge.seamEnd)
-            seam.lineWidth = 2
-            seam.lineCapStyle = .round
-            NSColor.white.withAlphaComponent(0.4).setStroke()
-            seam.stroke()
-        case .resizeDiagonalNESW, .resizeDiagonalNWSE:
-            break
+        switch edge.primaryHandle {
+        case .ne, .nw, .se, .sw:
+            ResizeGlyph.drawCornerPair(at: edge.seamStart, outward: outwardUnit(for: edge.primaryHandle))
+        default:
+            ResizeGlyph.drawPairedTicks(at: edge.grabber, rotation: rotation(for: edge.axis))
         }
-
-        let rotation: CGFloat
-        switch edge.axis {
-        case .resizeWidth: rotation = 0
-        case .resizeHeight: rotation = .pi / 2
-        case .resizeDiagonalNESW: rotation = .pi / 4
-        case .resizeDiagonalNWSE: rotation = -.pi / 4
-        }
-        ResizeGlyph.drawGrabber(at: edge.grabber, rotation: rotation)
     }
 
     private func drawCloseButton(in rect: CGRect, highlighted: Bool) {
@@ -906,45 +995,86 @@ final class LayoutEditorCanvasView: NSView {
     }
 }
 
-/// Shared edge/corner grabber: dark capsule + outlined chevrons, rotated to the axis.
+/// macOS Sequoia-style tiling ticks: two small black triangles with a white rim.
 private enum ResizeGlyph {
-    static func drawGrabber(at center: CGPoint, rotation: CGFloat) {
+    static let tickLength: CGFloat = 6.2
+    static let tickBase: CGFloat = 6.8
+    static let pairSpacing: CGFloat = 6.5
+
+    static func linkedHitRect(center: CGPoint, verticalSeam: Bool) -> CGRect {
+        let along: CGFloat = 22
+        let across: CGFloat = 28
+        if verticalSeam {
+            return CGRect(x: center.x - across / 2, y: center.y - along / 2, width: across, height: along)
+        }
+        return CGRect(x: center.x - along / 2, y: center.y - across / 2, width: along, height: across)
+    }
+
+    static func drawPairedTicks(at center: CGPoint, rotation: CGFloat) {
         NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.shouldAntialias = true
         let transform = NSAffineTransform()
         transform.translateX(by: center.x, yBy: center.y)
         transform.rotate(byRadians: rotation)
         transform.concat()
-        drawGrabberAtOrigin()
+        drawTick(at: CGPoint(x: -pairSpacing, y: 0), pointing: CGPoint(x: -1, y: 0))
+        drawTick(at: CGPoint(x: pairSpacing, y: 0), pointing: CGPoint(x: 1, y: 0))
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    static func drawGrabberAtOrigin() {
-        let pillRect = CGRect(x: -23, y: -13, width: 46, height: 26)
-        let pill = NSBezierPath(roundedRect: pillRect, xRadius: 13, yRadius: 13)
-        NSColor.black.withAlphaComponent(0.58).setFill()
-        pill.fill()
-        NSColor.white.withAlphaComponent(0.92).setStroke()
-        pill.lineWidth = 1
-        pill.stroke()
-        drawChevron(at: CGPoint(x: -8, y: 0), pointing: CGPoint(x: -1, y: 0), size: 5.5)
-        drawChevron(at: CGPoint(x: 8, y: 0), pointing: CGPoint(x: 1, y: 0), size: 5.5)
+    /// Two ticks wrapping the outside of a rounded corner, each pointing radially out.
+    /// NE (screenshot): one more to the right, one more to the top. Other corners are that
+    /// same quarter-circle, rotated.
+    static func drawCornerPair(at corner: CGPoint, outward: CGPoint) {
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.shouldAntialias = true
+        let ox: CGFloat = outward.x >= 0 ? 1 : -1
+        let oy: CGFloat = outward.y >= 0 ? 1 : -1
+        let inset: CGFloat = 3
+        let radius: CGFloat = 8
+        let distance = radius + 5.5
+        let body = CGPoint(x: corner.x - ox * inset, y: corner.y - oy * inset)
+        let cx = body.x - ox * radius
+        let cy = body.y - oy * radius
+
+        // 0° = east, 90° = north. Two angles near the corner peak.
+        let degrees: [CGFloat]
+        switch (ox > 0, oy > 0) {
+        case (true, true):   degrees = [34, 56]           // NE
+        case (false, true):  degrees = [124, 146]         // NW
+        case (true, false):  degrees = [-34, -56]         // SE
+        case (false, false): degrees = [180 + 34, 180 + 56] // SW
+        }
+
+        for deg in degrees {
+            let ang = deg * .pi / 180
+            let pos = CGPoint(x: cx + cos(ang) * distance, y: cy + sin(ang) * distance)
+            drawTick(at: pos, pointing: CGPoint(x: cos(ang), y: sin(ang)))
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 
-    static func drawChevron(at center: CGPoint, pointing dir: CGPoint, size: CGFloat) {
-        let perp = CGPoint(x: -dir.y, y: dir.x)
-        let tip = CGPoint(x: center.x + dir.x * size, y: center.y + dir.y * size)
-        let back = CGPoint(x: center.x - dir.x * size * 0.25, y: center.y - dir.y * size * 0.25)
-        let a = CGPoint(x: back.x + perp.x * size * 0.95, y: back.y + perp.y * size * 0.95)
-        let b = CGPoint(x: back.x - perp.x * size * 0.95, y: back.y - perp.y * size * 0.95)
+    static func drawTick(at center: CGPoint, pointing dir: CGPoint) {
+        let len = max(hypot(dir.x, dir.y), 0.001)
+        let d = CGPoint(x: dir.x / len, y: dir.y / len)
+        let p = CGPoint(x: -d.y, y: d.x)
+        let tip = CGPoint(x: center.x + d.x * tickLength * 0.62, y: center.y + d.y * tickLength * 0.62)
+        let back = CGPoint(x: center.x - d.x * tickLength * 0.38, y: center.y - d.y * tickLength * 0.38)
+        let a = CGPoint(x: back.x + p.x * tickBase * 0.5, y: back.y + p.y * tickBase * 0.5)
+        let b = CGPoint(x: back.x - p.x * tickBase * 0.5, y: back.y - p.y * tickBase * 0.5)
+
         let path = NSBezierPath()
         path.move(to: tip)
         path.line(to: a)
         path.line(to: b)
         path.close()
-        path.lineWidth = 1.6
         path.lineJoinStyle = .round
         path.lineCapStyle = .round
+
         NSColor.white.setStroke()
+        path.lineWidth = 1.4
         path.stroke()
+        NSColor.black.setFill()
+        path.fill()
     }
 }

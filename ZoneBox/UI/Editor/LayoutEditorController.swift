@@ -70,6 +70,9 @@ final class LayoutEditorController: NSObject {
         ])
 
         panel.onEscape = { [weak self] in self?.cancel() }
+        panel.onCycleZones = { [weak canvas] forward in
+            canvas?.cycleSelection(forward: forward)
+        }
         self.panel = panel
         self.canvas = canvas
         updateSaveState()
@@ -127,7 +130,7 @@ final class LayoutEditorController: NSObject {
         hint.drawsBackground = false
         hint.isSelectable = false
         hint.lineBreakMode = .byWordWrapping
-        hint.maximumNumberOfLines = 2
+        hint.maximumNumberOfLines = 3
         hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         hintLabel = hint
 
@@ -297,6 +300,7 @@ private final class EditorChipButton: NSButton {
         isBordered = false
         bezelStyle = .regularSquare
         setButtonType(.momentaryPushIn)
+        refusesFirstResponder = true
         imageHugsTitle = true
         imagePosition = symbol == nil ? .noImage : .imageLeading
         wantsLayer = true
