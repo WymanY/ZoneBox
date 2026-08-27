@@ -41,6 +41,17 @@ final class ShakeDetectorTests: XCTestCase {
         ]))
     }
 
+    func testSparseFourPointWiggleTriggersAtIntensityOne() {
+        let points = [
+            CGPoint(x: 100, y: 80),
+            CGPoint(x: 130, y: 80),
+            CGPoint(x: 100, y: 80),
+            CGPoint(x: 130, y: 80),
+        ]
+        XCTAssertTrue(ShakeDetector.isShake(points, intensity: 1))
+        XCTAssertFalse(ShakeDetector.isShake(points, intensity: 10))
+    }
+
     func testProfileClampsIntensity() {
         XCTAssertEqual(ShakeProfile.clampedIntensity(0), 1)
         XCTAssertEqual(ShakeProfile.clampedIntensity(11), 10)

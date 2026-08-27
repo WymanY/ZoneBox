@@ -41,12 +41,12 @@ public struct ShakeProfile: Equatable, Sendable {
         let reversals = Int((2 + t * 3).rounded())
         return ShakeProfile(
             minimumReversals: reversals,
-            minimumPathLength: 28 + t * 110,
-            maxNetToPathRatio: 0.70 - t * 0.38,
-            sampleEpsilon: 3 + t * 4,
-            reversalDistance: 8 + t * 18,
-            lookbackCount: Int((40 - t * 8).rounded()),
-            minimumSamples: max(6, reversals * 2)
+            minimumPathLength: 18 + t * 120,
+            maxNetToPathRatio: 0.85 - t * 0.50,
+            sampleEpsilon: 2 + t * 5,
+            reversalDistance: 5 + t * 21,
+            lookbackCount: Int((48 - t * 8).rounded()),
+            minimumSamples: max(4, reversals * 2)
         )
     }
 }
@@ -69,6 +69,8 @@ public enum ShakeDetector {
             min(24, profile.lookbackCount),
             min(16, profile.lookbackCount),
             min(12, profile.lookbackCount),
+            min(8, profile.lookbackCount),
+            min(4, profile.lookbackCount),
         ]
         var seen = Set<Int>()
         for raw in suffixLengths {
