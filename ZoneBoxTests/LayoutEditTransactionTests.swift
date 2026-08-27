@@ -105,4 +105,30 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(document.layout(for: displayID)?.id, layout.id)
         XCTAssertEqual(document.layouts.filter { $0.id == layout.id }.count, 1)
     }
+
+    func testCycledZoneIDWrapsInNumberOrder() {
+        let a = Zone(number: 1)
+        let b = Zone(number: 2)
+        let c = Zone(number: 3)
+        let layout = Layout(name: "Canvas", kind: .canvas, zones: [c, a, b])
+
+        XCTAssertEqual(layout.cycledZoneID(from: nil, forward: true), a.id)
+        XCTAssertEqual(layout.cycledZoneID(from: nil, forward: false), c.id)
+        XCTAssertEqual(layout.cycledZoneID(from: a.id, forward: true), b.id)
+        XCTAssertEqual(layout.cycledZoneID(from: b.id, forward: true), c.id)
+        XCTAssertEqual(layout.cycledZoneID(from: c.id, forward: true), a.id)
+        XCTAssertEqual(layout.cycledZoneID(from: a.id, forward: false), c.id)
+        XCTAssertEqual(layout.cycledZoneID(from: b.id, forward: false), a.id)
+    }
+
+    func testCycledZoneIDEmptyAndCreating() {
+        let empty = Layout(name: "Canvas", kind: .canvas, zones: [])
+        XCTAssertNil(empty.cycledZoneID(from: nil, forward: true))
+
+        let live = Zone(number: 1)
+        let creating = Zone(number: 2, name: "__creating")
+        let layout = Layout(name: "Canvas", kind: .canvas, zones: [live, creating])
+        XCTAssertEqual(layout.cycledZoneID(from: nil, forward: true), live.id)
+        XCTAssertEqual(layout.cycledZoneID(from: live.id, forward: true), live.id)
+    }
 }
