@@ -1,0 +1,74 @@
+name: ZoneBox
+options:
+  bundleIdPrefix: com.fancyzone
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    SWIFT_STRICT_CONCURRENCY: targeted
+    GENERATE_INFOPLIST_FILE: NO
+targets:
+  ZoneBoxCore:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: ZoneBox/Services/Logging.swift
+      # PR 2 adds Domain/, Geometry/, LayoutStore.swift, SettingsStore.swift.
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.fancyzone.ZoneBoxCore
+  ZoneBox:
+    type: application
+    platform: macOS
+    sources:
+      - path: ZoneBox
+        excludes:
+          - Domain/**
+          - Geometry/**
+          - Services/LayoutStore.swift
+          - Services/SettingsStore.swift
+          - Services/Logging.swift
+          - Resources/Info.plist
+          - ZoneBox.entitlements
+    dependencies:
+      - target: ZoneBoxCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fancyzone.app
+        PRODUCT_NAME: ZoneBox
+        INFOPLIST_FILE: ZoneBox/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: ZoneBox/ZoneBox.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+  ZoneBoxTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ZoneBoxTests
+    dependencies:
+      - target: ZoneBoxCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.fancyzone.ZoneBoxTests
+        # No TEST_HOST. Logic tests only. No @testable import of the app.
+schemes:
+  ZoneBox:
+    build:
+      targets:
+        ZoneBox: all
+        ZoneBoxCore: [test]
+        ZoneBoxTests: [test]
+    test:
+      targets:
+        - ZoneBoxTests

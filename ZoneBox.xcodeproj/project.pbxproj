@@ -1,0 +1,612 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */; };
+		1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494E5D36812C20CEC56C578D /* SettingsWindowController.swift */; };
+		30BBD31606521AA8D9527935 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ED48EADD1D174472389480 /* ScaffoldTests.swift */; };
+		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
+		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */; };
+		A86D44434E408A8320723282 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */; };
+		B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643D257C1C1C278B39EA9176 /* MenuBarController.swift */; };
+		C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D5122A337EC77F24071CC7 /* AppDelegate.swift */; };
+		F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4236C43CC31EA103E8850694 /* Logging.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B5D550E210CFF517FFDAE091 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D16EDF598CEDE32340C9B86 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 34957F99C581AFADBFF2869F;
+			remoteInfo = ZoneBoxCore;
+		};
+		EA5EB5758BCD0D1E824CE90D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D16EDF598CEDE32340C9B86 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 34957F99C581AFADBFF2869F;
+			remoteInfo = ZoneBoxCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
+		2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeScreen.swift; sourceTree = "<group>"; };
+		36B569B511A2E3DEC2BB1121 /* ZoneBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZoneBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4236C43CC31EA103E8850694 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
+		494E5D36812C20CEC56C578D /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		643D257C1C1C278B39EA9176 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libZoneBoxCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		A4ED48EADD1D174472389480 /* ScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaffoldTests.swift; sourceTree = "<group>"; };
+		AF32320082E685F5BED369E0 /* UISession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UISession.swift; sourceTree = "<group>"; };
+		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		54A021AAB45420BB27093351 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30BBD31606521AA8D9527935 /* libZoneBoxCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C70604BCB881E8DB1A595962 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		27CE8C9758D66D4083097A49 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */,
+				738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */,
+				36B569B511A2E3DEC2BB1121 /* ZoneBoxTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2E49790E858A83AE37D7BCF7 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				4236C43CC31EA103E8850694 /* Logging.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		3BC851061E9BEEB890BFCCDB /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				8CBB03C60CE2356FC34F7C5D /* Settings */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		402DEA4D53474B0EF61A6DBC = {
+			isa = PBXGroup;
+			children = (
+				7DD463F992E7CCD22B9A7CC9 /* ZoneBox */,
+				C41B2668B7FA27A16D22E3E4 /* ZoneBoxTests */,
+				27CE8C9758D66D4083097A49 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7DD463F992E7CCD22B9A7CC9 /* ZoneBox */ = {
+			isa = PBXGroup;
+			children = (
+				FD61F0ECCA9559F5CD8C7248 /* App */,
+				CCCEB5F9897AE848A8C27478 /* Resources */,
+				2E49790E858A83AE37D7BCF7 /* Services */,
+				3BC851061E9BEEB890BFCCDB /* UI */,
+			);
+			path = ZoneBox;
+			sourceTree = "<group>";
+		};
+		8CBB03C60CE2356FC34F7C5D /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				494E5D36812C20CEC56C578D /* SettingsWindowController.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		C41B2668B7FA27A16D22E3E4 /* ZoneBoxTests */ = {
+			isa = PBXGroup;
+			children = (
+				A4ED48EADD1D174472389480 /* ScaffoldTests.swift */,
+				F81C871383393D0659A6781B /* Fakes */,
+			);
+			path = ZoneBoxTests;
+			sourceTree = "<group>";
+		};
+		CCCEB5F9897AE848A8C27478 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F81C871383393D0659A6781B /* Fakes */ = {
+			isa = PBXGroup;
+			children = (
+				2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */,
+			);
+			path = Fakes;
+			sourceTree = "<group>";
+		};
+		FD61F0ECCA9559F5CD8C7248 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				C9D5122A337EC77F24071CC7 /* AppDelegate.swift */,
+				047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */,
+				643D257C1C1C278B39EA9176 /* MenuBarController.swift */,
+				AF32320082E685F5BED369E0 /* UISession.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		18CFFCF520871B109093650F /* ZoneBox */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A210754059D094F56ECA2294 /* Build configuration list for PBXNativeTarget "ZoneBox" */;
+			buildPhases = (
+				7C799E762D672A4396AA7A44 /* Sources */,
+				49E1E3B39EAD7D937A7F310F /* Resources */,
+				54A021AAB45420BB27093351 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3D26279BECA618B4AB5282AB /* PBXTargetDependency */,
+			);
+			name = ZoneBox;
+			packageProductDependencies = (
+			);
+			productName = ZoneBox;
+			productReference = 738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */;
+			productType = "com.apple.product-type.application";
+		};
+		34957F99C581AFADBFF2869F /* ZoneBoxCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 98BCF3518202ABC7E21908C0 /* Build configuration list for PBXNativeTarget "ZoneBoxCore" */;
+			buildPhases = (
+				A7538DCFA252D369B0DE8902 /* Sources */,
+				0352A45CCD247EB6D4E9CBC5 /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ZoneBoxCore;
+			packageProductDependencies = (
+			);
+			productName = ZoneBoxCore;
+			productReference = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		EBAC5156550B02AC2870C89C /* ZoneBoxTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB1380A9DA33ED0B255EAA44 /* Build configuration list for PBXNativeTarget "ZoneBoxTests" */;
+			buildPhases = (
+				BCEC6FD65EECBDF0720DBBBE /* Sources */,
+				C70604BCB881E8DB1A595962 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				53709D9EC00DF8E772281FF4 /* PBXTargetDependency */,
+			);
+			name = ZoneBoxTests;
+			packageProductDependencies = (
+			);
+			productName = ZoneBoxTests;
+			productReference = 36B569B511A2E3DEC2BB1121 /* ZoneBoxTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7D16EDF598CEDE32340C9B86 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = E615EBA9EB0D30408C5667FA /* Build configuration list for PBXProject "ZoneBox" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 402DEA4D53474B0EF61A6DBC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				18CFFCF520871B109093650F /* ZoneBox */,
+				34957F99C581AFADBFF2869F /* ZoneBoxCore */,
+				EBAC5156550B02AC2870C89C /* ZoneBoxTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		49E1E3B39EAD7D937A7F310F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A86D44434E408A8320723282 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0352A45CCD247EB6D4E9CBC5 /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7C799E762D672A4396AA7A44 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */,
+				077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */,
+				B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */,
+				1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */,
+				602C8EF6260E18480529C10D /* UISession.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7538DCFA252D369B0DE8902 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BCEC6FD65EECBDF0720DBBBE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */,
+				40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3D26279BECA618B4AB5282AB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 34957F99C581AFADBFF2869F /* ZoneBoxCore */;
+			targetProxy = B5D550E210CFF517FFDAE091 /* PBXContainerItemProxy */;
+		};
+		53709D9EC00DF8E772281FF4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 34957F99C581AFADBFF2869F /* ZoneBoxCore */;
+			targetProxy = EA5EB5758BCD0D1E824CE90D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0207F275787468C531FC8A8A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.ZoneBoxTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		126A4185AB8B64CBAF376B1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		27785E78C3D47F701B05D076 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.ZoneBoxTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		945A321E99BC84C26E06FD3F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.ZoneBoxCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		97AC1B5A33A4F24691209071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.ZoneBoxCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		A868501BEC784C4136AAE56D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ZoneBox/ZoneBox.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ZoneBox/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.app;
+				PRODUCT_NAME = ZoneBox;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F4CF205236E9C2E2AA85F4D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		FC3751A1D5577016A0F60FDF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ZoneBox/ZoneBox.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ZoneBox/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.fancyzone.app;
+				PRODUCT_NAME = ZoneBox;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		98BCF3518202ABC7E21908C0 /* Build configuration list for PBXNativeTarget "ZoneBoxCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97AC1B5A33A4F24691209071 /* Debug */,
+				945A321E99BC84C26E06FD3F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A210754059D094F56ECA2294 /* Build configuration list for PBXNativeTarget "ZoneBox" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC3751A1D5577016A0F60FDF /* Debug */,
+				A868501BEC784C4136AAE56D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BB1380A9DA33ED0B255EAA44 /* Build configuration list for PBXNativeTarget "ZoneBoxTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				27785E78C3D47F701B05D076 /* Debug */,
+				0207F275787468C531FC8A8A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E615EBA9EB0D30408C5667FA /* Build configuration list for PBXProject "ZoneBox" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				126A4185AB8B64CBAF376B1F /* Debug */,
+				F4CF205236E9C2E2AA85F4D1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7D16EDF598CEDE32340C9B86 /* Project object */;
+}
