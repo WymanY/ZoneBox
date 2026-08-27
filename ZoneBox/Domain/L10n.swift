@@ -68,8 +68,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutsSectionSnap
     case shortcutsSectionApp
     case shortcutsVoiceOverNote
+    case shortcutsSubtitle
     case shortcutOpenEditor
     case shortcutSnapZone
+    case shortcutSnapZones
     case shortcutPreviousZone
     case shortcutNextZone
     case shortcutCycleBackward
@@ -93,6 +95,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureOptionScroll
     case shortcutGestureShiftDrag
     case shortcutGestureRightClick
+    case shortcutGestureDrag
 
     case onboardingWindowTitle
     case onboardingTitle
@@ -259,32 +262,35 @@ public enum L10n {
         .shortcutsSectionEditor: "Layout Editor",
         .shortcutsSectionSnap: "Snap",
         .shortcutsSectionApp: "ZoneBox",
-        .shortcutsVoiceOverNote: "Control+Option global hotkeys pause automatically while VoiceOver is on, so they do not collide with VoiceOver commands.",
+        .shortcutsVoiceOverNote: "Control+Option global hotkeys pause automatically while VoiceOver is on.",
+        .shortcutsSubtitle: "Global actions use Control+Option",
         .shortcutOpenEditor: "Open layout editor",
-        .shortcutSnapZone: "Snap focused window to zone %d",
-        .shortcutPreviousZone: "Snap focused window to previous zone",
-        .shortcutNextZone: "Snap focused window to next zone",
-        .shortcutCycleBackward: "Cycle windows in the focused zone backward",
-        .shortcutCycleForward: "Cycle windows in the focused zone forward",
-        .shortcutUnsnap: "Unsnap focused window",
-        .shortcutShowShortcuts: "Show keyboard shortcuts",
+        .shortcutSnapZone: "Snap to zone %d",
+        .shortcutSnapZones: "Snap to zone",
+        .shortcutPreviousZone: "Previous zone",
+        .shortcutNextZone: "Next zone",
+        .shortcutCycleBackward: "Cycle window backward",
+        .shortcutCycleForward: "Cycle window forward",
+        .shortcutUnsnap: "Unsnap window",
+        .shortcutShowShortcuts: "Keyboard shortcuts",
         .shortcutEditorCancel: "Close editor",
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
-        .shortcutEditorDelete: "Delete selected zone",
+        .shortcutEditorDelete: "Delete zone",
         .shortcutEditorSave: "Save layout",
-        .shortcutEditorZoomHeight: "Scale selected zone height",
-        .shortcutEditorZoomWidth: "Scale selected zone width",
-        .shortcutEditorZoomBoth: "Scale selected zone",
+        .shortcutEditorZoomHeight: "Scale height",
+        .shortcutEditorZoomWidth: "Scale width",
+        .shortcutEditorZoomBoth: "Scale both",
         .shortcutSnapShiftDrag: "Snap while dragging",
-        .shortcutSnapRightClick: "Snap while dragging (alternate)",
-        .shortcutSettings: "Open settings",
+        .shortcutSnapRightClick: "Right-click while dragging",
+        .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
         .shortcutGestureScroll: "Scroll",
         .shortcutGestureShiftScroll: "⇧  Scroll",
         .shortcutGestureOptionScroll: "⌥  Scroll",
         .shortcutGestureShiftDrag: "⇧  drag",
         .shortcutGestureRightClick: "Right-click drag",
+        .shortcutGestureDrag: "Drag",
 
         .onboardingWindowTitle: "Enable Accessibility",
         .onboardingTitle: "Allow ZoneBox to arrange windows",
@@ -374,32 +380,35 @@ public enum L10n {
         .shortcutsSectionEditor: "布局编辑器",
         .shortcutsSectionSnap: "吸附",
         .shortcutsSectionApp: "ZoneBox",
-        .shortcutsVoiceOverNote: "开启 VoiceOver 时，Control+Option 全局快捷键会自动暂停，以免和 VoiceOver 命令冲突。",
+        .shortcutsVoiceOverNote: "开启 VoiceOver 时，Control+Option 全局快捷键会自动暂停。",
+        .shortcutsSubtitle: "全局操作使用 Control+Option",
         .shortcutOpenEditor: "打开布局编辑器",
-        .shortcutSnapZone: "将当前窗口吸附到分区 %d",
-        .shortcutPreviousZone: "将当前窗口吸附到上一分区",
-        .shortcutNextZone: "将当前窗口吸附到下一分区",
-        .shortcutCycleBackward: "在当前分区中循环到上一窗口",
-        .shortcutCycleForward: "在当前分区中循环到下一窗口",
-        .shortcutUnsnap: "取消吸附当前窗口",
-        .shortcutShowShortcuts: "显示键盘快捷键",
+        .shortcutSnapZone: "吸附到分区 %d",
+        .shortcutSnapZones: "吸附到分区",
+        .shortcutPreviousZone: "上一分区",
+        .shortcutNextZone: "下一分区",
+        .shortcutCycleBackward: "分区内上一窗口",
+        .shortcutCycleForward: "分区内下一窗口",
+        .shortcutUnsnap: "取消吸附",
+        .shortcutShowShortcuts: "键盘快捷键",
         .shortcutEditorCancel: "关闭编辑器",
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",
-        .shortcutEditorDelete: "删除选中分区",
+        .shortcutEditorDelete: "删除分区",
         .shortcutEditorSave: "保存布局",
-        .shortcutEditorZoomHeight: "缩放选中分区的高度",
-        .shortcutEditorZoomWidth: "缩放选中分区的宽度",
-        .shortcutEditorZoomBoth: "等比缩放选中分区",
+        .shortcutEditorZoomHeight: "缩放高度",
+        .shortcutEditorZoomWidth: "缩放宽度",
+        .shortcutEditorZoomBoth: "等比缩放",
         .shortcutSnapShiftDrag: "拖动时吸附",
-        .shortcutSnapRightClick: "拖动时吸附（备用）",
-        .shortcutSettings: "打开设置",
+        .shortcutSnapRightClick: "拖动时右键",
+        .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
         .shortcutGestureScroll: "滚动",
         .shortcutGestureShiftScroll: "⇧  滚动",
         .shortcutGestureOptionScroll: "⌥  滚动",
         .shortcutGestureShiftDrag: "⇧  拖动",
         .shortcutGestureRightClick: "拖动时右键",
+        .shortcutGestureDrag: "拖动",
 
         .onboardingWindowTitle: "开启辅助功能",
         .onboardingTitle: "允许 ZoneBox 排列窗口",
