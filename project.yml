@@ -1,6 +1,9 @@
 name: ZoneBox
 options:
+  minimumXcodeGenVersion: "2.45.0"
   bundleIdPrefix: com.fancyzone
+  xcodeVersion: "15.4"
+  projectFormat: xcode15_3
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true

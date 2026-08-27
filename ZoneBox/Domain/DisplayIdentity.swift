@@ -126,4 +126,13 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         assignments.removeAll { $0.space.displayID == displayID }
         assignments.append(LayoutAssignment(space: SpaceKey(displayID: displayID), layoutID: layoutID))
     }
+
+    public mutating func upsertAndAssign(_ layout: Layout, to displayID: DisplayIdentity.ID) {
+        if let index = layouts.firstIndex(where: { $0.id == layout.id }) {
+            layouts[index] = layout
+        } else {
+            layouts.append(layout)
+        }
+        assign(layoutID: layout.id, to: displayID)
+    }
 }
