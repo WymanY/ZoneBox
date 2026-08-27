@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -24,6 +24,7 @@
 		37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */; };
 		3800061B9853FA767026E3A7 /* Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */; };
 		40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ED48EADD1D174472389480 /* ScaffoldTests.swift */; };
+		427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */; };
 		4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */; };
 		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
@@ -63,6 +64,7 @@
 		E8405C23906B84C40461F26F /* WorkArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFE483F6CBDB37363637CAD /* WorkArea.swift */; };
 		E9BB1FDB1FFFFC4498CC1EBB /* DragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */; };
 		F0BE4D8C71D41A1780C7827C /* SnapEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */; };
+		F183E2D932109FB15D2E8C90 /* LayoutEditTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */; };
 		F7E6A2499A2E05798EE18CA0 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9D165C2B155D2E12A803AB /* L10n.swift */; };
 		F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4236C43CC31EA103E8850694 /* Logging.swift */; };
 		F9380732C4C78F9D2CAE183C /* AccessibilityClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */; };
@@ -91,6 +93,7 @@
 		047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
 		0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverterTests.swift; sourceTree = "<group>"; };
 		1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorController.swift; sourceTree = "<group>"; };
+		22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransactionTests.swift; sourceTree = "<group>"; };
 		2450A6958359F65AFC611957 /* HitTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitTester.swift; sourceTree = "<group>"; };
 		2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPanel.swift; sourceTree = "<group>"; };
 		2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeScreen.swift; sourceTree = "<group>"; };
@@ -140,6 +143,7 @@
 		DD96966B883ED6C884EED18A /* Zone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zone.swift; sourceTree = "<group>"; };
 		DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanel.swift; sourceTree = "<group>"; };
 		E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapMouseEvent.swift; sourceTree = "<group>"; };
+		E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransaction.swift; sourceTree = "<group>"; };
 		E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoom.swift; sourceTree = "<group>"; };
 		F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngine.swift; sourceTree = "<group>"; };
 		F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneOverlayView.swift; sourceTree = "<group>"; };
@@ -204,6 +208,7 @@
 				BA9D165C2B155D2E12A803AB /* L10n.swift */,
 				30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */,
 				D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */,
+				E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */,
 				9C17F30BC95D5A464046FA95 /* LayoutKind.swift */,
 				5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */,
 				E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */,
@@ -320,6 +325,7 @@
 			children = (
 				0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */,
 				F8EA118D2D34A6EEC039DF15 /* L10nTests.swift */,
+				22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */,
 				3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */,
 				A4ED48EADD1D174472389480 /* ScaffoldTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
@@ -424,11 +430,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 				};
 			};
 			buildConfigurationList = E615EBA9EB0D30408C5667FA /* Build configuration list for PBXProject "ZoneBox" */;
+			compatibilityVersion = "Xcode 15.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -437,7 +444,6 @@
 			);
 			mainGroup = 402DEA4D53474B0EF61A6DBC;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			productRefGroup = 27CE8C9758D66D4083097A49 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -523,6 +529,7 @@
 				F7E6A2499A2E05798EE18CA0 /* L10n.swift in Sources */,
 				4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */,
 				3800061B9853FA767026E3A7 /* Layout.swift in Sources */,
+				F183E2D932109FB15D2E8C90 /* LayoutEditTransaction.swift in Sources */,
 				C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */,
 				16A9CFD82CAD960109B04F29 /* LayoutStore.swift in Sources */,
 				27BF1033F4022038BB6FEBF0 /* LayoutTemplates.swift in Sources */,
@@ -550,6 +557,7 @@
 				01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */,
 				775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */,
 				2393021694C7E68CCE12916D /* L10nTests.swift in Sources */,
+				427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */,
 				37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */,
 				40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,

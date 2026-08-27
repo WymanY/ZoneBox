@@ -4,6 +4,8 @@ import ZoneBoxCore
 @MainActor
 final class LayoutEditorController: NSObject {
     private unowned let runtime: AppRuntime
+    private let targetDisplayID: DisplayIdentity.ID
+    private let isNew: Bool
     private var panel: EditorPanel?
     private var canvas: LayoutEditorCanvasView?
     private var toolbar: NSView?
@@ -11,13 +13,15 @@ final class LayoutEditorController: NSObject {
     private var cancelButton: EditorChipButton?
     private var presetButtons: [EditorChipButton] = []
     private var hintLabel: NSTextField?
-    private var original: Layout
-    private var working: Layout
+    private var protectionLabel: NSTextField?
+    private let original: Layout
+    private var transaction: LayoutEditTransaction?
 
-    init(runtime: AppRuntime, layout: Layout) {
+    init(runtime: AppRuntime, layout: Layout, targetDisplayID: DisplayIdentity.ID, isNew: Bool) {
         self.runtime = runtime
+        self.targetDisplayID = targetDisplayID
+        self.isNew = isNew
         self.original = layout
-        self.working = layout
         super.init()
     }
 
@@ -29,12 +33,18 @@ final class LayoutEditorController: NSObject {
         let panel = EditorPanel(screen: screen)
         let flip = runtime.displays.primaryFlipHeight
         let workAX = CoordinateConverter.axRect(fromAppKit: screen.visibleFrame, primaryFlipHeight: flip)
-        if working.kind == .grid {
-            working = (try? working.convertingGridToCanvas(workAreaAX: workAX)) ?? working
+        var draft = original
+        if draft.kind == .grid {
+            draft = (try? draft.convertingGridToCanvas(workAreaAX: workAX)) ?? draft
         }
+        transaction = LayoutEditTransaction(
+            original: isNew ? nil : original,
+            draft: draft,
+            targetDisplayID: targetDisplayID
+        )
 
-        let canvas = LayoutEditorCanvasView(layout: working, workAreaAX: workAX, primaryFlipHeight: flip)
-        canvas.onChange = { [weak self] layout in self?.working = layout }
+        let canvas = LayoutEditorCanvasView(layout: draft, workAreaAX: workAX, primaryFlipHeight: flip)
+        canvas.onChange = { [weak self] layout in self?.updateDraft(layout) }
         canvas.onCancel = { [weak self] in self?.cancel() }
         canvas.onInteractionChange = { [weak self] active in self?.setToolbarReceded(active) }
         canvas.translatesAutoresizingMaskIntoConstraints = false
@@ -62,7 +72,13 @@ final class LayoutEditorController: NSObject {
         panel.onEscape = { [weak self] in self?.cancel() }
         self.panel = panel
         self.canvas = canvas
+        updateSaveState()
         panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func activate() {
+        panel?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -87,7 +103,8 @@ final class LayoutEditorController: NSObject {
             presetButtons.append(button)
         }
 
-        let save = EditorChipButton(title: L10n.text(.editorSave), symbol: nil, target: self, action: #selector(save), kind: .save)
+        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
+        let save = EditorChipButton(title: saveTitle, symbol: nil, target: self, action: #selector(save), kind: .save)
         saveButton = save
         let cancel = EditorChipButton(title: L10n.text(.editorCancel), symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
         cancelButton = cancel
@@ -114,7 +131,20 @@ final class LayoutEditorController: NSObject {
         hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         hintLabel = hint
 
-        let column = NSStackView(views: [topRow, hint])
+        var rows: [NSView] = [topRow]
+        if !isNew && original.kind == .grid {
+            let protection = NSTextField(wrappingLabelWithString: L10n.text(.editorGridProtected))
+            protection.font = .systemFont(ofSize: 12, weight: .semibold)
+            protection.textColor = .systemOrange
+            protection.isBezeled = false
+            protection.drawsBackground = false
+            protection.isSelectable = false
+            protectionLabel = protection
+            rows.append(protection)
+        }
+        rows.append(hint)
+
+        let column = NSStackView(views: rows)
         column.orientation = .vertical
         column.alignment = .leading
         column.spacing = 8
@@ -130,11 +160,16 @@ final class LayoutEditorController: NSObject {
     }
 
     private func applyPreset(_ layout: Layout) {
-        working = layout
-        working.id = original.id
-        working.name = original.name
-        canvas?.layout = working
+        guard var transaction else { return }
+        var draft = layout
+        draft.id = transaction.draft.id
+        draft.name = transaction.draft.name
+        draft.createdAt = transaction.draft.createdAt
+        transaction.updateDraft(draft)
+        self.transaction = transaction
+        canvas?.layout = draft
         canvas?.needsDisplay = true
+        updateSaveState()
     }
 
     @objc private func presetColumns2() { applyPreset(LayoutTemplates.columns(2)) }
@@ -145,7 +180,13 @@ final class LayoutEditorController: NSObject {
     @objc private func presetFocus() { applyPreset(LayoutTemplates.focus()) }
 
     @objc private func save() {
-        runtime.saveLayout(working)
+        guard let transaction, transaction.canCommit else {
+            NSSound.beep()
+            return
+        }
+        if let layout = transaction.layoutForCommit(existingNames: runtime.document.layouts.map(\.name)) {
+            runtime.saveLayout(layout, to: transaction.targetDisplayID)
+        }
         dismiss()
     }
 
@@ -164,9 +205,25 @@ final class LayoutEditorController: NSObject {
         for (button, key) in zip(presetButtons, keys) {
             button.setChipTitle(L10n.text(key))
         }
-        saveButton?.setChipTitle(L10n.text(.editorSave))
+        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
+        saveButton?.setChipTitle(saveTitle)
         cancelButton?.setChipTitle(L10n.text(.editorCancel))
         hintLabel?.stringValue = L10n.text(.editorHint)
+        protectionLabel?.stringValue = L10n.text(.editorGridProtected)
+        updateSaveState()
+    }
+
+    private func updateDraft(_ layout: Layout) {
+        transaction?.updateDraft(layout)
+        updateSaveState()
+    }
+
+    private func updateSaveState() {
+        guard let transaction else { return }
+        saveButton?.isEnabled = transaction.canCommit
+        saveButton?.toolTip = transaction.canCommit
+            ? (!isNew && original.kind == .grid ? L10n.text(.editorSaveCopyTooltip) : L10n.text(.editorSaveTooltip))
+            : L10n.text(.editorSaveDisabledTooltip)
     }
 
     private func setToolbarReceded(_ receded: Bool) {
@@ -182,6 +239,12 @@ final class LayoutEditorController: NSObject {
         panel = nil
         canvas = nil
         toolbar = nil
+        saveButton = nil
+        cancelButton = nil
+        presetButtons = []
+        hintLabel = nil
+        protectionLabel = nil
+        transaction = nil
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
         runtime.editorDidClose()

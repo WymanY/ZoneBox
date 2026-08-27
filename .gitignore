@@ -9,5 +9,6 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 .idea/
+.codegraph/
 *.xccheckout
 *.xcscmblueprint

@@ -132,11 +132,15 @@ final class AppRuntime {
     }
 
     func openEditor() {
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main ?? NSScreen.screens[0]
-        let area = displays.area(containingAppKit: NSEvent.mouseLocation)
-        let layout = (area.flatMap { document.layout(for: $0.display.id) }) ?? document.layouts.first ?? LayoutTemplates.columns(2)
-        editor = LayoutEditorController(runtime: self, layout: layout)
-        editor?.show(on: screen)
+        guard editor == nil else {
+            editor?.activate()
+            return
+        }
+        guard let target = editorTarget() else { return }
+        let layout = document.layout(for: target.area.display.id)
+            ?? document.layouts.first
+            ?? LayoutTemplates.columns(2)
+        beginEditing(layout, isNew: false, target: target)
     }
 
     func editorDidClose() {
@@ -148,15 +152,8 @@ final class AppRuntime {
         editor?.cancelEditing()
     }
 
-    func saveLayout(_ layout: Layout) {
-        if let idx = document.layouts.firstIndex(where: { $0.id == layout.id }) {
-            document.layouts[idx] = layout
-        } else {
-            document.layouts.append(layout)
-        }
-        if let area = displays.area(containingAppKit: NSEvent.mouseLocation) {
-            document.assign(layoutID: layout.id, to: area.display.id)
-        }
+    func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) {
+        document.upsertAndAssign(layout, to: displayID)
         persist()
         menuBar?.reloadMenu()
     }
@@ -170,10 +167,42 @@ final class AppRuntime {
     }
 
     func newCanvasLayout() {
-        let layout = LayoutTemplates.emptyCanvas(name: "Canvas \(document.layouts.count + 1)")
-        document.layouts.append(layout)
-        selectLayout(layout)
-        openEditor()
+        guard editor == nil else {
+            editor?.activate()
+            return
+        }
+        guard let target = editorTarget() else { return }
+        let name = LayoutEditTransaction.uniqueName(
+            base: "Canvas \(document.layouts.count + 1)",
+            existingNames: document.layouts.map(\.name)
+        )
+        beginEditing(LayoutTemplates.emptyCanvas(name: name), isNew: true, target: target)
+    }
+
+    private typealias EditorTarget = (screen: NSScreen, area: WorkArea)
+
+    private func editorTarget() -> EditorTarget? {
+        let point = NSEvent.mouseLocation
+        guard let area = displays.area(containingAppKit: point) ?? displays.workAreas.first else { return nil }
+        let screen = NSScreen.screens.first(where: {
+            abs($0.frame.minX - area.frameAppKit.minX) < 1
+                && abs($0.frame.minY - area.frameAppKit.minY) < 1
+                && abs($0.frame.width - area.frameAppKit.width) < 1
+                && abs($0.frame.height - area.frameAppKit.height) < 1
+        }) ?? NSScreen.main ?? NSScreen.screens.first
+        guard let screen else { return nil }
+        return (screen, area)
+    }
+
+    private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
+        let controller = LayoutEditorController(
+            runtime: self,
+            layout: layout,
+            targetDisplayID: target.area.display.id,
+            isNew: isNew
+        )
+        editor = controller
+        controller.show(on: target.screen)
     }
 
     func previewZones() {
@@ -260,17 +289,18 @@ final class AppRuntime {
 
     private func observeSystem() {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let runtime = self else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.displays.refresh(document: &self.document)
-                self.overlay.rebuild(workAreas: self.displays.workAreas, screens: NSScreen.screens)
-                self.persist()
+                runtime.displays.refresh(document: &runtime.document)
+                runtime.overlay.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
+                runtime.persist()
             }
         }
         NotificationCenter.default.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
             let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            guard let runtime = self else { return }
             Task { @MainActor in
-                if let pid { self?.catalog.drop(pid: pid) }
+                if let pid { runtime.catalog.drop(pid: pid) }
             }
         }
         DistributedNotificationCenter.default().addObserver(
@@ -278,10 +308,12 @@ final class AppRuntime {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.overlay.hideAll() }
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.overlay.hideAll() }
         }
         NotificationCenter.default.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.overlay.hideAll() }
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.overlay.hideAll() }
         }
     }
 }
