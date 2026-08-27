@@ -15,6 +15,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var restoreCheckbox: NSButton?
     private var gutterLabel: NSTextField?
     private var hotkeysLabel: NSTextField?
+    private var shortcutsButton: NSButton?
     private var accessButton: NSButton?
     private var loginCheckbox: NSButton?
     private var languageLabel: NSTextField?
@@ -44,7 +45,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 520),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -117,6 +118,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(hotkeys)
         self.hotkeysLabel = hotkeys
 
+        let shortcuts = NSButton(
+            title: L10n.text(.settingsShowShortcuts),
+            target: self,
+            action: #selector(openShortcuts)
+        )
+        shortcuts.bezelStyle = .rounded
+        stack.addArrangedSubview(shortcuts)
+        self.shortcutsButton = shortcuts
+
         let access = NSButton(title: L10n.text(.settingsOpenAccess), target: self, action: #selector(openAccess))
         access.bezelStyle = .rounded
         stack.addArrangedSubview(access)
@@ -156,6 +166,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         restoreCheckbox?.title = L10n.text(.settingsRestoreSize)
         gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
         hotkeysLabel?.stringValue = L10n.text(.settingsHotkeys)
+        shortcutsButton?.title = L10n.text(.settingsShowShortcuts)
         accessButton?.title = L10n.text(.settingsOpenAccess)
         loginCheckbox?.title = L10n.text(.settingsLaunchAtLogin)
         languageLabel?.stringValue = L10n.text(.settingsLanguage)
@@ -198,6 +209,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func toggleNumbers(_ sender: NSButton) { runtime.settings.showZoneNumbers = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRestore(_ sender: NSButton) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func openAccess() { runtime.openAccessibility() }
+    @objc private func openShortcuts() { runtime.openShortcutPanel() }
 
     @objc private func gutterChanged(_ sender: NSSlider) {
         runtime.settings.gutterPoints = Int(sender.doubleValue.rounded())

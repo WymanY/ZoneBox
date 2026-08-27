@@ -35,7 +35,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var cycleBackwardHotkey: KeyChord
     public var unsnapHotkey: KeyChord
 
-    public static let controlOption: UInt32 = 0x1800
+    public static let controlOption: UInt32 = CarbonModifier.controlOption
 
     public static let `default` = AppSettings(
         schemaVersion: 1,

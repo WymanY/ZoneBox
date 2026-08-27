@@ -28,6 +28,7 @@
 		4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */; };
 		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
+		4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */; };
 		4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446A73B628D4176872A8FC46 /* SnapSession.swift */; };
 		5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */; };
 		5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */; };
@@ -40,6 +41,7 @@
 		7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */; };
 		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
 		7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */; };
+		89DE65C466B12BA30754A933 /* ShortcutCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */; };
 		910DE576C2672D6EFF044DB0 /* WindowQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45C50B2CD005428221B93EF9 /* WindowQuerying.swift */; };
 		937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */; };
 		97B317731ECAC7D2582CC02F /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */; };
@@ -52,6 +54,7 @@
 		B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */; };
 		B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */; };
 		B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643D257C1C1C278B39EA9176 /* MenuBarController.swift */; };
+		B7AAB59523BEBCBC389A65EA /* ShortcutPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0756C0918952DA1AA0B2E0 /* ShortcutPanelController.swift */; };
 		BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977E18A00CB22B850795CDAA /* NormalizedRect.swift */; };
 		BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A727A3139F1922D21AA08BFD /* ZoneSplit.swift */; };
 		C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D5122A337EC77F24071CC7 /* AppDelegate.swift */; };
@@ -109,6 +112,7 @@
 		494E5D36812C20CEC56C578D /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		4AEA7BDAE63EA3E83E0BD9E4 /* LayoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStore.swift; sourceTree = "<group>"; };
 		4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGWindowQuery.swift; sourceTree = "<group>"; };
+		5A0756C0918952DA1AA0B2E0 /* ShortcutPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutPanelController.swift; sourceTree = "<group>"; };
 		5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityClient.swift; sourceTree = "<group>"; };
 		5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutTemplates.swift; sourceTree = "<group>"; };
 		643D257C1C1C278B39EA9176 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
@@ -116,6 +120,7 @@
 		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		7EFE483F6CBDB37363637CAD /* WorkArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkArea.swift; sourceTree = "<group>"; };
+		8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalog.swift; sourceTree = "<group>"; };
 		8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libZoneBoxCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverter.swift; sourceTree = "<group>"; };
 		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
@@ -134,6 +139,7 @@
 		B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoomTests.swift; sourceTree = "<group>"; };
 		B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapTarget.swift; sourceTree = "<group>"; };
 		BA9D165C2B155D2E12A803AB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD0B8B1AA2CD7208340838FC /* Gutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gutter.swift; sourceTree = "<group>"; };
@@ -211,6 +217,7 @@
 				E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */,
 				9C17F30BC95D5A464046FA95 /* LayoutKind.swift */,
 				5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */,
+				8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */,
 				E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */,
 				446A73B628D4176872A8FC46 /* SnapSession.swift */,
 				A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */,
@@ -257,6 +264,7 @@
 				116660229A92E78EE02E1B2A /* Onboarding */,
 				44B9EB6803A213ECA69D3464 /* Overlay */,
 				8CBB03C60CE2356FC34F7C5D /* Settings */,
+				D6F091E6C67CD2BCE1451E30 /* Shortcuts */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -328,6 +336,7 @@
 				22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */,
 				3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */,
 				A4ED48EADD1D174472389480 /* ScaffoldTests.swift */,
+				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
 				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
 				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
@@ -342,6 +351,14 @@
 				CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		D6F091E6C67CD2BCE1451E30 /* Shortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				5A0756C0918952DA1AA0B2E0 /* ShortcutPanelController.swift */,
+			);
+			path = Shortcuts;
 			sourceTree = "<group>";
 		};
 		F81C871383393D0659A6781B /* Fakes */ = {
@@ -506,6 +523,7 @@
 				C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */,
 				5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */,
 				1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */,
+				B7AAB59523BEBCBC389A65EA /* ShortcutPanelController.swift in Sources */,
 				F0BE4D8C71D41A1780C7827C /* SnapEngine.swift in Sources */,
 				76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */,
 				602C8EF6260E18480529C10D /* UISession.swift in Sources */,
@@ -538,6 +556,7 @@
 				28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */,
 				AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */,
 				20720D2F728CA9DF1F78256A /* SettingsStore.swift in Sources */,
+				89DE65C466B12BA30754A933 /* ShortcutCatalog.swift in Sources */,
 				49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */,
 				4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */,
 				C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */,
@@ -560,6 +579,7 @@
 				427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */,
 				37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */,
 				40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */,
+				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
 				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
 				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,

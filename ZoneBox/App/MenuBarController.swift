@@ -25,6 +25,7 @@ final class MenuBarController: NSObject {
         }
         item.menu = makeMenu()
         statusItem = item
+        installApplicationMenu()
         updateTrustAppearance()
         Log.app.info("Status item installed (visible=\(item.isVisible, privacy: .public))")
     }
@@ -67,6 +68,43 @@ final class MenuBarController: NSObject {
 
     func reloadMenu() {
         statusItem?.menu = makeMenu()
+        installApplicationMenu()
+    }
+
+    private func installApplicationMenu() {
+        let appMenu = NSMenu()
+        let settings = NSMenuItem(
+            title: L10n.text(.menuSettings),
+            action: #selector(openSettings(_:)),
+            keyEquivalent: ","
+        )
+        settings.target = self
+        appMenu.addItem(settings)
+
+        let shortcuts = NSMenuItem(
+            title: L10n.text(.menuKeyboardShortcuts),
+            action: #selector(openShortcuts(_:)),
+            keyEquivalent: "/"
+        )
+        shortcuts.keyEquivalentModifierMask = [.control, .option]
+        shortcuts.target = self
+        appMenu.addItem(shortcuts)
+
+        appMenu.addItem(.separator())
+
+        let quit = NSMenuItem(
+            title: L10n.text(.menuQuit),
+            action: #selector(quit(_:)),
+            keyEquivalent: "q"
+        )
+        quit.target = self
+        appMenu.addItem(quit)
+
+        let appItem = NSMenuItem()
+        appItem.submenu = appMenu
+        let main = NSMenu()
+        main.addItem(appItem)
+        NSApp.mainMenu = main
     }
 
     private func makeMenu() -> NSMenu {
@@ -121,6 +159,15 @@ final class MenuBarController: NSObject {
         let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+
+        let shortcuts = NSMenuItem(
+            title: L10n.text(.menuKeyboardShortcuts),
+            action: #selector(openShortcuts(_:)),
+            keyEquivalent: "/"
+        )
+        shortcuts.keyEquivalentModifierMask = [.control, .option]
+        shortcuts.target = self
+        menu.addItem(shortcuts)
 
         menu.addItem(.separator())
 
@@ -179,6 +226,11 @@ final class MenuBarController: NSObject {
     @objc
     private func openSettings(_ sender: NSMenuItem) {
         runtime.openSettings()
+    }
+
+    @objc
+    private func openShortcuts(_ sender: NSMenuItem) {
+        runtime.openShortcutPanel()
     }
 
     @objc

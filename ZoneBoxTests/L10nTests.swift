@@ -25,6 +25,8 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.menuOpenEditor, language: .english), "Open Layout Editor")
         XCTAssertEqual(L10n.text(.menuOpenEditor, language: .chineseSimplified), "打开布局编辑器")
         XCTAssertEqual(L10n.text(.menuQuit, language: .chineseSimplified), "退出 ZoneBox")
+        XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .english), "Keyboard Shortcuts")
+        XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .chineseSimplified), "键盘快捷键")
     }
 
     func testLayoutDisplayNames() {

@@ -23,19 +23,6 @@ final class DragMonitor {
         } {
             monitors.append(local)
         }
-        if let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            guard event.keyCode == 53 else { return event }
-            // This monitor runs before the key window. Swallowing Escape here
-            // is why the layout editor never saw Esc.
-            if self?.runtime.isEditorOpen == true {
-                self?.runtime.cancelEditor()
-                return nil
-            }
-            self?.runtime.engine.cancelSession()
-            return nil
-        }) {
-            monitors.append(escape)
-        }
     }
 
     func stop() {

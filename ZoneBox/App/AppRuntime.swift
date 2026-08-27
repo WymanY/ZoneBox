@@ -27,6 +27,7 @@ final class AppRuntime {
     private var settingsWindow: SettingsWindowController?
     private var onboarding: OnboardingWindowController?
     private var editor: LayoutEditorController?
+    private var shortcutPanel: ShortcutPanelController?
 
     init() {
         ax = AccessibilityClientLive(
@@ -97,6 +98,7 @@ final class AppRuntime {
         drag.stop()
         hotkeys.stop()
         editor = nil
+        shortcutPanel?.close()
         onboarding?.close()
         settingsWindow?.close()
         menuBar?.remove()
@@ -151,6 +153,51 @@ final class AppRuntime {
 
     func cancelEditor() {
         editor?.cancelEditing()
+    }
+
+    var editorClaimsKeyboard: Bool {
+        guard isEditorOpen else { return false }
+        guard let key = NSApp.keyWindow else { return true }
+        return editor?.owns(key) == true
+    }
+
+    @discardableResult
+    func handleEditorKey(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains(.command) || flags.contains(.control) { return false }
+        return editor?.handleLocalKey(event) ?? false
+    }
+
+    func openShortcutPanel() {
+        if let shortcutPanel {
+            shortcutPanel.show()
+            return
+        }
+        let panel = ShortcutPanelController(runtime: self)
+        shortcutPanel = panel
+        uiSession.enterRegular()
+        panel.show()
+    }
+
+    func toggleShortcutPanel() {
+        if shortcutPanel != nil {
+            shortcutPanel?.close()
+            return
+        }
+        openShortcutPanel()
+    }
+
+    @discardableResult
+    func closeShortcutPanelIfOpen() -> Bool {
+        guard shortcutPanel != nil else { return false }
+        shortcutPanel?.close()
+        return true
+    }
+
+    func shortcutPanelDidClose() {
+        guard shortcutPanel != nil else { return }
+        shortcutPanel = nil
+        uiSession.leaveRegular()
     }
 
     func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) {
@@ -280,6 +327,7 @@ final class AppRuntime {
         settingsWindow?.applyLanguage()
         onboarding?.applyLanguage()
         editor?.applyLanguage()
+        shortcutPanel?.applyLanguage()
     }
 
     func setUILanguage(_ preference: AppLanguagePreference) {
