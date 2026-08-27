@@ -91,6 +91,41 @@ final class ShortcutCatalogTests: XCTestCase {
         }
     }
 
+    func testEscapePrefersKeyShortcutsPanelOverEditor() {
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(shortcutsPanelIsKey: true, editorClaimsKeyboard: true, appHasKeyWindow: true)
+            ),
+            .closeShortcuts
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(shortcutsPanelIsKey: false, editorClaimsKeyboard: true, appHasKeyWindow: true)
+            ),
+            .cancelEditor
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(shortcutsPanelIsKey: false, editorClaimsKeyboard: false, appHasKeyWindow: false)
+            ),
+            .cancelSnap
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(shortcutsPanelIsKey: false, editorClaimsKeyboard: false, appHasKeyWindow: true)
+            ),
+            .ignore
+        )
+    }
+
+    func testOnlyAdjacentAndCycleHotkeysRepeat() {
+        XCTAssertTrue(ShortcutCatalog.allowsKeyRepeat(hotkeyID: ShortcutCatalog.nextZoneHotkeyID))
+        XCTAssertTrue(ShortcutCatalog.allowsKeyRepeat(hotkeyID: ShortcutCatalog.cycleForwardHotkeyID))
+        XCTAssertFalse(ShortcutCatalog.allowsKeyRepeat(hotkeyID: ShortcutCatalog.shortcutsPanelHotkeyID))
+        XCTAssertFalse(ShortcutCatalog.allowsKeyRepeat(hotkeyID: ShortcutCatalog.editorHotkeyID))
+        XCTAssertFalse(ShortcutCatalog.allowsKeyRepeat(hotkeyID: 1))
+    }
+
     func testTrustExemptIDsDoNotRequireAccessibility() {
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.editorHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.shortcutsPanelHotkeyID))

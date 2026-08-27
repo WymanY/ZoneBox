@@ -48,7 +48,7 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         window.minSize = NSSize(width: 440, height: 360)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.level = .floating
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 3)
         window.center()
 
         let scroll = NSScrollView()

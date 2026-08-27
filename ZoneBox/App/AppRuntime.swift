@@ -122,16 +122,18 @@ final class AppRuntime {
     func openSettings() {
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(runtime: self)
+            uiSession.enterRegular()
         }
-        uiSession.enterRegular()
         settingsWindow?.showWindow()
     }
 
     func settingsDidClose() {
+        guard settingsWindow != nil else { return }
         settingsWindow = nil
         persistSettings()
         hotkeys.reregister()
         menuBar?.reloadMenu()
+        uiSession.leaveRegular()
     }
 
     func openEditor() {
@@ -187,9 +189,11 @@ final class AppRuntime {
         openShortcutPanel()
     }
 
+    var shortcutPanelIsKey: Bool { shortcutPanel?.isKey == true }
+
     @discardableResult
     func closeShortcutPanelIfOpen() -> Bool {
-        guard shortcutPanel != nil else { return false }
+        guard shortcutPanelIsKey else { return false }
         shortcutPanel?.close()
         return true
     }
@@ -198,6 +202,9 @@ final class AppRuntime {
         guard shortcutPanel != nil else { return }
         shortcutPanel = nil
         uiSession.leaveRegular()
+        if isEditorOpen {
+            editor?.activate()
+        }
     }
 
     func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) {

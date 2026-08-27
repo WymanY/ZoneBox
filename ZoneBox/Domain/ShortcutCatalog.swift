@@ -321,13 +321,29 @@ public enum ShortcutCatalog {
         carbonModifiers: UInt32,
         settings: AppSettings
     ) -> UInt32? {
-        for item in items(from: settings) {
-            guard let id = item.hotkeyID, case .chord(let chord) = item.binding else { continue }
-            if chord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers) {
-                return id
+        hotkeyID(matching: keyCode, carbonModifiers: carbonModifiers, chords: carbonHotkeys(from: settings))
+    }
+
+    public static func hotkeyID(
+        matching keyCode: UInt16,
+        carbonModifiers: UInt32,
+        chords: [(id: UInt32, chord: KeyChord)]
+    ) -> UInt32? {
+        for pair in chords {
+            if pair.chord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers) {
+                return pair.id
             }
         }
         return nil
+    }
+
+    public static func allowsKeyRepeat(hotkeyID: UInt32) -> Bool {
+        switch hotkeyID {
+        case previousZoneHotkeyID, nextZoneHotkeyID, cycleBackwardHotkeyID, cycleForwardHotkeyID:
+            true
+        default:
+            false
+        }
     }
 
     public static func grouped(from settings: AppSettings) -> [(surface: ShortcutSurface, items: [ShortcutSpec])] {
@@ -336,5 +352,31 @@ public enum ShortcutCatalog {
             let group = all.filter { $0.surface == surface }
             return group.isEmpty ? nil : (surface, group)
         }
+    }
+}
+
+public enum ShortcutEscapeAction: Equatable, Sendable {
+    case closeShortcuts
+    case cancelEditor
+    case cancelSnap
+    case ignore
+}
+
+public struct ShortcutRouteContext: Equatable, Sendable {
+    public var shortcutsPanelIsKey: Bool
+    public var editorClaimsKeyboard: Bool
+    public var appHasKeyWindow: Bool
+
+    public init(shortcutsPanelIsKey: Bool, editorClaimsKeyboard: Bool, appHasKeyWindow: Bool) {
+        self.shortcutsPanelIsKey = shortcutsPanelIsKey
+        self.editorClaimsKeyboard = editorClaimsKeyboard
+        self.appHasKeyWindow = appHasKeyWindow
+    }
+
+    public static func escapeAction(_ context: ShortcutRouteContext) -> ShortcutEscapeAction {
+        if context.shortcutsPanelIsKey { return .closeShortcuts }
+        if context.editorClaimsKeyboard { return .cancelEditor }
+        if !context.appHasKeyWindow { return .cancelSnap }
+        return .ignore
     }
 }

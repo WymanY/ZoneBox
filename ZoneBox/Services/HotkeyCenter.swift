@@ -44,10 +44,13 @@ final class HotkeyCenter {
     private var voiceOverObservation: NSKeyValueObservation?
     private var lastHandled: (id: UInt32, time: TimeInterval)?
     private var globalChordsEnabled = false
+    private var chordIndex: [(id: UInt32, chord: KeyChord)] = []
     private static weak var shared: HotkeyCenter?
 
     private static let signature: OSType = 0x5A424F58 // 'ZBOX'
-    private static let dedupWindow: TimeInterval = 0.2
+    /// Wide enough to collapse Carbon + NSEvent for one physical press, short
+    /// enough that a second Control+Option+/ can still toggle the panel.
+    private static let dedupWindow: TimeInterval = 0.05
 
     nonisolated static func dispatch(id: UInt32) {
         DispatchQueue.main.async {
@@ -82,11 +85,19 @@ final class HotkeyCenter {
         unregisterAll()
         removeMonitors()
         globalChordsEnabled = !NSWorkspace.shared.isVoiceOverEnabled
+        rebuildChordIndex()
         if globalChordsEnabled {
             registerAll()
         }
         installKeyMonitors()
         runtime.menuBar?.reloadMenu()
+    }
+
+    private func rebuildChordIndex() {
+        let trusted = runtime.trust.isTrusted()
+        chordIndex = ShortcutCatalog.carbonHotkeys(from: runtime.settings).filter { pair in
+            trusted || ShortcutCatalog.trustExemptIDs.contains(pair.id)
+        }
     }
 
     private func installCarbonHandlerIfNeeded() {
@@ -156,11 +167,11 @@ final class HotkeyCenter {
         }) {
             monitors.append(local)
         }
-        if globalChordsEnabled,
-           let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-               _ = self?.handleKeyEvent(event, consume: false)
-           })
-        {
+        // Always listen globally so Escape can cancel a snap while VoiceOver
+        // has Control+Option chords paused.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            _ = self?.handleKeyEvent(event, consume: false)
+        }) {
             monitors.append(global)
         }
     }
@@ -175,19 +186,29 @@ final class HotkeyCenter {
     @discardableResult
     private func handleKeyEvent(_ event: NSEvent, consume: Bool) -> NSEvent? {
         let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        if event.keyCode == HardwareKeyCode.escape {
+        if event.keyCode == HardwareKeyCode.escape, !flags.contains(.command), !flags.contains(.control) {
             if consume {
-                if runtime.closeShortcutPanelIfOpen() { return nil }
-                if runtime.editorClaimsKeyboard {
+                switch ShortcutRouteContext.escapeAction(
+                    ShortcutRouteContext(
+                        shortcutsPanelIsKey: runtime.shortcutPanelIsKey,
+                        editorClaimsKeyboard: runtime.editorClaimsKeyboard,
+                        appHasKeyWindow: NSApp.keyWindow != nil
+                    )
+                ) {
+                case .closeShortcuts:
+                    _ = runtime.closeShortcutPanelIfOpen()
+                    return nil
+                case .cancelEditor:
                     runtime.cancelEditor()
                     return nil
-                }
-                if NSApp.keyWindow == nil {
+                case .cancelSnap:
                     runtime.engine.cancelSession()
                     return nil
+                case .ignore:
+                    return event
                 }
-                return event
             }
             runtime.engine.cancelSession()
             return event
@@ -197,18 +218,26 @@ final class HotkeyCenter {
            let id = ShortcutCatalog.hotkeyID(
                matching: event.keyCode,
                carbonModifiers: modifiers,
-               settings: runtime.settings
+               chords: chordIndex
            )
         {
-            let allowed = runtime.trust.isTrusted() || ShortcutCatalog.trustExemptIDs.contains(id)
-            if allowed {
-                handle(id: id)
+            if event.isARepeat, !ShortcutCatalog.allowsKeyRepeat(hotkeyID: id) {
                 return consume ? nil : event
             }
+            handle(id: id)
+            return consume ? nil : event
         }
 
-        if consume, runtime.editorClaimsKeyboard, runtime.handleEditorKey(event) {
-            return nil
+        if consume, runtime.editorClaimsKeyboard {
+            if event.isARepeat, event.keyCode != HardwareKeyCode.tab {
+                return event.keyCode == HardwareKeyCode.delete
+                    || event.keyCode == HardwareKeyCode.forwardDelete
+                    || event.keyCode == HardwareKeyCode.return
+                    || event.keyCode == HardwareKeyCode.keypadEnter
+                    ? nil
+                    : event
+            }
+            if runtime.handleEditorKey(event) { return nil }
         }
 
         return event

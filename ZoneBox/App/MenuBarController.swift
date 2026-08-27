@@ -72,6 +72,7 @@ final class MenuBarController: NSObject {
     }
 
     private func installApplicationMenu() {
+        let voiceOver = NSWorkspace.shared.isVoiceOverEnabled
         let appMenu = NSMenu()
         let settings = NSMenuItem(
             title: L10n.text(.menuSettings),
@@ -84,9 +85,11 @@ final class MenuBarController: NSObject {
         let shortcuts = NSMenuItem(
             title: L10n.text(.menuKeyboardShortcuts),
             action: #selector(openShortcuts(_:)),
-            keyEquivalent: "/"
+            keyEquivalent: voiceOver ? "" : "/"
         )
-        shortcuts.keyEquivalentModifierMask = [.control, .option]
+        if !voiceOver {
+            shortcuts.keyEquivalentModifierMask = [.control, .option]
+        }
         shortcuts.target = self
         appMenu.addItem(shortcuts)
 
@@ -156,22 +159,21 @@ final class MenuBarController: NSObject {
         language.submenu = makeLanguageMenu()
         menu.addItem(language)
 
-        let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: ",")
+        let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
         let shortcuts = NSMenuItem(
             title: L10n.text(.menuKeyboardShortcuts),
             action: #selector(openShortcuts(_:)),
-            keyEquivalent: "/"
+            keyEquivalent: ""
         )
-        shortcuts.keyEquivalentModifierMask = [.control, .option]
         shortcuts.target = self
         menu.addItem(shortcuts)
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: L10n.text(.menuQuit), action: #selector(quit(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L10n.text(.menuQuit), action: #selector(quit(_:)), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 

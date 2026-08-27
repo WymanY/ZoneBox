@@ -28,14 +28,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func showWindow() {
         if window == nil { window = makeWindow() }
+        window?.level = runtime.isEditorOpen
+            ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 3)
+            : .normal
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func close() {
-        window?.delegate = nil
         window?.close()
-        window = nil
     }
 
     func windowWillClose(_ notification: Notification) {
