@@ -12,10 +12,16 @@ final class SnapEngine {
     private var stickyArm = false
     private var armOrigin: CGPoint?
     private var quickSnapperPhase: QuickSnapperPhase = .hidden
+    private var quickSnapperPending = false
+    private var quickSnapperSerial: Task<Void, Never>?
 
     unowned var runtime: AppRuntime!
 
-    var isQuickSnapperShowing: Bool { quickSnapperPhase == .showing }
+    var isQuickSnapperShowing: Bool {
+        if quickSnapperPending { return true }
+        if case .showing = quickSnapperPhase { return true }
+        return false
+    }
 
     func handleMouse(_ event: SnapMouseEvent) {
         if event.kind == .leftDown, isQuickSnapperShowing {
@@ -93,6 +99,25 @@ final class SnapEngine {
     }
 
     func handleQuickSnapper(_ event: QuickSnapperEvent) {
+        if case .invoke = event {
+            quickSnapperPending = true
+        }
+        let previous = quickSnapperSerial
+        quickSnapperSerial = Task { @MainActor in
+            await previous?.value
+            await self.runQuickSnapper(event)
+        }
+    }
+
+    /// Snapshot AX focus on invoke *before* the HUD activates. Digit snaps that
+    /// identity via `window(matching:)`, never `focusedWindow()` after key-sink.
+    private func runQuickSnapper(_ event: QuickSnapperEvent) async {
+        let invokeFocus: WindowIdentity?
+        if case .invoke = event {
+            invokeFocus = await runtime.ax.focusedWindow()?.identity
+        } else {
+            invokeFocus = nil
+        }
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
             ?? runtime.displays.workAreas.first
         let zones = runtime.resolvedZones(for: area)
@@ -104,10 +129,14 @@ final class SnapEngine {
             trusted: runtime.trust.isTrusted(),
             snapEnabled: runtime.settings.snapEnabled,
             isEditorOpen: runtime.isEditorOpen,
-            enabled: runtime.settings.quickSnapperEnabled
+            enabled: runtime.settings.quickSnapperEnabled,
+            focusedWindow: invokeFocus
         )
         let output = QuickSnapperReducer.reduce(input)
         quickSnapperPhase = output.phase
+        if case .hidden = output.phase {
+            quickSnapperPending = false
+        }
         for effect in output.effects {
             switch effect {
             case .showOverlay:
@@ -125,31 +154,36 @@ final class SnapEngine {
             case .hideOverlay:
                 runtime.overlay.hideAll()
                 runtime.noteQuickSnapperUI(showing: false)
-            case .snap(let number):
-                snapFocused(to: number)
+            case .snap(let identity, let number):
+                await snap(identity, to: number)
             }
         }
     }
 
     func snapFocused(to zoneNumber: Int) {
-        guard runtime.trust.isTrusted(), runtime.settings.snapEnabled else { return }
         Task { @MainActor in
             guard let window = await runtime.ax.focusedWindow() else { return }
-            let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-                ?? runtime.displays.workAreas.first
-            let zones = runtime.resolvedZones(for: area)
-            guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
-            let original = await runtime.ax.frame(of: window)
-            if let applied = await runtime.ax.setFrame(zone.frameAX, of: window), let original {
-                runtime.catalog.record(
-                    UnsnapRecord(
-                        identity: window.identity,
-                        originalFrameAX: original,
-                        snappedFrameAX: applied,
-                        zoneIDs: [zone.zoneID]
-                    )
+            await snap(window.identity, to: zoneNumber)
+        }
+    }
+
+    private func snap(_ identity: WindowIdentity, to zoneNumber: Int) async {
+        guard runtime.trust.isTrusted(), runtime.settings.snapEnabled else { return }
+        guard let window = await runtime.ax.window(matching: identity) else { return }
+        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+            ?? runtime.displays.workAreas.first
+        let zones = runtime.resolvedZones(for: area)
+        guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
+        let original = await runtime.ax.frame(of: window)
+        if let applied = await runtime.ax.setFrame(zone.frameAX, of: window), let original {
+            runtime.catalog.record(
+                UnsnapRecord(
+                    identity: identity,
+                    originalFrameAX: original,
+                    snappedFrameAX: applied,
+                    zoneIDs: [zone.zoneID]
                 )
-            }
+            )
         }
     }
 

@@ -2,7 +2,8 @@ import Foundation
 
 public enum QuickSnapperPhase: Equatable, Sendable {
     case hidden
-    case showing
+    /// `target` is the window focused at invoke, captured before any HUD activation.
+    case showing(target: WindowIdentity?)
 }
 
 public enum QuickSnapperEvent: Equatable, Sendable {
@@ -14,7 +15,7 @@ public enum QuickSnapperEvent: Equatable, Sendable {
 public enum QuickSnapperEffect: Equatable, Sendable {
     case showOverlay
     case hideOverlay
-    case snap(zoneNumber: Int)
+    case snap(WindowIdentity, zoneNumber: Int)
 }
 
 public struct QuickSnapperInput: Equatable, Sendable {
@@ -25,6 +26,8 @@ public struct QuickSnapperInput: Equatable, Sendable {
     public var snapEnabled: Bool
     public var isEditorOpen: Bool
     public var enabled: Bool
+    /// AX focused window at this event. Used on `.invoke` only; digit/dismiss ignore it.
+    public var focusedWindow: WindowIdentity?
 
     public init(
         phase: QuickSnapperPhase,
@@ -33,7 +36,8 @@ public struct QuickSnapperInput: Equatable, Sendable {
         trusted: Bool = true,
         snapEnabled: Bool = true,
         isEditorOpen: Bool = false,
-        enabled: Bool = true
+        enabled: Bool = true,
+        focusedWindow: WindowIdentity? = nil
     ) {
         self.phase = phase
         self.event = event
@@ -42,6 +46,7 @@ public struct QuickSnapperInput: Equatable, Sendable {
         self.snapEnabled = snapEnabled
         self.isEditorOpen = isEditorOpen
         self.enabled = enabled
+        self.focusedWindow = focusedWindow
     }
 }
 
@@ -67,17 +72,23 @@ public enum QuickSnapperReducer {
 
         switch input.event {
         case .invoke:
-            return QuickSnapperOutput(phase: .showing, effects: [.showOverlay])
+            return QuickSnapperOutput(
+                phase: .showing(target: input.focusedWindow),
+                effects: [.showOverlay]
+            )
         case .digit(let number):
-            guard input.phase == .showing else {
+            guard case .showing(let target) = input.phase else {
                 return QuickSnapperOutput(phase: input.phase, effects: [])
             }
             guard (1...9).contains(number), input.zoneNumbers.contains(number) else {
-                return QuickSnapperOutput(phase: .showing, effects: [])
+                return QuickSnapperOutput(phase: .showing(target: target), effects: [])
+            }
+            guard let target else {
+                return QuickSnapperOutput(phase: .showing(target: nil), effects: [])
             }
             return QuickSnapperOutput(
                 phase: .hidden,
-                effects: [.snap(zoneNumber: number), .hideOverlay]
+                effects: [.snap(target, zoneNumber: number), .hideOverlay]
             )
         case .dismiss:
             if input.phase == .hidden {

@@ -218,6 +218,14 @@ final class HotkeyCenter {
             return event
         }
 
+        if runtime.engine.isQuickSnapperShowing,
+           let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode),
+           !flags.contains(.command)
+        {
+            runtime.engine.handleQuickSnapper(.digit(number))
+            return consume ? nil : event
+        }
+
         if globalChordsEnabled,
            let id = ShortcutCatalog.hotkeyID(
                matching: event.keyCode,
@@ -229,14 +237,6 @@ final class HotkeyCenter {
                 return consume ? nil : event
             }
             handle(id: id)
-            return consume ? nil : event
-        }
-
-        if runtime.engine.isQuickSnapperShowing,
-           let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode),
-           !flags.contains(.command)
-        {
-            runtime.engine.handleQuickSnapper(.digit(number))
             return consume ? nil : event
         }
 
@@ -281,7 +281,11 @@ final class HotkeyCenter {
         case ShortcutCatalog.quickSnapperHotkeyID:
             runtime.engine.handleQuickSnapper(.invoke)
         case 1...9:
-            runtime.engine.snapFocused(to: Int(id))
+            if runtime.engine.isQuickSnapperShowing {
+                runtime.engine.handleQuickSnapper(.digit(Int(id)))
+            } else {
+                runtime.engine.snapFocused(to: Int(id))
+            }
         default:
             break
         }
