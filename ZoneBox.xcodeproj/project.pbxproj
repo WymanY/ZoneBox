@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -421,10 +421,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = E615EBA9EB0D30408C5667FA /* Build configuration list for PBXProject "ZoneBox" */;
-			compatibilityVersion = "Xcode 14.0";
+			compatibilityVersion = "Xcode 15.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -433,12 +435,12 @@
 			);
 			mainGroup = 402DEA4D53474B0EF61A6DBC;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
+			productRefGroup = 27CE8C9758D66D4083097A49 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				18CFFCF520871B109093650F /* ZoneBox */,
 				34957F99C581AFADBFF2869F /* ZoneBoxCore */,
+				18CFFCF520871B109093650F /* ZoneBox */,
 				EBAC5156550B02AC2870C89C /* ZoneBoxTests */,
 			);
 		};
