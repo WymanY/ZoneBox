@@ -94,6 +94,22 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
     }
 
+    func testLinearThenShakeArmsOverlay() {
+        let trace = ShakeDetectorTests.appendingShake(
+            ShakeDetectorTests.linearTrace(length: 400),
+            amplitude: 28,
+            cycles: 3
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
+        input.pointerTrace = trace
+        input.shakeToSnapEnabled = true
+        input.shakeIntensity = ShakeProfile.defaultIntensity
+        input.event.modifiers = []
+        input.event.locationAppKit = trace.last!
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
     func testShakeArmedDropAppliesZoneFrame() {
         let zone = ResolvedZone(
             zoneID: UUID(),

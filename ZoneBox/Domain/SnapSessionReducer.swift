@@ -268,7 +268,7 @@ public enum SnapSessionReducer {
         if input.snapOnShiftDrag && input.event.modifiers.contains(.shift) {
             return true
         }
-        if input.shakeToSnapEnabled && ShakeDetector.isShake(input.pointerTrace) {
+        if input.shakeToSnapEnabled && ShakeDetector.isShake(input.pointerTrace, intensity: input.shakeIntensity) {
             return true
         }
         return false

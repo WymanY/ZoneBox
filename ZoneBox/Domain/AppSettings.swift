@@ -16,6 +16,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var snapOnShiftDrag: Bool
     public var snapOnRightClickDrag: Bool
     public var shakeToSnapEnabled: Bool
+    public var shakeIntensity: Int
     public var quickSnapperEnabled: Bool
     public var magneticResizeEnabled: Bool
     public var magneticThresholdPoints: Int
@@ -47,6 +48,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         snapOnShiftDrag: true,
         snapOnRightClickDrag: true,
         shakeToSnapEnabled: true,
+        shakeIntensity: ShakeProfile.defaultIntensity,
         quickSnapperEnabled: true,
         magneticResizeEnabled: true,
         magneticThresholdPoints: 12,
@@ -95,6 +97,9 @@ extension AppSettings {
         snapOnShiftDrag = try c.decodeIfPresent(Bool.self, forKey: .snapOnShiftDrag) ?? defaults.snapOnShiftDrag
         snapOnRightClickDrag = try c.decodeIfPresent(Bool.self, forKey: .snapOnRightClickDrag) ?? defaults.snapOnRightClickDrag
         shakeToSnapEnabled = try c.decodeIfPresent(Bool.self, forKey: .shakeToSnapEnabled) ?? defaults.shakeToSnapEnabled
+        shakeIntensity = ShakeProfile.clampedIntensity(
+            try c.decodeIfPresent(Int.self, forKey: .shakeIntensity) ?? defaults.shakeIntensity
+        )
         quickSnapperEnabled = try c.decodeIfPresent(Bool.self, forKey: .quickSnapperEnabled) ?? defaults.quickSnapperEnabled
         magneticResizeEnabled = try c.decodeIfPresent(Bool.self, forKey: .magneticResizeEnabled) ?? defaults.magneticResizeEnabled
         magneticThresholdPoints = try c.decodeIfPresent(Int.self, forKey: .magneticThresholdPoints) ?? defaults.magneticThresholdPoints

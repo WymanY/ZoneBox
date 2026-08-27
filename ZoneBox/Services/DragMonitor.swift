@@ -6,6 +6,7 @@ final class DragMonitor {
     unowned var runtime: AppRuntime!
     private var monitors: [Any] = []
     private let query = CGWindowQuery()
+    private var bufferedDrags: [SnapMouseEvent] = []
 
     func start() {
         stop()
@@ -50,13 +51,39 @@ final class DragMonitor {
         let location = NSEvent.mouseLocation
         let mouse = SnapMouseEvent(kind: kind, locationAppKit: location, modifiers: Self.modifiers(event))
         if kind == .leftDown {
+            bufferedDrags.removeAll()
             Task { @MainActor in
                 await captureWindow(at: location)
                 runtime.engine.handleMouse(mouse)
+                let queued = bufferedDrags
+                bufferedDrags.removeAll()
+                for queuedEvent in queued {
+                    runtime.engine.handleMouse(queuedEvent)
+                }
             }
             return
         }
-        if kind == .leftDragged || kind == .leftUp, let window = runtime.pendingWindow {
+        if kind == .leftDragged {
+            if runtime.pendingWindow == nil {
+                bufferedDrags.append(mouse)
+                if bufferedDrags.count > 48 {
+                    bufferedDrags.removeFirst(bufferedDrags.count - 48)
+                }
+                return
+            }
+            // Feed pointer samples immediately. Waiting on AX every drag
+            // coalesces a shake into one late location and never arms.
+            runtime.engine.handleMouse(mouse)
+            let window = runtime.pendingWindow
+            Task { @MainActor in
+                if let window {
+                    runtime.pendingFrame = await runtime.ax.frame(of: window)
+                }
+            }
+            return
+        }
+        if kind == .leftUp, let window = runtime.pendingWindow {
+            bufferedDrags.removeAll()
             Task { @MainActor in
                 runtime.pendingFrame = await runtime.ax.frame(of: window)
                 runtime.engine.handleMouse(mouse)

@@ -61,6 +61,7 @@ public struct SnapReducerInput: Equatable, Sendable {
     public var snapOnShiftDrag: Bool
     public var snapOnRightClickDrag: Bool
     public var shakeToSnapEnabled: Bool
+    public var shakeIntensity: Int
     public var pointerTrace: [CGPoint]
     public var stickyArm: Bool
     public var armOriginAppKit: CGPoint?
@@ -89,6 +90,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         snapOnShiftDrag: Bool = true,
         snapOnRightClickDrag: Bool = true,
         shakeToSnapEnabled: Bool = true,
+        shakeIntensity: Int = ShakeProfile.defaultIntensity,
         pointerTrace: [CGPoint] = [],
         stickyArm: Bool = false,
         armOriginAppKit: CGPoint? = nil,
@@ -116,6 +118,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.snapOnShiftDrag = snapOnShiftDrag
         self.snapOnRightClickDrag = snapOnRightClickDrag
         self.shakeToSnapEnabled = shakeToSnapEnabled
+        self.shakeIntensity = shakeIntensity
         self.pointerTrace = pointerTrace
         self.stickyArm = stickyArm
         self.armOriginAppKit = armOriginAppKit

@@ -51,6 +51,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsShiftDrag
     case settingsRightClick
     case settingsShakeToSnap
+    case settingsShakeIntensity
+    case settingsShakeIntensityHint
     case settingsQuickSnapper
     case settingsMagneticResize
     case settingsShowNumbers
@@ -167,6 +169,10 @@ public enum L10n {
         String(format: text(.settingsGutter, language: language), locale: language.locale, points)
     }
 
+    public static func shakeIntensity(_ value: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.settingsShakeIntensity, language: language), locale: language.locale, value)
+    }
+
     public static func columns(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
         if language == .chineseSimplified {
             switch count {
@@ -256,6 +262,8 @@ public enum L10n {
         .settingsShiftDrag: "Hold Shift while dragging to snap",
         .settingsRightClick: "Right-click while dragging to snap",
         .settingsShakeToSnap: "Shake the title bar while dragging to snap",
+        .settingsShakeIntensity: "Shake force: %d",
+        .settingsShakeIntensityHint: "Lower is easier to trigger",
         .settingsQuickSnapper: "Quick Snapper (Control+Option+Space, then 1–9)",
         .settingsMagneticResize: "Magnet window edges to zones while resizing",
         .settingsShowNumbers: "Show zone numbers",
@@ -384,6 +392,8 @@ public enum L10n {
         .settingsShiftDrag: "拖动窗口时按住 Shift 吸附",
         .settingsRightClick: "拖动窗口时右键吸附",
         .settingsShakeToSnap: "拖动标题栏时左右晃动即可吸附",
+        .settingsShakeIntensity: "晃动力度：%d",
+        .settingsShakeIntensityHint: "数值越小越容易触发",
         .settingsQuickSnapper: "快速吸附（Control+Option+空格，再按 1–9）",
         .settingsMagneticResize: "缩放窗口时边缘吸附到分区",
         .settingsShowNumbers: "显示分区编号",

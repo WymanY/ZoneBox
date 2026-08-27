@@ -61,6 +61,7 @@ final class SnapEngine {
             snapOnShiftDrag: runtime.settings.snapOnShiftDrag,
             snapOnRightClickDrag: runtime.settings.snapOnRightClickDrag,
             shakeToSnapEnabled: runtime.settings.shakeToSnapEnabled,
+            shakeIntensity: runtime.settings.shakeIntensity,
             pointerTrace: pointerTrace,
             stickyArm: stickyArm,
             armOriginAppKit: armOrigin,

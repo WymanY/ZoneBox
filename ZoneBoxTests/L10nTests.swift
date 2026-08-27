@@ -44,6 +44,11 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.gutter(12, language: .chineseSimplified), "间距：12 点")
     }
 
+    func testShakeIntensityFormat() {
+        XCTAssertEqual(L10n.shakeIntensity(3, language: .english), "Shake force: 3")
+        XCTAssertEqual(L10n.shakeIntensity(3, language: .chineseSimplified), "晃动力度：3")
+    }
+
     func testPreferenceOverridesSystem() {
         XCTAssertEqual(
             LanguageCenter.resolveEffective(preference: .english, preferred: ["zh-Hans"]),
