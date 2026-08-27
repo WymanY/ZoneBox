@@ -78,11 +78,19 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     private func startPolling() {
         stopPolling()
-        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
+        let timer = Timer(
+            timeInterval: 0.5,
+            target: self,
+            selector: #selector(pollTimerFired(_:)),
+            userInfo: nil,
+            repeats: true
+        )
         RunLoop.main.add(timer, forMode: .common)
         poll = timer
+        tick()
+    }
+
+    @objc private func pollTimerFired(_ timer: Timer) {
         tick()
     }
 
