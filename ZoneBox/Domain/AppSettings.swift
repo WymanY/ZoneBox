@@ -15,6 +15,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var snapEnabled: Bool
     public var snapOnShiftDrag: Bool
     public var snapOnRightClickDrag: Bool
+    public var shakeToSnapEnabled: Bool
+    public var quickSnapperEnabled: Bool
+    public var magneticResizeEnabled: Bool
+    public var magneticThresholdPoints: Int
     public var gutterPoints: Int
     public var overlapPolicy: OverlapPolicy
     public var showZoneNumbers: Bool
@@ -42,6 +46,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         snapEnabled: true,
         snapOnShiftDrag: true,
         snapOnRightClickDrag: true,
+        shakeToSnapEnabled: true,
+        quickSnapperEnabled: true,
+        magneticResizeEnabled: true,
+        magneticThresholdPoints: 12,
         gutterPoints: 16,
         overlapPolicy: .smallestArea,
         showZoneNumbers: true,
@@ -86,6 +94,10 @@ extension AppSettings {
         snapEnabled = try c.decodeIfPresent(Bool.self, forKey: .snapEnabled) ?? defaults.snapEnabled
         snapOnShiftDrag = try c.decodeIfPresent(Bool.self, forKey: .snapOnShiftDrag) ?? defaults.snapOnShiftDrag
         snapOnRightClickDrag = try c.decodeIfPresent(Bool.self, forKey: .snapOnRightClickDrag) ?? defaults.snapOnRightClickDrag
+        shakeToSnapEnabled = try c.decodeIfPresent(Bool.self, forKey: .shakeToSnapEnabled) ?? defaults.shakeToSnapEnabled
+        quickSnapperEnabled = try c.decodeIfPresent(Bool.self, forKey: .quickSnapperEnabled) ?? defaults.quickSnapperEnabled
+        magneticResizeEnabled = try c.decodeIfPresent(Bool.self, forKey: .magneticResizeEnabled) ?? defaults.magneticResizeEnabled
+        magneticThresholdPoints = try c.decodeIfPresent(Int.self, forKey: .magneticThresholdPoints) ?? defaults.magneticThresholdPoints
         gutterPoints = try c.decodeIfPresent(Int.self, forKey: .gutterPoints) ?? defaults.gutterPoints
         overlapPolicy = try c.decodeIfPresent(OverlapPolicy.self, forKey: .overlapPolicy) ?? defaults.overlapPolicy
         showZoneNumbers = try c.decodeIfPresent(Bool.self, forKey: .showZoneNumbers) ?? defaults.showZoneNumbers

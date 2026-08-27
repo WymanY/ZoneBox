@@ -5,6 +5,7 @@ import ZoneBoxCore
 final class OverlayController {
     private var panels: [UUID: OverlayPanel] = [:]
     private var views: [UUID: ZoneOverlayView] = [:]
+    private var keySink: NSWindow?
     var settings: AppSettings = .default
     var primaryFlipHeight: CGFloat = 0
 
@@ -27,31 +28,46 @@ final class OverlayController {
         }
     }
 
-    func show(displayID: UUID, zones: [ResolvedZone], highlight: SnapTarget) {
+    func show(
+        displayID: UUID,
+        zones: [ResolvedZone],
+        highlight: SnapTarget,
+        forceNumbers: Bool = false,
+        captureKeys: Bool = false
+    ) {
         hideAll()
         guard let panel = panels[displayID], let view = views[displayID] else { return }
         view.zones = zones
-        view.showNumbers = settings.showZoneNumbers
+        view.showNumbers = forceNumbers || settings.showZoneNumbers
         view.inactiveOpacity = settings.inactiveFillOpacity
         view.activeOpacity = settings.activeFillOpacity
         view.primaryFlipHeight = primaryFlipHeight
-        if case .zone(let zone) = highlight {
-            view.highlightID = zone.zoneID
-        } else {
-            view.highlightID = nil
-        }
+        applyHighlight(view, highlight)
         view.needsDisplay = true
         panel.orderFrontRegardless()
+        if captureKeys {
+            grabKeys()
+        }
     }
 
     func highlight(_ target: SnapTarget) {
         for view in views.values {
-            if case .zone(let zone) = target {
-                view.highlightID = zone.zoneID
-            } else {
-                view.highlightID = nil
-            }
+            applyHighlight(view, target)
             view.needsDisplay = true
+        }
+    }
+
+    private func applyHighlight(_ view: ZoneOverlayView, _ target: SnapTarget) {
+        switch target {
+        case .none:
+            view.highlightID = nil
+            view.highlightFrameAX = nil
+        case .zone(let zone):
+            view.highlightID = zone.zoneID
+            view.highlightFrameAX = nil
+        case .span(let frameAX, _):
+            view.highlightID = nil
+            view.highlightFrameAX = frameAX
         }
     }
 
@@ -59,5 +75,34 @@ final class OverlayController {
         for panel in panels.values {
             panel.orderOut(nil)
         }
+        releaseKeys()
     }
+
+    private func grabKeys() {
+        if keySink == nil {
+            let window = OverlayKeySinkWindow(
+                contentRect: NSRect(x: -64, y: -64, width: 8, height: 8),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = false
+            window.ignoresMouseEvents = true
+            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 2)
+            window.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .transient, .fullScreenAuxiliary]
+            keySink = window
+        }
+        keySink?.makeKeyAndOrderFront(nil)
+    }
+
+    private func releaseKeys() {
+        keySink?.orderOut(nil)
+    }
+}
+
+private final class OverlayKeySinkWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

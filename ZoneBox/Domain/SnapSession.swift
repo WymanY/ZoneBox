@@ -60,6 +60,15 @@ public struct SnapReducerInput: Equatable, Sendable {
     public var overlapPolicy: OverlapPolicy
     public var snapOnShiftDrag: Bool
     public var snapOnRightClickDrag: Bool
+    public var shakeToSnapEnabled: Bool
+    public var pointerTrace: [CGPoint]
+    public var stickyArm: Bool
+    public var armOriginAppKit: CGPoint?
+    public var gridCells: [GridCell]
+    public var gridGutter: CGFloat
+    public var gridWorkAreaAX: CGRect
+    public var magneticResizeEnabled: Bool
+    public var magneticThreshold: CGFloat
 
     public init(
         phase: SnapSessionPhase,
@@ -78,7 +87,16 @@ public struct SnapReducerInput: Equatable, Sendable {
         restoreSizeOnUnsnap: Bool = true,
         overlapPolicy: OverlapPolicy = .smallestArea,
         snapOnShiftDrag: Bool = true,
-        snapOnRightClickDrag: Bool = true
+        snapOnRightClickDrag: Bool = true,
+        shakeToSnapEnabled: Bool = true,
+        pointerTrace: [CGPoint] = [],
+        stickyArm: Bool = false,
+        armOriginAppKit: CGPoint? = nil,
+        gridCells: [GridCell] = [],
+        gridGutter: CGFloat = 0,
+        gridWorkAreaAX: CGRect = .null,
+        magneticResizeEnabled: Bool = true,
+        magneticThreshold: CGFloat = MagneticResize.defaultThreshold
     ) {
         self.phase = phase
         self.event = event
@@ -97,6 +115,15 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.overlapPolicy = overlapPolicy
         self.snapOnShiftDrag = snapOnShiftDrag
         self.snapOnRightClickDrag = snapOnRightClickDrag
+        self.shakeToSnapEnabled = shakeToSnapEnabled
+        self.pointerTrace = pointerTrace
+        self.stickyArm = stickyArm
+        self.armOriginAppKit = armOriginAppKit
+        self.gridCells = gridCells
+        self.gridGutter = gridGutter
+        self.gridWorkAreaAX = gridWorkAreaAX
+        self.magneticResizeEnabled = magneticResizeEnabled
+        self.magneticThreshold = magneticThreshold
     }
 }
 

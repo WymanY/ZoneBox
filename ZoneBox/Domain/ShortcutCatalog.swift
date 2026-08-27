@@ -156,6 +156,7 @@ public enum ShortcutCatalog {
     public static let cycleForwardHotkeyID: UInt32 = 104
     public static let unsnapHotkeyID: UInt32 = 105
     public static let shortcutsPanelHotkeyID: UInt32 = 106
+    public static let quickSnapperHotkeyID: UInt32 = 107
 
     /// IDs that must fire even when Accessibility is not granted.
     public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID]
@@ -211,6 +212,15 @@ public enum ShortcutCatalog {
                 hotkeyID: shortcutsPanelHotkeyID,
                 binding: .chord(
                     KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: settings.editorHotkey.carbonModifiers)
+                )
+            ),
+            ShortcutSpec(
+                id: "quickSnapper",
+                surface: .global,
+                titleKey: .shortcutQuickSnapper,
+                hotkeyID: quickSnapperHotkeyID,
+                binding: .chord(
+                    KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: settings.editorHotkey.carbonModifiers)
                 )
             ),
         ]
@@ -293,6 +303,24 @@ public enum ShortcutCatalog {
                 binding: .gesture(.shortcutGestureRightClick)
             ),
             ShortcutSpec(
+                id: "shakeToSnap",
+                surface: .snap,
+                titleKey: .shortcutSnapShake,
+                binding: .gesture(.shortcutGestureShake)
+            ),
+            ShortcutSpec(
+                id: "gridDraw",
+                surface: .snap,
+                titleKey: .shortcutSnapGridDraw,
+                binding: .gesture(.shortcutGestureGridDraw)
+            ),
+            ShortcutSpec(
+                id: "magneticResize",
+                surface: .snap,
+                titleKey: .shortcutSnapMagneticResize,
+                binding: .gesture(.shortcutGestureMagneticResize)
+            ),
+            ShortcutSpec(
                 id: "settings",
                 surface: .application,
                 titleKey: .shortcutSettings,
@@ -358,6 +386,7 @@ public enum ShortcutCatalog {
 public enum ShortcutEscapeAction: Equatable, Sendable {
     case closeShortcuts
     case cancelEditor
+    case dismissQuickSnapper
     case cancelSnap
     case ignore
 }
@@ -366,16 +395,24 @@ public struct ShortcutRouteContext: Equatable, Sendable {
     public var shortcutsPanelIsKey: Bool
     public var editorClaimsKeyboard: Bool
     public var appHasKeyWindow: Bool
+    public var quickSnapperShowing: Bool
 
-    public init(shortcutsPanelIsKey: Bool, editorClaimsKeyboard: Bool, appHasKeyWindow: Bool) {
+    public init(
+        shortcutsPanelIsKey: Bool,
+        editorClaimsKeyboard: Bool,
+        appHasKeyWindow: Bool,
+        quickSnapperShowing: Bool = false
+    ) {
         self.shortcutsPanelIsKey = shortcutsPanelIsKey
         self.editorClaimsKeyboard = editorClaimsKeyboard
         self.appHasKeyWindow = appHasKeyWindow
+        self.quickSnapperShowing = quickSnapperShowing
     }
 
     public static func escapeAction(_ context: ShortcutRouteContext) -> ShortcutEscapeAction {
         if context.shortcutsPanelIsKey { return .closeShortcuts }
         if context.editorClaimsKeyboard { return .cancelEditor }
+        if context.quickSnapperShowing { return .dismissQuickSnapper }
         if !context.appHasKeyWindow { return .cancelSnap }
         return .ignore
     }

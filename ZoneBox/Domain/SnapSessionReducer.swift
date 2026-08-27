@@ -44,6 +44,9 @@ public enum SnapSessionReducer {
                 return SnapReducerOutput(phase: .resizing, effects: [])
             }
             if hasMoved(input, originAX: originAX) {
+                if shouldArm(input) {
+                    return arm(window, input: input)
+                }
                 return SnapReducerOutput(phase: .dragging(window), effects: [])
             }
             return SnapReducerOutput(phase: input.phase, effects: [])
@@ -62,8 +65,10 @@ public enum SnapSessionReducer {
 
     private static func reduceLeftUp(_ input: SnapReducerInput) -> SnapReducerOutput {
         switch input.phase {
-        case .idle, .mouseDown, .resizing:
+        case .idle, .mouseDown:
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
+        case .resizing:
+            return reduceResizeUp(input)
         case .dragging(let window):
             if input.restoreSizeOnUnsnap,
                let record = input.unsnapRecord,
@@ -77,24 +82,25 @@ public enum SnapSessionReducer {
             }
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
         case .armed, .highlighting:
-            if case .zone(let zone) = currentTarget(input), let window = currentWindow(input.phase) {
-                var effects: [SnapEffect] = [.applyFrame(window, zone.frameAX), .hideOverlay]
-                if input.unsnapRecord == nil, let original = input.downFrameAX {
-                    effects.insert(
-                        .recordUnsnap(
-                            UnsnapRecord(
-                                identity: window,
-                                originalFrameAX: original,
-                                snappedFrameAX: zone.frameAX,
-                                zoneIDs: [zone.zoneID]
-                            )
-                        ),
-                        at: 0
-                    )
-                }
-                return SnapReducerOutput(phase: .idle, effects: effects)
+            let target = currentTarget(input)
+            guard let frame = target.frameAX, let window = currentWindow(input.phase) else {
+                return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
             }
-            return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
+            var effects: [SnapEffect] = [.applyFrame(window, frame), .hideOverlay]
+            if input.unsnapRecord == nil, let original = input.downFrameAX {
+                effects.insert(
+                    .recordUnsnap(
+                        UnsnapRecord(
+                            identity: window,
+                            originalFrameAX: original,
+                            snappedFrameAX: frame,
+                            zoneIDs: target.unsnapZoneIDs
+                        )
+                    ),
+                    at: 0
+                )
+            }
+            return SnapReducerOutput(phase: .idle, effects: effects)
         }
     }
 
@@ -119,7 +125,7 @@ public enum SnapSessionReducer {
         case .dragging(let window) where shift && input.snapOnShiftDrag:
             return arm(window, input: input)
         case .armed, .highlighting:
-            if !shift {
+            if !shift && !input.stickyArm {
                 if let window = currentWindow(input.phase) {
                     return SnapReducerOutput(phase: .dragging(window), effects: [.hideOverlay])
                 }
@@ -132,6 +138,27 @@ public enum SnapSessionReducer {
         }
     }
 
+    private static func reduceResizeUp(_ input: SnapReducerInput) -> SnapReducerOutput {
+        var effects: [SnapEffect] = [.hideOverlay]
+        if input.magneticResizeEnabled,
+           let window = input.window,
+           let original = input.downFrameAX,
+           let current = input.currentFrameAX
+        {
+            let snapped = MagneticResize.snap(
+                original: original,
+                current: current,
+                zoneFramesAX: input.resolvedZones.map(\.frameAX),
+                threshold: input.magneticThreshold,
+                workAreaAX: magneticWorkAreaAX(input)
+            )
+            if snapped != current {
+                effects.insert(.applyFrame(window, snapped), at: 0)
+            }
+        }
+        return SnapReducerOutput(phase: .idle, effects: effects)
+    }
+
     private static func arm(_ window: WindowIdentity, input: SnapReducerInput) -> SnapReducerOutput {
         let target = currentTarget(input)
         let displayID = cursorDisplayID(input)
@@ -140,10 +167,10 @@ public enum SnapSessionReducer {
             effects.append(.showOverlay(displayID: displayID))
         }
         effects.append(.highlight(target))
-        if case .zone = target {
-            return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
+        if case .none = target {
+            return SnapReducerOutput(phase: .armed(window), effects: effects)
         }
-        return SnapReducerOutput(phase: .armed(window), effects: effects)
+        return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
     }
 
     private static func highlight(_ input: SnapReducerInput) -> SnapReducerOutput {
@@ -158,7 +185,49 @@ public enum SnapSessionReducer {
             fromAppKit: input.event.locationAppKit,
             primaryFlipHeight: input.primaryFlipHeight
         )
+        if let span = gridSpanTarget(input, currentAX: point) {
+            return span
+        }
         return HitTester(policy: input.overlapPolicy).target(at: point, zones: input.resolvedZones)
+    }
+
+    private static func gridSpanTarget(_ input: SnapReducerInput, currentAX: CGPoint) -> SnapTarget? {
+        guard !input.gridCells.isEmpty, let originAppKit = input.armOriginAppKit else { return nil }
+        let originAX = CoordinateConverter.axPoint(
+            fromAppKit: originAppKit,
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        let drag = CGRect(
+            x: min(originAX.x, currentAX.x),
+            y: min(originAX.y, currentAX.y),
+            width: abs(currentAX.x - originAX.x),
+            height: abs(currentAX.y - originAX.y)
+        )
+        // Point-sized hover stays on HitTester so one cell still highlights as a zone.
+        let spanThreshold: CGFloat = 4
+        guard drag.width >= spanThreshold || drag.height >= spanThreshold else { return nil }
+        guard let union = GridCoverage.unionFrameAX(
+            dragRectAX: drag,
+            cells: input.gridCells,
+            gutter: input.gridGutter,
+            workAreaAX: input.gridWorkAreaAX
+        ) else {
+            return .none
+        }
+        if let zone = input.resolvedZones.first(where: { rectsApproximatelyEqual($0.frameAX, union) }) {
+            return .zone(zone)
+        }
+        let ids = input.resolvedZones
+            .filter { $0.frameAX.intersects(union) }
+            .map(\.zoneID)
+        return .span(frameAX: union, zoneIDs: ids)
+    }
+
+    private static func rectsApproximatelyEqual(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) < 0.5
+            && abs(a.minY - b.minY) < 0.5
+            && abs(a.width - b.width) < 0.5
+            && abs(a.height - b.height) < 0.5
     }
 
     private static func cursorDisplayID(_ input: SnapReducerInput) -> UUID? {
@@ -196,7 +265,29 @@ public enum SnapSessionReducer {
     }
 
     private static func shouldArm(_ input: SnapReducerInput) -> Bool {
-        (input.snapOnShiftDrag && input.event.modifiers.contains(.shift))
+        if input.snapOnShiftDrag && input.event.modifiers.contains(.shift) {
+            return true
+        }
+        if input.shakeToSnapEnabled && ShakeDetector.isShake(input.pointerTrace) {
+            return true
+        }
+        return false
+    }
+
+    private static func magneticWorkAreaAX(_ input: SnapReducerInput) -> CGRect? {
+        let flip = input.primaryFlipHeight
+        let pointAppKit: CGPoint
+        if let current = input.currentFrameAX {
+            pointAppKit = CoordinateConverter.appKitPoint(
+                fromAX: CGPoint(x: current.midX, y: current.midY),
+                primaryFlipHeight: flip
+            )
+        } else {
+            pointAppKit = input.event.locationAppKit
+        }
+        let area = input.workAreas.first { $0.containsAppKitPoint(pointAppKit) } ?? input.workAreas.first
+        guard let area else { return nil }
+        return CoordinateConverter.axRect(fromAppKit: area.visibleFrameAppKit, primaryFlipHeight: flip)
     }
 
     private static func clamp(_ rect: CGRect, to workAreas: [WorkArea], flip: CGFloat) -> CGRect {

@@ -194,7 +194,8 @@ final class HotkeyCenter {
                     ShortcutRouteContext(
                         shortcutsPanelIsKey: runtime.shortcutPanelIsKey,
                         editorClaimsKeyboard: runtime.editorClaimsKeyboard,
-                        appHasKeyWindow: NSApp.keyWindow != nil
+                        appHasKeyWindow: NSApp.keyWindow != nil,
+                        quickSnapperShowing: runtime.engine.isQuickSnapperShowing
                     )
                 ) {
                 case .closeShortcuts:
@@ -202,6 +203,9 @@ final class HotkeyCenter {
                     return nil
                 case .cancelEditor:
                     runtime.cancelEditor()
+                    return nil
+                case .dismissQuickSnapper:
+                    runtime.engine.handleQuickSnapper(.dismiss)
                     return nil
                 case .cancelSnap:
                     runtime.engine.cancelSession()
@@ -225,6 +229,14 @@ final class HotkeyCenter {
                 return consume ? nil : event
             }
             handle(id: id)
+            return consume ? nil : event
+        }
+
+        if runtime.engine.isQuickSnapperShowing,
+           let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode),
+           !flags.contains(.command)
+        {
+            runtime.engine.handleQuickSnapper(.digit(number))
             return consume ? nil : event
         }
 
@@ -266,6 +278,8 @@ final class HotkeyCenter {
             runtime.engine.unsnapFocused()
         case ShortcutCatalog.shortcutsPanelHotkeyID:
             runtime.toggleShortcutPanel()
+        case ShortcutCatalog.quickSnapperHotkeyID:
+            runtime.engine.handleQuickSnapper(.invoke)
         case 1...9:
             runtime.engine.snapFocused(to: Int(id))
         default:

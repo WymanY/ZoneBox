@@ -8,14 +8,34 @@ final class SnapEngine {
     private var downFrame: CGRect?
     private var activeWindow: WindowIdentity?
     private var lastZones: [ResolvedZone] = []
+    private var pointerTrace: [CGPoint] = []
+    private var stickyArm = false
+    private var armOrigin: CGPoint?
+    private var quickSnapperPhase: QuickSnapperPhase = .hidden
 
     unowned var runtime: AppRuntime!
 
+    var isQuickSnapperShowing: Bool { quickSnapperPhase == .showing }
+
     func handleMouse(_ event: SnapMouseEvent) {
+        if event.kind == .leftDown, isQuickSnapperShowing {
+            handleQuickSnapper(.dismiss)
+        }
         let cursorArea = runtime.displays.area(containingAppKit: event.locationAppKit)
         let zones = runtime.resolvedZones(for: cursorArea)
         lastZones = zones
         let window = activeWindow ?? runtime.pendingWindow?.identity
+        if event.kind == .leftDown {
+            pointerTrace = [event.locationAppKit]
+            stickyArm = false
+            armOrigin = nil
+        } else if event.kind == .leftDragged {
+            pointerTrace.append(event.locationAppKit)
+            if pointerTrace.count > 64 {
+                pointerTrace.removeFirst(pointerTrace.count - 64)
+            }
+        }
+        let grid = runtime.gridCoverage(for: cursorArea)
         let input = SnapReducerInput(
             phase: phase,
             event: event,
@@ -33,7 +53,16 @@ final class SnapEngine {
             restoreSizeOnUnsnap: runtime.settings.restoreSizeOnUnsnap,
             overlapPolicy: runtime.settings.overlapPolicy,
             snapOnShiftDrag: runtime.settings.snapOnShiftDrag,
-            snapOnRightClickDrag: runtime.settings.snapOnRightClickDrag
+            snapOnRightClickDrag: runtime.settings.snapOnRightClickDrag,
+            shakeToSnapEnabled: runtime.settings.shakeToSnapEnabled,
+            pointerTrace: pointerTrace,
+            stickyArm: stickyArm,
+            armOriginAppKit: armOrigin,
+            gridCells: grid.cells,
+            gridGutter: grid.gutter,
+            gridWorkAreaAX: grid.workAreaAX,
+            magneticResizeEnabled: runtime.settings.magneticResizeEnabled,
+            magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints)
         )
         if event.kind == .leftDown {
             downLocation = event.locationAppKit
@@ -41,14 +70,64 @@ final class SnapEngine {
             activeWindow = runtime.pendingWindow?.identity
         }
         let output = SnapSessionReducer.reduce(input)
+        if isArmed(output.phase) {
+            if armOrigin == nil {
+                armOrigin = event.locationAppKit
+            }
+            if !event.modifiers.contains(.shift) {
+                stickyArm = true
+            }
+        }
         phase = output.phase
         apply(output.effects)
         if phase == .idle {
             activeWindow = nil
             downFrame = nil
             downLocation = nil
+            pointerTrace = []
+            stickyArm = false
+            armOrigin = nil
             runtime.pendingWindow = nil
             runtime.pendingFrame = nil
+        }
+    }
+
+    func handleQuickSnapper(_ event: QuickSnapperEvent) {
+        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+            ?? runtime.displays.workAreas.first
+        let zones = runtime.resolvedZones(for: area)
+        lastZones = zones
+        let input = QuickSnapperInput(
+            phase: quickSnapperPhase,
+            event: event,
+            zoneNumbers: Set(zones.map(\.number)),
+            trusted: runtime.trust.isTrusted(),
+            snapEnabled: runtime.settings.snapEnabled,
+            isEditorOpen: runtime.isEditorOpen,
+            enabled: runtime.settings.quickSnapperEnabled
+        )
+        let output = QuickSnapperReducer.reduce(input)
+        quickSnapperPhase = output.phase
+        for effect in output.effects {
+            switch effect {
+            case .showOverlay:
+                guard let area else { break }
+                runtime.noteQuickSnapperUI(showing: true)
+                runtime.overlay.settings = runtime.settings
+                runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
+                runtime.overlay.show(
+                    displayID: area.display.id,
+                    zones: zones,
+                    highlight: .none,
+                    forceNumbers: true,
+                    captureKeys: true
+                )
+            case .hideOverlay:
+                runtime.overlay.hideAll()
+                runtime.noteQuickSnapperUI(showing: false)
+            case .snap(let number):
+                snapFocused(to: number)
+            }
         }
     }
 
@@ -103,6 +182,21 @@ final class SnapEngine {
         phase = .idle
         runtime.overlay.hideAll()
         activeWindow = nil
+        pointerTrace = []
+        stickyArm = false
+        armOrigin = nil
+        if isQuickSnapperShowing {
+            handleQuickSnapper(.dismiss)
+        }
+    }
+
+    private func isArmed(_ phase: SnapSessionPhase) -> Bool {
+        switch phase {
+        case .armed, .highlighting:
+            true
+        default:
+            false
+        }
     }
 
     private func apply(_ effects: [SnapEffect]) {
