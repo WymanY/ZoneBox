@@ -264,17 +264,18 @@ final class AppRuntime {
 
     private func observeSystem() {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let runtime = self else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.displays.refresh(document: &self.document)
-                self.overlay.rebuild(workAreas: self.displays.workAreas, screens: NSScreen.screens)
-                self.persist()
+                runtime.displays.refresh(document: &runtime.document)
+                runtime.overlay.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
+                runtime.persist()
             }
         }
         NotificationCenter.default.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
             let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            guard let runtime = self else { return }
             Task { @MainActor in
-                if let pid { self?.catalog.drop(pid: pid) }
+                if let pid { runtime.catalog.drop(pid: pid) }
             }
         }
         DistributedNotificationCenter.default().addObserver(
@@ -282,10 +283,12 @@ final class AppRuntime {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.overlay.hideAll() }
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.overlay.hideAll() }
         }
         NotificationCenter.default.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.overlay.hideAll() }
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.overlay.hideAll() }
         }
     }
 }
