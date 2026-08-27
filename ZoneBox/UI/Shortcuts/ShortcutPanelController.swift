@@ -181,6 +181,10 @@ private final class KeyCapView: NSView {
         addSubview(label)
 
         let minWidth: CGFloat = wide ? 84 : 26
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
@@ -199,6 +203,4 @@ private final class KeyCapView: NSView {
     }
 
     override var wantsUpdateLayer: Bool { true }
-
-    override var intrinsicContentSize: NSSize { fittingSize }
 }
