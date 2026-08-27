@@ -19,8 +19,16 @@ targets:
     type: library.static
     platform: macOS
     sources:
+      - path: ZoneBox/Domain
+        excludes:
+          - ".gitkeep"
+      - path: ZoneBox/Geometry
+        excludes:
+          - ".gitkeep"
       - path: ZoneBox/Services/Logging.swift
-      # PR 2 adds Domain/, Geometry/, LayoutStore.swift, SettingsStore.swift.
+      - path: ZoneBox/Services/JSONCoding.swift
+      - path: ZoneBox/Services/LayoutStore.swift
+      - path: ZoneBox/Services/SettingsStore.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -36,6 +44,7 @@ targets:
           - Services/LayoutStore.swift
           - Services/SettingsStore.swift
           - Services/Logging.swift
+          - Services/JSONCoding.swift
           - Resources/Info.plist
           - ZoneBox.entitlements
     dependencies:
@@ -50,6 +59,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         COMBINE_HIDPI_IMAGES: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        # Xcode 16+/26 Debug otherwise splits main into ZoneBox.debug.dylib;
+        # launching outside the debugger never reaches AppDelegate.
+        ENABLE_DEBUG_DYLIB: NO
   ZoneBoxTests:
     type: bundle.unit-test
     platform: macOS

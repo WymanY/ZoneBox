@@ -7,17 +7,63 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */; };
 		077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */; };
+		0AE7E89A6887FED40C2DD84A /* CoordinateConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */; };
+		16A9CFD82CAD960109B04F29 /* LayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AEA7BDAE63EA3E83E0BD9E4 /* LayoutStore.swift */; };
+		1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */; };
+		1E8F613C9745B11E71208D83 /* GridResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB874161D6F9CA3F4DC63D1 /* GridResolver.swift */; };
 		1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 494E5D36812C20CEC56C578D /* SettingsWindowController.swift */; };
+		20720D2F728CA9DF1F78256A /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BF84ADFCB22ABA296D8C83 /* SettingsStore.swift */; };
+		27BF1033F4022038BB6FEBF0 /* LayoutTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */; };
+		28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */; };
+		2BF1C0D0DA809F6E43EE996A /* EditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */; };
 		30BBD31606521AA8D9527935 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */; };
+		37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */; };
+		3800061B9853FA767026E3A7 /* Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */; };
 		40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ED48EADD1D174472389480 /* ScaffoldTests.swift */; };
+		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
+		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
+		4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446A73B628D4176872A8FC46 /* SnapSession.swift */; };
+		5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */; };
+		5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */; };
+		5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9118B8805E80F4D1DA3FC84D /* AppSettings.swift */; };
 		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
 		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */; };
+		76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */; };
 		775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */; };
+		7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */; };
+		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
+		7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */; };
+		910DE576C2672D6EFF044DB0 /* WindowQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45C50B2CD005428221B93EF9 /* WindowQuerying.swift */; };
+		937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */; };
+		97B317731ECAC7D2582CC02F /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */; };
+		995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */; };
+		A240F4BF13C5454FC76CFE6E /* LayoutEditorCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */; };
 		A86D44434E408A8320723282 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */; };
+		AB132842525793E4FA9EA7A6 /* Gutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0B8B1AA2CD7208340838FC /* Gutter.swift */; };
+		AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16192ECC49D6E451A8936A8 /* RectMath.swift */; };
+		AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96966B883ED6C884EED18A /* Zone.swift */; };
+		B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */; };
+		B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */; };
 		B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643D257C1C1C278B39EA9176 /* MenuBarController.swift */; };
+		BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977E18A00CB22B850795CDAA /* NormalizedRect.swift */; };
+		BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A727A3139F1922D21AA08BFD /* ZoneSplit.swift */; };
 		C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D5122A337EC77F24071CC7 /* AppDelegate.swift */; };
+		C5C75A6F7AAB652A75CF4527 /* HitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2450A6958359F65AFC611957 /* HitTester.swift */; };
+		C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB08C54E77DFC28D032D8B18 /* OverlayController.swift */; };
+		C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C17F30BC95D5A464046FA95 /* LayoutKind.swift */; };
+		C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */; };
+		D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A2957655E620023F8101FFC /* WindowIdentity.swift */; };
+		E583D858D4C31324E6FE3F24 /* ZoneOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */; };
+		E8405C23906B84C40461F26F /* WorkArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFE483F6CBDB37363637CAD /* WorkArea.swift */; };
+		E9BB1FDB1FFFFC4498CC1EBB /* DragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */; };
+		F0BE4D8C71D41A1780C7827C /* SnapEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */; };
 		F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4236C43CC31EA103E8850694 /* Logging.swift */; };
+		F9380732C4C78F9D2CAE183C /* AccessibilityClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */; };
+		FFB58EB33E86634605604872 /* WindowCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,18 +84,64 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayIdentity.swift; sourceTree = "<group>"; };
 		047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
+		0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverterTests.swift; sourceTree = "<group>"; };
+		1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorController.swift; sourceTree = "<group>"; };
+		2450A6958359F65AFC611957 /* HitTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitTester.swift; sourceTree = "<group>"; };
+		2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPanel.swift; sourceTree = "<group>"; };
 		2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeScreen.swift; sourceTree = "<group>"; };
+		2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragMonitor.swift; sourceTree = "<group>"; };
+		3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStoreTests.swift; sourceTree = "<group>"; };
 		36B569B511A2E3DEC2BB1121 /* ZoneBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZoneBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalog.swift; sourceTree = "<group>"; };
+		3EB874161D6F9CA3F4DC63D1 /* GridResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridResolver.swift; sourceTree = "<group>"; };
 		4236C43CC31EA103E8850694 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
+		446A73B628D4176872A8FC46 /* SnapSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSession.swift; sourceTree = "<group>"; };
+		45C50B2CD005428221B93EF9 /* WindowQuerying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowQuerying.swift; sourceTree = "<group>"; };
 		494E5D36812C20CEC56C578D /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		4AEA7BDAE63EA3E83E0BD9E4 /* LayoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStore.swift; sourceTree = "<group>"; };
+		4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGWindowQuery.swift; sourceTree = "<group>"; };
+		5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityClient.swift; sourceTree = "<group>"; };
+		5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutTemplates.swift; sourceTree = "<group>"; };
 		643D257C1C1C278B39EA9176 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorCanvasView.swift; sourceTree = "<group>"; };
 		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		7EFE483F6CBDB37363637CAD /* WorkArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkArea.swift; sourceTree = "<group>"; };
 		8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libZoneBoxCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverter.swift; sourceTree = "<group>"; };
+		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
+		9118B8805E80F4D1DA3FC84D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		977E18A00CB22B850795CDAA /* NormalizedRect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedRect.swift; sourceTree = "<group>"; };
+		9A2957655E620023F8101FFC /* WindowIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIdentity.swift; sourceTree = "<group>"; };
+		9C17F30BC95D5A464046FA95 /* LayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutKind.swift; sourceTree = "<group>"; };
+		A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplitTests.swift; sourceTree = "<group>"; };
 		A4ED48EADD1D174472389480 /* ScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaffoldTests.swift; sourceTree = "<group>"; };
+		A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngineTests.swift; sourceTree = "<group>"; };
+		A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSessionReducer.swift; sourceTree = "<group>"; };
+		A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayWatcher.swift; sourceTree = "<group>"; };
+		A727A3139F1922D21AA08BFD /* ZoneSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplit.swift; sourceTree = "<group>"; };
 		AF32320082E685F5BED369E0 /* UISession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UISession.swift; sourceTree = "<group>"; };
+		B16192ECC49D6E451A8936A8 /* RectMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectMath.swift; sourceTree = "<group>"; };
+		B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoomTests.swift; sourceTree = "<group>"; };
+		B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapTarget.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CD0B8B1AA2CD7208340838FC /* Gutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gutter.swift; sourceTree = "<group>"; };
+		D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyCenter.swift; sourceTree = "<group>"; };
+		D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Layout.swift; sourceTree = "<group>"; };
+		D6BF84ADFCB22ABA296D8C83 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		DD96966B883ED6C884EED18A /* Zone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zone.swift; sourceTree = "<group>"; };
+		DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanel.swift; sourceTree = "<group>"; };
+		E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapMouseEvent.swift; sourceTree = "<group>"; };
+		E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoom.swift; sourceTree = "<group>"; };
+		F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngine.swift; sourceTree = "<group>"; };
+		F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneOverlayView.swift; sourceTree = "<group>"; };
+		F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustMonitor.swift; sourceTree = "<group>"; };
+		FB08C54E77DFC28D032D8B18 /* OverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayController.swift; sourceTree = "<group>"; };
+		FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCoding.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +164,50 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0CB2A97869C4E290D37B0FA3 /* Geometry */ = {
+			isa = PBXGroup;
+			children = (
+				8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */,
+				3EB874161D6F9CA3F4DC63D1 /* GridResolver.swift */,
+				CD0B8B1AA2CD7208340838FC /* Gutter.swift */,
+				2450A6958359F65AFC611957 /* HitTester.swift */,
+				977E18A00CB22B850795CDAA /* NormalizedRect.swift */,
+				8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */,
+				B16192ECC49D6E451A8936A8 /* RectMath.swift */,
+				7EFE483F6CBDB37363637CAD /* WorkArea.swift */,
+				E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */,
+				A727A3139F1922D21AA08BFD /* ZoneSplit.swift */,
+			);
+			path = Geometry;
+			sourceTree = "<group>";
+		};
+		116660229A92E78EE02E1B2A /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */,
+				7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		1AA399626E846F66CD09BF3C /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				9118B8805E80F4D1DA3FC84D /* AppSettings.swift */,
+				0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */,
+				D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */,
+				9C17F30BC95D5A464046FA95 /* LayoutKind.swift */,
+				5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */,
+				E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */,
+				446A73B628D4176872A8FC46 /* SnapSession.swift */,
+				A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */,
+				B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */,
+				9A2957655E620023F8101FFC /* WindowIdentity.swift */,
+				DD96966B883ED6C884EED18A /* Zone.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
 		27CE8C9758D66D4083097A49 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -85,7 +221,18 @@
 		2E49790E858A83AE37D7BCF7 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */,
+				2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */,
+				D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */,
+				FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */,
+				4AEA7BDAE63EA3E83E0BD9E4 /* LayoutStore.swift */,
 				4236C43CC31EA103E8850694 /* Logging.swift */,
+				FB08C54E77DFC28D032D8B18 /* OverlayController.swift */,
+				D6BF84ADFCB22ABA296D8C83 /* SettingsStore.swift */,
+				F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */,
+				FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */,
+				3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */,
+				B1989AFDA2A9BFFD1B9DA591 /* Accessibility */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -93,6 +240,9 @@
 		3BC851061E9BEEB890BFCCDB /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				54D749D98228075DEFBE4A32 /* Editor */,
+				116660229A92E78EE02E1B2A /* Onboarding */,
+				44B9EB6803A213ECA69D3464 /* Overlay */,
 				8CBB03C60CE2356FC34F7C5D /* Settings */,
 			);
 			path = UI;
@@ -107,10 +257,31 @@
 			);
 			sourceTree = "<group>";
 		};
+		44B9EB6803A213ECA69D3464 /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */,
+				F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
+		54D749D98228075DEFBE4A32 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */,
+				6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */,
+				1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
 		7DD463F992E7CCD22B9A7CC9 /* ZoneBox */ = {
 			isa = PBXGroup;
 			children = (
 				FD61F0ECCA9559F5CD8C7248 /* App */,
+				1AA399626E846F66CD09BF3C /* Domain */,
+				0CB2A97869C4E290D37B0FA3 /* Geometry */,
 				CCCEB5F9897AE848A8C27478 /* Resources */,
 				2E49790E858A83AE37D7BCF7 /* Services */,
 				3BC851061E9BEEB890BFCCDB /* UI */,
@@ -126,10 +297,25 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
+		B1989AFDA2A9BFFD1B9DA591 /* Accessibility */ = {
+			isa = PBXGroup;
+			children = (
+				5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */,
+				4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */,
+				45C50B2CD005428221B93EF9 /* WindowQuerying.swift */,
+			);
+			path = Accessibility;
+			sourceTree = "<group>";
+		};
 		C41B2668B7FA27A16D22E3E4 /* ZoneBoxTests */ = {
 			isa = PBXGroup;
 			children = (
+				0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */,
+				3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */,
 				A4ED48EADD1D174472389480 /* ScaffoldTests.swift */,
+				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
+				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
+				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
 				F81C871383393D0659A6781B /* Fakes */,
 			);
 			path = ZoneBoxTests;
@@ -287,11 +473,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F9380732C4C78F9D2CAE183C /* AccessibilityClient.swift in Sources */,
 				C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */,
 				077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */,
+				7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */,
+				5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */,
+				E9BB1FDB1FFFFC4498CC1EBB /* DragMonitor.swift in Sources */,
+				2BF1C0D0DA809F6E43EE996A /* EditorPanel.swift in Sources */,
+				49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */,
+				A240F4BF13C5454FC76CFE6E /* LayoutEditorCanvasView.swift in Sources */,
+				937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */,
 				B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */,
+				B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */,
+				7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */,
+				C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */,
+				5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */,
 				1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */,
+				F0BE4D8C71D41A1780C7827C /* SnapEngine.swift in Sources */,
+				76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */,
 				602C8EF6260E18480529C10D /* UISession.swift in Sources */,
+				FFB58EB33E86634605604872 /* WindowCatalog.swift in Sources */,
+				910DE576C2672D6EFF044DB0 /* WindowQuerying.swift in Sources */,
+				E583D858D4C31324E6FE3F24 /* ZoneOverlayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -299,7 +502,31 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */,
+				0AE7E89A6887FED40C2DD84A /* CoordinateConverter.swift in Sources */,
+				7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */,
+				1E8F613C9745B11E71208D83 /* GridResolver.swift in Sources */,
+				AB132842525793E4FA9EA7A6 /* Gutter.swift in Sources */,
+				C5C75A6F7AAB652A75CF4527 /* HitTester.swift in Sources */,
+				97B317731ECAC7D2582CC02F /* JSONCoding.swift in Sources */,
+				3800061B9853FA767026E3A7 /* Layout.swift in Sources */,
+				C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */,
+				16A9CFD82CAD960109B04F29 /* LayoutStore.swift in Sources */,
+				27BF1033F4022038BB6FEBF0 /* LayoutTemplates.swift in Sources */,
 				F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */,
+				BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */,
+				28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */,
+				AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */,
+				20720D2F728CA9DF1F78256A /* SettingsStore.swift in Sources */,
+				49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */,
+				4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */,
+				C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */,
+				1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */,
+				D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */,
+				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
+				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,
+				995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */,
+				BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,8 +534,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */,
 				775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */,
+				37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */,
 				40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */,
+				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
+				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
+				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,6 +705,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ZoneBox/ZoneBox.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ZoneBox/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
@@ -554,6 +787,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ZoneBox/ZoneBox.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_DEBUG_DYLIB = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ZoneBox/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
