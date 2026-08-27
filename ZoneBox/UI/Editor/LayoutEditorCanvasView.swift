@@ -349,21 +349,31 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            onCancel?()
-            return
-        }
-        if event.keyCode == 48 {
-            cycleSelection(forward: !event.modifierFlags.contains(.shift))
-            return
-        }
-        if event.keyCode == 51 || event.keyCode == 117 {
-            if let selectedID {
-                deleteZone(id: selectedID)
-            }
-            return
-        }
+        if handleKeyEvent(event) { return }
         super.keyDown(with: event)
+    }
+
+    @discardableResult
+    func handleKeyEvent(_ event: NSEvent) -> Bool {
+        if event.keyCode == HardwareKeyCode.escape {
+            onCancel?()
+            return true
+        }
+        if event.keyCode == HardwareKeyCode.tab {
+            cycleSelection(forward: !event.modifierFlags.contains(.shift))
+            return true
+        }
+        if event.keyCode == HardwareKeyCode.delete || event.keyCode == HardwareKeyCode.forwardDelete {
+            deleteSelected()
+            return true
+        }
+        return false
+    }
+
+    func deleteSelected() {
+        if let selectedID {
+            deleteZone(id: selectedID)
+        }
     }
 
     override func insertTab(_ sender: Any?) {

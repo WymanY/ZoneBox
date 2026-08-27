@@ -73,16 +73,42 @@ final class LayoutEditorController: NSObject {
         panel.onCycleZones = { [weak canvas] forward in
             canvas?.cycleSelection(forward: forward)
         }
+        panel.delegate = self
         self.panel = panel
         self.canvas = canvas
         updateSaveState()
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        makeEditorKey(panel: panel, canvas: canvas)
     }
 
     func activate() {
-        panel?.makeKeyAndOrderFront(nil)
+        guard let panel, let canvas else { return }
+        makeEditorKey(panel: panel, canvas: canvas)
+    }
+
+    func owns(_ window: NSWindow) -> Bool {
+        panel === window
+    }
+
+    var isKey: Bool { panel?.isKeyWindow == true }
+
+    @discardableResult
+    func handleLocalKey(_ event: NSEvent) -> Bool {
+        if event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter {
+            save()
+            return true
+        }
+        return canvas?.handleKeyEvent(event) ?? false
+    }
+
+    private func makeEditorKey(panel: EditorPanel, canvas: LayoutEditorCanvasView) {
+        panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeFirstResponder(canvas)
+        DispatchQueue.main.async { [weak panel, weak canvas] in
+            guard let panel, let canvas else { return }
+            panel.makeKeyAndOrderFront(nil)
+            panel.makeFirstResponder(canvas)
+        }
     }
 
     private func makeToolbar() -> NSView {
@@ -238,6 +264,8 @@ final class LayoutEditorController: NSObject {
     }
 
     private func dismiss() {
+        guard panel != nil else { return }
+        panel?.delegate = nil
         panel?.orderOut(nil)
         panel = nil
         canvas = nil
@@ -251,6 +279,12 @@ final class LayoutEditorController: NSObject {
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
         runtime.editorDidClose()
+    }
+}
+
+extension LayoutEditorController: NSWindowDelegate {
+    func windowDidBecomeKey(_ notification: Notification) {
+        panel?.makeFirstResponder(canvas)
     }
 }
 

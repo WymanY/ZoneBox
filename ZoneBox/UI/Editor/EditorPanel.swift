@@ -39,9 +39,13 @@ final class EditorPanel: NSPanel {
         hasShadow = false
         ignoresMouseEvents = false
         hidesOnDeactivate = false
+        becomesKeyOnlyIfNeeded = false
+        isFloatingPanel = true
+        worksWhenModal = true
         autorecalculatesKeyViewLoop = false
+        animationBehavior = .none
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 2)
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .transient]
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         setFrame(screen.visibleFrame, display: true)
     }
 }
