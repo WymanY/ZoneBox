@@ -53,6 +53,17 @@ final class AppRuntime {
         overlay.primaryFlipHeight = displays.primaryFlipHeight
         persist()
 
+        LanguageCenter.preference = settings.uiLanguage
+        LanguageCenter.shared.start()
+        LanguageCenter.shared.refresh(force: true)
+        NotificationCenter.default.addObserver(
+            forName: LanguageCenter.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.applyLanguage() }
+        }
+
         menuBar = MenuBarController(runtime: self)
         menuBar?.install()
 
@@ -231,6 +242,20 @@ final class AppRuntime {
 
     func persistSettings() {
         try? settingsStore.save(settings)
+    }
+
+    func applyLanguage() {
+        menuBar?.reloadMenu()
+        menuBar?.updateTrustAppearance()
+        settingsWindow?.applyLanguage()
+        onboarding?.applyLanguage()
+        editor?.applyLanguage()
+    }
+
+    func setUILanguage(_ preference: AppLanguagePreference) {
+        settings.uiLanguage = preference
+        persistSettings()
+        LanguageCenter.shared.applyPreference(preference)
     }
 
     private func observeSystem() {
