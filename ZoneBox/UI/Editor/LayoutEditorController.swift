@@ -10,6 +10,10 @@ final class LayoutEditorController: NSObject {
     private var canvas: LayoutEditorCanvasView?
     private var toolbar: NSView?
     private var saveButton: EditorChipButton?
+    private var cancelButton: EditorChipButton?
+    private var presetButtons: [EditorChipButton] = []
+    private var hintLabel: NSTextField?
+    private var protectionLabel: NSTextField?
     private let original: Layout
     private var transaction: LayoutEditTransaction?
 
@@ -85,23 +89,25 @@ final class LayoutEditorController: NSObject {
         presets.orientation = .horizontal
         presets.spacing = 6
         presets.setHuggingPriority(.defaultHigh, for: .horizontal)
-        for (title, symbol, action) in [
-            ("两列", "rectangle.split.2x1", #selector(presetColumns2)),
-            ("三列", "rectangle.split.3x1", #selector(presetColumns3)),
-            ("两行", "rectangle.split.1x2", #selector(presetRows2)),
-            ("2×2", "square.grid.2x2", #selector(presetGrid)),
-            ("优先", "rectangle.leadinghalf.inset.filled", #selector(presetPriority)),
-            ("居中", "rectangle.center.inset.filled", #selector(presetFocus)),
-        ] as [(String, String, Selector)] {
-            presets.addArrangedSubview(
-                EditorChipButton(title: title, symbol: symbol, target: self, action: action, kind: .preset)
-            )
+        presetButtons = []
+        for (key, symbol, action) in [
+            (L10nKey.editorColumns2, "rectangle.split.2x1", #selector(presetColumns2)),
+            (L10nKey.editorColumns3, "rectangle.split.3x1", #selector(presetColumns3)),
+            (L10nKey.editorRows2, "rectangle.split.1x2", #selector(presetRows2)),
+            (L10nKey.editorGrid2x2, "square.grid.2x2", #selector(presetGrid)),
+            (L10nKey.editorPriority, "rectangle.leadinghalf.inset.filled", #selector(presetPriority)),
+            (L10nKey.editorFocus, "rectangle.center.inset.filled", #selector(presetFocus)),
+        ] as [(L10nKey, String, Selector)] {
+            let button = EditorChipButton(title: L10n.text(key), symbol: symbol, target: self, action: action, kind: .preset)
+            presets.addArrangedSubview(button)
+            presetButtons.append(button)
         }
 
-        let saveTitle = !isNew && original.kind == .grid ? "另存副本" : "保存"
+        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
         let save = EditorChipButton(title: saveTitle, symbol: nil, target: self, action: #selector(save), kind: .save)
         saveButton = save
-        let cancel = EditorChipButton(title: "取消", symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
+        let cancel = EditorChipButton(title: L10n.text(.editorCancel), symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
+        cancelButton = cancel
 
         let actions = NSStackView(views: [save, cancel])
         actions.orientation = .horizontal
@@ -114,7 +120,7 @@ final class LayoutEditorController: NSObject {
         topRow.addArrangedSubview(presets)
         topRow.addArrangedSubview(actions)
 
-        let hint = NSTextField(wrappingLabelWithString: "拖动边缘或角落缩放格子。滚动改高度，Shift+滚动改宽度，Option+滚动同时改。× 删除。Esc 退出")
+        let hint = NSTextField(wrappingLabelWithString: L10n.text(.editorHint))
         hint.font = .systemFont(ofSize: 12, weight: .medium)
         hint.textColor = NSColor.white.withAlphaComponent(0.92)
         hint.isBezeled = false
@@ -123,15 +129,17 @@ final class LayoutEditorController: NSObject {
         hint.lineBreakMode = .byWordWrapping
         hint.maximumNumberOfLines = 2
         hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        hintLabel = hint
 
         var rows: [NSView] = [topRow]
         if !isNew && original.kind == .grid {
-            let protection = NSTextField(wrappingLabelWithString: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。")
+            let protection = NSTextField(wrappingLabelWithString: L10n.text(.editorGridProtected))
             protection.font = .systemFont(ofSize: 12, weight: .semibold)
             protection.textColor = .systemOrange
             protection.isBezeled = false
             protection.drawsBackground = false
             protection.isSelectable = false
+            protectionLabel = protection
             rows.append(protection)
         }
         rows.append(hint)
@@ -190,6 +198,21 @@ final class LayoutEditorController: NSObject {
         dismiss()
     }
 
+    func applyLanguage() {
+        let keys: [L10nKey] = [
+            .editorColumns2, .editorColumns3, .editorRows2, .editorGrid2x2, .editorPriority, .editorFocus,
+        ]
+        for (button, key) in zip(presetButtons, keys) {
+            button.setChipTitle(L10n.text(key))
+        }
+        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
+        saveButton?.setChipTitle(saveTitle)
+        cancelButton?.setChipTitle(L10n.text(.editorCancel))
+        hintLabel?.stringValue = L10n.text(.editorHint)
+        protectionLabel?.stringValue = L10n.text(.editorGridProtected)
+        updateSaveState()
+    }
+
     private func updateDraft(_ layout: Layout) {
         transaction?.updateDraft(layout)
         updateSaveState()
@@ -199,8 +222,8 @@ final class LayoutEditorController: NSObject {
         guard let transaction else { return }
         saveButton?.isEnabled = transaction.canCommit
         saveButton?.toolTip = transaction.canCommit
-            ? (!isNew && original.kind == .grid ? "将修改保存为新布局" : "保存布局")
-            : "至少创建一个区域后才能保存"
+            ? (!isNew && original.kind == .grid ? L10n.text(.editorSaveCopyTooltip) : L10n.text(.editorSaveTooltip))
+            : L10n.text(.editorSaveDisabledTooltip)
     }
 
     private func setToolbarReceded(_ receded: Bool) {
@@ -217,6 +240,10 @@ final class LayoutEditorController: NSObject {
         canvas = nil
         toolbar = nil
         saveButton = nil
+        cancelButton = nil
+        presetButtons = []
+        hintLabel = nil
+        protectionLabel = nil
         transaction = nil
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
@@ -304,6 +331,19 @@ private final class EditorChipButton: NSButton {
             contentTintColor = titleColor
         }
         toolTip = title
+    }
+
+    func setChipTitle(_ title: String) {
+        attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [
+                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            ]
+        )
+        toolTip = title
+        invalidateIntrinsicContentSize()
+        needsDisplay = true
     }
 
     required init?(coder: NSCoder) { nil }

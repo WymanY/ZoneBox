@@ -1,4 +1,5 @@
 import AppKit
+import ZoneBoxCore
 
 final class OnboardingView: NSView {
     enum Phase {
@@ -21,6 +22,16 @@ final class OnboardingView: NSView {
     private let secondaryButton = NSButton()
     private let checkButton = NSButton()
     private var phase: Phase = .needsPermission
+    private var titleLabel: NSTextField?
+    private var subtitleLabel: NSTextField?
+    private var pathCaptionLabel: NSTextField?
+    private var step1Title: NSTextField?
+    private var step1Detail: NSTextField?
+    private var step2Title: NSTextField?
+    private var step2Detail: NSTextField?
+    private var step3Title: NSTextField?
+    private var step3Detail: NSTextField?
+    private var mockHeaderLabel: NSTextField?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -32,6 +43,21 @@ final class OnboardingView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
+    func applyLanguage() {
+        titleLabel?.stringValue = L10n.text(.onboardingTitle)
+        subtitleLabel?.stringValue = L10n.text(.onboardingSubtitle)
+        pathCaptionLabel?.stringValue = L10n.text(.onboardingPathCaption)
+        step1Title?.stringValue = L10n.text(.onboardingStep1Title)
+        step1Detail?.stringValue = L10n.text(.onboardingStep1Detail)
+        step2Title?.stringValue = L10n.text(.onboardingStep2Title)
+        step2Detail?.stringValue = L10n.text(.onboardingStep2Detail)
+        step3Title?.stringValue = L10n.text(.onboardingStep3Title)
+        step3Detail?.stringValue = L10n.text(.onboardingStep3Detail)
+        mockHeaderLabel?.stringValue = L10n.text(.onboardingMockHeader)
+        checkButton.title = L10n.text(.onboardingIveTurnedItOn)
+        apply(phase)
+    }
+
     func apply(_ phase: Phase) {
         self.phase = phase
         spinner.stopAnimation(nil)
@@ -42,46 +68,46 @@ final class OnboardingView: NSView {
         case .needsPermission:
             statusIcon.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: nil)
             statusIcon.contentTintColor = .secondaryLabelColor
-            statusLabel.stringValue = "Snapping is paused until Accessibility is allowed."
-            primaryButton.title = "Open Accessibility Settings"
+            statusLabel.stringValue = L10n.text(.onboardingStatusNeedsPermission)
+            primaryButton.title = L10n.text(.onboardingOpenSettings)
             primaryButton.action = #selector(tapOpen)
-            secondaryButton.title = "Not now"
+            secondaryButton.title = L10n.text(.onboardingNotNow)
             secondaryButton.action = #selector(tapContinue)
             checkButton.isHidden = false
         case .waiting:
             statusIcon.image = nil
             spinner.isHidden = false
             spinner.startAnimation(nil)
-            statusLabel.stringValue = "Waiting for the switch next to ZoneBox…"
-            primaryButton.title = "Open Accessibility Settings again"
+            statusLabel.stringValue = L10n.text(.onboardingStatusWaiting)
+            primaryButton.title = L10n.text(.onboardingOpenSettingsAgain)
             primaryButton.action = #selector(tapOpen)
-            secondaryButton.title = "Quit & Relaunch"
+            secondaryButton.title = L10n.text(.onboardingQuitRelaunch)
             secondaryButton.action = #selector(tapRelaunch)
             checkButton.isHidden = false
         case .granted:
             statusIcon.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
             statusIcon.contentTintColor = .systemGreen
-            statusLabel.stringValue = "Accessibility is on. You can snap windows now."
-            primaryButton.title = "Continue"
+            statusLabel.stringValue = L10n.text(.onboardingStatusGranted)
+            primaryButton.title = L10n.text(.onboardingContinue)
             primaryButton.action = #selector(tapContinue)
             secondaryButton.isHidden = true
             checkButton.isHidden = true
         case .needsRelaunch:
             statusIcon.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
             statusIcon.contentTintColor = .systemOrange
-            statusLabel.stringValue = "The switch can be on while this process still isn’t trusted. Quit & Relaunch (not Xcode Run) applies the grant."
-            primaryButton.title = "Quit & Relaunch ZoneBox"
+            statusLabel.stringValue = L10n.text(.onboardingStatusNeedsRelaunch)
+            primaryButton.title = L10n.text(.onboardingQuitRelaunchApp)
             primaryButton.action = #selector(tapRelaunch)
-            secondaryButton.title = "Open Settings again"
+            secondaryButton.title = L10n.text(.onboardingOpenSettingsAgainShort)
             secondaryButton.action = #selector(tapOpen)
             checkButton.isHidden = true
         case .runningUnderDebugger:
             statusIcon.image = NSImage(systemSymbolName: "hammer.fill", accessibilityDescription: nil)
             statusIcon.contentTintColor = .systemOrange
-            statusLabel.stringValue = "Xcode is debugging this process. macOS often keeps Accessibility off for the debug session even when the ZoneBox switch is already on."
-            primaryButton.title = "Quit & Open without Debugger"
+            statusLabel.stringValue = L10n.text(.onboardingStatusDebugger)
+            primaryButton.title = L10n.text(.onboardingQuitOpenWithoutDebugger)
             primaryButton.action = #selector(tapRelaunch)
-            secondaryButton.title = "Open Accessibility Settings"
+            secondaryButton.title = L10n.text(.onboardingOpenSettings)
             secondaryButton.action = #selector(tapOpen)
             checkButton.isHidden = true
         }
@@ -95,12 +121,15 @@ final class OnboardingView: NSView {
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.setContentHuggingPriority(.required, for: .vertical)
 
-        let title = label("Allow ZoneBox to arrange windows", font: .systemFont(ofSize: 22, weight: .semibold))
-        let subtitle = wrapping("macOS requires Accessibility permission before ZoneBox can move and resize other apps. This stays on your Mac — nothing is uploaded.")
+        let title = label(L10n.text(.onboardingTitle), font: .systemFont(ofSize: 22, weight: .semibold))
+        titleLabel = title
+        let subtitle = wrapping(L10n.text(.onboardingSubtitle))
         subtitle.textColor = .secondaryLabelColor
+        subtitleLabel = subtitle
 
-        let pathCaption = label("Enable this exact build (Xcode Debug ≠ a copy in /Applications):", font: .systemFont(ofSize: 11, weight: .medium))
+        let pathCaption = label(L10n.text(.onboardingPathCaption), font: .systemFont(ofSize: 11, weight: .medium))
         pathCaption.textColor = .secondaryLabelColor
+        pathCaptionLabel = pathCaption
         let pathField = NSTextField(wrappingLabelWithString: TrustMonitor.currentBuildPath)
         pathField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         pathField.textColor = .labelColor
@@ -110,9 +139,9 @@ final class OnboardingView: NSView {
         let stack = NSStackView(views: [
             icon, title, subtitle,
             pathCaption, pathField,
-            stepRow(1, title: "Open Accessibility settings", detail: "Use the button below. System Settings opens to Privacy & Security → Accessibility."),
-            stepRow(2, title: "Turn on THIS ZoneBox", detail: "You may see several ZoneBox rows (Xcode Debug, another folder, /Applications). Enable the one that matches the path above."),
-            stepRow(3, title: "Don’t test with Xcode Run", detail: "Stop in Xcode, then Quit & Open without Debugger — or Finder-open the .app. The debugger makes macOS ignore an already-on switch."),
+            makeStep(1, titleKey: .onboardingStep1Title, detailKey: .onboardingStep1Detail),
+            makeStep(2, titleKey: .onboardingStep2Title, detailKey: .onboardingStep2Detail),
+            makeStep(3, titleKey: .onboardingStep3Title, detailKey: .onboardingStep3Detail),
             guide,
             statusRow(),
             buttonRow(),
@@ -135,9 +164,35 @@ final class OnboardingView: NSView {
         ])
     }
 
+    private func makeStep(_ number: Int, titleKey: L10nKey, detailKey: L10nKey) -> NSView {
+        let row = stepRow(number, title: L10n.text(titleKey), detail: L10n.text(detailKey))
+        switch number {
+        case 1:
+            step1Title = heading(in: row)
+            step1Detail = body(in: row)
+        case 2:
+            step2Title = heading(in: row)
+            step2Detail = body(in: row)
+        case 3:
+            step3Title = heading(in: row)
+            step3Detail = body(in: row)
+        default:
+            break
+        }
+        return row
+    }
+
+    private func heading(in row: NSView) -> NSTextField? {
+        ((row as? NSStackView)?.arrangedSubviews.last as? NSStackView)?.arrangedSubviews.first as? NSTextField
+    }
+
+    private func body(in row: NSView) -> NSTextField? {
+        ((row as? NSStackView)?.arrangedSubviews.last as? NSStackView)?.arrangedSubviews.last as? NSTextField
+    }
+
     private func stepRow(_ number: Int, title: String, detail: String) -> NSView {
         let badge = NSImageView()
-        badge.image = NSImage(systemSymbolName: "\(number).circle.fill", accessibilityDescription: "Step \(number)")
+        badge.image = NSImage(systemSymbolName: "\(number).circle.fill", accessibilityDescription: L10n.stepAccessibility(number))
         badge.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
         badge.contentTintColor = .controlAccentColor
         badge.translatesAutoresizingMaskIntoConstraints = false
@@ -171,7 +226,8 @@ final class OnboardingView: NSView {
         box.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
         box.translatesAutoresizingMaskIntoConstraints = false
 
-        let header = label("Accessibility", font: .systemFont(ofSize: 12, weight: .semibold))
+        let header = label(L10n.text(.onboardingMockHeader), font: .systemFont(ofSize: 12, weight: .semibold))
+        mockHeaderLabel = header
         header.textColor = .secondaryLabelColor
 
         let zone = mockRow(name: "ZoneBox", on: false, highlight: true)
@@ -246,7 +302,7 @@ final class OnboardingView: NSView {
         secondaryButton.action = #selector(tapContinue)
 
         checkButton.bezelStyle = .rounded
-        checkButton.title = "I've turned it on"
+        checkButton.title = L10n.text(.onboardingIveTurnedItOn)
         checkButton.target = self
         checkButton.action = #selector(tapConfirm)
 

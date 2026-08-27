@@ -6,6 +6,19 @@ import ZoneBoxCore
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private unowned let runtime: AppRuntime
     private var window: NSWindow?
+    private var banner: NSTextField?
+    private var guideButton: NSButton?
+    private var snapCheckbox: NSButton?
+    private var shiftCheckbox: NSButton?
+    private var rightCheckbox: NSButton?
+    private var numbersCheckbox: NSButton?
+    private var restoreCheckbox: NSButton?
+    private var gutterLabel: NSTextField?
+    private var hotkeysLabel: NSTextField?
+    private var accessButton: NSButton?
+    private var loginCheckbox: NSButton?
+    private var languageLabel: NSTextField?
+    private var languagePopup: NSPopUpButton?
 
     init(runtime: AppRuntime) {
         self.runtime = runtime
@@ -31,12 +44,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 480),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "ZoneBox Settings"
+        window.title = L10n.text(.settingsTitle)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
@@ -49,41 +62,69 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
 
         if !runtime.trust.isTrusted() {
-            let banner = NSTextField(wrappingLabelWithString: "Snapping is off until Accessibility is allowed. Open the guide to turn on the ZoneBox switch.")
+            let banner = NSTextField(wrappingLabelWithString: L10n.text(.settingsAccessBanner))
             banner.textColor = .systemOrange
             banner.font = .systemFont(ofSize: 12, weight: .medium)
             stack.addArrangedSubview(banner)
-            let guide = NSButton(title: "Show Accessibility Guide…", target: self, action: #selector(openAccess))
+            self.banner = banner
+            let guide = NSButton(title: L10n.text(.settingsShowGuide), target: self, action: #selector(openAccess))
             guide.bezelStyle = .rounded
             stack.addArrangedSubview(guide)
+            self.guideButton = guide
         }
 
-        stack.addArrangedSubview(checkbox("Enable snapping", runtime.settings.snapEnabled, #selector(toggleSnap)))
-        stack.addArrangedSubview(checkbox("Hold Shift while dragging to snap", runtime.settings.snapOnShiftDrag, #selector(toggleShift)))
-        stack.addArrangedSubview(checkbox("Right-click while dragging to snap", runtime.settings.snapOnRightClickDrag, #selector(toggleRight)))
-        stack.addArrangedSubview(checkbox("Show zone numbers", runtime.settings.showZoneNumbers, #selector(toggleNumbers)))
-        stack.addArrangedSubview(checkbox("Restore size when unsnapping", runtime.settings.restoreSizeOnUnsnap, #selector(toggleRestore)))
+        let languageLabel = NSTextField(labelWithString: L10n.text(.settingsLanguage))
+        languageLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.addItems(withTitles: Self.languageTitles())
+        popup.selectItem(at: Self.languageIndex(runtime.settings.uiLanguage))
+        popup.target = self
+        popup.action = #selector(languageChanged(_:))
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
+        let languageRow = NSStackView(views: [languageLabel, popup])
+        languageRow.orientation = .horizontal
+        languageRow.alignment = .centerY
+        languageRow.spacing = 12
+        stack.addArrangedSubview(languageRow)
+        self.languageLabel = languageLabel
+        self.languagePopup = popup
 
-        let gutterLabel = NSTextField(labelWithString: "Gutter: \(runtime.settings.gutterPoints) pt")
+        snapCheckbox = checkbox(L10n.text(.settingsEnableSnapping), runtime.settings.snapEnabled, #selector(toggleSnap))
+        shiftCheckbox = checkbox(L10n.text(.settingsShiftDrag), runtime.settings.snapOnShiftDrag, #selector(toggleShift))
+        rightCheckbox = checkbox(L10n.text(.settingsRightClick), runtime.settings.snapOnRightClickDrag, #selector(toggleRight))
+        numbersCheckbox = checkbox(L10n.text(.settingsShowNumbers), runtime.settings.showZoneNumbers, #selector(toggleNumbers))
+        restoreCheckbox = checkbox(L10n.text(.settingsRestoreSize), runtime.settings.restoreSizeOnUnsnap, #selector(toggleRestore))
+        stack.addArrangedSubview(snapCheckbox!)
+        stack.addArrangedSubview(shiftCheckbox!)
+        stack.addArrangedSubview(rightCheckbox!)
+        stack.addArrangedSubview(numbersCheckbox!)
+        stack.addArrangedSubview(restoreCheckbox!)
+
+        let gutterLabel = NSTextField(labelWithString: L10n.gutter(runtime.settings.gutterPoints))
         gutterLabel.tag = 50
         gutterLabel.translatesAutoresizingMaskIntoConstraints = false
         stack.addArrangedSubview(gutterLabel)
+        self.gutterLabel = gutterLabel
         let slider = NSSlider(value: Double(runtime.settings.gutterPoints), minValue: 0, maxValue: 40, target: self, action: #selector(gutterChanged(_:)))
         slider.isContinuous = true
         slider.translatesAutoresizingMaskIntoConstraints = false
         slider.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
         stack.addArrangedSubview(slider)
 
-        let hotkeys = NSTextField(wrappingLabelWithString: "Hotkeys (Control+Option): 1–9 snap focused window, Z editor, U unsnap, arrows next/previous zone.\nPaused automatically while VoiceOver is on.")
+        let hotkeys = NSTextField(wrappingLabelWithString: L10n.text(.settingsHotkeys))
         hotkeys.textColor = .secondaryLabelColor
         stack.addArrangedSubview(hotkeys)
+        self.hotkeysLabel = hotkeys
 
-        let access = NSButton(title: "Open Accessibility Settings", target: self, action: #selector(openAccess))
+        let access = NSButton(title: L10n.text(.settingsOpenAccess), target: self, action: #selector(openAccess))
         access.bezelStyle = .rounded
         stack.addArrangedSubview(access)
+        self.accessButton = access
 
-        let login = checkbox("Launch at login", runtime.settings.launchAtLogin, #selector(toggleLogin))
+        let login = checkbox(L10n.text(.settingsLaunchAtLogin), runtime.settings.launchAtLogin, #selector(toggleLogin))
         stack.addArrangedSubview(login)
+        self.loginCheckbox = login
 
         window.contentView = NSView()
         window.contentView?.addSubview(stack)
@@ -104,6 +145,53 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         return button
     }
 
+    func applyLanguage() {
+        window?.title = L10n.text(.settingsTitle)
+        banner?.stringValue = L10n.text(.settingsAccessBanner)
+        guideButton?.title = L10n.text(.settingsShowGuide)
+        snapCheckbox?.title = L10n.text(.settingsEnableSnapping)
+        shiftCheckbox?.title = L10n.text(.settingsShiftDrag)
+        rightCheckbox?.title = L10n.text(.settingsRightClick)
+        numbersCheckbox?.title = L10n.text(.settingsShowNumbers)
+        restoreCheckbox?.title = L10n.text(.settingsRestoreSize)
+        gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
+        hotkeysLabel?.stringValue = L10n.text(.settingsHotkeys)
+        accessButton?.title = L10n.text(.settingsOpenAccess)
+        loginCheckbox?.title = L10n.text(.settingsLaunchAtLogin)
+        languageLabel?.stringValue = L10n.text(.settingsLanguage)
+        if let popup = languagePopup {
+            popup.removeAllItems()
+            popup.addItems(withTitles: Self.languageTitles())
+            popup.selectItem(at: Self.languageIndex(runtime.settings.uiLanguage))
+        }
+    }
+
+    private static func languageTitles() -> [String] {
+        [
+            L10n.text(.settingsLanguageSystem),
+            L10n.text(.settingsLanguageEnglish),
+            L10n.text(.settingsLanguageChinese),
+        ]
+    }
+
+    private static func languageIndex(_ preference: AppLanguagePreference) -> Int {
+        switch preference {
+        case .system: 0
+        case .english: 1
+        case .chineseSimplified: 2
+        }
+    }
+
+    @objc private func languageChanged(_ sender: NSPopUpButton) {
+        let preference: AppLanguagePreference
+        switch sender.indexOfSelectedItem {
+        case 1: preference = .english
+        case 2: preference = .chineseSimplified
+        default: preference = .system
+        }
+        runtime.setUILanguage(preference)
+    }
+
     @objc private func toggleSnap(_ sender: NSButton) { runtime.setSnapEnabled(sender.state == .on) }
     @objc private func toggleShift(_ sender: NSButton) { runtime.settings.snapOnShiftDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRight(_ sender: NSButton) { runtime.settings.snapOnRightClickDrag = sender.state == .on; runtime.persistSettings() }
@@ -114,7 +202,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func gutterChanged(_ sender: NSSlider) {
         runtime.settings.gutterPoints = Int(sender.doubleValue.rounded())
         if let label = window?.contentView?.viewWithTag(50) as? NSTextField {
-            label.stringValue = "Gutter: \(runtime.settings.gutterPoints) pt"
+            label.stringValue = L10n.gutter(runtime.settings.gutterPoints)
         }
         runtime.persistSettings()
     }

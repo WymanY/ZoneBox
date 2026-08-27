@@ -1,4 +1,5 @@
 import AppKit
+import ZoneBoxCore
 
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
@@ -12,6 +13,11 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     init(runtime: AppRuntime) {
         self.runtime = runtime
         super.init()
+    }
+
+    func applyLanguage() {
+        window?.title = L10n.text(.onboardingWindowTitle)
+        content?.applyLanguage()
     }
 
     func show() {
@@ -60,7 +66,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Enable Accessibility"
+        window.title = L10n.text(.onboardingWindowTitle)
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
