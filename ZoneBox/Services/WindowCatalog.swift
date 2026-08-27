@@ -4,14 +4,16 @@ import ZoneBoxCore
 @MainActor
 final class WindowCatalog {
     private var records: [WindowIdentity: UnsnapRecord] = [:]
-    private var membership: [WindowIdentity: (zoneID: UUID, snappedAt: Date)] = [:]
+    private var membership: [WindowIdentity: (zoneID: UUID, displayID: UUID, snappedAt: Date)] = [:]
 
-    func record(_ value: UnsnapRecord) {
+    func record(_ value: UnsnapRecord, displayID: UUID?) {
         if records[value.identity] == nil {
             records[value.identity] = value
         }
-        if let zone = value.zoneIDs.first {
-            membership[value.identity] = (zone, value.snappedAt)
+        if let zone = value.zoneIDs.first, let displayID {
+            membership[value.identity] = (zone, displayID, value.snappedAt)
+        } else {
+            membership[value.identity] = nil
         }
     }
 
@@ -29,12 +31,13 @@ final class WindowCatalog {
         membership[identity] = nil
     }
 
-    func zoneID(for identity: WindowIdentity) -> UUID? {
-        membership[identity]?.zoneID
+    func zoneID(for identity: WindowIdentity, displayID: UUID) -> UUID? {
+        guard membership[identity]?.displayID == displayID else { return nil }
+        return membership[identity]?.zoneID
     }
 
-    func identities(in zoneID: UUID) -> [WindowIdentity] {
-        membership.filter { $0.value.zoneID == zoneID }
+    func identities(in zoneID: UUID, displayID: UUID) -> [WindowIdentity] {
+        membership.filter { $0.value.zoneID == zoneID && $0.value.displayID == displayID }
             .sorted { lhs, rhs in
                 if lhs.value.snappedAt != rhs.value.snappedAt {
                     return lhs.value.snappedAt < rhs.value.snappedAt
