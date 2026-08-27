@@ -31,7 +31,8 @@ final class HotkeyCenter {
         }, 1, &spec, nil, &eventHandler)
 
         voiceOverObservation = NSWorkspace.shared.observe(\.isVoiceOverEnabled, options: [.new, .initial]) { [weak self] _, _ in
-            DispatchQueue.main.async { self?.reregister() }
+            guard let center = self else { return }
+            DispatchQueue.main.async { center.reregister() }
         }
         reregister()
     }

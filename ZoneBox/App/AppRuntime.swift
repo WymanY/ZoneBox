@@ -61,7 +61,8 @@ final class AppRuntime {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.applyLanguage() }
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.applyLanguage() }
         }
 
         menuBar = MenuBarController(runtime: self)
