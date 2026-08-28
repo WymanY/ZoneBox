@@ -135,4 +135,20 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         }
         assign(layoutID: layout.id, to: displayID)
     }
+
+    /// Removes a saved layout. The last remaining layout is kept so snapping always
+    /// has somewhere to go. Displays that pointed at the deleted layout fall back to
+    /// the first layout still in the document.
+    @discardableResult
+    public mutating func deleteLayout(id: Layout.ID) -> Bool {
+        guard layouts.count > 1,
+              let index = layouts.firstIndex(where: { $0.id == id })
+        else { return false }
+        layouts.remove(at: index)
+        guard let fallbackID = layouts.first?.id else { return false }
+        for assignmentIndex in assignments.indices where assignments[assignmentIndex].layoutID == id {
+            assignments[assignmentIndex].layoutID = fallbackID
+        }
+        return true
+    }
 }

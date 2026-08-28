@@ -59,6 +59,17 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.layoutDisplayName("Custom Ultrawide", language: .chineseSimplified), "Custom Ultrawide")
     }
 
+    func testDeleteLayoutCopy() {
+        XCTAssertEqual(L10n.text(.menuDeleteLayout, language: .english), "Delete Current Layout…")
+        XCTAssertEqual(L10n.text(.menuDeleteLayout, language: .chineseSimplified), "删除当前布局…")
+        XCTAssertEqual(L10n.text(.editorDelete, language: .english), "Delete")
+        XCTAssertEqual(L10n.text(.editorDelete, language: .chineseSimplified), "删除")
+        XCTAssertEqual(
+            String(format: L10n.text(.menuDeleteLayoutTitle, language: .english), "cool 2"),
+            "Delete cool 2?"
+        )
+    }
+
     func testGutterFormat() {
         XCTAssertEqual(L10n.gutter(12, language: .english), "Gutter: 12 pt")
         XCTAssertEqual(L10n.gutter(12, language: .chineseSimplified), "间距：12 点")

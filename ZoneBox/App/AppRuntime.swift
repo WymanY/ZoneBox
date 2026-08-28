@@ -262,6 +262,18 @@ final class AppRuntime {
         }
     }
 
+    @discardableResult
+    func deleteLayout(_ layout: Layout) -> Bool {
+        let deleted = document.deleteLayout(id: layout.id)
+        guard deleted else { return false }
+        persist()
+        menuBar?.reloadMenu()
+        if editor?.originalLayoutID == layout.id {
+            editor?.cancelEditing()
+        }
+        return true
+    }
+
     func newCanvasLayout() {
         guard editor == nil else {
             editor?.activate()

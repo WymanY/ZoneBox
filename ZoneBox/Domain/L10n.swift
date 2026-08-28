@@ -40,6 +40,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuPreviewZones
     case menuLayouts
     case menuNewCanvas
+    case menuDeleteLayout
+    case menuDeleteLayoutTitle
+    case menuDeleteLayoutMessage
+    case menuDeleteLayoutConfirm
     case menuSettings
     case menuKeyboardShortcuts
     case menuQuit
@@ -143,6 +147,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorSave
     case editorSaveCopy
     case editorCancel
+    case editorDelete
+    case editorDeleteTooltip
     case editorHint
     case editorGridProtected
     case editorSaveTooltip
@@ -256,6 +262,10 @@ public enum L10n {
         .menuPreviewZones: "Preview Zones",
         .menuLayouts: "Layouts",
         .menuNewCanvas: "New Canvas Layout…",
+        .menuDeleteLayout: "Delete Current Layout…",
+        .menuDeleteLayoutTitle: "Delete %@?",
+        .menuDeleteLayoutMessage: "This layout is removed from every display that uses it. ZoneBox keeps at least one layout.",
+        .menuDeleteLayoutConfirm: "Delete",
         .menuSettings: "Settings…",
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
@@ -359,6 +369,8 @@ public enum L10n {
         .editorSave: "Save",
         .editorSaveCopy: "Save Copy",
         .editorCancel: "Cancel",
+        .editorDelete: "Delete",
+        .editorDeleteTooltip: "Delete this saved layout",
         .editorHint: "Shared divider moves both zones. WASD moves to the adjacent pane. Tab / Shift+Tab cycle zones. Drag edges or corners to resize. Vertical scroll changes height, horizontal scroll changes width. × deletes. Esc exits.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
@@ -391,6 +403,10 @@ public enum L10n {
         .menuPreviewZones: "预览分区",
         .menuLayouts: "布局",
         .menuNewCanvas: "新建画布布局…",
+        .menuDeleteLayout: "删除当前布局…",
+        .menuDeleteLayoutTitle: "删除“%@”？",
+        .menuDeleteLayoutMessage: "使用这个布局的显示器都会改用剩余布局。ZoneBox 至少会保留一个布局。",
+        .menuDeleteLayoutConfirm: "删除",
         .menuSettings: "设置…",
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
@@ -494,6 +510,8 @@ public enum L10n {
         .editorSave: "保存",
         .editorSaveCopy: "另存副本",
         .editorCancel: "取消",
+        .editorDelete: "删除",
+        .editorDeleteTooltip: "删除这个已保存的布局",
         .editorHint: "中间分隔条可同时移动两侧格子。WASD 切换到相邻格子。Tab 切换格子，Shift+Tab 反向。拖动边缘或角落缩放。垂直滚动改高度，水平滚动改宽度。× 删除。Esc 退出",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
