@@ -182,14 +182,7 @@ final class DragMonitor {
         frameRefreshRequested = false
         bufferedDrags.removeAll()
         dragSessionReady = false
-        if let window = runtime.pendingWindow {
-            Task { @MainActor in
-                runtime.pendingFrame = await runtime.ax.frame(of: window)
-                runtime.engine.handleMouse(mouse)
-            }
-        } else {
-            runtime.engine.handleMouse(mouse)
-        }
+        runtime.engine.handleMouse(mouse)
     }
 
     /// Foreign title-bar tracking can starve any of the global mouse events.

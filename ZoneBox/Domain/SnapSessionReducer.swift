@@ -82,7 +82,12 @@ public enum SnapSessionReducer {
             }
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
         case .armed, .highlighting:
-            let target = currentTarget(input)
+            let target: SnapTarget
+            if case .highlighting(_, let highlighted) = input.phase, highlighted.frameAX != nil {
+                target = highlighted
+            } else {
+                target = currentTarget(input)
+            }
             guard let frame = target.frameAX, let window = currentWindow(input.phase) else {
                 return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
             }
