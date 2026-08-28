@@ -8,5 +8,7 @@ build:
 	xcodebuild -scheme ZoneBox -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/DerivedData CODE_SIGNING_ALLOWED=NO build
 
 test:
+	@echo "xcodebuild $$(xcodebuild -version | tr '\n' ' ')"
+	@echo "sdk $$(xcodebuild -showsdks | awk '/macOS SDKs/{getline; print}')"
 	xcodebuild -scheme ZoneBox -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/DerivedData CODE_SIGNING_ALLOWED=NO test
 	@! grep -R --include='*.swift' -n 'import SwiftUI' ZoneBox

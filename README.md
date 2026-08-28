@@ -7,7 +7,7 @@ This repository is **proprietary** (All Rights Reserved). It is **not** a fork o
 ## Requirements
 
 - macOS 14.0 or later
-- Xcode 15+ (local development)
+- Xcode 16+ (local development; GitHub CI uses macos-15)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) to regenerate the project after file-tree changes (`brew install xcodegen`)
 
 ## Build
