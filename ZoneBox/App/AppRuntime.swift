@@ -75,7 +75,7 @@ final class AppRuntime {
         observeSystem()
 
         Log.trust.info(
-            "Trust status=\(String(describing: self.trust.status()), privacy: .public) path=\(TrustMonitor.currentBuildPath, privacy: .public)"
+            "Trust trusted=\(self.trust.isTrusted(), privacy: .public) path=\(TrustMonitor.currentBuildPath, privacy: .public)"
         )
         if !trust.isTrusted() {
             onboarding = OnboardingWindowController(runtime: self)

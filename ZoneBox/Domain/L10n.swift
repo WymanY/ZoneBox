@@ -122,7 +122,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case onboardingStatusWaiting
     case onboardingStatusGranted
     case onboardingStatusNeedsRelaunch
-    case onboardingStatusDebugger
     case onboardingOpenSettings
     case onboardingOpenSettingsAgain
     case onboardingNotNow
@@ -130,7 +129,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case onboardingContinue
     case onboardingQuitRelaunchApp
     case onboardingOpenSettingsAgainShort
-    case onboardingQuitOpenWithoutDebugger
     case onboardingIveTurnedItOn
     case onboardingStepAccessibility
 
@@ -331,14 +329,13 @@ public enum L10n {
         .onboardingStep1Detail: "Use the button below. System Settings opens to Privacy & Security → Accessibility.",
         .onboardingStep2Title: "Turn on THIS ZoneBox",
         .onboardingStep2Detail: "You may see several ZoneBox rows (Xcode Debug, another folder, /Applications). Enable the one that matches the path above.",
-        .onboardingStep3Title: "Don’t test with Xcode Run",
-        .onboardingStep3Detail: "Stop in Xcode, then Quit & Open without Debugger — or Finder-open the .app. The debugger makes macOS ignore an already-on switch.",
+        .onboardingStep3Title: "Come back to ZoneBox",
+        .onboardingStep3Detail: "Snapping turns on automatically once the switch is on. If it doesn’t, use Quit & Relaunch below.",
         .onboardingMockHeader: "Accessibility",
         .onboardingStatusNeedsPermission: "Snapping is paused until Accessibility is allowed.",
         .onboardingStatusWaiting: "Waiting for the switch next to ZoneBox…",
         .onboardingStatusGranted: "Accessibility is on. You can snap windows now.",
-        .onboardingStatusNeedsRelaunch: "The switch can be on while this process still isn’t trusted. Quit & Relaunch (not Xcode Run) applies the grant.",
-        .onboardingStatusDebugger: "Xcode is debugging this process. macOS often keeps Accessibility off for the debug session even when the ZoneBox switch is already on.",
+        .onboardingStatusNeedsRelaunch: "The switch can be on while this process still isn’t trusted. Quit & Relaunch applies the grant.",
         .onboardingOpenSettings: "Open Accessibility Settings",
         .onboardingOpenSettingsAgain: "Open Accessibility Settings again",
         .onboardingNotNow: "Not now",
@@ -346,7 +343,6 @@ public enum L10n {
         .onboardingContinue: "Continue",
         .onboardingQuitRelaunchApp: "Quit & Relaunch ZoneBox",
         .onboardingOpenSettingsAgainShort: "Open Settings again",
-        .onboardingQuitOpenWithoutDebugger: "Quit & Open without Debugger",
         .onboardingIveTurnedItOn: "I've turned it on",
         .onboardingStepAccessibility: "Step %d",
 
@@ -466,14 +462,13 @@ public enum L10n {
         .onboardingStep1Detail: "点下面的按钮。系统设置会打开到“隐私与安全性 → 辅助功能”。",
         .onboardingStep2Title: "打开这一份 ZoneBox",
         .onboardingStep2Detail: "列表里可能有多行 ZoneBox（Xcode Debug、其他文件夹、/Applications）。请打开与上面路径一致的那一行。",
-        .onboardingStep3Title: "不要用 Xcode Run 来验证",
-        .onboardingStep3Detail: "在 Xcode 里 Stop，然后“退出并以非调试方式打开”，或用 Finder 打开 .app。调试器会让系统忽略已经打开的开关。",
+        .onboardingStep3Title: "回到 ZoneBox",
+        .onboardingStep3Detail: "开关打开后，吸附会自动启用。如果没有生效，请用下方的“退出并重新打开”。",
         .onboardingMockHeader: "辅助功能",
         .onboardingStatusNeedsPermission: "未允许辅助功能时，吸附会暂停。",
         .onboardingStatusWaiting: "正在等待 ZoneBox 旁边的开关…",
         .onboardingStatusGranted: "辅助功能已开启，可以吸附窗口了。",
-        .onboardingStatusNeedsRelaunch: "开关打开后，当前进程仍可能未被信任。退出并重新打开（不要用 Xcode Run）才会生效。",
-        .onboardingStatusDebugger: "Xcode 正在调试此进程。即使 ZoneBox 开关已打开，macOS 也经常不把辅助功能授予调试会话。",
+        .onboardingStatusNeedsRelaunch: "开关打开后，当前进程仍可能未被信任。退出并重新打开才会生效。",
         .onboardingOpenSettings: "打开辅助功能设置",
         .onboardingOpenSettingsAgain: "再次打开辅助功能设置",
         .onboardingNotNow: "稍后再说",
@@ -481,7 +476,6 @@ public enum L10n {
         .onboardingContinue: "继续",
         .onboardingQuitRelaunchApp: "退出并重新打开 ZoneBox",
         .onboardingOpenSettingsAgainShort: "再次打开设置",
-        .onboardingQuitOpenWithoutDebugger: "退出并以非调试方式打开",
         .onboardingIveTurnedItOn: "我已打开开关",
         .onboardingStepAccessibility: "第 %d 步",
 
