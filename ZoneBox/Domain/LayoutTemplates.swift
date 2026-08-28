@@ -35,6 +35,12 @@ public enum LayoutTemplates {
         return original
     }
 
+    /// Compact zone rectangles for toolbar/menu thumbnails.
+    /// y = 0 is the top of the work area, matching the layout editor canvas.
+    public static func thumbnailGeometry(for layout: Layout) -> [(number: Int, rect: NormalizedRect)] {
+        canvasGeometry(for: layout, workAreaAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)) ?? []
+    }
+
     public static func columns(_ count: Int) -> Layout {
         let weights = evenWeights(count)
         let map = [Array(0..<count)]

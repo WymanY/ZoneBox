@@ -32,6 +32,7 @@
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
 		4C8F02506923A238F526AF4F /* ShakeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */; };
 		4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */; };
+		4DC8E3DCE4158DBCB5228FB9 /* LayoutThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */; };
 		4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446A73B628D4176872A8FC46 /* SnapSession.swift */; };
 		5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */; };
 		5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */; };
@@ -137,6 +138,7 @@
 		8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverter.swift; sourceTree = "<group>"; };
 		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
 		9118B8805E80F4D1DA3FC84D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutThumbnailRenderer.swift; sourceTree = "<group>"; };
 		977E18A00CB22B850795CDAA /* NormalizedRect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedRect.swift; sourceTree = "<group>"; };
 		9A2957655E620023F8101FFC /* WindowIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIdentity.swift; sourceTree = "<group>"; };
 		9C17F30BC95D5A464046FA95 /* LayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutKind.swift; sourceTree = "<group>"; };
@@ -313,6 +315,7 @@
 				2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */,
 				6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */,
 				1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */,
+				930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -553,6 +556,7 @@
 				49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */,
 				A240F4BF13C5454FC76CFE6E /* LayoutEditorCanvasView.swift in Sources */,
 				937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */,
+				4DC8E3DCE4158DBCB5228FB9 /* LayoutThumbnailRenderer.swift in Sources */,
 				B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */,
 				B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */,
 				7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */,

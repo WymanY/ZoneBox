@@ -11,6 +11,7 @@ final class LayoutEditorController: NSObject {
     private var toolbar: NSView?
     private var saveButton: EditorChipButton?
     private var cancelButton: EditorChipButton?
+    private var deleteButton: EditorChipButton?
     private var saveNameAlert: NSAlert?
     private var presetButtons: [EditorChipButton] = []
     private var selectedPresetIndex: Int?
@@ -118,6 +119,8 @@ final class LayoutEditorController: NSObject {
 
     var isKey: Bool { panel?.isKeyWindow == true }
 
+    var originalLayoutID: Layout.ID { original.id }
+
     @discardableResult
     func handleLocalKey(_ event: NSEvent) -> Bool {
         if ShortcutCatalog.editorSaveChord.matches(
@@ -195,12 +198,13 @@ final class LayoutEditorController: NSObject {
         if let saved = savedToolbarLayout {
             let button = EditorChipButton(
                 title: savedLayoutChipTitle(saved.name),
-                symbol: "rectangle.3.group",
+                symbol: nil,
                 target: self,
                 action: #selector(applySavedToolbarLayout),
                 kind: .preset
             )
             button.toolTip = L10n.layoutDisplayName(saved.name)
+            button.setThumbnail(from: saved)
             presets.addArrangedSubview(button)
             savedLayoutButton = button
         }
@@ -211,8 +215,20 @@ final class LayoutEditorController: NSObject {
         saveButton = save
         let cancel = EditorChipButton(title: L10n.text(.editorCancel), symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
         cancelButton = cancel
-
-        let actions = NSStackView(views: [save, cancel])
+        var actionViews: [NSView] = [save, cancel]
+        if canDeleteOriginal {
+            let delete = EditorChipButton(
+                title: L10n.text(.editorDelete),
+                symbol: "trash",
+                target: self,
+                action: #selector(deleteOriginal),
+                kind: .delete
+            )
+            delete.toolTip = L10n.text(.editorDeleteTooltip)
+            deleteButton = delete
+            actionViews.append(delete)
+        }
+        let actions = NSStackView(views: actionViews)
         actions.orientation = .horizontal
         actions.spacing = 6
 
@@ -454,6 +470,33 @@ final class LayoutEditorController: NSObject {
         dismiss()
     }
 
+    private var canDeleteOriginal: Bool {
+        !isNew && runtime.document.layouts.count > 1
+    }
+
+    @objc private func deleteOriginal() {
+        guard canDeleteOriginal else {
+            NSSound.beep()
+            return
+        }
+        let name = L10n.layoutDisplayName(original.name)
+        let alert = NSAlert()
+        alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
+        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        guard let panel else { return }
+        alert.beginSheetModal(for: panel) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            Task { @MainActor in
+                if !self.runtime.deleteLayout(self.original) {
+                    NSSound.beep()
+                }
+            }
+        }
+    }
+
     func applyLanguage() {
         let keys: [L10nKey] = [
             .editorColumns2, .editorColumns3, .editorRows2, .editorGrid2x2, .editorPriority, .editorFocus,
@@ -469,6 +512,8 @@ final class LayoutEditorController: NSObject {
         let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
         saveButton?.setChipTitle(saveTitle)
         cancelButton?.setChipTitle(L10n.text(.editorCancel))
+        deleteButton?.setChipTitle(L10n.text(.editorDelete))
+        deleteButton?.toolTip = L10n.text(.editorDeleteTooltip)
         hintLabel?.stringValue = L10n.text(.editorHint)
         protectionLabel?.stringValue = L10n.text(.editorGridProtected)
         updateSaveState()
@@ -559,6 +604,7 @@ final class LayoutEditorController: NSObject {
         toolbar = nil
         saveButton = nil
         cancelButton = nil
+        deleteButton = nil
         presetButtons = []
         selectedPresetIndex = nil
         savedLayoutButton = nil
@@ -626,7 +672,11 @@ private final class EditorChipButton: NSButton {
         case preset
         case save
         case cancel
+        case delete
     }
+
+    private var usesThumbnail = false
+    private var thumbnailLayout: Layout?
 
     init(title: String, symbol: String?, target: AnyObject, action: Selector, kind: Kind) {
         super.init(frame: .zero)
@@ -651,6 +701,8 @@ private final class EditorChipButton: NSButton {
         case .cancel:
             layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
             keyEquivalent = "\u{1b}"
+        case .delete:
+            layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.82).cgColor
         case .preset:
             applyPresetAppearance(selected: false)
         }
@@ -716,10 +768,14 @@ private final class EditorChipButton: NSButton {
             ]
         )
         if let image {
-            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [titleColor]))
-            self.image = image.withSymbolConfiguration(config)
-            contentTintColor = titleColor
+            if usesThumbnail {
+                applyThumbnail(selected: selected)
+            } else {
+                let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+                    .applying(NSImage.SymbolConfiguration(paletteColors: [titleColor]))
+                self.image = image.withSymbolConfiguration(config)
+                contentTintColor = titleColor
+            }
         }
     }
 
@@ -734,6 +790,33 @@ private final class EditorChipButton: NSButton {
         toolTip = nil
         invalidateIntrinsicContentSize()
         needsDisplay = true
+    }
+
+    func setThumbnail(from layout: Layout) {
+        thumbnailLayout = layout
+        usesThumbnail = true
+        applyThumbnail(selected: false)
+        imagePosition = .imageLeading
+        imageHugsTitle = true
+        invalidateIntrinsicContentSize()
+        needsDisplay = true
+    }
+
+    private func applyThumbnail(selected: Bool) {
+        guard let thumbnailLayout else { return }
+        let fill = selected
+            ? NSColor.black.withAlphaComponent(0.78)
+            : NSColor.white.withAlphaComponent(0.86)
+        let stroke = selected
+            ? NSColor.black.withAlphaComponent(0.28)
+            : NSColor.white.withAlphaComponent(0.35)
+        image = LayoutThumbnailRenderer.image(
+            for: thumbnailLayout,
+            size: NSSize(width: 22, height: 14),
+            fill: fill,
+            stroke: stroke
+        )
+        contentTintColor = nil
     }
 
     required init?(coder: NSCoder) { nil }

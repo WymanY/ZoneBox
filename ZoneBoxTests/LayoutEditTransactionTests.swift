@@ -209,6 +209,52 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(document.layouts.filter { $0.id == layout.id }.count, 1)
     }
 
+    func testDeleteLayoutReassignsDisplaysAndKeepsLastLayout() {
+        var document = StoreDocument(layouts: [
+            LayoutTemplates.columns(2),
+            LayoutTemplates.focus(),
+        ])
+        let first = document.layouts[0]
+        let second = document.layouts[1]
+        document.assign(layoutID: second.id, to: displayID)
+
+        XCTAssertTrue(document.deleteLayout(id: second.id))
+        XCTAssertEqual(document.layouts.map { $0.id }, [first.id])
+        XCTAssertEqual(document.layout(for: displayID)?.id, first.id)
+        XCTAssertFalse(document.deleteLayout(id: first.id))
+        XCTAssertEqual(document.layouts.map { $0.id }, [first.id])
+    }
+
+    func testThumbnailGeometryMatchesSavedCanvasPanes() {
+        let layout = Layout(
+            name: "cool 2",
+            kind: .canvas,
+            zones: [
+                Zone(number: 1, canvasRect: NormalizedRect(x: 0, y: 0.12, width: 0.49, height: 0.77)),
+                Zone(number: 2, canvasRect: NormalizedRect(x: 0.49, y: 0.12, width: 0.21, height: 0.77)),
+                Zone(number: 3, canvasRect: NormalizedRect(x: 0.70, y: 0.12, width: 0.29, height: 0.77)),
+            ]
+        )
+        let geometry = LayoutTemplates.thumbnailGeometry(for: layout)
+        XCTAssertEqual(geometry.map { $0.number }, [1, 2, 3])
+        XCTAssertEqual(geometry[0].rect.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(geometry[1].rect.x, 0.49, accuracy: 0.0001)
+        XCTAssertEqual(geometry[2].rect.x, 0.70, accuracy: 0.0001)
+        XCTAssertEqual(geometry[0].rect.width, 0.49, accuracy: 0.0001)
+        XCTAssertEqual(geometry[1].rect.width, 0.21, accuracy: 0.0001)
+        XCTAssertEqual(geometry[2].rect.width, 0.29, accuracy: 0.0001)
+    }
+
+    func testColumnsThumbnailUsesVerticalPanes() {
+        let geometry = LayoutTemplates.thumbnailGeometry(for: LayoutTemplates.columns(3))
+        XCTAssertEqual(geometry.map { $0.number }, [1, 2, 3])
+        XCTAssertEqual(geometry[0].rect.x, 0, accuracy: 0.001)
+        XCTAssertLessThan(geometry[0].rect.x, geometry[1].rect.x)
+        XCTAssertLessThan(geometry[1].rect.x, geometry[2].rect.x)
+        XCTAssertEqual(geometry[0].rect.y, 0, accuracy: 0.001)
+        XCTAssertEqual(geometry[0].rect.height, 1, accuracy: 0.001)
+    }
+
     func testGridConversionNumbersFollowReadingOrder() throws {
         let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
 

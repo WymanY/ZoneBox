@@ -184,7 +184,22 @@ final class MenuBarController: NSObject {
             item.target = self
             item.representedObject = layout.id.uuidString
             item.state = layout.id == current ? .on : .off
+            if !LayoutTemplates.thumbnailGeometry(for: layout).isEmpty {
+                item.image = LayoutThumbnailRenderer.menuImage(for: layout)
+            }
             menu.addItem(item)
+        }
+        if runtime.document.layouts.count > 1 {
+            let currentLayoutExists = current != nil
+            menu.addItem(.separator())
+            let delete = NSMenuItem(
+                title: L10n.text(.menuDeleteLayout),
+                action: #selector(deleteLayout(_:)),
+                keyEquivalent: ""
+            )
+            delete.target = self
+            delete.isEnabled = currentLayoutExists
+            menu.addItem(delete)
         }
         return menu
     }
@@ -257,6 +272,29 @@ final class MenuBarController: NSObject {
               let layout = runtime.document.layouts.first(where: { $0.id == id })
         else { return }
         runtime.selectLayout(layout)
+    }
+
+    @objc
+    private func deleteLayout(_ sender: NSMenuItem) {
+        let current = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+            .flatMap { runtime.document.layout(for: $0.display.id) }
+        guard let current else { return }
+        confirmAndDelete(current)
+    }
+
+    private func confirmAndDelete(_ layout: Layout) {
+        let name = L10n.layoutDisplayName(layout.name)
+        let alert = NSAlert()
+        alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
+        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+        if !runtime.deleteLayout(layout) {
+            NSSound.beep()
+        }
     }
 
     @objc
