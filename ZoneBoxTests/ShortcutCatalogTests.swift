@@ -7,6 +7,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(Set(pairs.map(\.id)).count, pairs.count)
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.editorHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.shortcutsPanelHotkeyID }))
+        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 1 }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 9 }))
         for pair in pairs {
@@ -47,6 +48,14 @@ final class ShortcutCatalogTests: XCTestCase {
                 settings: settings
             ),
             ShortcutCatalog.shortcutsPanelHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.space,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            ShortcutCatalog.quickSnapperHotkeyID
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(
@@ -109,6 +118,17 @@ final class ShortcutCatalogTests: XCTestCase {
                 ShortcutRouteContext(shortcutsPanelIsKey: false, editorClaimsKeyboard: false, appHasKeyWindow: false)
             ),
             .cancelSnap
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    quickSnapperShowing: true
+                )
+            ),
+            .dismissQuickSnapper
         )
         XCTAssertEqual(
             ShortcutRouteContext.escapeAction(

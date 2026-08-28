@@ -37,12 +37,38 @@ final class TrustMonitor {
         return probeAX()
     }
 
-    /// `kAXFocusedApplicationAttribute` succeeds only with a working Accessibility grant.
+    /// Reading the focused application alone is no longer a sufficient probe:
+    /// macOS can expose that system-wide attribute while returning
+    /// `AXError.apiDisabled` for every foreign app/window attribute. The
+    /// onboarding window can also make ZoneBox itself focused, and an app can
+    /// always read its own AX tree. Probe the frontmost external layer-0 window
+    /// so this check crosses the same permission boundary as snapping.
     nonisolated static func probeAX() -> Bool {
-        let system = AXUIElementCreateSystemWide()
-        var ref: CFTypeRef?
-        let err = AXUIElementCopyAttributeValue(system, kAXFocusedApplicationAttribute as CFString, &ref)
-        return err == .success
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let info = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] ?? []
+        let candidatePIDs = info.compactMap { entry -> pid_t? in
+            guard let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+                  pid != ownPID,
+                  (entry[kCGWindowLayer as String] as? Int ?? 0) == 0
+            else { return nil }
+            return pid
+        }
+        var seen = Set<pid_t>()
+        for pid in candidatePIDs where seen.insert(pid).inserted {
+            let app = AXUIElementCreateApplication(pid)
+            var windowsRef: CFTypeRef?
+            let error = AXUIElementCopyAttributeValue(
+                app,
+                kAXWindowsAttribute as CFString,
+                &windowsRef
+            )
+            if error == .success { return true }
+            if error == .apiDisabled { return false }
+        }
+        return false
     }
 
     nonisolated static func isDebuggerAttached() -> Bool {

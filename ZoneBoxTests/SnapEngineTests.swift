@@ -67,6 +67,324 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains(.cancel))
     }
 
+    func testShakeTraceArmsOverlayWithoutShift() {
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
+        input.pointerTrace = ShakeDetectorTests.shakeTrace()
+        input.shakeToSnapEnabled = true
+        input.event.modifiers = []
+        input.event.locationAppKit = ShakeDetectorTests.shakeTrace().last!
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+        switch out.phase {
+        case .armed, .highlighting:
+            break
+        default:
+            XCTFail("expected armed/highlighting, got \(out.phase)")
+        }
+    }
+
+    func testLinearTraceDoesNotArmWithoutShift() {
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
+        input.pointerTrace = ShakeDetectorTests.linearTrace(length: 640)
+        input.shakeToSnapEnabled = true
+        input.event.modifiers = []
+        input.event.locationAppKit = ShakeDetectorTests.linearTrace(length: 640).last!
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .dragging(window))
+        XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testLinearThenShakeArmsOverlay() {
+        let trace = ShakeDetectorTests.appendingShake(
+            ShakeDetectorTests.linearTrace(length: 400),
+            amplitude: 28,
+            cycles: 3
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
+        input.pointerTrace = trace
+        input.shakeToSnapEnabled = true
+        input.shakeIntensity = ShakeProfile.defaultIntensity
+        input.event.modifiers = []
+        input.event.locationAppKit = trace.last!
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testShakeArmedDropAppliesZoneFrame() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 16, y: 16, width: 668, height: 768)
+        )
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .leftUp)
+        input.resolvedZones = [zone]
+        input.event.locationAppKit = CoordinateConverter.appKitPoint(
+            fromAX: CGPoint(x: 100, y: 100),
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone.frameAX)))
+        XCTAssertTrue(out.effects.contains(.hideOverlay))
+    }
+
+    func testGridDrawCoversOneCell() {
+        let coverage = sampleGrid()
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 875
+        input.gridCells = coverage.cells
+        input.gridGutter = coverage.gutter
+        input.gridWorkAreaAX = coverage.workAX
+        input.armOriginAppKit = CGPoint(x: 80, y: 700)
+        input.event.locationAppKit = CGPoint(x: 180, y: 620)
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        let expected = expectedGridUnion(input)
+        XCTAssertNotNil(expected)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, expected!)))
+    }
+
+    func testGridDrawCoversTwoCellSpan() {
+        let coverage = sampleGrid()
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 875
+        input.gridCells = coverage.cells
+        input.gridGutter = coverage.gutter
+        input.gridWorkAreaAX = coverage.workAX
+        input.armOriginAppKit = CGPoint(x: 80, y: 700)
+        input.event.locationAppKit = CGPoint(x: 900, y: 620)
+        input.event.modifiers = [.control]
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        let expected = expectedGridUnion(input)
+        XCTAssertNotNil(expected)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, expected!)))
+        XCTAssertGreaterThan(expected!.width, 900)
+    }
+
+    func testGridHoverAppliesCellUnderCursorNotArmOriginSpan() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.effects.filter {
+            if case .applyFrame = $0 { return true }
+            return false
+        }, [.applyFrame(window, rightZone.frameAX)], "effects=\(out.effects) phase=\(out.phase) right=\(rightZone.frameAX)")
+    }
+
+    func testGridHoverHighlightUsesCellUnderCursor() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+
+        var input = armedReadyInput(phase: .armed(window), kind: .leftDragged)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(rightZone)), "effects=\(out.effects)")
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(rightZone))), "effects=\(out.effects)")
+    }
+
+    func testGridControlDragSpansAdjacentZones() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let expected = try XCTUnwrap(
+            GridCoverage.unionFrameAX(
+                dragRectAX: CGRect(x: 100, y: 400, width: 680, height: 0),
+                cells: GridCoverage.cells(spec: spec, workAreaAX: workAX),
+                gutter: 16,
+                workAreaAX: workAX
+            )
+        )
+
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+        input.event.modifiers = [.control]
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, expected)), "effects=\(out.effects) expected=\(expected)")
+    }
+
+    func testGridDragInsideMergedZoneAppliesCompleteLayoutZone() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 2,
+            columns: 2,
+            rowWeights: [5_000, 5_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1], [0, 2]]
+        )
+        let zones = (1...3).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let leftZone = try XCTUnwrap(resolved.first(where: { $0.number == 1 }))
+
+        var input = armedReadyInput(phase: .highlighting(window, .zone(leftZone)), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Priority Grid", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 700)
+        input.event.locationAppKit = CGPoint(x: 180, y: 620)
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, leftZone.frameAX)))
+    }
+
+    func testGridZeroAreaOutsideCellsDoesNotSnap() {
+        let coverage = sampleGrid()
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 875
+        input.gridCells = coverage.cells
+        input.gridGutter = coverage.gutter
+        input.gridWorkAreaAX = coverage.workAX
+        input.armOriginAppKit = CGPoint(x: 1800, y: 20)
+        input.event.locationAppKit = CGPoint(x: 1900, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+        XCTAssertTrue(out.effects.contains(.hideOverlay))
+    }
+
+    func testMagneticResizeOnMouseUpNearEdge() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 500, height: 800)
+        )
+        var input = armedReadyInput(phase: .resizing, kind: .leftUp)
+        input.window = window
+        input.workAreas = []
+        input.downFrameAX = CGRect(x: 100, y: 100, width: 300, height: 300)
+        input.currentFrameAX = CGRect(x: 100, y: 100, width: 405, height: 300)
+        input.resolvedZones = [zone]
+        input.magneticResizeEnabled = true
+        input.magneticThreshold = 12
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        let snapped = MagneticResize.snap(
+            original: input.downFrameAX!,
+            current: input.currentFrameAX!,
+            zoneFramesAX: [zone.frameAX],
+            threshold: 12
+        )
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, snapped)))
+        XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testMagneticResizeFarEdgeKeepsUserFrame() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 500, height: 800)
+        )
+        var input = armedReadyInput(phase: .resizing, kind: .leftUp)
+        input.window = window
+        input.workAreas = []
+        input.downFrameAX = CGRect(x: 100, y: 100, width: 300, height: 300)
+        input.currentFrameAX = CGRect(x: 100, y: 100, width: 450, height: 300)
+        input.resolvedZones = [zone]
+        input.magneticResizeEnabled = true
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+    }
+
+    func testResizeWithShiftStillDoesNotArmOverlay() {
+        var input = base(phase: .mouseDown(window, originAX: frame), kind: .leftDragged)
+        input.downFrameAX = frame
+        input.currentFrameAX = CGRect(x: 10, y: 10, width: 500, height: 300)
+        input.event.modifiers = [.shift]
+        input.pointerTrace = ShakeDetectorTests.shakeTrace()
+        input.shakeToSnapEnabled = true
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .resizing)
+        XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
     private func base(phase: SnapSessionPhase, kind: SnapMouseEvent.Kind) -> SnapReducerInput {
         SnapReducerInput(
             phase: phase,
@@ -75,6 +393,52 @@ final class SnapEngineTests: XCTestCase {
             currentFrameAX: frame,
             downLocationAppKit: .zero
         )
+    }
+
+    private func armedReadyInput(phase: SnapSessionPhase, kind: SnapMouseEvent.Kind) -> SnapReducerInput {
+        var input = base(phase: phase, kind: kind)
+        input.workAreas = [sampleWorkArea()]
+        input.resolvedZones = [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 16, y: 16, width: 668, height: 768)),
+        ]
+        input.primaryFlipHeight = 900
+        return input
+    }
+
+    private func expectedGridUnion(_ input: SnapReducerInput) -> CGRect? {
+        guard let origin = input.armOriginAppKit else { return nil }
+        let originAX = CoordinateConverter.axPoint(
+            fromAppKit: origin,
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        let currentAX = CoordinateConverter.axPoint(
+            fromAppKit: input.event.locationAppKit,
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        let drag = CGRect(
+            x: min(originAX.x, currentAX.x),
+            y: min(originAX.y, currentAX.y),
+            width: abs(currentAX.x - originAX.x),
+            height: abs(currentAX.y - originAX.y)
+        )
+        return GridCoverage.unionFrameAX(
+            dragRectAX: drag,
+            cells: input.gridCells,
+            gutter: input.gridGutter,
+            workAreaAX: input.gridWorkAreaAX
+        )
+    }
+
+    private func sampleGrid() -> (cells: [GridCell], gutter: CGFloat, workAX: CGRect) {
+        let workAX = CGRect(x: 0, y: 0, width: 1440, height: 875)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        return (GridCoverage.cells(spec: spec, workAreaAX: workAX), 16, workAX)
     }
 
     private func sampleWorkArea() -> WorkArea {

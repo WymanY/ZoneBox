@@ -50,6 +50,11 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsEnableSnapping
     case settingsShiftDrag
     case settingsRightClick
+    case settingsShakeToSnap
+    case settingsShakeIntensity
+    case settingsShakeIntensityHint
+    case settingsQuickSnapper
+    case settingsMagneticResize
     case settingsShowNumbers
     case settingsRestoreSize
     case settingsGutter
@@ -78,6 +83,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutCycleForward
     case shortcutUnsnap
     case shortcutShowShortcuts
+    case shortcutQuickSnapper
     case shortcutEditorCancel
     case shortcutEditorCycle
     case shortcutEditorCycleBack
@@ -88,6 +94,9 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutEditorZoomBoth
     case shortcutSnapShiftDrag
     case shortcutSnapRightClick
+    case shortcutSnapShake
+    case shortcutSnapGridDraw
+    case shortcutSnapMagneticResize
     case shortcutSettings
     case shortcutQuit
     case shortcutGestureScroll
@@ -95,6 +104,9 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureOptionScroll
     case shortcutGestureShiftDrag
     case shortcutGestureRightClick
+    case shortcutGestureShake
+    case shortcutGestureGridDraw
+    case shortcutGestureMagneticResize
     case shortcutGestureDrag
 
     case onboardingWindowTitle
@@ -155,6 +167,10 @@ public enum L10n {
 
     public static func gutter(_ points: Int, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.settingsGutter, language: language), locale: language.locale, points)
+    }
+
+    public static func shakeIntensity(_ value: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.settingsShakeIntensity, language: language), locale: language.locale, value)
     }
 
     public static func columns(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
@@ -245,6 +261,11 @@ public enum L10n {
         .settingsEnableSnapping: "Enable snapping",
         .settingsShiftDrag: "Hold Shift while dragging to snap",
         .settingsRightClick: "Right-click while dragging to snap",
+        .settingsShakeToSnap: "Shake the title bar while dragging to snap",
+        .settingsShakeIntensity: "Shake force: %d",
+        .settingsShakeIntensityHint: "Lower is easier to trigger",
+        .settingsQuickSnapper: "Quick Snapper (Control+Option+Space, then 1–9)",
+        .settingsMagneticResize: "Magnet window edges to zones while resizing",
         .settingsShowNumbers: "Show zone numbers",
         .settingsRestoreSize: "Restore size when unsnapping",
         .settingsGutter: "Gutter: %d pt",
@@ -273,6 +294,7 @@ public enum L10n {
         .shortcutCycleForward: "Cycle window forward",
         .shortcutUnsnap: "Unsnap window",
         .shortcutShowShortcuts: "Keyboard shortcuts",
+        .shortcutQuickSnapper: "Quick Snapper overlay",
         .shortcutEditorCancel: "Close editor",
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
@@ -283,6 +305,9 @@ public enum L10n {
         .shortcutEditorZoomBoth: "Scale both",
         .shortcutSnapShiftDrag: "Snap while dragging",
         .shortcutSnapRightClick: "Right-click while dragging",
+        .shortcutSnapShake: "Shake title bar to snap",
+        .shortcutSnapGridDraw: "Draw a rectangle across grid cells",
+        .shortcutSnapMagneticResize: "Magnetic resize to zone edges",
         .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
         .shortcutGestureScroll: "Scroll",
@@ -290,6 +315,9 @@ public enum L10n {
         .shortcutGestureOptionScroll: "⌥  Scroll",
         .shortcutGestureShiftDrag: "⇧  drag",
         .shortcutGestureRightClick: "Right-click drag",
+        .shortcutGestureShake: "Shake while dragging",
+        .shortcutGestureGridDraw: "⇧  drag across cells",
+        .shortcutGestureMagneticResize: "Drag a window edge",
         .shortcutGestureDrag: "Drag",
 
         .onboardingWindowTitle: "Enable Accessibility",
@@ -363,6 +391,11 @@ public enum L10n {
         .settingsEnableSnapping: "启用吸附",
         .settingsShiftDrag: "拖动窗口时按住 Shift 吸附",
         .settingsRightClick: "拖动窗口时右键吸附",
+        .settingsShakeToSnap: "拖动标题栏时左右晃动即可吸附",
+        .settingsShakeIntensity: "晃动力度：%d",
+        .settingsShakeIntensityHint: "数值越小越容易触发",
+        .settingsQuickSnapper: "快速吸附（Control+Option+空格，再按 1–9）",
+        .settingsMagneticResize: "缩放窗口时边缘吸附到分区",
         .settingsShowNumbers: "显示分区编号",
         .settingsRestoreSize: "取消吸附时恢复原来的大小",
         .settingsGutter: "间距：%d 点",
@@ -391,6 +424,7 @@ public enum L10n {
         .shortcutCycleForward: "分区内下一窗口",
         .shortcutUnsnap: "取消吸附",
         .shortcutShowShortcuts: "键盘快捷键",
+        .shortcutQuickSnapper: "快速吸附覆盖层",
         .shortcutEditorCancel: "关闭编辑器",
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",
@@ -401,6 +435,9 @@ public enum L10n {
         .shortcutEditorZoomBoth: "等比缩放",
         .shortcutSnapShiftDrag: "拖动时吸附",
         .shortcutSnapRightClick: "拖动时右键",
+        .shortcutSnapShake: "晃动标题栏吸附",
+        .shortcutSnapGridDraw: "在网格上画矩形吸附",
+        .shortcutSnapMagneticResize: "缩放时磁性对齐分区边缘",
         .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
         .shortcutGestureScroll: "滚动",
@@ -408,6 +445,9 @@ public enum L10n {
         .shortcutGestureOptionScroll: "⌥  滚动",
         .shortcutGestureShiftDrag: "⇧  拖动",
         .shortcutGestureRightClick: "拖动时右键",
+        .shortcutGestureShake: "拖动时晃动",
+        .shortcutGestureGridDraw: "⇧  拖过多个格子",
+        .shortcutGestureMagneticResize: "拖动窗口边缘",
         .shortcutGestureDrag: "拖动",
 
         .onboardingWindowTitle: "开启辅助功能",

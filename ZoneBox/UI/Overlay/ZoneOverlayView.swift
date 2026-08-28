@@ -4,6 +4,7 @@ import ZoneBoxCore
 final class ZoneOverlayView: NSView {
     var zones: [ResolvedZone] = []
     var highlightID: UUID?
+    var highlightFrameAX: CGRect?
     var showNumbers = true
     var inactiveOpacity = 0.20
     var activeOpacity = 0.40
@@ -35,6 +36,16 @@ final class ZoneOverlayView: NSView {
                 let size = label.size(withAttributes: attrs)
                 label.draw(at: NSPoint(x: local.midX - size.width / 2, y: local.midY - size.height / 2), withAttributes: attrs)
             }
+        }
+        if let spanAX = highlightFrameAX {
+            let rect = CoordinateConverter.appKitRect(fromAX: spanAX, primaryFlipHeight: primaryFlipHeight)
+            let local = convertFromScreen(rect)
+            fillColor.withAlphaComponent(activeOpacity).setFill()
+            let path = NSBezierPath(roundedRect: local.insetBy(dx: 2, dy: 2), xRadius: 10, yRadius: 10)
+            path.fill()
+            borderColor.withAlphaComponent(0.9).setStroke()
+            path.lineWidth = 4
+            path.stroke()
         }
     }
 

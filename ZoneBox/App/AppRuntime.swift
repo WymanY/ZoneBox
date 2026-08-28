@@ -28,6 +28,7 @@ final class AppRuntime {
     private var onboarding: OnboardingWindowController?
     private var editor: LayoutEditorController?
     private var shortcutPanel: ShortcutPanelController?
+    private var quickSnapperUIActive = false
 
     init() {
         ax = AccessibilityClientLive(
@@ -309,6 +310,16 @@ final class AppRuntime {
         }
     }
 
+    func noteQuickSnapperUI(showing: Bool) {
+        if showing, !quickSnapperUIActive {
+            quickSnapperUIActive = true
+            uiSession.enterRegular()
+        } else if !showing, quickSnapperUIActive {
+            quickSnapperUIActive = false
+            uiSession.leaveRegular()
+        }
+    }
+
     func resolvedZones(for area: WorkArea?) -> [ResolvedZone] {
         guard let area else { return [] }
         guard let layout = document.layout(for: area.display.id) else { return [] }
@@ -317,6 +328,19 @@ final class AppRuntime {
             primaryFlipHeight: displays.primaryFlipHeight
         )
         return (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
+    }
+
+    func gridCoverage(for area: WorkArea?) -> (cells: [GridCell], gutter: CGFloat, workAreaAX: CGRect) {
+        let gutter = CGFloat(settings.gutterPoints)
+        guard let area else { return ([], gutter, .null) }
+        guard let layout = document.layout(for: area.display.id), layout.kind == .grid, let spec = layout.grid else {
+            return ([], gutter, .null)
+        }
+        let workAX = CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: displays.primaryFlipHeight
+        )
+        return (GridCoverage.cells(spec: spec, workAreaAX: workAX), gutter, workAX)
     }
 
     func persist() {

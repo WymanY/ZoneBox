@@ -11,6 +11,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var snapCheckbox: NSButton?
     private var shiftCheckbox: NSButton?
     private var rightCheckbox: NSButton?
+    private var shakeCheckbox: NSButton?
+    private var shakeIntensityLabel: NSTextField?
+    private var shakeIntensityHint: NSTextField?
+    private var shakeIntensitySlider: NSSlider?
+    private var quickSnapperCheckbox: NSButton?
+    private var magneticCheckbox: NSButton?
     private var numbersCheckbox: NSButton?
     private var restoreCheckbox: NSButton?
     private var gutterLabel: NSTextField?
@@ -46,7 +52,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 740),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -95,11 +101,42 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         snapCheckbox = checkbox(L10n.text(.settingsEnableSnapping), runtime.settings.snapEnabled, #selector(toggleSnap))
         shiftCheckbox = checkbox(L10n.text(.settingsShiftDrag), runtime.settings.snapOnShiftDrag, #selector(toggleShift))
         rightCheckbox = checkbox(L10n.text(.settingsRightClick), runtime.settings.snapOnRightClickDrag, #selector(toggleRight))
+        shakeCheckbox = checkbox(L10n.text(.settingsShakeToSnap), runtime.settings.shakeToSnapEnabled, #selector(toggleShake))
+        quickSnapperCheckbox = checkbox(L10n.text(.settingsQuickSnapper), runtime.settings.quickSnapperEnabled, #selector(toggleQuickSnapper))
+        magneticCheckbox = checkbox(L10n.text(.settingsMagneticResize), runtime.settings.magneticResizeEnabled, #selector(toggleMagnetic))
         numbersCheckbox = checkbox(L10n.text(.settingsShowNumbers), runtime.settings.showZoneNumbers, #selector(toggleNumbers))
         restoreCheckbox = checkbox(L10n.text(.settingsRestoreSize), runtime.settings.restoreSizeOnUnsnap, #selector(toggleRestore))
         stack.addArrangedSubview(snapCheckbox!)
         stack.addArrangedSubview(shiftCheckbox!)
         stack.addArrangedSubview(rightCheckbox!)
+        stack.addArrangedSubview(shakeCheckbox!)
+        let shakeLabel = NSTextField(labelWithString: L10n.shakeIntensity(runtime.settings.shakeIntensity))
+        shakeLabel.tag = 51
+        shakeLabel.translatesAutoresizingMaskIntoConstraints = false
+        stack.addArrangedSubview(shakeLabel)
+        self.shakeIntensityLabel = shakeLabel
+        let shakeSlider = NSSlider(
+            value: Double(runtime.settings.shakeIntensity),
+            minValue: Double(ShakeProfile.intensityRange.lowerBound),
+            maxValue: Double(ShakeProfile.intensityRange.upperBound),
+            target: self,
+            action: #selector(shakeIntensityChanged(_:))
+        )
+        shakeSlider.numberOfTickMarks = ShakeProfile.intensityRange.count
+        shakeSlider.allowsTickMarkValuesOnly = true
+        shakeSlider.isContinuous = true
+        shakeSlider.isEnabled = runtime.settings.shakeToSnapEnabled
+        shakeSlider.translatesAutoresizingMaskIntoConstraints = false
+        shakeSlider.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
+        stack.addArrangedSubview(shakeSlider)
+        self.shakeIntensitySlider = shakeSlider
+        let shakeHint = NSTextField(labelWithString: L10n.text(.settingsShakeIntensityHint))
+        shakeHint.textColor = .secondaryLabelColor
+        shakeHint.font = .systemFont(ofSize: 11)
+        stack.addArrangedSubview(shakeHint)
+        self.shakeIntensityHint = shakeHint
+        stack.addArrangedSubview(quickSnapperCheckbox!)
+        stack.addArrangedSubview(magneticCheckbox!)
         stack.addArrangedSubview(numbersCheckbox!)
         stack.addArrangedSubview(restoreCheckbox!)
 
@@ -163,6 +200,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         snapCheckbox?.title = L10n.text(.settingsEnableSnapping)
         shiftCheckbox?.title = L10n.text(.settingsShiftDrag)
         rightCheckbox?.title = L10n.text(.settingsRightClick)
+        shakeCheckbox?.title = L10n.text(.settingsShakeToSnap)
+        shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
+        shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
+        quickSnapperCheckbox?.title = L10n.text(.settingsQuickSnapper)
+        magneticCheckbox?.title = L10n.text(.settingsMagneticResize)
         numbersCheckbox?.title = L10n.text(.settingsShowNumbers)
         restoreCheckbox?.title = L10n.text(.settingsRestoreSize)
         gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
@@ -207,6 +249,21 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func toggleSnap(_ sender: NSButton) { runtime.setSnapEnabled(sender.state == .on) }
     @objc private func toggleShift(_ sender: NSButton) { runtime.settings.snapOnShiftDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRight(_ sender: NSButton) { runtime.settings.snapOnRightClickDrag = sender.state == .on; runtime.persistSettings() }
+    @objc private func toggleShake(_ sender: NSButton) {
+        runtime.settings.shakeToSnapEnabled = sender.state == .on
+        shakeIntensitySlider?.isEnabled = runtime.settings.shakeToSnapEnabled
+        runtime.persistSettings()
+    }
+
+    @objc private func shakeIntensityChanged(_ sender: NSSlider) {
+        runtime.settings.shakeIntensity = ShakeProfile.clampedIntensity(Int(sender.doubleValue.rounded()))
+        if let label = window?.contentView?.viewWithTag(51) as? NSTextField {
+            label.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
+        }
+        runtime.persistSettings()
+    }
+    @objc private func toggleQuickSnapper(_ sender: NSButton) { runtime.settings.quickSnapperEnabled = sender.state == .on; runtime.persistSettings() }
+    @objc private func toggleMagnetic(_ sender: NSButton) { runtime.settings.magneticResizeEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleNumbers(_ sender: NSButton) { runtime.settings.showZoneNumbers = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRestore(_ sender: NSButton) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func openAccess() { runtime.openAccessibility() }
