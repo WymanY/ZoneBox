@@ -39,6 +39,7 @@
 		5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9118B8805E80F4D1DA3FC84D /* AppSettings.swift */; };
 		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
 		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		737615E270F4C3235085D72A /* MenuBarConsoleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */; };
 		74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */; };
 		76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */; };
 		775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */; };
@@ -128,6 +129,7 @@
 		5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutTemplates.swift; sourceTree = "<group>"; };
 		643D257C1C1C278B39EA9176 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorCanvasView.swift; sourceTree = "<group>"; };
+		6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarConsoleController.swift; sourceTree = "<group>"; };
 		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		7EFE483F6CBDB37363637CAD /* WorkArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkArea.swift; sourceTree = "<group>"; };
@@ -250,6 +252,14 @@
 			path = Domain;
 			sourceTree = "<group>";
 		};
+		1C2452D78D1479DA4366F9CD /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
 		27CE8C9758D66D4083097A49 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -283,6 +293,7 @@
 			isa = PBXGroup;
 			children = (
 				54D749D98228075DEFBE4A32 /* Editor */,
+				1C2452D78D1479DA4366F9CD /* MenuBar */,
 				116660229A92E78EE02E1B2A /* Onboarding */,
 				44B9EB6803A213ECA69D3464 /* Overlay */,
 				8CBB03C60CE2356FC34F7C5D /* Settings */,
@@ -557,6 +568,7 @@
 				A240F4BF13C5454FC76CFE6E /* LayoutEditorCanvasView.swift in Sources */,
 				937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */,
 				4DC8E3DCE4158DBCB5228FB9 /* LayoutThumbnailRenderer.swift in Sources */,
+				737615E270F4C3235085D72A /* MenuBarConsoleController.swift in Sources */,
 				B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */,
 				B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */,
 				7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */,

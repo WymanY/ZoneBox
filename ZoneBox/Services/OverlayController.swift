@@ -70,9 +70,7 @@ final class OverlayController {
                 panels[previousDisplayID]?.orderOut(nil)
             }
             visibleDisplayID = displayID
-            if !panel.isVisible {
-                panel.orderFrontRegardless()
-            }
+            panel.orderFrontRegardless()
             needsDisplay = true
         }
         if needsDisplay {

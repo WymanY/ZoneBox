@@ -5,6 +5,8 @@ import ZoneBoxCore
 final class MenuBarController: NSObject {
     private unowned let runtime: AppRuntime
     private var statusItem: NSStatusItem?
+    private var console: MenuBarConsoleController?
+    private var fallbackMenu: NSMenu?
 
     init(runtime: AppRuntime) {
         self.runtime = runtime
@@ -22,8 +24,15 @@ final class MenuBarController: NSObject {
                 button.title = "ZB"
                 button.imagePosition = .noImage
             }
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.target = self
+            button.action = #selector(statusItemClicked(_:))
         }
-        item.menu = makeMenu()
+        console = MenuBarConsoleController(runtime: runtime)
+        fallbackMenu = makeMenu()
+        if usesFallbackMenu {
+            item.menu = fallbackMenu
+        }
         statusItem = item
         installApplicationMenu()
         updateTrustAppearance()
@@ -33,18 +42,27 @@ final class MenuBarController: NSObject {
     func updateTrustAppearance() {
         guard let button = statusItem?.button else { return }
         let warning = runtime.trust.showsMenuBarWarning()
-        button.image = Self.statusImage(warning: warning)
-        button.contentTintColor = warning ? .systemOrange : nil
+        button.image = Self.statusImage(warning: warning, snapEnabled: runtime.snapEnabled)
+        button.alphaValue = warning || runtime.snapEnabled ? 1 : 0.45
+        button.contentTintColor = warning ? .systemOrange : (runtime.snapEnabled ? nil : .secondaryLabelColor)
         button.toolTip = L10n.text(warning ? .statusTooltipNeedsAccess : .statusTooltip)
     }
 
-    private static func statusImage(warning: Bool) -> NSImage? {
+    private static func statusImage(warning: Bool, snapEnabled: Bool = true) -> NSImage? {
         if warning {
             let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
             let image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "ZoneBox")?
                 .withSymbolConfiguration(config)
             image?.isTemplate = true
             return image
+        }
+
+        if !snapEnabled {
+            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            let image = NSImage(systemSymbolName: "rectangle.split.3x1.slash", accessibilityDescription: "ZoneBox")?
+                .withSymbolConfiguration(config)
+            image?.isTemplate = true
+            if image != nil { return image }
         }
 
         let image = (NSImage(named: "MenuBarIcon")?.copy() as? NSImage)
@@ -59,11 +77,59 @@ final class MenuBarController: NSObject {
             NSStatusBar.system.removeStatusItem(item)
         }
         statusItem = nil
+        console?.close()
+        console = nil
+        fallbackMenu = nil
+    }
+
+    func closeConsole() {
+        console?.close()
     }
 
     func reloadMenu() {
-        statusItem?.menu = makeMenu()
+        fallbackMenu = makeMenu()
+        if usesFallbackMenu {
+            statusItem?.menu = fallbackMenu
+        } else {
+            statusItem?.menu = nil
+        }
+        console?.reload()
+        updateTrustAppearance()
         installApplicationMenu()
+    }
+
+    private var usesFallbackMenu: Bool {
+        NSWorkspace.shared.isVoiceOverEnabled
+    }
+
+    @objc
+    private func statusItemClicked(_ sender: Any?) {
+        guard let item = statusItem, let button = item.button else { return }
+        let event = NSApp.currentEvent
+        let isRightClick = event?.type == .rightMouseUp
+            || event?.modifierFlags.contains(.control) == true
+        if isRightClick {
+            console?.close()
+            showFallbackMenu(from: button)
+            return
+        }
+        if event?.modifierFlags.contains(.option) == true {
+            console?.close()
+            runtime.setSnapEnabled(!runtime.snapEnabled)
+            return
+        }
+        if usesFallbackMenu {
+            // VoiceOver keeps the system menu on the status item; don't also pop a console.
+            return
+        }
+        console?.toggle(from: button)
+    }
+
+    private func showFallbackMenu(from button: NSStatusBarButton) {
+        let menu = fallbackMenu ?? makeMenu()
+        fallbackMenu = menu
+        let location = NSPoint(x: 0, y: button.bounds.height + 2)
+        menu.popUp(positioning: nil, at: location, in: button)
     }
 
     private func installApplicationMenu() {

@@ -29,6 +29,19 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .chineseSimplified), "键盘快捷键")
     }
 
+    func testConsoleCopy() {
+        XCTAssertEqual(L10n.text(.consoleSnap, language: .english), "Snap")
+        XCTAssertEqual(L10n.text(.consoleSnap, language: .chineseSimplified), "吸附")
+        XCTAssertEqual(L10n.text(.consoleEdit, language: .english), "Edit")
+        XCTAssertEqual(L10n.text(.consoleEdit, language: .chineseSimplified), "编辑")
+        XCTAssertEqual(L10n.text(.consolePreview, language: .english), "Preview")
+        XCTAssertEqual(L10n.text(.consolePreview, language: .chineseSimplified), "预览")
+        XCTAssertEqual(L10n.text(.consoleNew, language: .english), "New")
+        XCTAssertEqual(L10n.text(.consoleNew, language: .chineseSimplified), "新建")
+        XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .english), "No display")
+        XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .chineseSimplified), "没有显示器")
+    }
+
     func testUnchangedCopyWarningLocalized() {
         XCTAssertEqual(
             L10n.text(.editorCopyUnchangedMessage, language: .english),

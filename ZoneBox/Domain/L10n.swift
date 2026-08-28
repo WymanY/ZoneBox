@@ -47,6 +47,11 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuSettings
     case menuKeyboardShortcuts
     case menuQuit
+    case consoleSnap
+    case consoleEdit
+    case consolePreview
+    case consoleNew
+    case consoleNoDisplay
 
     case settingsTitle
     case settingsAccessBanner
@@ -269,6 +274,11 @@ public enum L10n {
         .menuSettings: "Settings…",
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
+        .consoleSnap: "Snap",
+        .consoleEdit: "Edit",
+        .consolePreview: "Preview",
+        .consoleNew: "New",
+        .consoleNoDisplay: "No display",
 
         .settingsTitle: "ZoneBox Settings",
         .settingsAccessBanner: "Snapping is off until Accessibility is allowed. Open the guide to turn on the ZoneBox switch.",
@@ -410,6 +420,11 @@ public enum L10n {
         .menuSettings: "设置…",
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
+        .consoleSnap: "吸附",
+        .consoleEdit: "编辑",
+        .consolePreview: "预览",
+        .consoleNew: "新建",
+        .consoleNoDisplay: "没有显示器",
 
         .settingsTitle: "ZoneBox 设置",
         .settingsAccessBanner: "未允许辅助功能时无法吸附。请打开引导，打开 ZoneBox 开关。",
