@@ -516,25 +516,28 @@ final class LayoutEditorCanvasView: NSView {
             return
         }
 
-        if #available(macOS 15.0, *),
-           let cursor = systemFrameResizeCursor(for: edge.primaryHandle) {
+        if let cursor = systemFrameResizeCursor(for: edge.primaryHandle) {
             cursor.set()
         } else {
             Self.hiddenCursor.set()
         }
     }
 
-    @available(macOS 15.0, *)
     private func systemFrameResizeCursor(for handle: Handle) -> NSCursor? {
-        let position: NSCursor.FrameResizePosition
-        switch handle {
-        case .ne: position = .topRight
-        case .nw: position = .topLeft
-        case .se: position = .bottomRight
-        case .sw: position = .bottomLeft
-        default: return nil
+#if compiler(>=6.0)
+        if #available(macOS 15.0, *) {
+            let position: NSCursor.FrameResizePosition
+            switch handle {
+            case .ne: position = .topRight
+            case .nw: position = .topLeft
+            case .se: position = .bottomRight
+            case .sw: position = .bottomLeft
+            default: return nil
+            }
+            return NSCursor.frameResize(position: position, directions: .all)
         }
-        return NSCursor.frameResize(position: position, directions: .all)
+#endif
+        return nil
     }
 
     private func visibleSplitHandle() -> EdgeInteraction? {
