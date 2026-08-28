@@ -265,11 +265,11 @@ final class HotkeyCenter {
         guard runtime.trust.isTrusted() || ShortcutCatalog.trustExemptIDs.contains(id) else { return }
         switch id {
         case ShortcutCatalog.editorHotkeyID:
-            runtime.openEditor()
+            runtime.openEditorForFocusedWindow()
         case ShortcutCatalog.previousZoneHotkeyID:
-            runtime.snapAdjacent(delta: -1)
+            runtime.engine.snapAdjacent(delta: -1)
         case ShortcutCatalog.nextZoneHotkeyID:
-            runtime.snapAdjacent(delta: 1)
+            runtime.engine.snapAdjacent(delta: 1)
         case ShortcutCatalog.cycleBackwardHotkeyID:
             runtime.engine.cycleWindowsInFocusedZone(delta: -1)
         case ShortcutCatalog.cycleForwardHotkeyID:

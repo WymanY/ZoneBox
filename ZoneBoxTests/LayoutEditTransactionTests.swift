@@ -131,4 +131,19 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(layout.cycledZoneID(from: nil, forward: true), live.id)
         XCTAssertEqual(layout.cycledZoneID(from: live.id, forward: true), live.id)
     }
+
+    func testEditorTargetStaysCapturedAndUnavailableTargetDoesNotRetarget() {
+        let otherDisplayID = UUID(uuidString: "99999999-8888-7777-6666-555555555555")!
+        let layout = LayoutTemplates.focus()
+        let transaction = LayoutEditTransaction(
+            original: layout,
+            draft: layout,
+            targetDisplayID: displayID
+        )
+
+        XCTAssertEqual(transaction.targetDisplayID, displayID)
+        XCTAssertTrue(transaction.targetIsAvailable(in: [otherDisplayID, displayID]))
+        XCTAssertFalse(transaction.targetIsAvailable(in: [otherDisplayID]))
+        XCTAssertEqual(transaction.targetDisplayID, displayID)
+    }
 }

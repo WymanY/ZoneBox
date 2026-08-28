@@ -142,7 +142,28 @@ final class AppRuntime {
             editor?.activate()
             return
         }
-        guard let target = editorTarget() else { return }
+        guard let target = pointerEditorTarget() else { return }
+        openEditor(on: target)
+    }
+
+    func openEditorForFocusedWindow() {
+        guard editor == nil else {
+            editor?.activate()
+            return
+        }
+        Task { @MainActor in
+            guard let focused = await focusedWindowTarget(),
+                  let target = editorTarget(for: focused.area)
+            else { return }
+            openEditor(on: target)
+        }
+    }
+
+    private func openEditor(on target: EditorTarget) {
+        guard editor == nil else {
+            editor?.activate()
+            return
+        }
         let layout = document.layout(for: target.area.display.id)
             ?? document.layouts.first
             ?? LayoutTemplates.columns(2)
@@ -208,14 +229,18 @@ final class AppRuntime {
         }
     }
 
-    func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) {
+    @discardableResult
+    func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) -> Bool {
+        guard displays.isActive(displayID: displayID) else { return false }
         document.upsertAndAssign(layout, to: displayID)
         persist()
         menuBar?.reloadMenu()
+        return true
     }
 
     func selectLayout(_ layout: Layout) {
-        if let area = displays.area(containingAppKit: NSEvent.mouseLocation) {
+        if let area = displays.area(containingAppKit: NSEvent.mouseLocation),
+           displays.isActive(displayID: area.display.id) {
             document.assign(layoutID: layout.id, to: area.display.id)
             persist()
             menuBar?.reloadMenu()
@@ -227,7 +252,7 @@ final class AppRuntime {
             editor?.activate()
             return
         }
-        guard let target = editorTarget() else { return }
+        guard let target = pointerEditorTarget() else { return }
         let name = LayoutEditTransaction.uniqueName(
             base: "Canvas \(document.layouts.count + 1)",
             existingNames: document.layouts.map(\.name)
@@ -237,17 +262,28 @@ final class AppRuntime {
 
     private typealias EditorTarget = (screen: NSScreen, area: WorkArea)
 
-    private func editorTarget() -> EditorTarget? {
+    private func pointerEditorTarget() -> EditorTarget? {
         let point = NSEvent.mouseLocation
-        guard let area = displays.area(containingAppKit: point) ?? displays.workAreas.first else { return nil }
-        let screen = NSScreen.screens.first(where: {
-            abs($0.frame.minX - area.frameAppKit.minX) < 1
-                && abs($0.frame.minY - area.frameAppKit.minY) < 1
-                && abs($0.frame.width - area.frameAppKit.width) < 1
-                && abs($0.frame.height - area.frameAppKit.height) < 1
-        }) ?? NSScreen.main ?? NSScreen.screens.first
-        guard let screen else { return nil }
+        guard let area = displays.area(containingAppKit: point) else { return nil }
+        return editorTarget(for: area)
+    }
+
+    private func editorTarget(for area: WorkArea) -> EditorTarget? {
+        guard let screen = displays.screen(for: area.display.id) else { return nil }
         return (screen, area)
+    }
+
+    func focusedWindowTarget() async -> (window: AXWindow, frameAX: CGRect, area: WorkArea)? {
+        guard let window = await ax.focusedWindow(),
+              let frameAX = await ax.frame(of: window),
+              let area = DisplayTargetResolver.workArea(
+                  containingWindowFrameAX: frameAX,
+                  from: displays.workAreas,
+                  primaryFlipHeight: displays.primaryFlipHeight
+              ),
+              displays.isActive(displayID: area.display.id)
+        else { return nil }
+        return (window, frameAX, area)
     }
 
     private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
@@ -295,19 +331,6 @@ final class AppRuntime {
     func refreshTrustChrome() {
         menuBar?.reloadMenu()
         menuBar?.updateTrustAppearance()
-    }
-
-    func snapAdjacent(delta: Int) {
-        Task { @MainActor in
-            guard let window = await ax.focusedWindow() else { return }
-            let area = displays.area(containingAppKit: NSEvent.mouseLocation)
-            let zones = resolvedZones(for: area).sorted { $0.number < $1.number }
-            guard !zones.isEmpty else { return }
-            let current = catalog.zoneID(for: window.identity)
-            let idx = zones.firstIndex(where: { $0.zoneID == current }) ?? 0
-            let next = zones[(idx + delta + zones.count) % zones.count]
-            engine.snapFocused(to: next.number)
-        }
     }
 
     func noteQuickSnapperUI(showing: Bool) {

@@ -20,6 +20,10 @@ public struct LayoutEditTransaction: Sendable {
     /// An active layout with no zones makes every snap command a no-op.
     public var canCommit: Bool { !draft.zones.isEmpty }
 
+    public func targetIsAvailable(in displayIDs: some Sequence<DisplayIdentity.ID>) -> Bool {
+        displayIDs.contains(targetDisplayID)
+    }
+
     public mutating func updateDraft(_ layout: Layout) {
         draft = layout
     }

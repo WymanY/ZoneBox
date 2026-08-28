@@ -163,43 +163,102 @@ final class SnapEngine {
 
     func snapFocused(to zoneNumber: Int) {
         Task { @MainActor in
-            guard let window = await runtime.ax.focusedWindow() else { return }
-            await snap(window.identity, to: zoneNumber)
+            guard runtime.trust.isTrusted(), runtime.settings.snapEnabled else { return }
+            guard let target = await runtime.focusedWindowTarget() else { return }
+            let zones = runtime.resolvedZones(for: target.area)
+            guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
+            await snap(target, to: zone)
         }
     }
 
     private func snap(_ identity: WindowIdentity, to zoneNumber: Int) async {
         guard runtime.trust.isTrusted(), runtime.settings.snapEnabled else { return }
-        guard let window = await runtime.ax.window(matching: identity) else { return }
-        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-            ?? runtime.displays.workAreas.first
+        guard let window = await runtime.ax.window(matching: identity),
+              let frameAX = await runtime.ax.frame(of: window),
+              let area = DisplayTargetResolver.workArea(
+                  containingWindowFrameAX: frameAX,
+                  from: runtime.displays.workAreas,
+                  primaryFlipHeight: runtime.displays.primaryFlipHeight
+              ),
+              runtime.displays.isActive(displayID: area.display.id)
+        else { return }
         let zones = runtime.resolvedZones(for: area)
         guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
-        let original = await runtime.ax.frame(of: window)
-        if let applied = await runtime.ax.setFrame(zone.frameAX, of: window), let original {
-            runtime.catalog.record(
-                UnsnapRecord(
-                    identity: identity,
-                    originalFrameAX: original,
-                    snappedFrameAX: applied,
-                    zoneIDs: [zone.zoneID]
-                )
+        await snap((window, frameAX, area), to: zone)
+    }
+
+    func snapAdjacent(delta: Int) {
+        guard runtime.trust.isTrusted(), runtime.settings.snapEnabled else { return }
+        Task { @MainActor in
+            guard let target = await runtime.focusedWindowTarget() else { return }
+            let zones = runtime.resolvedZones(for: target.area).sorted { $0.number < $1.number }
+            guard !zones.isEmpty else { return }
+            let current = runtime.catalog.zoneID(
+                for: target.window.identity,
+                displayID: target.area.display.id
             )
+            let index = zones.firstIndex(where: { $0.zoneID == current }) ?? 0
+            let next = zones[(index + delta + zones.count) % zones.count]
+            await snap(target, to: next)
         }
     }
 
     func cycleWindowsInFocusedZone(delta: Int) {
         Task { @MainActor in
-            guard let focused = await runtime.ax.focusedWindow(),
-                  let zoneID = runtime.catalog.zoneID(for: focused.identity)
+            guard let target = await runtime.focusedWindowTarget(),
+                  let zoneID = runtime.catalog.zoneID(
+                      for: target.window.identity,
+                      displayID: target.area.display.id
+                  )
             else { return }
-            let ring = runtime.catalog.identities(in: zoneID)
-            guard ring.count > 1, let idx = ring.firstIndex(of: focused.identity) else { return }
-            let next = ring[(idx + delta + ring.count) % ring.count]
-            if let window = await runtime.ax.window(matching: next) {
-                await runtime.ax.raise(window)
-                NSRunningApplication(processIdentifier: next.pid)?.activate()
+
+            let identities = runtime.catalog.identities(in: zoneID, displayID: target.area.display.id)
+            var ring: [(identity: WindowIdentity, window: AXWindow)] = []
+            for identity in identities {
+                let window: AXWindow?
+                let frameAX: CGRect?
+                if identity == target.window.identity {
+                    window = target.window
+                    frameAX = target.frameAX
+                } else {
+                    window = await runtime.ax.window(matching: identity)
+                    frameAX = if let window { await runtime.ax.frame(of: window) } else { nil }
+                }
+                guard let window, let frameAX,
+                      DisplayTargetResolver.workArea(
+                          containingWindowFrameAX: frameAX,
+                          from: runtime.displays.workAreas,
+                          primaryFlipHeight: runtime.displays.primaryFlipHeight
+                      )?.display.id == target.area.display.id
+                else { continue }
+                ring.append((identity, window))
             }
+
+            guard ring.count > 1,
+                  let index = ring.firstIndex(where: { $0.identity == target.window.identity })
+            else { return }
+            let next = ring[(index + delta + ring.count) % ring.count]
+            guard runtime.displays.isActive(displayID: target.area.display.id) else { return }
+            await runtime.ax.raise(next.window)
+            NSRunningApplication(processIdentifier: next.identity.pid)?.activate()
+        }
+    }
+
+    private func snap(
+        _ target: (window: AXWindow, frameAX: CGRect, area: WorkArea),
+        to zone: ResolvedZone
+    ) async {
+        guard runtime.displays.isActive(displayID: target.area.display.id) else { return }
+        if let applied = await runtime.ax.setFrame(zone.frameAX, of: target.window) {
+            runtime.catalog.record(
+                UnsnapRecord(
+                    identity: target.window.identity,
+                    originalFrameAX: target.frameAX,
+                    snappedFrameAX: applied,
+                    zoneIDs: [zone.zoneID]
+                ),
+                displayID: target.area.display.id
+            )
         }
     }
 
@@ -264,7 +323,12 @@ final class SnapEngine {
                     }
                 }
             case .recordUnsnap(let record):
-                runtime.catalog.record(record)
+                let area = DisplayTargetResolver.workArea(
+                    containingWindowFrameAX: record.snappedFrameAX,
+                    from: runtime.displays.workAreas,
+                    primaryFlipHeight: runtime.displays.primaryFlipHeight
+                )
+                runtime.catalog.record(record, displayID: area?.display.id)
             }
         }
         if hideOverlay {

@@ -49,11 +49,28 @@ final class DisplayWatcher {
     }
 
     func area(containingAppKit point: CGPoint) -> WorkArea? {
-        workAreas.first { $0.containsAppKitPoint(point) } ?? workAreas.first
+        workAreas.first { $0.frameAppKit.contains(point) }
+    }
+
+    var activeDisplayIDs: [DisplayIdentity.ID] {
+        workAreas.compactMap { area in
+            screen(for: area.display.id) == nil ? nil : area.display.id
+        }
+    }
+
+    func isActive(displayID: DisplayIdentity.ID) -> Bool {
+        screen(for: displayID) != nil
+    }
+
+    func screen(for displayID: DisplayIdentity.ID) -> NSScreen? {
+        guard let display = workAreas.first(where: { $0.display.id == displayID })?.display,
+              display.lastCGDisplayID != 0
+        else { return nil }
+        return NSScreen.screens.first { Self.displayID(for: $0) == display.lastCGDisplayID }
     }
 
     static func probe(_ screen: NSScreen) -> DisplayIdentity {
-        let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
+        let number = displayID(for: screen)
         var uuid: UUID?
         if let cfUUID = CGDisplayCreateUUIDFromDisplayID(number) {
             let cf = cfUUID.takeUnretainedValue()
@@ -70,5 +87,9 @@ final class DisplayWatcher {
             visibleHeight: screen.visibleFrame.height,
             backingScale: screen.backingScaleFactor
         )
+    }
+
+    private static func displayID(for screen: NSScreen) -> CGDirectDisplayID {
+        screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
     }
 }

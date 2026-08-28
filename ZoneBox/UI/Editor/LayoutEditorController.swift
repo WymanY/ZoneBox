@@ -213,8 +213,15 @@ final class LayoutEditorController: NSObject {
             NSSound.beep()
             return
         }
+        guard transaction.targetIsAvailable(in: runtime.displays.activeDisplayIDs) else {
+            NSSound.beep()
+            return
+        }
         if let layout = transaction.layoutForCommit(existingNames: runtime.document.layouts.map(\.name)) {
-            runtime.saveLayout(layout, to: transaction.targetDisplayID)
+            guard runtime.saveLayout(layout, to: transaction.targetDisplayID) else {
+                NSSound.beep()
+                return
+            }
         }
         dismiss()
     }

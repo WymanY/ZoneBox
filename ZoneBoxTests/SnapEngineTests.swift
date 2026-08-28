@@ -455,3 +455,90 @@ final class SnapEngineTests: XCTestCase {
         )
     }
 }
+
+final class DisplayTargetResolverTests: XCTestCase {
+    private let leftID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+    private let rightID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    private let upperID = UUID(uuidString: "22222222-3333-4444-5555-666666666666")!
+
+    func testWindowUsesDisplayWithLargestIntersection() throws {
+        let target = try XCTUnwrap(
+            DisplayTargetResolver.workArea(
+                containingWindowFrameAX: CGRect(x: 80, y: 10, width: 80, height: 80),
+                from: workAreas,
+                primaryFlipHeight: 100
+            )
+        )
+
+        XCTAssertEqual(target.display.id, rightID)
+    }
+
+    func testEvenlySpanningWindowIsAmbiguous() {
+        let target = DisplayTargetResolver.workArea(
+            containingWindowFrameAX: CGRect(x: 50, y: 10, width: 100, height: 80),
+            from: workAreas,
+            primaryFlipHeight: 100
+        )
+
+        XCTAssertNil(target)
+    }
+
+    func testDisplayAbovePrimaryUsesAXCoordinateSpace() throws {
+        let upper = area(
+            id: upperID,
+            name: "Upper",
+            frame: CGRect(x: 0, y: 100, width: 100, height: 100)
+        )
+        let target = try XCTUnwrap(
+            DisplayTargetResolver.workArea(
+                containingWindowFrameAX: CGRect(x: 10, y: -90, width: 60, height: 60),
+                from: [workAreas[0], upper],
+                primaryFlipHeight: 100
+            )
+        )
+
+        XCTAssertEqual(target.display.id, upperID)
+    }
+
+    func testOffscreenWindowDoesNotFallBackToFirstDisplay() {
+        let target = DisplayTargetResolver.workArea(
+            containingWindowFrameAX: CGRect(x: 300, y: 10, width: 50, height: 50),
+            from: workAreas,
+            primaryFlipHeight: 100
+        )
+
+        XCTAssertNil(target)
+    }
+
+    func testMissingDisplaysFailClosed() {
+        let target = DisplayTargetResolver.workArea(
+            containingWindowFrameAX: CGRect(x: 10, y: 10, width: 50, height: 50),
+            from: [],
+            primaryFlipHeight: 100
+        )
+
+        XCTAssertNil(target)
+    }
+
+    private var workAreas: [WorkArea] {
+        [
+            area(id: leftID, name: "Left", frame: CGRect(x: 0, y: 0, width: 100, height: 100)),
+            area(id: rightID, name: "Right", frame: CGRect(x: 100, y: 0, width: 100, height: 100)),
+        ]
+    }
+
+    private func area(id: UUID, name: String, frame: CGRect) -> WorkArea {
+        WorkArea(
+            display: DisplayIdentity(
+                id: id,
+                localizedName: name,
+                visibleWidth: frame.width,
+                visibleHeight: frame.height,
+                backingScale: 1
+            ),
+            frameAppKit: frame,
+            visibleFrameAppKit: frame,
+            backingScale: 1
+        )
+    }
+}
