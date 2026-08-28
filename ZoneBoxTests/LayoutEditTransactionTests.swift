@@ -385,6 +385,9 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(priority.neighborZoneID(from: topRightPriority, direction: .down), bottomRightPriority)
         XCTAssertEqual(priority.neighborZoneID(from: bottomRightPriority, direction: .left), left)
 
+        XCTAssertEqual(priority.neighborZoneID(from: bottomRightPriority, direction: .up), topRightPriority)
+        XCTAssertEqual(priority.neighborZoneID(from: topRightPriority, direction: .left), left)
+
         let scatteredLeft = Zone(number: 2, canvasRect: NormalizedRect(x: 0.0, y: 0.1, width: 0.3, height: 0.3))
         let scatteredRight = Zone(number: 1, canvasRect: NormalizedRect(x: 0.55, y: 0.1, width: 0.3, height: 0.3))
         let scattered = Layout(name: "Canvas", kind: .canvas, zones: [scatteredRight, scatteredLeft])
@@ -432,6 +435,19 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(layout.neighborZoneID(from: middle.id, direction: .right), right.id)
         XCTAssertEqual(layout.neighborZoneID(from: right.id, direction: .left), middle.id)
         XCTAssertEqual(layout.neighborZoneID(from: middle.id, direction: .left), left.id)
+    }
+
+    func testPriorityBottomPaneWSelectsStackedPaneNotWrappingLeft() {
+        let left = Zone(number: 1, canvasRect: NormalizedRect(x: 0.0, y: 0.0, width: 0.52, height: 1))
+        let topRight = Zone(number: 2, canvasRect: NormalizedRect(x: 0.5, y: 0.0, width: 0.5, height: 0.5))
+        let bottomRight = Zone(number: 3, canvasRect: NormalizedRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5))
+        let layout = Layout(name: "Code", kind: .canvas, zones: [left, topRight, bottomRight])
+
+        XCTAssertEqual(layout.neighborZoneID(from: bottomRight.id, direction: .up), topRight.id)
+        XCTAssertEqual(layout.neighborZoneID(from: topRight.id, direction: .down), bottomRight.id)
+        XCTAssertEqual(layout.neighborZoneID(from: bottomRight.id, direction: .left), left.id)
+        XCTAssertEqual(layout.neighborZoneID(from: topRight.id, direction: .left), left.id)
+        XCTAssertEqual(layout.neighborZoneID(from: left.id, direction: .right), topRight.id)
     }
 
     func testColumns3NeighborSurvivesOffOriginWorkArea() throws {

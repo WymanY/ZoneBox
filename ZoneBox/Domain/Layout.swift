@@ -162,8 +162,8 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
     }
 
     /// Arrow-key order: the spatially adjacent pane in that direction.
-    /// Picks the next pane by center along that axis, so overlapping columns
-    /// still move one pane at a time.
+    /// Prefers the nearest pane that shares an edge in that direction, so a
+    /// stacked pair still wins over a taller neighbor whose center is closer.
     public func neighborZoneID(from selected: UUID?, direction: ArrowDirection) -> UUID? {
         neighborZoneID(from: selected, direction: direction, rects: [:])
     }
@@ -191,7 +191,7 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
 
         struct Neighbor {
             var id: UUID
-            var along: Double
+            var gap: Double
             var across: Double
             var overlap: Double
             var number: Int
@@ -199,34 +199,18 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
 
         var neighbors: [Neighbor] = []
         neighbors.reserveCapacity(candidates.count)
-        let origin = center(of: current.rect)
         for zone in candidates where zone.id != current.id {
-            let target = center(of: zone.rect)
-            let dx = target.x - origin.x
-            let dy = target.y - origin.y
-            let along: Double
-            let across: Double
-            switch direction {
-            case .right:
-                along = dx
-                across = abs(dy)
-            case .left:
-                along = -dx
-                across = abs(dy)
-            case .down:
-                along = dy
-                across = abs(dx)
-            case .up:
-                along = -dy
-                across = abs(dx)
-            }
-            guard along > 0.000_001 else { continue }
+            let overlap = directionalOverlap(from: current.rect, to: zone.rect, direction: direction)
+            let gap = edgeGap(from: current.rect, to: zone.rect, direction: direction)
+            guard !containsOnAxis(current.rect, other: zone.rect, direction: direction) else { continue }
+            guard isAhead(from: current.rect, to: zone.rect, direction: direction) else { continue }
+            let across = crossAxisCenterDelta(from: current.rect, to: zone.rect, direction: direction)
             neighbors.append(
                 Neighbor(
                     id: zone.id,
-                    along: along,
+                    gap: max(0, gap),
                     across: across,
-                    overlap: directionalOverlap(from: current.rect, to: zone.rect, direction: direction),
+                    overlap: overlap,
                     number: zone.number
                 )
             )
@@ -234,14 +218,10 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
         let aligned = neighbors.filter { $0.overlap > 0.000_001 }
         let pool = aligned.isEmpty ? neighbors : aligned
         return pool.min { lhs, rhs in
-            if lhs.along != rhs.along { return lhs.along < rhs.along }
+            if lhs.gap != rhs.gap { return lhs.gap < rhs.gap }
             if lhs.across != rhs.across { return lhs.across < rhs.across }
             return lhs.number < rhs.number
         }?.id ?? selected
-    }
-
-    private func center(of rect: NormalizedRect) -> (x: Double, y: Double) {
-        (rect.x + rect.width / 2, rect.y + rect.height / 2)
     }
 
     private func directionalOverlap(
@@ -254,6 +234,77 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
             return overlap(current.y, current.y + current.height, other.y, other.y + other.height)
         case .up, .down:
             return overlap(current.x, current.x + current.width, other.x, other.x + other.width)
+        }
+    }
+
+    private func edgeGap(
+        from current: NormalizedRect,
+        to other: NormalizedRect,
+        direction: ArrowDirection
+    ) -> Double {
+        switch direction {
+        case .right:
+            return other.x - (current.x + current.width)
+        case .left:
+            return current.x - (other.x + other.width)
+        case .down:
+            return other.y - (current.y + current.height)
+        case .up:
+            return current.y - (other.y + other.height)
+        }
+    }
+
+    /// A taller/wider pane that wraps this one is beside it, not in front.
+    private func containsOnAxis(
+        _ current: NormalizedRect,
+        other: NormalizedRect,
+        direction: ArrowDirection
+    ) -> Bool {
+        let epsilon = 0.000_001
+        switch direction {
+        case .left, .right:
+            return other.x <= current.x + epsilon
+                && other.x + other.width >= current.x + current.width - epsilon
+        case .up, .down:
+            return other.y <= current.y + epsilon
+                && other.y + other.height >= current.y + current.height - epsilon
+        }
+    }
+
+    private func isAhead(
+        from current: NormalizedRect,
+        to other: NormalizedRect,
+        direction: ArrowDirection
+    ) -> Bool {
+        let origin = axisCenter(of: current, direction: direction)
+        let target = axisCenter(of: other, direction: direction)
+        switch direction {
+        case .right, .down:
+            return target > origin + 0.000_001
+        case .left, .up:
+            return target < origin - 0.000_001
+        }
+    }
+
+    private func axisCenter(of rect: NormalizedRect, direction: ArrowDirection) -> Double {
+        switch direction {
+        case .left, .right:
+            return rect.x + rect.width / 2
+        case .up, .down:
+            return rect.y + rect.height / 2
+        }
+    }
+
+    private func crossAxisCenterDelta(
+        from current: NormalizedRect,
+        to other: NormalizedRect,
+        direction: ArrowDirection
+    ) -> Double {
+        switch direction {
+        case .left, .right:
+            return abs((current.y + current.height / 2) - (other.y + other.height / 2))
+        case .up, .down:
+            return abs((current.x + current.width / 2) - (other.x + other.width / 2))
         }
     }
 
