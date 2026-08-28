@@ -111,6 +111,22 @@ final class ShortcutCatalogTests: XCTestCase {
         }
     }
 
+    func testOverlayDigitShortcutIsASnapGesture() throws {
+        let item = try XCTUnwrap(
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "overlayDigit" })
+        )
+        XCTAssertEqual(item.surface, .snap)
+        XCTAssertEqual(
+            item.title(language: .english),
+            "Snap to a numbered zone while the overlay is showing"
+        )
+        XCTAssertEqual(item.title(language: .chineseSimplified), "覆盖层显示时按分区编号吸附")
+        guard case .gesture(let key) = item.binding else {
+            return XCTFail("overlayDigit must be a snap gesture")
+        }
+        XCTAssertEqual(L10n.text(key, language: .english), "1–9")
+    }
+
     func testEscapePrefersKeyShortcutsPanelOverEditor() {
         XCTAssertEqual(
             ShortcutRouteContext.escapeAction(

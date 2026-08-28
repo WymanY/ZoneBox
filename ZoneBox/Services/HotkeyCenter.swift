@@ -226,6 +226,16 @@ final class HotkeyCenter {
             return consume ? nil : event
         }
 
+        if runtime.engine.isOverlayArmed,
+           let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode),
+           !flags.contains(.command)
+        {
+            if !event.isARepeat {
+                runtime.engine.handleOverlayDigit(number)
+            }
+            return consume ? nil : event
+        }
+
         if globalChordsEnabled,
            let id = ShortcutCatalog.hotkeyID(
                matching: event.keyCode,

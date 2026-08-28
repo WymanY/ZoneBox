@@ -15,6 +15,8 @@ public struct SnapMouseEvent: Equatable, Sendable {
         case rightDown
         case flagsChanged
         case escape
+        /// Overlay zone number 1...9. Hardware key, not a character.
+        case digit(Int)
     }
 
     public var kind: Kind

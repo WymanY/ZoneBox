@@ -23,6 +23,8 @@ public enum SnapSessionReducer {
             return reduceArm(input, sticky: true)
         case .flagsChanged:
             return reduceFlags(input)
+        case .digit(let number):
+            return reduceDigit(input, number: number)
         }
     }
 
@@ -125,7 +127,7 @@ public enum SnapSessionReducer {
         case .dragging(let window) where shift && input.snapOnShiftDrag:
             return arm(window, input: input)
         case .armed, .highlighting:
-            if !shift && !input.stickyArm {
+            if !shift && !input.stickyArm && input.lockedTarget == nil {
                 if let window = currentWindow(input.phase) {
                     return SnapReducerOutput(phase: .dragging(window), effects: [.hideOverlay])
                 }
@@ -167,6 +169,9 @@ public enum SnapSessionReducer {
             effects.append(.showOverlay(displayID: displayID))
         }
         effects.append(.highlight(target))
+        if input.lockedTarget != nil, let frame = target.frameAX {
+            effects.append(.applyFrame(window, frame))
+        }
         if case .none = target {
             return SnapReducerOutput(phase: .armed(window), effects: effects)
         }
@@ -181,6 +186,9 @@ public enum SnapSessionReducer {
     }
 
     private static func currentTarget(_ input: SnapReducerInput) -> SnapTarget {
+        if let locked = lockedTarget(input) {
+            return locked
+        }
         let point = CoordinateConverter.axPoint(
             fromAppKit: input.event.locationAppKit,
             primaryFlipHeight: input.primaryFlipHeight
@@ -253,6 +261,51 @@ public enum SnapSessionReducer {
 
     private static func cursorDisplayID(_ input: SnapReducerInput) -> UUID? {
         input.workAreas.first { $0.containsAppKitPoint(input.event.locationAppKit) }?.display.id
+    }
+
+    private static func reduceDigit(_ input: SnapReducerInput, number: Int) -> SnapReducerOutput {
+        guard (1...9).contains(number) else {
+            return SnapReducerOutput(phase: input.phase, effects: [])
+        }
+        guard let window = currentWindow(input.phase) else {
+            return SnapReducerOutput(phase: input.phase, effects: [])
+        }
+        switch input.phase {
+        case .armed, .highlighting:
+            guard let zone = input.resolvedZones.first(where: { $0.number == number }) else {
+                return SnapReducerOutput(phase: input.phase, effects: [])
+            }
+            let target = SnapTarget.zone(zone)
+            var effects: [SnapEffect] = []
+            if let displayID = cursorDisplayID(input) {
+                effects.append(.showOverlay(displayID: displayID))
+            }
+            effects.append(.highlight(target))
+            effects.append(.applyFrame(window, zone.frameAX))
+            if input.unsnapRecord == nil, let original = input.downFrameAX {
+                effects.append(
+                    .recordUnsnap(
+                        UnsnapRecord(
+                            identity: window,
+                            originalFrameAX: original,
+                            snappedFrameAX: zone.frameAX,
+                            zoneIDs: [zone.zoneID]
+                        )
+                    )
+                )
+            }
+            return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
+        default:
+            return SnapReducerOutput(phase: input.phase, effects: [])
+        }
+    }
+
+    private static func lockedTarget(_ input: SnapReducerInput) -> SnapTarget? {
+        guard case .zone(let locked) = input.lockedTarget else { return input.lockedTarget }
+        if let current = input.resolvedZones.first(where: { $0.number == locked.number }) {
+            return .zone(current)
+        }
+        return input.lockedTarget
     }
 
     private static func currentWindow(_ phase: SnapSessionPhase) -> WindowIdentity? {

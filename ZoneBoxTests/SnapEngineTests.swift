@@ -67,6 +67,93 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains(.cancel))
     }
 
+    func testOverlayDigitAppliesMatchingZone() {
+        let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        let zone3 = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 800, y: 0, width: 400, height: 800))
+        var input = overlayDigitInput(phase: .highlighting(window, .zone(zone1)), number: 3)
+        input.resolvedZones = [zone1, zone3]
+        input.downFrameAX = frame
+        input.event.modifiers = [.shift]
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zone3)))
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone3.frameAX)))
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(zone3))))
+        let recorded = out.effects.contains {
+            if case .recordUnsnap(let record) = $0 {
+                return record.identity == window
+                    && record.originalFrameAX == frame
+                    && record.snappedFrameAX == zone3.frameAX
+                    && record.zoneIDs == [zone3.zoneID]
+            }
+            return false
+        }
+        XCTAssertTrue(recorded)
+    }
+
+    func testOverlayDigitMissingZoneIsNoOp() {
+        let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        var input = overlayDigitInput(phase: .armed(window), number: 9)
+        input.resolvedZones = [zone1]
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .armed(window))
+        XCTAssertEqual(out.effects, [])
+    }
+
+    func testOverlayDigitWhileIdleOrUnarmedIsNoOp() {
+        var idle = overlayDigitInput(phase: .idle, number: 1)
+        idle.window = window
+        idle.resolvedZones = [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800)),
+        ]
+        XCTAssertEqual(SnapSessionReducer.reduce(idle).effects, [])
+
+        var dragging = overlayDigitInput(phase: .dragging(window), number: 1)
+        dragging.resolvedZones = idle.resolvedZones
+        XCTAssertEqual(SnapSessionReducer.reduce(dragging).phase, .dragging(window))
+        XCTAssertEqual(SnapSessionReducer.reduce(dragging).effects, [])
+    }
+
+    func testLockedDigitIgnoresLaterHover() {
+        let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        let zone2 = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 400, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone2)), kind: .leftDragged)
+        input.resolvedZones = [zone1, zone2]
+        input.lockedTarget = .zone(zone1)
+        input.event.locationAppKit = CGPoint(x: 700, y: 400)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zone1)))
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(zone1))))
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone1.frameAX)))
+        XCTAssertFalse(out.effects.contains(.highlight(.zone(zone2))))
+    }
+
+    func testLockedDigitDropAppliesLockedZone() {
+        let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 16, y: 16, width: 400, height: 768))
+        let zone2 = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 16, width: 400, height: 768))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone2)), kind: .leftUp)
+        input.resolvedZones = [zone1, zone2]
+        input.lockedTarget = .zone(zone1)
+        input.downFrameAX = frame
+        input.event.locationAppKit = CGPoint(x: 700, y: 400)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone1.frameAX)))
+        XCTAssertFalse(out.effects.contains(.applyFrame(window, zone2.frameAX)))
+    }
+
+    func testLockedDigitKeepsOverlayAfterShiftRelease() {
+        let zone = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 400, y: 0, width: 400, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .flagsChanged)
+        input.resolvedZones = [zone]
+        input.lockedTarget = .zone(zone)
+        input.stickyArm = false
+        input.event.modifiers = []
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zone)))
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(zone))))
+        XCTAssertFalse(out.effects.contains(.hideOverlay))
+    }
+
     func testShakeTraceArmsOverlayWithoutShift() {
         var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
         input.pointerTrace = ShakeDetectorTests.shakeTrace()
@@ -402,6 +489,12 @@ final class SnapEngineTests: XCTestCase {
             ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 16, y: 16, width: 668, height: 768)),
         ]
         input.primaryFlipHeight = 900
+        return input
+    }
+
+    private func overlayDigitInput(phase: SnapSessionPhase, number: Int) -> SnapReducerInput {
+        var input = armedReadyInput(phase: phase, kind: .digit(number))
+        input.event.locationAppKit = CGPoint(x: 100, y: 100)
         return input
     }
 
