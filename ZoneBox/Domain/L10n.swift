@@ -91,7 +91,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutEditorSave
     case shortcutEditorZoomHeight
     case shortcutEditorZoomWidth
-    case shortcutEditorZoomBoth
     case shortcutSnapShiftDrag
     case shortcutSnapRightClick
     case shortcutSnapShake
@@ -100,8 +99,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutSettings
     case shortcutQuit
     case shortcutGestureScroll
-    case shortcutGestureShiftScroll
-    case shortcutGestureOptionScroll
+    case shortcutGestureHorizontalScroll
     case shortcutGestureShiftDrag
     case shortcutGestureRightClick
     case shortcutGestureShake
@@ -150,6 +148,13 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorSaveTooltip
     case editorSaveCopyTooltip
     case editorSaveDisabledTooltip
+    case editorSaveNameTitle
+    case editorSaveNameMessage
+    case editorCopyNameTitle
+    case editorCopyNameMessage
+    case editorCopyUnchangedMessage
+    case editorCopyNamePlaceholder
+    case editorCopyNameConfirm
 
     case layoutColumns
     case layoutRows
@@ -299,10 +304,9 @@ public enum L10n {
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
         .shortcutEditorDelete: "Delete zone",
-        .shortcutEditorSave: "Save layout",
+        .shortcutEditorSave: "Save layout or copy",
         .shortcutEditorZoomHeight: "Scale height",
         .shortcutEditorZoomWidth: "Scale width",
-        .shortcutEditorZoomBoth: "Scale both",
         .shortcutSnapShiftDrag: "Snap while dragging",
         .shortcutSnapRightClick: "Right-click while dragging",
         .shortcutSnapShake: "Shake title bar to snap",
@@ -311,8 +315,7 @@ public enum L10n {
         .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
         .shortcutGestureScroll: "Scroll",
-        .shortcutGestureShiftScroll: "⇧  Scroll",
-        .shortcutGestureOptionScroll: "⌥  Scroll",
+        .shortcutGestureHorizontalScroll: "Horizontal scroll",
         .shortcutGestureShiftDrag: "⇧  drag",
         .shortcutGestureRightClick: "Right-click drag",
         .shortcutGestureShake: "Shake while dragging",
@@ -356,11 +359,18 @@ public enum L10n {
         .editorSave: "Save",
         .editorSaveCopy: "Save Copy",
         .editorCancel: "Cancel",
-        .editorHint: "Shared divider moves both zones. Tab / Shift+Tab cycle zones. Drag edges or corners to resize. Scroll: height, Shift+scroll: width, Option+scroll: both. × deletes. Esc exits.",
+        .editorHint: "Shared divider moves both zones. WASD moves to the adjacent pane. Tab / Shift+Tab cycle zones. Drag edges or corners to resize. Vertical scroll changes height, horizontal scroll changes width. × deletes. Esc exits.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
         .editorSaveCopyTooltip: "Save changes as a new layout",
         .editorSaveDisabledTooltip: "Create at least one zone before saving",
+        .editorSaveNameTitle: "Save Layout",
+        .editorSaveNameMessage: "Name the layout. If that name already exists, ZoneBox adds a number.",
+        .editorCopyNameTitle: "Save Copy",
+        .editorCopyNameMessage: "Name the copy. If that name already exists, ZoneBox adds a number.",
+        .editorCopyUnchangedMessage: "This layout has no changes. Save an identical copy anyway? You can rename it below.",
+        .editorCopyNamePlaceholder: "Layout name",
+        .editorCopyNameConfirm: "Save",
 
         .layoutColumns: "Columns %d",
         .layoutRows: "Rows %d",
@@ -429,10 +439,9 @@ public enum L10n {
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",
         .shortcutEditorDelete: "删除分区",
-        .shortcutEditorSave: "保存布局",
+        .shortcutEditorSave: "保存布局或另存副本",
         .shortcutEditorZoomHeight: "缩放高度",
         .shortcutEditorZoomWidth: "缩放宽度",
-        .shortcutEditorZoomBoth: "等比缩放",
         .shortcutSnapShiftDrag: "拖动时吸附",
         .shortcutSnapRightClick: "拖动时右键",
         .shortcutSnapShake: "晃动标题栏吸附",
@@ -441,8 +450,7 @@ public enum L10n {
         .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
         .shortcutGestureScroll: "滚动",
-        .shortcutGestureShiftScroll: "⇧  滚动",
-        .shortcutGestureOptionScroll: "⌥  滚动",
+        .shortcutGestureHorizontalScroll: "水平滚动",
         .shortcutGestureShiftDrag: "⇧  拖动",
         .shortcutGestureRightClick: "拖动时右键",
         .shortcutGestureShake: "拖动时晃动",
@@ -486,11 +494,18 @@ public enum L10n {
         .editorSave: "保存",
         .editorSaveCopy: "另存副本",
         .editorCancel: "取消",
-        .editorHint: "中间分隔条可同时移动两侧格子。Tab 切换格子，Shift+Tab 反向。拖动边缘或角落缩放。滚动改高度，Shift+滚动改宽度，Option+滚动同时改。× 删除。Esc 退出",
+        .editorHint: "中间分隔条可同时移动两侧格子。WASD 切换到相邻格子。Tab 切换格子，Shift+Tab 反向。拖动边缘或角落缩放。垂直滚动改高度，水平滚动改宽度。× 删除。Esc 退出",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
         .editorSaveCopyTooltip: "将修改保存为新布局",
         .editorSaveDisabledTooltip: "至少创建一个区域后才能保存",
+        .editorSaveNameTitle: "保存布局",
+        .editorSaveNameMessage: "给布局起个名字。如果重名，ZoneBox 会自动加上序号。",
+        .editorCopyNameTitle: "另存副本",
+        .editorCopyNameMessage: "给副本起个名字。如果重名，ZoneBox 会自动加上序号。",
+        .editorCopyUnchangedMessage: "当前布局没有变化。仍要保存一个相同的副本吗？可以在下方修改名称。",
+        .editorCopyNamePlaceholder: "布局名称",
+        .editorCopyNameConfirm: "保存",
 
         .layoutColumns: "%d 列",
         .layoutRows: "%d 行",

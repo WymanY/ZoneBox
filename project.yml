@@ -87,3 +87,19 @@ schemes:
     test:
       targets:
         - ZoneBoxTests
+  "ZoneBox AX":
+    build:
+      targets:
+        ZoneBox: all
+        ZoneBoxCore: [test]
+        ZoneBoxTests: [test]
+    run:
+      config: Debug
+      launchStyle: wait
+      preActions:
+        - name: Open ZoneBox for Accessibility attach
+          script: exec "${PROJECT_DIR}/script/xcode_open_for_attach.sh"
+          settingsTarget: ZoneBox
+    test:
+      targets:
+        - ZoneBoxTests

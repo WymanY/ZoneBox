@@ -152,9 +152,17 @@ final class AppRuntime {
             return
         }
         Task { @MainActor in
-            guard let focused = await focusedWindowTarget(),
-                  let target = editorTarget(for: focused.area)
-            else { return }
+            if let focused = await focusedWindowTarget(),
+               let target = editorTarget(for: focused.area)
+            {
+                openEditor(on: target)
+                return
+            }
+            guard !trust.isTrusted(), let target = pointerEditorTarget() else {
+                Log.hotkey.error("Editor shortcut could not resolve a focused-window target")
+                return
+            }
+            Log.hotkey.info("Editor shortcut falling back to pointer display because Accessibility is unavailable")
             openEditor(on: target)
         }
     }
@@ -187,6 +195,13 @@ final class AppRuntime {
 
     @discardableResult
     func handleEditorKey(_ event: NSEvent) -> Bool {
+        let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        if ShortcutCatalog.editorSaveChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags.contains(.command) || flags.contains(.control) { return false }
         return editor?.handleLocalKey(event) ?? false

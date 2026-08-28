@@ -1,8 +1,38 @@
 import Foundation
 
 public enum LayoutTemplates {
+    public static func editorPresets() -> [Layout] {
+        [columns(2), columns(3), rows(2), grid2x2(), priority3(), focus()]
+    }
+
     public static func all() -> [Layout] {
         [columns(2), columns(3), rows(2), rows(3), grid2x2(), priority3(), focus()]
+    }
+
+    public static func matchingEditorPresetIndex(for layout: Layout, workAreaAX: CGRect) -> Int? {
+        guard let candidate = canvasGeometry(for: layout, workAreaAX: workAreaAX) else { return nil }
+        return editorPresets().firstIndex { preset in
+            guard let reference = canvasGeometry(for: preset, workAreaAX: workAreaAX) else { return false }
+            return candidate.elementsEqual(reference) { lhs, rhs in
+                lhs.number == rhs.number && approximatelyEqual(lhs.rect, rhs.rect)
+            }
+        }
+    }
+
+    /// Extra editor-toolbar chip: the layout currently in use, when it is saved
+    /// but does not match one of the built-in preset geometries.
+    public static func editorToolbarSavedLayout(
+        original: Layout?,
+        isNew: Bool,
+        workAreaAX: CGRect
+    ) -> Layout? {
+        guard !isNew, let original else { return nil }
+        let hasZones = original.zones.contains { $0.name != "__creating" }
+        guard hasZones else { return nil }
+        if matchingEditorPresetIndex(for: original, workAreaAX: workAreaAX) != nil {
+            return nil
+        }
+        return original
     }
 
     public static func columns(_ count: Int) -> Layout {
@@ -85,5 +115,39 @@ public enum LayoutTemplates {
         var weights = Array(repeating: base, count: count)
         weights[count / 2] += 10_000 - base * count
         return weights
+    }
+
+    private static func canvasGeometry(
+        for layout: Layout,
+        workAreaAX: CGRect
+    ) -> [(number: Int, rect: NormalizedRect)]? {
+        let canvas: Layout
+        if layout.kind == .grid {
+            guard let converted = try? layout.convertingGridToCanvas(workAreaAX: workAreaAX) else { return nil }
+            canvas = converted
+        } else {
+            canvas = layout
+        }
+        let zones = canvas.zones
+            .filter { $0.name != "__creating" }
+            .sorted { $0.number < $1.number }
+        var geometry: [(number: Int, rect: NormalizedRect)] = []
+        geometry.reserveCapacity(zones.count)
+        for zone in zones {
+            guard let rect = zone.canvasRect else { return nil }
+            geometry.append((zone.number, rect))
+        }
+        return geometry
+    }
+
+    private static func approximatelyEqual(
+        _ lhs: NormalizedRect,
+        _ rhs: NormalizedRect,
+        tolerance: Double = 0.000_001
+    ) -> Bool {
+        abs(lhs.x - rhs.x) <= tolerance
+            && abs(lhs.y - rhs.y) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance
+            && abs(lhs.height - rhs.height) <= tolerance
     }
 }

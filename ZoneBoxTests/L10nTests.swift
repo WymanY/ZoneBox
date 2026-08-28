@@ -29,6 +29,26 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .chineseSimplified), "键盘快捷键")
     }
 
+    func testUnchangedCopyWarningLocalized() {
+        XCTAssertEqual(
+            L10n.text(.editorCopyUnchangedMessage, language: .english),
+            "This layout has no changes. Save an identical copy anyway? You can rename it below."
+        )
+        XCTAssertEqual(
+            L10n.text(.editorCopyUnchangedMessage, language: .chineseSimplified),
+            "当前布局没有变化。仍要保存一个相同的副本吗？可以在下方修改名称。"
+        )
+    }
+
+    func testNewLayoutNamePromptLocalized() {
+        XCTAssertEqual(L10n.text(.editorSaveNameTitle, language: .english), "Save Layout")
+        XCTAssertEqual(L10n.text(.editorSaveNameTitle, language: .chineseSimplified), "保存布局")
+        XCTAssertEqual(
+            L10n.text(.editorSaveNameMessage, language: .chineseSimplified),
+            "给布局起个名字。如果重名，ZoneBox 会自动加上序号。"
+        )
+    }
+
     func testLayoutDisplayNames() {
         XCTAssertEqual(L10n.layoutDisplayName("Columns 2", language: .chineseSimplified), "两列")
         XCTAssertEqual(L10n.layoutDisplayName("Rows 3", language: .chineseSimplified), "三行")

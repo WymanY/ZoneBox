@@ -28,8 +28,8 @@ make test
 
 ## Use it
 
-1. Open `ZoneBox.xcodeproj` and Run (Stop any old run first).
-2. If snapping is unavailable, ZoneBox shows a **step-by-step Accessibility guide** (orange warning icon in the menu bar). Click **Open Accessibility Settings**, turn on the **ZoneBox** switch, then return to the guide. If the switch is on but snapping still fails, use **Quit & Relaunch**.
+1. Open `ZoneBox.xcodeproj`. For layout/UI work, Run the **ZoneBox** scheme. For snapping, hotkeys, or anything that needs Accessibility, select the **ZoneBox AX** scheme and Run. That scheme waits, then `open`s the Debug app so macOS grants Accessibility while Xcode still attaches. Do not use ordinary Xcode Run to verify snapping.
+2. If snapping is unavailable, ZoneBox shows a **step-by-step Accessibility guide** (orange warning icon in the menu bar). Click **Open Accessibility Settings**, turn on the **ZoneBox** switch that matches the path in the guide, then return. If the switch is on but snapping still fails, use **Quit & Relaunch**.
 3. Menu extra (`rectangle.split.3x1`, near the clock):
    - **Preview Zones** — flash the current layout
    - **Open Layout Editor** — pick Columns/Rows/2×2 or draw zones, then Save

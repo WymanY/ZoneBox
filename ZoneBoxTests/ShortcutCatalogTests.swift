@@ -21,6 +21,17 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(KeyChord.glyph(for: 25), "9")
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.z), "Z")
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.slash), "/")
+        XCTAssertEqual(HardwareKeyCode.a, 0)
+        XCTAssertEqual(HardwareKeyCode.s, 1)
+        XCTAssertEqual(HardwareKeyCode.d, 2)
+        XCTAssertEqual(HardwareKeyCode.w, 13)
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.w), "W")
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.a), "A")
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.s), "S")
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.d), "D")
+        XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.d))
+        XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.w))
+        XCTAssertFalse(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.tab))
     }
 
     func testControlOptionZMatchesEditorDefault() {
@@ -158,5 +169,25 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(settings.displayCaps, ["⌘", ","])
         let backtab = KeyChord(keyCode: HardwareKeyCode.tab, carbonModifiers: CarbonModifier.shift)
         XCTAssertEqual(backtab.displayCaps, ["⇧", "⇥"])
+    }
+
+    func testEditorSaveUsesCommandS() throws {
+        let save = try XCTUnwrap(
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "editorSave" })
+        )
+        guard case .chord(let chord) = save.binding else {
+            return XCTFail("editorSave must be a keyboard chord")
+        }
+
+        XCTAssertTrue(
+            chord.matches(
+                keyCode: HardwareKeyCode.s,
+                carbonModifiers: CarbonModifier.command
+            )
+        )
+        XCTAssertFalse(chord.matches(keyCode: HardwareKeyCode.s, carbonModifiers: 0))
+        XCTAssertEqual(chord.displayCaps, ["⌘", "S"])
+        XCTAssertEqual(save.title(language: .english), "Save layout or copy")
+        XCTAssertEqual(save.title(language: .chineseSimplified), "保存布局或另存副本")
     }
 }

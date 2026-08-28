@@ -241,11 +241,20 @@ final class HotkeyCenter {
         }
 
         if consume, runtime.editorClaimsKeyboard {
+            if event.isARepeat,
+               ShortcutCatalog.editorSaveChord.matches(
+                   keyCode: event.keyCode,
+                   carbonModifiers: modifiers
+               )
+            {
+                return nil
+            }
             if event.isARepeat, event.keyCode != HardwareKeyCode.tab {
                 return event.keyCode == HardwareKeyCode.delete
                     || event.keyCode == HardwareKeyCode.forwardDelete
                     || event.keyCode == HardwareKeyCode.return
                     || event.keyCode == HardwareKeyCode.keypadEnter
+                    || HardwareKeyCode.isEditorPaneNavigation(event.keyCode)
                     ? nil
                     : event
             }
@@ -265,6 +274,7 @@ final class HotkeyCenter {
         guard runtime.trust.isTrusted() || ShortcutCatalog.trustExemptIDs.contains(id) else { return }
         switch id {
         case ShortcutCatalog.editorHotkeyID:
+            Log.hotkey.info("Editor shortcut received trusted=\(self.runtime.trust.isTrusted(), privacy: .public)")
             runtime.openEditorForFocusedWindow()
         case ShortcutCatalog.previousZoneHotkeyID:
             runtime.engine.snapAdjacent(delta: -1)

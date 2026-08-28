@@ -64,6 +64,8 @@ final class LayoutEditorCanvasView: NSView {
 
     private var drag: DragKind?
     private var hoverEdge: EdgeInteraction?
+    private var lastCycle: (forward: Bool, time: TimeInterval)?
+    private var lastPaneMove: (direction: Layout.ArrowDirection, time: TimeInterval)?
     private let closeButtonSize: CGFloat = 22
     private let closeButtonInset: CGFloat = 8
     private let edgeSlop: CGFloat = 12
@@ -306,29 +308,14 @@ final class LayoutEditorCanvasView: NSView {
             dy *= 12
         }
 
-        // Axis from modifiers only. Do not inspect deltaX to decide width —
-        // vertical trackpad swipes always leak a horizontal component, and a
-        // decaying gesture often ends with |dx| > |dy|.
-        let axes = ZoneScrollZoom.axes(
-            option: event.modifierFlags.contains(.option),
-            shift: event.modifierFlags.contains(.shift)
-        )
+        guard let axes = ZoneScrollZoom.axes(deltaX: dx, deltaY: dy) else { return }
         let widthFactor: Double?
         let heightFactor: Double?
         switch axes {
-        case .both:
-            let delta = abs(dy) >= abs(dx) ? dy : dx
-            guard abs(delta) >= 0.01 else { return }
-            let factor = zoomFactor(from: delta)
-            widthFactor = factor
-            heightFactor = factor
         case .width:
-            let delta = dy + dx
-            guard abs(delta) >= 0.01 else { return }
-            widthFactor = zoomFactor(from: delta)
+            widthFactor = zoomFactor(from: dx)
             heightFactor = nil
         case .height:
-            guard abs(dy) >= 0.01 else { return }
             widthFactor = nil
             heightFactor = zoomFactor(from: dy)
         }
@@ -359,12 +346,16 @@ final class LayoutEditorCanvasView: NSView {
             onCancel?()
             return true
         }
-        if event.keyCode == HardwareKeyCode.tab {
-            cycleSelection(forward: !event.modifierFlags.contains(.shift))
-            return true
-        }
         if event.keyCode == HardwareKeyCode.delete || event.keyCode == HardwareKeyCode.forwardDelete {
             deleteSelected()
+            return true
+        }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.subtracting(.shift).isEmpty,
+           let direction = arrowDirection(for: event.keyCode)
+        {
+            if event.isARepeat { return true }
+            moveSelection(direction)
             return true
         }
         return false
@@ -388,10 +379,47 @@ final class LayoutEditorCanvasView: NSView {
         onCancel?()
     }
 
+    func selectFirstZone() {
+        selectedID = layout.cycledZoneID(from: nil, forward: true)
+        needsDisplay = true
+    }
+
     func cycleSelection(forward: Bool) {
         guard drag == nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let lastCycle, lastCycle.forward == forward, now - lastCycle.time < 0.05 {
+            return
+        }
+        lastCycle = (forward, now)
         window?.makeFirstResponder(self)
         selectedID = layout.cycledZoneID(from: selectedID, forward: forward)
+        needsDisplay = true
+    }
+
+    func moveSelection(_ direction: Layout.ArrowDirection) {
+        guard drag == nil else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let lastPaneMove, lastPaneMove.direction == direction, now - lastPaneMove.time < 0.05 {
+            return
+        }
+        lastPaneMove = (direction, now)
+        window?.makeFirstResponder(self)
+        let rects = Dictionary(uniqueKeysWithValues: layout.zones.compactMap { zone -> (UUID, NormalizedRect)? in
+            guard zone.name != "__creating" else { return nil }
+            return (zone.id, canvasRect(of: zone))
+        })
+        selectedID = layout.neighborZoneID(from: selectedID, direction: direction, rects: rects)
+        needsDisplay = true
+    }
+
+    private func arrowDirection(for keyCode: UInt16) -> Layout.ArrowDirection? {
+        switch keyCode {
+        case HardwareKeyCode.a: return .left
+        case HardwareKeyCode.d: return .right
+        case HardwareKeyCode.w: return .up
+        case HardwareKeyCode.s: return .down
+        default: return nil
+        }
     }
 
     private func createDefaultZone(at point: CGPoint) {
@@ -483,11 +511,30 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func applyCursor() {
-        if visibleSplitHandle() != nil {
-            Self.hiddenCursor.set()
-        } else {
+        guard let edge = visibleSplitHandle() else {
             NSCursor.arrow.set()
+            return
         }
+
+        if #available(macOS 15.0, *),
+           let cursor = systemFrameResizeCursor(for: edge.primaryHandle) {
+            cursor.set()
+        } else {
+            Self.hiddenCursor.set()
+        }
+    }
+
+    @available(macOS 15.0, *)
+    private func systemFrameResizeCursor(for handle: Handle) -> NSCursor? {
+        let position: NSCursor.FrameResizePosition
+        switch handle {
+        case .ne: position = .topRight
+        case .nw: position = .topLeft
+        case .se: position = .bottomRight
+        case .sw: position = .bottomLeft
+        default: return nil
+        }
+        return NSCursor.frameResize(position: position, directions: .all)
     }
 
     private func visibleSplitHandle() -> EdgeInteraction? {
@@ -978,9 +1025,18 @@ final class LayoutEditorCanvasView: NSView {
     private func drawSplitHandle(_ edge: EdgeInteraction) {
         switch edge.primaryHandle {
         case .ne, .nw, .se, .sw:
+            if #available(macOS 15.0, *) {
+                // AppKit supplies the exact system corner-resize cursor, including
+                // its stroke, shadow, hot spot, and accessibility-scaled appearance.
+                return
+            }
             ResizeGlyph.drawCornerPair(at: edge.seamStart, outward: outwardUnit(for: edge.primaryHandle))
         default:
-            ResizeGlyph.drawPairedTicks(at: edge.grabber, rotation: rotation(for: edge.axis))
+            if edge.isLinked {
+                ResizeGlyph.drawSystemDivider(at: edge.grabber, verticalSeam: edge.axis == .resizeWidth)
+            } else {
+                ResizeGlyph.drawPairedTicks(at: edge.grabber, rotation: rotation(for: edge.axis))
+            }
         }
     }
 
@@ -1018,6 +1074,38 @@ private enum ResizeGlyph {
             return CGRect(x: center.x - across / 2, y: center.y - along / 2, width: across, height: along)
         }
         return CGRect(x: center.x - along / 2, y: center.y - across / 2, width: along, height: across)
+    }
+
+    static func drawSystemDivider(at center: CGPoint, verticalSeam: Bool) {
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.shouldAntialias = true
+        let pillWidth: CGFloat = verticalSeam ? 6 : 28
+        let pillHeight: CGFloat = verticalSeam ? 28 : 6
+        let pill = CGRect(
+            x: center.x - pillWidth / 2,
+            y: center.y - pillHeight / 2,
+            width: pillWidth,
+            height: pillHeight
+        )
+        let path = NSBezierPath(
+            roundedRect: pill,
+            xRadius: min(pillWidth, pillHeight) / 2,
+            yRadius: min(pillWidth, pillHeight) / 2
+        )
+        NSColor.black.withAlphaComponent(0.22).setStroke()
+        path.lineWidth = 1.5
+        path.stroke()
+        NSColor.white.setFill()
+        path.fill()
+        let tickOffset: CGFloat = 13
+        if verticalSeam {
+            drawTick(at: CGPoint(x: center.x - tickOffset, y: center.y), pointing: CGPoint(x: -1, y: 0))
+            drawTick(at: CGPoint(x: center.x + tickOffset, y: center.y), pointing: CGPoint(x: 1, y: 0))
+        } else {
+            drawTick(at: CGPoint(x: center.x, y: center.y - tickOffset), pointing: CGPoint(x: 0, y: -1))
+            drawTick(at: CGPoint(x: center.x, y: center.y + tickOffset), pointing: CGPoint(x: 0, y: 1))
+        }
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     static func drawPairedTicks(at center: CGPoint, rotation: CGFloat) {
