@@ -6,6 +6,7 @@ final class OverlayController {
     private var panels: [UUID: OverlayPanel] = [:]
     private var views: [UUID: ZoneOverlayView] = [:]
     private var keySink: NSWindow?
+    private var visibleDisplayID: UUID?
     var settings: AppSettings = .default
     var primaryFlipHeight: CGFloat = 0
 
@@ -35,45 +36,92 @@ final class OverlayController {
         forceNumbers: Bool = false,
         captureKeys: Bool = false
     ) {
-        hideAll()
         guard let panel = panels[displayID], let view = views[displayID] else { return }
-        view.zones = zones
-        view.showNumbers = forceNumbers || settings.showZoneNumbers
-        view.inactiveOpacity = settings.inactiveFillOpacity
-        view.activeOpacity = settings.activeFillOpacity
-        view.primaryFlipHeight = primaryFlipHeight
-        applyHighlight(view, highlight)
-        view.needsDisplay = true
-        panel.orderFrontRegardless()
+        let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
+        let showNumbers = forceNumbers || settings.showZoneNumbers
+        var needsDisplay = false
+        if view.zones != zones {
+            view.zones = zones
+            needsDisplay = true
+        }
+        if view.showNumbers != showNumbers {
+            view.showNumbers = showNumbers
+            needsDisplay = true
+        }
+        if view.inactiveOpacity != settings.inactiveFillOpacity {
+            view.inactiveOpacity = settings.inactiveFillOpacity
+            needsDisplay = true
+        }
+        if view.activeOpacity != settings.activeFillOpacity {
+            view.activeOpacity = settings.activeFillOpacity
+            needsDisplay = true
+        }
+        if view.primaryFlipHeight != primaryFlipHeight {
+            view.primaryFlipHeight = primaryFlipHeight
+            needsDisplay = true
+        }
+        if applyHighlight(view, highlight) {
+            needsDisplay = true
+        }
+
+        let previousDisplayID = visibleDisplayID
+        if !isAlreadyVisible {
+            if let previousDisplayID, previousDisplayID != displayID {
+                panels[previousDisplayID]?.orderOut(nil)
+            }
+            visibleDisplayID = displayID
+            if !panel.isVisible {
+                panel.orderFrontRegardless()
+            }
+            needsDisplay = true
+        }
+        if needsDisplay {
+            view.needsDisplay = true
+        }
         if captureKeys {
             grabKeys()
+        } else {
+            releaseKeys()
         }
     }
 
     func highlight(_ target: SnapTarget) {
-        for view in views.values {
-            applyHighlight(view, target)
-            view.needsDisplay = true
-        }
+        guard let visibleDisplayID, let view = views[visibleDisplayID] else { return }
+        guard applyHighlight(view, target) else { return }
+        view.needsDisplay = true
     }
 
-    private func applyHighlight(_ view: ZoneOverlayView, _ target: SnapTarget) {
+    @discardableResult
+    private func applyHighlight(_ view: ZoneOverlayView, _ target: SnapTarget) -> Bool {
+        let highlightID: UUID?
+        let highlightFrameAX: CGRect?
         switch target {
         case .none:
-            view.highlightID = nil
-            view.highlightFrameAX = nil
+            highlightID = nil
+            highlightFrameAX = nil
         case .zone(let zone):
-            view.highlightID = zone.zoneID
-            view.highlightFrameAX = nil
+            highlightID = zone.zoneID
+            highlightFrameAX = nil
         case .span(let frameAX, _):
-            view.highlightID = nil
-            view.highlightFrameAX = frameAX
+            highlightID = nil
+            highlightFrameAX = frameAX
         }
+        guard view.highlightID != highlightID || view.highlightFrameAX != highlightFrameAX else {
+            return false
+        }
+        view.highlightID = highlightID
+        view.highlightFrameAX = highlightFrameAX
+        return true
     }
 
     func hideAll() {
-        for panel in panels.values {
-            panel.orderOut(nil)
+        if let visibleDisplayID {
+            panels[visibleDisplayID]?.orderOut(nil)
+            self.visibleDisplayID = nil
+        } else {
+            for panel in panels.values where panel.isVisible {
+                panel.orderOut(nil)
+            }
         }
         releaseKeys()
     }
@@ -94,11 +142,15 @@ final class OverlayController {
             window.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .transient, .fullScreenAuxiliary]
             keySink = window
         }
-        keySink?.makeKeyAndOrderFront(nil)
+        if keySink?.isVisible != true {
+            keySink?.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func releaseKeys() {
-        keySink?.orderOut(nil)
+        if keySink?.isVisible == true {
+            keySink?.orderOut(nil)
+        }
     }
 }
 

@@ -185,30 +185,46 @@ public enum SnapSessionReducer {
             fromAppKit: input.event.locationAppKit,
             primaryFlipHeight: input.primaryFlipHeight
         )
-        if let span = gridSpanTarget(input, currentAX: point) {
-            return span
+        if let gridTarget = gridTarget(input, currentAX: point) {
+            return gridTarget
         }
         return HitTester(policy: input.overlapPolicy).target(at: point, zones: input.resolvedZones)
     }
 
-    private static func gridSpanTarget(_ input: SnapReducerInput, currentAX: CGPoint) -> SnapTarget? {
-        guard !input.gridCells.isEmpty, let originAppKit = input.armOriginAppKit else { return nil }
-        let originAX = CoordinateConverter.axPoint(
-            fromAppKit: originAppKit,
-            primaryFlipHeight: input.primaryFlipHeight
+    /// Grid layouts prefer the cell under the pointer. Traveling from the
+    /// arm origin onto another cell is a hover, not a span; otherwise a
+    /// window dragged onto a zone would union every cell along the path.
+    /// Control-drag keeps the original grid-draw union for multi-zone spans.
+    private static func gridTarget(_ input: SnapReducerInput, currentAX: CGPoint) -> SnapTarget? {
+        guard !input.gridCells.isEmpty else { return nil }
+
+        if input.event.modifiers.contains(.control), let originAppKit = input.armOriginAppKit {
+            let originAX = CoordinateConverter.axPoint(
+                fromAppKit: originAppKit,
+                primaryFlipHeight: input.primaryFlipHeight
+            )
+            let drag = CGRect(
+                x: min(originAX.x, currentAX.x),
+                y: min(originAX.y, currentAX.y),
+                width: abs(currentAX.x - originAX.x),
+                height: abs(currentAX.y - originAX.y)
+            )
+            let dragCovered = GridCoverage.coveredCells(dragRectAX: drag, cells: input.gridCells)
+            if zoneIndices(in: dragCovered).count > 1 {
+                return target(fromCovered: dragCovered, input: input)
+            }
+        }
+
+        let hoverCovered = GridCoverage.coveredCells(
+            dragRectAX: CGRect(origin: currentAX, size: .zero),
+            cells: input.gridCells
         )
-        let drag = CGRect(
-            x: min(originAX.x, currentAX.x),
-            y: min(originAX.y, currentAX.y),
-            width: abs(currentAX.x - originAX.x),
-            height: abs(currentAX.y - originAX.y)
-        )
-        // Point-sized hover stays on HitTester so one cell still highlights as a zone.
-        let spanThreshold: CGFloat = 4
-        guard drag.width >= spanThreshold || drag.height >= spanThreshold else { return nil }
+        return target(fromCovered: hoverCovered, input: input)
+    }
+
+    private static func target(fromCovered covered: [GridCell], input: SnapReducerInput) -> SnapTarget {
         guard let union = GridCoverage.unionFrameAX(
-            dragRectAX: drag,
-            cells: input.gridCells,
+            cells: covered,
             gutter: input.gridGutter,
             workAreaAX: input.gridWorkAreaAX
         ) else {
@@ -229,6 +245,11 @@ public enum SnapSessionReducer {
             && abs(a.width - b.width) < 0.5
             && abs(a.height - b.height) < 0.5
     }
+
+    private static func zoneIndices(in cells: [GridCell]) -> Set<Int> {
+        Set(cells.map(\.zoneIndex))
+    }
+
 
     private static func cursorDisplayID(_ input: SnapReducerInput) -> UUID? {
         input.workAreas.first { $0.containsAppKitPoint(input.event.locationAppKit) }?.display.id

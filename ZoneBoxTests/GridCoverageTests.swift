@@ -58,6 +58,37 @@ final class GridCoverageTests: XCTestCase {
         XCTAssertEqual(covered.first?.column, 0)
     }
 
+    func testPointInsideMergedZoneExpandsToEveryMappedCell() {
+        let spec = GridSpec(
+            rows: 2,
+            columns: 2,
+            rowWeights: [5_000, 5_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1], [0, 2]]
+        )
+        let cells = GridCoverage.cells(spec: spec, workAreaAX: work)
+        let covered = GridCoverage.coveredCells(
+            dragRectAX: CGRect(x: 100, y: 100, width: 0, height: 0),
+            cells: cells
+        )
+
+        XCTAssertEqual(covered.map(\.row), [0, 1])
+        XCTAssertEqual(Set(covered.map(\.column)), [0])
+
+        let union = GridCoverage.unionFrameAX(
+            dragRectAX: CGRect(x: 100, y: 100, width: 0, height: 0),
+            cells: cells,
+            gutter: gutter,
+            workAreaAX: work
+        )
+        let expected = Gutter.apply(
+            CGRect(x: 0, y: 0, width: 500, height: 800),
+            gutter: gutter,
+            workAreaAX: work
+        )
+        XCTAssertEqual(union, expected)
+    }
+
     private func twoColumnCells() -> [GridCell] {
         let spec = GridSpec(
             rows: 1,

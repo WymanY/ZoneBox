@@ -154,12 +154,165 @@ final class SnapEngineTests: XCTestCase {
         input.gridWorkAreaAX = coverage.workAX
         input.armOriginAppKit = CGPoint(x: 80, y: 700)
         input.event.locationAppKit = CGPoint(x: 900, y: 620)
+        input.event.modifiers = [.control]
         input.downFrameAX = frame
         let out = SnapSessionReducer.reduce(input)
         let expected = expectedGridUnion(input)
         XCTAssertNotNil(expected)
         XCTAssertTrue(out.effects.contains(.applyFrame(window, expected!)))
         XCTAssertGreaterThan(expected!.width, 900)
+    }
+
+    func testGridHoverAppliesCellUnderCursorNotArmOriginSpan() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.effects.filter {
+            if case .applyFrame = $0 { return true }
+            return false
+        }, [.applyFrame(window, rightZone.frameAX)], "effects=\(out.effects) phase=\(out.phase) right=\(rightZone.frameAX)")
+    }
+
+    func testGridHoverHighlightUsesCellUnderCursor() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+
+        var input = armedReadyInput(phase: .armed(window), kind: .leftDragged)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(rightZone)), "effects=\(out.effects)")
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(rightZone))), "effects=\(out.effects)")
+    }
+
+    func testGridControlDragSpansAdjacentZones() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let expected = try XCTUnwrap(
+            GridCoverage.unionFrameAX(
+                dragRectAX: CGRect(x: 100, y: 400, width: 680, height: 0),
+                cells: GridCoverage.cells(spec: spec, workAreaAX: workAX),
+                gutter: 16,
+                workAreaAX: workAX
+            )
+        )
+
+        var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 400)
+        input.event.locationAppKit = CGPoint(x: 780, y: 400)
+        input.event.modifiers = [.control]
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, expected)), "effects=\(out.effects) expected=\(expected)")
+    }
+
+    func testGridDragInsideMergedZoneAppliesCompleteLayoutZone() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 2,
+            columns: 2,
+            rowWeights: [5_000, 5_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1], [0, 2]]
+        )
+        let zones = (1...3).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let leftZone = try XCTUnwrap(resolved.first(where: { $0.number == 1 }))
+
+        var input = armedReadyInput(phase: .highlighting(window, .zone(leftZone)), kind: .leftUp)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Priority Grid", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.armOriginAppKit = CGPoint(x: 100, y: 700)
+        input.event.locationAppKit = CGPoint(x: 180, y: 620)
+        input.downFrameAX = frame
+
+        let out = SnapSessionReducer.reduce(input)
+
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, leftZone.frameAX)))
     }
 
     func testGridZeroAreaOutsideCellsDoesNotSnap() {

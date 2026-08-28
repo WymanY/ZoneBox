@@ -235,18 +235,26 @@ final class SnapEngine {
     }
 
     private func apply(_ effects: [SnapEffect]) {
+        var overlayDisplayID: UUID?
+        var overlayHighlight: SnapTarget?
+        var hideOverlay = false
         for effect in effects {
             switch effect {
             case .none:
                 break
             case .showOverlay(let id):
-                runtime.overlay.settings = runtime.settings
-                runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
-                runtime.overlay.show(displayID: id, zones: lastZones, highlight: .none)
-            case .hideOverlay:
-                runtime.overlay.hideAll()
+                overlayDisplayID = id
+                if overlayHighlight == nil {
+                    overlayHighlight = .none
+                }
+                hideOverlay = false
+            case .hideOverlay, .cancel:
+                hideOverlay = true
+                overlayDisplayID = nil
+                overlayHighlight = nil
             case .highlight(let target):
-                runtime.overlay.highlight(target)
+                overlayHighlight = target
+                hideOverlay = false
             case .applyFrame(let identity, let rect):
                 Task { @MainActor in
                     if let window = runtime.pendingWindow, window.identity == identity {
@@ -257,9 +265,22 @@ final class SnapEngine {
                 }
             case .recordUnsnap(let record):
                 runtime.catalog.record(record)
-            case .cancel:
-                runtime.overlay.hideAll()
             }
+        }
+        if hideOverlay {
+            runtime.overlay.hideAll()
+            return
+        }
+        if let overlayDisplayID {
+            runtime.overlay.settings = runtime.settings
+            runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
+            runtime.overlay.show(
+                displayID: overlayDisplayID,
+                zones: lastZones,
+                highlight: overlayHighlight ?? .none
+            )
+        } else if let overlayHighlight {
+            runtime.overlay.highlight(overlayHighlight)
         }
     }
 }

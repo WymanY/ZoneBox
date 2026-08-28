@@ -8,9 +8,13 @@ final class DragMonitor {
     private let query = CGWindowQuery()
     private var bufferedDrags: [SnapMouseEvent] = []
     private var dragSessionReady = false
+    private var leftButtonHeld = false
     private var upSent = false
+    private var holdGeneration = 0
     private var sampleTimer: Timer?
     private var lastSample: CGPoint?
+    private var frameRefreshTask: Task<Void, Never>?
+    private var frameRefreshRequested = false
 
     func start() {
         stop()
@@ -22,12 +26,16 @@ final class DragMonitor {
         }) {
             monitors.append(global)
         }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: kinds) { [weak self] event in
-            self?.handle(event)
-            return event
-        } {
+        if let local = NSEvent.addLocalMonitorForEvents(
+            matching: kinds,
+            handler: { [weak self] event in
+                self?.handle(event)
+                return event
+            }
+        ) {
             monitors.append(local)
         }
+        startSampling()
     }
 
     func stop() {
@@ -38,6 +46,13 @@ final class DragMonitor {
         monitors.removeAll()
         bufferedDrags.removeAll()
         dragSessionReady = false
+        leftButtonHeld = false
+        upSent = false
+        holdGeneration += 1
+        lastSample = nil
+        frameRefreshTask?.cancel()
+        frameRefreshTask = nil
+        frameRefreshRequested = false
     }
 
     private func handle(_ event: NSEvent) {
@@ -46,7 +61,10 @@ final class DragMonitor {
 
         if event.type == .mouseMoved {
             guard (NSEvent.pressedMouseButtons & 1) != 0 else { return }
-            ingestDrag(at: NSEvent.mouseLocation, modifiers: Self.modifiers(flags: event.modifierFlags))
+            let location = NSEvent.mouseLocation
+            let modifiers = Self.modifiers(flags: event.modifierFlags)
+            ensureHold(at: location, modifiers: modifiers)
+            ingestDrag(at: location, modifiers: modifiers)
             return
         }
 
@@ -67,6 +85,7 @@ final class DragMonitor {
         case .leftDown:
             beginHold(mouse)
         case .leftDragged:
+            ensureHold(at: location, modifiers: mouse.modifiers)
             ingestDrag(at: location, modifiers: mouse.modifiers)
         case .leftUp:
             finishHold(mouse)
@@ -76,13 +95,25 @@ final class DragMonitor {
     }
 
     private func beginHold(_ mouse: SnapMouseEvent) {
+        guard !leftButtonHeld else { return }
+        guard !runtime.isEditorOpen, runtime.settings.snapEnabled else { return }
+        guard runtime.trust.isTrusted() else { return }
+        Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
+        leftButtonHeld = true
         bufferedDrags.removeAll()
         dragSessionReady = false
         upSent = false
         lastSample = mouse.locationAppKit
-        startSampling()
+        holdGeneration += 1
+        frameRefreshTask?.cancel()
+        frameRefreshTask = nil
+        frameRefreshRequested = false
+        let generation = holdGeneration
         Task { @MainActor in
-            await captureWindow(at: mouse.locationAppKit)
+            let capture = await captureWindow(at: mouse.locationAppKit)
+            guard self.leftButtonHeld, self.holdGeneration == generation else { return }
+            runtime.pendingWindow = capture?.window
+            runtime.pendingFrame = capture?.frame
             runtime.engine.handleMouse(mouse)
             dragSessionReady = true
             let queued = bufferedDrags
@@ -91,6 +122,11 @@ final class DragMonitor {
                 runtime.engine.handleMouse(queuedEvent)
             }
         }
+    }
+
+    private func ensureHold(at location: CGPoint, modifiers: SnapModifiers) {
+        guard !leftButtonHeld else { return }
+        beginHold(SnapMouseEvent(kind: .leftDown, locationAppKit: location, modifiers: modifiers))
     }
 
     private func ingestDrag(at location: CGPoint, modifiers: SnapModifiers) {
@@ -105,18 +141,45 @@ final class DragMonitor {
             return
         }
         runtime.engine.handleMouse(mouse)
-        let window = runtime.pendingWindow
-        Task { @MainActor in
-            if let window {
-                runtime.pendingFrame = await runtime.ax.frame(of: window)
+        requestFrameRefresh()
+    }
+
+    /// AX reads run on a serial queue. Coalesce pointer samples so a fast drag
+    /// never builds a backlog of stale frame requests behind the cursor.
+    private func requestFrameRefresh() {
+        frameRefreshRequested = true
+        guard frameRefreshTask == nil else { return }
+        let generation = holdGeneration
+        frameRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while self.frameRefreshRequested,
+                  self.leftButtonHeld,
+                  self.holdGeneration == generation
+            {
+                self.frameRefreshRequested = false
+                guard let window = self.runtime.pendingWindow else { break }
+                let frame = await self.runtime.ax.frame(of: window)
+                guard !Task.isCancelled,
+                      self.leftButtonHeld,
+                      self.holdGeneration == generation
+                else { break }
+                self.runtime.pendingFrame = frame
+            }
+            if self.holdGeneration == generation {
+                self.frameRefreshTask = nil
             }
         }
     }
 
     private func finishHold(_ mouse: SnapMouseEvent) {
-        guard !upSent else { return }
+        guard leftButtonHeld, !upSent else { return }
+        Log.snap.debug("Pointer hold ended ready=\(self.dragSessionReady, privacy: .public) captured=\(self.runtime.pendingWindow != nil, privacy: .public)")
+        leftButtonHeld = false
         upSent = true
-        stopSampling()
+        holdGeneration += 1
+        frameRefreshTask?.cancel()
+        frameRefreshTask = nil
+        frameRefreshRequested = false
         bufferedDrags.removeAll()
         dragSessionReady = false
         if let window = runtime.pendingWindow {
@@ -129,15 +192,14 @@ final class DragMonitor {
         }
     }
 
-    /// Title-bar drags of other apps often starve global `leftMouseDragged`.
-    /// Sample the pointer on the common run loop while the button is held.
+    /// Foreign title-bar tracking can starve any of the global mouse events.
+    /// Poll the physical button edge on the common run loop so a missing down,
+    /// drag, or up event cannot prevent (or strand) a snap session.
     private func startSampling() {
         stopSampling()
-        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             guard let self else { return }
-            Task { @MainActor in
-                self.sampleHeldDrag()
-            }
+            self.samplePointerState()
         }
         RunLoop.main.add(timer, forMode: .common)
         sampleTimer = timer
@@ -148,32 +210,41 @@ final class DragMonitor {
         sampleTimer = nil
     }
 
-    private func sampleHeldDrag() {
+    private func samplePointerState() {
+        let location = NSEvent.mouseLocation
+        let modifiers = Self.modifiers(flags: NSEvent.modifierFlags)
         guard (NSEvent.pressedMouseButtons & 1) != 0 else {
+            guard leftButtonHeld else { return }
             let mouse = SnapMouseEvent(
                 kind: .leftUp,
-                locationAppKit: NSEvent.mouseLocation,
-                modifiers: Self.modifiers(flags: NSEvent.modifierFlags)
+                locationAppKit: location,
+                modifiers: modifiers
             )
             finishHold(mouse)
             return
         }
-        ingestDrag(at: NSEvent.mouseLocation, modifiers: Self.modifiers(flags: NSEvent.modifierFlags))
+        guard !runtime.isEditorOpen, runtime.settings.snapEnabled else { return }
+        guard runtime.trust.isTrusted() else { return }
+        ensureHold(at: location, modifiers: modifiers)
+        ingestDrag(at: location, modifiers: modifiers)
     }
 
-    private func captureWindow(at location: CGPoint) async {
+    private func captureWindow(at location: CGPoint) async -> (window: AXWindow, frame: CGRect)? {
         let flip = runtime.displays.primaryFlipHeight
         let axPoint = CoordinateConverter.axPoint(fromAppKit: location, primaryFlipHeight: flip)
         let ourPID = ProcessInfo.processInfo.processIdentifier
         guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: ourPID),
               runtime.ax.isSnappable(ref)
         else {
-            runtime.pendingWindow = nil
-            runtime.pendingFrame = nil
-            return
+            Log.snap.debug("No snappable window captured for pointer hold")
+            return nil
         }
-        runtime.pendingWindow = await runtime.ax.resolveAsync(ref: ref)
-        runtime.pendingFrame = ref.boundsAX
+        guard let window = await runtime.ax.resolveAsync(ref: ref) else {
+            Log.snap.debug("Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) resolved=false")
+            return nil
+        }
+        Log.snap.debug("Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) resolved=true")
+        return (window, ref.boundsAX)
     }
 
     private static func modifiers(flags: NSEvent.ModifierFlags) -> SnapModifiers {
