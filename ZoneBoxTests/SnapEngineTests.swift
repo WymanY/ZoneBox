@@ -60,6 +60,52 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
     }
 
+    func testShiftReleaseKeepsHighlightedZoneWhenSticky() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 2,
+            frameAX: CGRect(x: 400, y: 0, width: 400, height: 800)
+        )
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .flagsChanged)
+        input.resolvedZones = [zone]
+        input.stickyArm = true
+        input.event.modifiers = []
+        input.event.locationAppKit = CoordinateConverter.appKitPoint(
+            fromAX: CGPoint(x: zone.frameAX.midX, y: zone.frameAX.midY),
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zone)))
+        XCTAssertFalse(out.effects.contains(.hideOverlay))
+    }
+
+    func testShiftDragDropAppliesAfterShiftRelease() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 3,
+            frameAX: CGRect(x: 800, y: 0, width: 400, height: 800)
+        )
+        var released = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .flagsChanged)
+        released.resolvedZones = [zone]
+        released.stickyArm = true
+        released.event.modifiers = []
+        released.downFrameAX = frame
+        released.event.locationAppKit = CoordinateConverter.appKitPoint(
+            fromAX: CGPoint(x: zone.frameAX.midX, y: zone.frameAX.midY),
+            primaryFlipHeight: released.primaryFlipHeight
+        )
+        let afterShift = SnapSessionReducer.reduce(released)
+        XCTAssertEqual(afterShift.phase, .highlighting(window, .zone(zone)))
+
+        var up = released
+        up.phase = afterShift.phase
+        up.event.kind = .leftUp
+        let out = SnapSessionReducer.reduce(up)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone.frameAX)))
+        XCTAssertTrue(out.effects.contains(.hideOverlay))
+    }
+
     func testEscapeCancels() {
         let input = base(phase: .armed(window), kind: .escape)
         let out = SnapSessionReducer.reduce(input)

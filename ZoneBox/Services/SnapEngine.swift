@@ -81,9 +81,7 @@ final class SnapEngine {
             if armOrigin == nil {
                 armOrigin = event.locationAppKit
             }
-            if !event.modifiers.contains(.shift) {
-                stickyArm = true
-            }
+            stickyArm = true
         }
         phase = output.phase
         apply(output.effects)
@@ -315,8 +313,9 @@ final class SnapEngine {
                 overlayHighlight = target
                 hideOverlay = false
             case .applyFrame(let identity, let rect):
+                let captured = runtime.pendingWindow
                 Task { @MainActor in
-                    if let window = runtime.pendingWindow, window.identity == identity {
+                    if let window = captured, window.identity == identity {
                         _ = await runtime.ax.setFrame(rect, of: window)
                     } else if let window = await runtime.ax.window(matching: identity) {
                         _ = await runtime.ax.setFrame(rect, of: window)
