@@ -1,8 +1,10 @@
 import AppKit
+import ZoneBoxCore
 
 final class EditorPanel: NSPanel {
     var onEscape: (() -> Void)?
     var onCycleZones: ((Bool) -> Void)?
+    var onSaveCopy: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -25,6 +27,17 @@ final class EditorPanel: NSPanel {
         } else {
             super.selectPreviousKeyView(sender)
         }
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if ShortcutCatalog.editorSaveChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            onSaveCopy?()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     convenience init(screen: NSScreen) {

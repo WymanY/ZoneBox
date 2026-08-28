@@ -1606,7 +1606,7 @@ test:
 	! rg -n "import SwiftUI" ZoneBox --glob '*.swift'
 ```
 
-CI (PR 1): `.github/workflows/ci.yml` — `macos-14`, `actions/checkout`, `make test`.
+CI: `.github/workflows/ci.yml` — `macos-15`, `actions/checkout`, `make test`. Local `make test` prints the active xcodebuild/SDK so toolchain drift is visible before GitHub.
 
 ---
 

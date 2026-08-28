@@ -11,11 +11,28 @@ final class LayoutEditorController: NSObject {
     private var toolbar: NSView?
     private var saveButton: EditorChipButton?
     private var cancelButton: EditorChipButton?
+    private var saveNameAlert: NSAlert?
     private var presetButtons: [EditorChipButton] = []
+    private var selectedPresetIndex: Int?
+    private var savedLayoutButton: EditorChipButton?
+    private var savedToolbarLayout: Layout?
+    private var selectedSavedLayout = false
     private var hintLabel: NSTextField?
     private var protectionLabel: NSTextField?
     private let original: Layout
     private var transaction: LayoutEditTransaction?
+    private var appSwitchObservations: [Any] = []
+    private var canCancelOnAppSwitch = false
+
+    private enum SaveNamePromptKind {
+        case newLayout
+        case copy(warnsUnchanged: Bool)
+
+        var createsCopy: Bool {
+            if case .copy = self { return true }
+            return false
+        }
+    }
 
     init(runtime: AppRuntime, layout: Layout, targetDisplayID: DisplayIdentity.ID, isNew: Bool) {
         self.runtime = runtime
@@ -42,8 +59,16 @@ final class LayoutEditorController: NSObject {
             draft: draft,
             targetDisplayID: targetDisplayID
         )
+        savedToolbarLayout = LayoutTemplates.editorToolbarSavedLayout(
+            original: isNew ? nil : original,
+            isNew: isNew,
+            workAreaAX: workAX
+        )
+        selectedPresetIndex = LayoutTemplates.matchingEditorPresetIndex(for: draft, workAreaAX: workAX)
+        selectedSavedLayout = savedToolbarLayout != nil
 
         let canvas = LayoutEditorCanvasView(layout: draft, workAreaAX: workAX, primaryFlipHeight: flip)
+        canvas.selectFirstZone()
         canvas.onChange = { [weak self] layout in self?.updateDraft(layout) }
         canvas.onCancel = { [weak self] in self?.cancel() }
         canvas.onInteractionChange = { [weak self] active in self?.setToolbarReceded(active) }
@@ -73,11 +98,13 @@ final class LayoutEditorController: NSObject {
         panel.onCycleZones = { [weak canvas] forward in
             canvas?.cycleSelection(forward: forward)
         }
+        panel.onSaveCopy = { [weak self] in self?.saveCopyShortcut() }
         panel.delegate = self
         self.panel = panel
         self.canvas = canvas
         updateSaveState()
         makeEditorKey(panel: panel, canvas: canvas)
+        observeAppSwitchToCancel()
     }
 
     func activate() {
@@ -93,9 +120,42 @@ final class LayoutEditorController: NSObject {
 
     @discardableResult
     func handleLocalKey(_ event: NSEvent) -> Bool {
+        if ShortcutCatalog.editorSaveChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            saveCopyShortcut()
+            return true
+        }
         if event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter {
             save()
             return true
+        }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let hasModifiers = !flags.subtracting(.shift).isEmpty
+        switch event.keyCode {
+        case HardwareKeyCode.a:
+            guard !hasModifiers else { break }
+            if event.isARepeat { return true }
+            canvas?.moveSelection(.left)
+            return true
+        case HardwareKeyCode.d:
+            guard !hasModifiers else { break }
+            if event.isARepeat { return true }
+            canvas?.moveSelection(.right)
+            return true
+        case HardwareKeyCode.w:
+            guard !hasModifiers else { break }
+            if event.isARepeat { return true }
+            canvas?.moveSelection(.up)
+            return true
+        case HardwareKeyCode.s:
+            guard !hasModifiers else { break }
+            if event.isARepeat { return true }
+            canvas?.moveSelection(.down)
+            return true
+        default:
+            break
         }
         return canvas?.handleKeyEvent(event) ?? false
     }
@@ -131,6 +191,20 @@ final class LayoutEditorController: NSObject {
             presets.addArrangedSubview(button)
             presetButtons.append(button)
         }
+        savedLayoutButton = nil
+        if let saved = savedToolbarLayout {
+            let button = EditorChipButton(
+                title: savedLayoutChipTitle(saved.name),
+                symbol: "rectangle.3.group",
+                target: self,
+                action: #selector(applySavedToolbarLayout),
+                kind: .preset
+            )
+            button.toolTip = L10n.layoutDisplayName(saved.name)
+            presets.addArrangedSubview(button)
+            savedLayoutButton = button
+        }
+        refreshPresetSelection()
 
         let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
         let save = EditorChipButton(title: saveTitle, symbol: nil, target: self, action: #selector(save), kind: .save)
@@ -148,26 +222,47 @@ final class LayoutEditorController: NSObject {
         topRow.spacing = 12
         topRow.addArrangedSubview(presets)
         topRow.addArrangedSubview(actions)
+        topRow.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        topRow.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        topRow.translatesAutoresizingMaskIntoConstraints = false
+
+        let topRowCenter = NSView()
+        topRowCenter.translatesAutoresizingMaskIntoConstraints = false
+        topRowCenter.addSubview(topRow)
+        NSLayoutConstraint.activate([
+            topRow.topAnchor.constraint(equalTo: topRowCenter.topAnchor),
+            topRow.bottomAnchor.constraint(equalTo: topRowCenter.bottomAnchor),
+            topRow.centerXAnchor.constraint(equalTo: topRowCenter.centerXAnchor),
+            topRow.leadingAnchor.constraint(greaterThanOrEqualTo: topRowCenter.leadingAnchor),
+            topRow.trailingAnchor.constraint(lessThanOrEqualTo: topRowCenter.trailingAnchor),
+        ])
 
         let hint = NSTextField(wrappingLabelWithString: L10n.text(.editorHint))
         hint.font = .systemFont(ofSize: 12, weight: .medium)
         hint.textColor = NSColor.white.withAlphaComponent(0.92)
+        hint.alignment = .center
         hint.isBezeled = false
         hint.drawsBackground = false
         hint.isSelectable = false
         hint.lineBreakMode = .byWordWrapping
         hint.maximumNumberOfLines = 3
         hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        hint.setContentHuggingPriority(.defaultLow, for: .horizontal)
         hintLabel = hint
 
-        var rows: [NSView] = [topRow]
+        var rows: [NSView] = [topRowCenter]
         if !isNew && original.kind == .grid {
             let protection = NSTextField(wrappingLabelWithString: L10n.text(.editorGridProtected))
             protection.font = .systemFont(ofSize: 12, weight: .semibold)
             protection.textColor = .systemOrange
+            protection.alignment = .center
             protection.isBezeled = false
             protection.drawsBackground = false
             protection.isSelectable = false
+            protection.lineBreakMode = .byWordWrapping
+            protection.maximumNumberOfLines = 2
+            protection.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            protection.isHidden = true
             protectionLabel = protection
             rows.append(protection)
         }
@@ -175,7 +270,7 @@ final class LayoutEditorController: NSObject {
 
         let column = NSStackView(views: rows)
         column.orientation = .vertical
-        column.alignment = .leading
+        column.alignment = .width
         column.spacing = 8
         column.translatesAutoresizingMaskIntoConstraints = false
         bar.addSubview(column)
@@ -188,36 +283,161 @@ final class LayoutEditorController: NSObject {
         return bar
     }
 
-    private func applyPreset(_ layout: Layout) {
+    private func applyPreset(_ layout: Layout, index: Int) {
+        applyDraftLayout(layout)
+        selectedPresetIndex = index
+        selectedSavedLayout = false
+        refreshPresetSelection()
+    }
+
+    @objc private func presetColumns2() { applyPreset(LayoutTemplates.columns(2), index: 0) }
+    @objc private func presetColumns3() { applyPreset(LayoutTemplates.columns(3), index: 1) }
+    @objc private func presetRows2() { applyPreset(LayoutTemplates.rows(2), index: 2) }
+    @objc private func presetGrid() { applyPreset(LayoutTemplates.grid2x2(), index: 3) }
+    @objc private func presetPriority() { applyPreset(LayoutTemplates.priority3(), index: 4) }
+    @objc private func presetFocus() { applyPreset(LayoutTemplates.focus(), index: 5) }
+
+    @objc private func applySavedToolbarLayout() {
+        guard let saved = savedToolbarLayout else { return }
+        applyDraftLayout(saved)
+        selectedPresetIndex = nil
+        selectedSavedLayout = true
+        refreshPresetSelection()
+    }
+
+    private func refreshPresetSelection() {
+        for (index, button) in presetButtons.enumerated() {
+            button.setPresetSelected(index == selectedPresetIndex)
+        }
+        savedLayoutButton?.setPresetSelected(selectedSavedLayout)
+    }
+
+    private func savedLayoutChipTitle(_ storedName: String) -> String {
+        let title = L10n.layoutDisplayName(storedName)
+        guard title.count > 18 else { return title }
+        return String(title.prefix(17)) + "..."
+    }
+
+    private func applyDraftLayout(_ layout: Layout) {
         guard var transaction else { return }
         var draft = layout
         draft.id = transaction.draft.id
         draft.name = transaction.draft.name
         draft.createdAt = transaction.draft.createdAt
+        if draft.kind == .grid, let workAreaAX = canvas?.workAreaAX {
+            draft = (try? draft.convertingGridToCanvas(workAreaAX: workAreaAX)) ?? draft
+        }
         transaction.updateDraft(draft)
         self.transaction = transaction
         canvas?.layout = draft
+        canvas?.selectFirstZone()
         canvas?.needsDisplay = true
         updateSaveState()
     }
 
-    @objc private func presetColumns2() { applyPreset(LayoutTemplates.columns(2)) }
-    @objc private func presetColumns3() { applyPreset(LayoutTemplates.columns(3)) }
-    @objc private func presetRows2() { applyPreset(LayoutTemplates.rows(2)) }
-    @objc private func presetGrid() { applyPreset(LayoutTemplates.grid2x2()) }
-    @objc private func presetPriority() { applyPreset(LayoutTemplates.priority3()) }
-    @objc private func presetFocus() { applyPreset(LayoutTemplates.focus()) }
-
     @objc private func save() {
+        guard let transaction = validTransactionForSave() else { return }
+        if isNew {
+            promptForSaveName(defaultName: transaction.draft.name, kind: .newLayout)
+            return
+        }
+        if !isNew, original.kind == .grid {
+            promptForCopyName(transaction)
+            return
+        }
+        commitSave(requestedName: nil, createsCopy: false)
+    }
+
+    private func saveCopyShortcut() {
+        guard let transaction = validTransactionForSave() else { return }
+        Log.hotkey.info("Editor save-copy shortcut invoked newLayout=\(self.isNew, privacy: .public)")
+        if isNew {
+            promptForSaveName(defaultName: transaction.draft.name, kind: .newLayout)
+        } else {
+            promptForCopyName(transaction)
+        }
+    }
+
+    private func validTransactionForSave() -> LayoutEditTransaction? {
         guard let transaction, transaction.canCommit else {
             NSSound.beep()
-            return
+            return nil
         }
         guard transaction.targetIsAvailable(in: runtime.displays.activeDisplayIDs) else {
             NSSound.beep()
-            return
+            return nil
         }
-        if let layout = transaction.layoutForCommit(existingNames: runtime.document.layouts.map(\.name)) {
+        return transaction
+    }
+
+    private func promptForCopyName(_ transaction: LayoutEditTransaction) {
+        let presets = LayoutTemplates.editorPresets()
+        let sourceName = selectedPresetIndex.flatMap { index in
+            presets.indices.contains(index) ? presets[index].name : nil
+        }
+        promptForSaveName(
+            defaultName: transaction.suggestedCopyName(
+                sourceName: sourceName,
+                existingNames: runtime.document.layouts.map(\.name)
+            ),
+            kind: .copy(warnsUnchanged: !transaction.hasChanges)
+        )
+    }
+
+    private func promptForSaveName(defaultName: String, kind: SaveNamePromptKind) {
+        guard saveNameAlert == nil, let panel else { return }
+
+        let alert = NSAlert()
+        switch kind {
+        case .newLayout:
+            alert.messageText = L10n.text(.editorSaveNameTitle)
+            alert.informativeText = L10n.text(.editorSaveNameMessage)
+        case .copy(let warnsUnchanged):
+            alert.messageText = L10n.text(.editorCopyNameTitle)
+            alert.informativeText = L10n.text(
+                warnsUnchanged ? .editorCopyUnchangedMessage : .editorCopyNameMessage
+            )
+        }
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: L10n.text(.editorCopyNameConfirm))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+
+        let field = NSTextField(string: defaultName)
+        field.placeholderString = L10n.text(.editorCopyNamePlaceholder)
+        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        saveNameAlert = alert
+        alert.beginSheetModal(for: panel) { [weak self, weak alert] response in
+            guard let self, let alert else { return }
+            Task { @MainActor in
+                guard self.saveNameAlert === alert else { return }
+                self.saveNameAlert = nil
+                guard response == .alertFirstButtonReturn else {
+                    self.panel?.makeFirstResponder(self.canvas)
+                    return
+                }
+                let enteredName = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.commitSave(
+                    requestedName: enteredName.isEmpty ? defaultName : enteredName,
+                    createsCopy: kind.createsCopy
+                )
+            }
+        }
+        DispatchQueue.main.async { [weak alert, weak field] in
+            guard let alert, let field else { return }
+            alert.window.makeFirstResponder(field)
+            field.selectText(nil)
+        }
+    }
+
+    private func commitSave(requestedName: String?, createsCopy: Bool) {
+        guard let transaction else { return }
+        if let layout = transaction.layoutForCommit(
+            existingNames: runtime.document.layouts.map(\.name),
+            requestedName: requestedName,
+            createsCopy: createsCopy
+        ) {
             guard runtime.saveLayout(layout, to: transaction.targetDisplayID) else {
                 NSSound.beep()
                 return
@@ -241,6 +461,11 @@ final class LayoutEditorController: NSObject {
         for (button, key) in zip(presetButtons, keys) {
             button.setChipTitle(L10n.text(key))
         }
+        if let saved = savedToolbarLayout {
+            savedLayoutButton?.setChipTitle(savedLayoutChipTitle(saved.name))
+            savedLayoutButton?.toolTip = L10n.layoutDisplayName(saved.name)
+        }
+        refreshPresetSelection()
         let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
         saveButton?.setChipTitle(saveTitle)
         cancelButton?.setChipTitle(L10n.text(.editorCancel))
@@ -254,12 +479,15 @@ final class LayoutEditorController: NSObject {
         updateSaveState()
     }
 
+    fileprivate func chipHoverChanged(_ button: EditorChipButton, hovering: Bool) {
+        guard button === saveButton, !isNew, original.kind == .grid else { return }
+        protectionLabel?.isHidden = !hovering
+    }
+
     private func updateSaveState() {
         guard let transaction else { return }
         saveButton?.isEnabled = transaction.canCommit
-        saveButton?.toolTip = transaction.canCommit
-            ? (!isNew && original.kind == .grid ? L10n.text(.editorSaveCopyTooltip) : L10n.text(.editorSaveTooltip))
-            : L10n.text(.editorSaveDisabledTooltip)
+        saveButton?.toolTip = nil
     }
 
     private func setToolbarReceded(_ receded: Bool) {
@@ -270,8 +498,60 @@ final class LayoutEditorController: NSObject {
         }
     }
 
+    private func observeAppSwitchToCancel() {
+        stopObservingAppSwitch()
+        canCancelOnAppSwitch = false
+        let resign = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: NSApp,
+            queue: .main
+        ) { [weak self] _ in
+            guard let controller = self else { return }
+            Task { @MainActor in controller.handleAppResign() }
+        }
+        let switchApp = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let controller = self else { return }
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            Task { @MainActor in controller.handleOtherAppActivated(app) }
+        }
+        appSwitchObservations = [resign, switchApp]
+        DispatchQueue.main.async { [weak self] in
+            self?.canCancelOnAppSwitch = true
+        }
+    }
+
+    private func stopObservingAppSwitch() {
+        canCancelOnAppSwitch = false
+        for observation in appSwitchObservations {
+            NotificationCenter.default.removeObserver(observation)
+            NSWorkspace.shared.notificationCenter.removeObserver(observation)
+        }
+        appSwitchObservations.removeAll()
+    }
+
+    private func handleAppResign() {
+        guard canCancelOnAppSwitch, panel != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let controller = self else { return }
+            guard controller.canCancelOnAppSwitch, controller.panel != nil, !NSApp.isActive else { return }
+            controller.cancel()
+        }
+    }
+
+    private func handleOtherAppActivated(_ app: NSRunningApplication?) {
+        guard canCancelOnAppSwitch, panel != nil else { return }
+        guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        cancel()
+    }
+
     private func dismiss() {
         guard panel != nil else { return }
+        stopObservingAppSwitch()
+        dismissSaveNameAlert()
         panel?.delegate = nil
         panel?.orderOut(nil)
         panel = nil
@@ -280,12 +560,26 @@ final class LayoutEditorController: NSObject {
         saveButton = nil
         cancelButton = nil
         presetButtons = []
+        selectedPresetIndex = nil
+        savedLayoutButton = nil
+        savedToolbarLayout = nil
+        selectedSavedLayout = false
         hintLabel = nil
         protectionLabel = nil
         transaction = nil
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
         runtime.editorDidClose()
+    }
+
+    private func dismissSaveNameAlert() {
+        guard let alert = saveNameAlert else { return }
+        saveNameAlert = nil
+        if let panel, panel.attachedSheet === alert.window {
+            panel.endSheet(alert.window, returnCode: .cancel)
+        } else {
+            alert.window.orderOut(nil)
+        }
     }
 }
 
@@ -358,7 +652,7 @@ private final class EditorChipButton: NSButton {
             layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
             keyEquivalent = "\u{1b}"
         case .preset:
-            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
+            applyPresetAppearance(selected: false)
         }
 
         attributedTitle = NSAttributedString(
@@ -375,7 +669,58 @@ private final class EditorChipButton: NSButton {
                 .withSymbolConfiguration(config)
             contentTintColor = titleColor
         }
-        toolTip = title
+        toolTip = nil
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        (target as? LayoutEditorController)?.chipHoverChanged(self, hovering: true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        (target as? LayoutEditorController)?.chipHoverChanged(self, hovering: false)
+    }
+
+    func setPresetSelected(_ selected: Bool) {
+        applyPresetAppearance(selected: selected)
+    }
+
+    private func applyPresetAppearance(selected: Bool) {
+        let titleColor = selected ? NSColor.black : NSColor.white
+        if selected {
+            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.92).cgColor
+            layer?.borderWidth = 0
+            layer?.borderColor = nil
+        } else {
+            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.16).cgColor
+            layer?.borderWidth = 0
+            layer?.borderColor = nil
+        }
+        attributedTitle = NSAttributedString(
+            string: attributedTitle.string,
+            attributes: [
+                .foregroundColor: titleColor,
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            ]
+        )
+        if let image {
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [titleColor]))
+            self.image = image.withSymbolConfiguration(config)
+            contentTintColor = titleColor
+        }
     }
 
     func setChipTitle(_ title: String) {
@@ -386,7 +731,7 @@ private final class EditorChipButton: NSButton {
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
             ]
         )
-        toolTip = title
+        toolTip = nil
         invalidateIntrinsicContentSize()
         needsDisplay = true
     }

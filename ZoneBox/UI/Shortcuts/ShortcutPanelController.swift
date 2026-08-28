@@ -235,10 +235,8 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
             switch key {
             case .shortcutGestureScroll:
                 return [L10n.text(.shortcutGestureScroll)]
-            case .shortcutGestureShiftScroll:
-                return ["⇧", L10n.text(.shortcutGestureScroll)]
-            case .shortcutGestureOptionScroll:
-                return ["⌥", L10n.text(.shortcutGestureScroll)]
+            case .shortcutGestureHorizontalScroll:
+                return [L10n.text(.shortcutGestureHorizontalScroll)]
             case .shortcutGestureShiftDrag:
                 return ["⇧", L10n.text(.shortcutGestureDrag)]
             case .shortcutGestureRightClick:

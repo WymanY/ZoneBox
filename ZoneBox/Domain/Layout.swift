@@ -124,12 +124,15 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
             )
         }
         copy.updatedAt = Date()
-        return copy
+        return copy.packedNumbers()
     }
 
     public func packedNumbers() -> Layout {
         var copy = self
-        let sorted = copy.zones.sorted { $0.number < $1.number }
+        let sorted = copy.zones.sorted { lhs, rhs in
+            if lhs.number != rhs.number { return lhs.number < rhs.number }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
         copy.zones = sorted.enumerated().map { index, zone in
             var z = zone
             z.number = index + 1
@@ -138,7 +141,8 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
-    /// Tab / Shift+Tab order: packed zone numbers, wrapping. Skips in-progress create drags.
+    /// Tab / Shift+Tab order: painted zone numbers 1 -> 2 -> 3 -> 4, wrapping.
+    /// Skips in-progress create drags.
     public func cycledZoneID(from selected: UUID?, forward: Bool) -> UUID? {
         let ordered = zones
             .filter { $0.name != "__creating" }
@@ -151,5 +155,109 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
             ? (idx + 1) % ordered.count
             : (idx - 1 + ordered.count) % ordered.count
         return ordered[next].id
+    }
+
+    public enum ArrowDirection: Sendable {
+        case left, right, up, down
+    }
+
+    /// Arrow-key order: the spatially adjacent pane in that direction.
+    /// Picks the next pane by center along that axis, so overlapping columns
+    /// still move one pane at a time.
+    public func neighborZoneID(from selected: UUID?, direction: ArrowDirection) -> UUID? {
+        neighborZoneID(from: selected, direction: direction, rects: [:])
+    }
+
+    public func neighborZoneID(
+        from selected: UUID?,
+        direction: ArrowDirection,
+        rects: [UUID: NormalizedRect]
+    ) -> UUID? {
+        let candidates = zones.compactMap { zone -> (id: UUID, number: Int, rect: NormalizedRect)? in
+            guard zone.name != "__creating" else { return nil }
+            guard let rect = rects[zone.id] ?? zone.canvasRect else { return nil }
+            return (zone.id, zone.number, rect)
+        }
+        guard !candidates.isEmpty else { return nil }
+        guard let selected,
+              let current = candidates.first(where: { $0.id == selected })
+        else {
+            return candidates.min { lhs, rhs in
+                if lhs.rect.y != rhs.rect.y { return lhs.rect.y < rhs.rect.y }
+                if lhs.rect.x != rhs.rect.x { return lhs.rect.x < rhs.rect.x }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }?.id
+        }
+
+        struct Neighbor {
+            var id: UUID
+            var along: Double
+            var across: Double
+            var overlap: Double
+            var number: Int
+        }
+
+        var neighbors: [Neighbor] = []
+        neighbors.reserveCapacity(candidates.count)
+        let origin = center(of: current.rect)
+        for zone in candidates where zone.id != current.id {
+            let target = center(of: zone.rect)
+            let dx = target.x - origin.x
+            let dy = target.y - origin.y
+            let along: Double
+            let across: Double
+            switch direction {
+            case .right:
+                along = dx
+                across = abs(dy)
+            case .left:
+                along = -dx
+                across = abs(dy)
+            case .down:
+                along = dy
+                across = abs(dx)
+            case .up:
+                along = -dy
+                across = abs(dx)
+            }
+            guard along > 0.000_001 else { continue }
+            neighbors.append(
+                Neighbor(
+                    id: zone.id,
+                    along: along,
+                    across: across,
+                    overlap: directionalOverlap(from: current.rect, to: zone.rect, direction: direction),
+                    number: zone.number
+                )
+            )
+        }
+        let aligned = neighbors.filter { $0.overlap > 0.000_001 }
+        let pool = aligned.isEmpty ? neighbors : aligned
+        return pool.min { lhs, rhs in
+            if lhs.along != rhs.along { return lhs.along < rhs.along }
+            if lhs.across != rhs.across { return lhs.across < rhs.across }
+            return lhs.number < rhs.number
+        }?.id ?? selected
+    }
+
+    private func center(of rect: NormalizedRect) -> (x: Double, y: Double) {
+        (rect.x + rect.width / 2, rect.y + rect.height / 2)
+    }
+
+    private func directionalOverlap(
+        from current: NormalizedRect,
+        to other: NormalizedRect,
+        direction: ArrowDirection
+    ) -> Double {
+        switch direction {
+        case .left, .right:
+            return overlap(current.y, current.y + current.height, other.y, other.y + other.height)
+        case .up, .down:
+            return overlap(current.x, current.x + current.width, other.x, other.x + other.width)
+        }
+    }
+
+    private func overlap(_ a0: Double, _ a1: Double, _ b0: Double, _ b1: Double) -> Double {
+        max(0, min(a1, b1) - max(a0, b0))
     }
 }

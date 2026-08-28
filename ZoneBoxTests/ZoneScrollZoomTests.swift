@@ -2,17 +2,17 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class ZoneScrollZoomTests: XCTestCase {
-    func testDefaultAxisIsHeightEvenIfCallerHasDeltaX() {
-        XCTAssertEqual(ZoneScrollZoom.axes(option: false, shift: false), .height)
+    func testVerticalScrollSelectsHeightEvenWithLeakedDeltaX() {
+        XCTAssertEqual(ZoneScrollZoom.axes(deltaX: 1.2, deltaY: 8), .height)
     }
 
-    func testShiftSelectsWidthOnly() {
-        XCTAssertEqual(ZoneScrollZoom.axes(option: false, shift: true), .width)
+    func testHorizontalScrollSelectsWidth() {
+        XCTAssertEqual(ZoneScrollZoom.axes(deltaX: 8, deltaY: 1.2), .width)
     }
 
-    func testOptionSelectsBothAndWinsOverShift() {
-        XCTAssertEqual(ZoneScrollZoom.axes(option: true, shift: false), .both)
-        XCTAssertEqual(ZoneScrollZoom.axes(option: true, shift: true), .both)
+    func testAmbiguousDiagonalScrollDoesNotPickAnAxis() {
+        XCTAssertNil(ZoneScrollZoom.axes(deltaX: 6, deltaY: 5))
+        XCTAssertNil(ZoneScrollZoom.axes(deltaX: 0, deltaY: 0))
     }
 
     func testHeightOnlyScaleDoesNotTouchXOrWidth() {

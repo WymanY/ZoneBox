@@ -12,7 +12,11 @@ public enum CarbonModifier {
 }
 
 public enum HardwareKeyCode {
+    public static let a: UInt16 = 0
+    public static let s: UInt16 = 1
+    public static let d: UInt16 = 2
     public static let z: UInt16 = 6
+    public static let w: UInt16 = 13
     public static let u: UInt16 = 32
     public static let leftBracket: UInt16 = 33
     public static let rightBracket: UInt16 = 30
@@ -30,6 +34,13 @@ public enum HardwareKeyCode {
     public static let right: UInt16 = 124
     public static let down: UInt16 = 125
     public static let up: UInt16 = 126
+
+    public static func isEditorPaneNavigation(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case a, s, d, w: true
+        default: false
+        }
+    }
 }
 
 public extension KeyChord {
@@ -65,6 +76,10 @@ public extension KeyChord {
         case 28: return "8"
         case 25: return "9"
         case 29: return "0"
+        case HardwareKeyCode.s: return "S"
+        case HardwareKeyCode.a: return "A"
+        case HardwareKeyCode.d: return "D"
+        case HardwareKeyCode.w: return "W"
         case HardwareKeyCode.z: return "Z"
         case HardwareKeyCode.u: return "U"
         case HardwareKeyCode.q: return "Q"
@@ -157,6 +172,10 @@ public enum ShortcutCatalog {
     public static let unsnapHotkeyID: UInt32 = 105
     public static let shortcutsPanelHotkeyID: UInt32 = 106
     public static let quickSnapperHotkeyID: UInt32 = 107
+    public static let editorSaveChord = KeyChord(
+        keyCode: HardwareKeyCode.s,
+        carbonModifiers: CarbonModifier.command
+    )
 
     /// IDs that must fire even when Accessibility is not granted.
     public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID]
@@ -270,7 +289,7 @@ public enum ShortcutCatalog {
                 id: "editorSave",
                 surface: .editor,
                 titleKey: .shortcutEditorSave,
-                binding: .chord(KeyChord(keyCode: HardwareKeyCode.return, carbonModifiers: 0))
+                binding: .chord(editorSaveChord)
             ),
             ShortcutSpec(
                 id: "editorZoomHeight",
@@ -282,13 +301,7 @@ public enum ShortcutCatalog {
                 id: "editorZoomWidth",
                 surface: .editor,
                 titleKey: .shortcutEditorZoomWidth,
-                binding: .gesture(.shortcutGestureShiftScroll)
-            ),
-            ShortcutSpec(
-                id: "editorZoomBoth",
-                surface: .editor,
-                titleKey: .shortcutEditorZoomBoth,
-                binding: .gesture(.shortcutGestureOptionScroll)
+                binding: .gesture(.shortcutGestureHorizontalScroll)
             ),
             ShortcutSpec(
                 id: "shiftDrag",

@@ -28,29 +28,56 @@ public struct LayoutEditTransaction: Sendable {
         draft = layout
     }
 
+    public func suggestedCopyName(sourceName: String? = nil, existingNames: [String]) -> String {
+        let source = sourceName ?? original?.name ?? draft.name
+        return Self.uniqueName(base: Self.copyBaseName(from: source), existingNames: existingNames)
+    }
+
     /// Returns nil when Save should only close the editor, or when the draft is invalid.
     /// Grid layouts are protected because this editor only produces Canvas geometry.
     public func layoutForCommit(
         existingNames: [String],
         newID: UUID = UUID(),
-        now: Date = Date()
+        now: Date = Date(),
+        requestedName: String? = nil,
+        createsCopy: Bool = false
     ) -> Layout? {
         guard canCommit else { return nil }
-        if original != nil, !hasChanges { return nil }
+        let isCopyCommit = original.map { $0.kind == .grid || createsCopy } ?? false
+        let explicitlyNamedCopy = isCopyCommit && requestedName != nil
+        if original != nil, !hasChanges, !explicitlyNamedCopy { return nil }
 
         var result = draft
         if let original {
-            if original.kind == .grid {
+            if isCopyCommit {
                 result.id = newID
-                result.name = Self.uniqueName(base: "\(original.name) Copy", existingNames: existingNames)
+                let trimmed = requestedName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let base = trimmed.isEmpty ? Self.copyBaseName(from: original.name) : trimmed
+                result.name = Self.uniqueName(base: base, existingNames: existingNames)
                 result.createdAt = now
             } else {
                 result.id = original.id
                 result.createdAt = original.createdAt
             }
+        } else if let requestedName {
+            let trimmed = requestedName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let base = trimmed.isEmpty ? draft.name : trimmed
+            result.name = Self.uniqueName(base: base, existingNames: existingNames)
         }
         result.updatedAt = now
         return result
+    }
+
+    public static func copyBaseName(from name: String) -> String {
+        var stem = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        while true {
+            if let range = stem.range(of: #" Copy(?: \d+)?$"#, options: .regularExpression) {
+                stem = String(stem[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                continue
+            }
+            break
+        }
+        return stem.isEmpty ? "Layout Copy" : "\(stem) Copy"
     }
 
     public static func uniqueName(base: String, existingNames: [String]) -> String {
