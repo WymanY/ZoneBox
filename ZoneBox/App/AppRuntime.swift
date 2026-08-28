@@ -29,6 +29,7 @@ final class AppRuntime {
     private var editor: LayoutEditorController?
     private var shortcutPanel: ShortcutPanelController?
     private var quickSnapperUIActive = false
+    private var previewHideWorkItem: DispatchWorkItem?
 
     init() {
         ax = AccessibilityClientLive(
@@ -98,6 +99,7 @@ final class AppRuntime {
         overlay.hideAll()
         drag.stop()
         hotkeys.stop()
+        previewHideWorkItem?.cancel()
         editor = nil
         shortcutPanel?.close()
         onboarding?.close()
@@ -325,14 +327,25 @@ final class AppRuntime {
     }
 
     func previewZones() {
-        guard let area = displays.area(containingAppKit: NSEvent.mouseLocation) else { return }
-        let zones = resolvedZones(for: area)
+        previewHideWorkItem?.cancel()
+        previewHideWorkItem = nil
+        guard let area = displays.area(containingAppKit: NSEvent.mouseLocation),
+              let layout = document.layout(for: area.display.id)
+        else { return }
+        let workAX = CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: displays.primaryFlipHeight
+        )
+        let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
         overlay.show(displayID: area.display.id, zones: zones, highlight: .none)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+        let work = DispatchWorkItem { [weak self] in
             self?.overlay.hideAll()
+            self?.previewHideWorkItem = nil
         }
+        previewHideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
     }
 
     func openAccessibility() {

@@ -362,6 +362,7 @@ final class SnapEngine {
             return
         }
         if let overlayDisplayID {
+            runtime.menuBar?.closeConsole()
             runtime.overlay.settings = runtime.settings
             runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
             runtime.overlay.show(
