@@ -15,12 +15,19 @@ final class SnapEngine {
     private var quickSnapperPending = false
     private var quickSnapperSerial: Task<Void, Never>?
 
+    /// Overlay digit 1...9; hover must not replace it until mouse-up.
+    private var lockedTarget: SnapTarget?
+
     unowned var runtime: AppRuntime!
 
     var isQuickSnapperShowing: Bool {
         if quickSnapperPending { return true }
         if case .showing = quickSnapperPhase { return true }
         return false
+    }
+
+    var isOverlayArmed: Bool {
+        isArmed(phase)
     }
 
     func handleMouse(_ event: SnapMouseEvent) {
@@ -35,6 +42,7 @@ final class SnapEngine {
             pointerTrace = [event.locationAppKit]
             stickyArm = false
             armOrigin = nil
+            lockedTarget = nil
         } else if event.kind == .leftDragged {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
@@ -69,7 +77,8 @@ final class SnapEngine {
             gridGutter: grid.gutter,
             gridWorkAreaAX: grid.workAreaAX,
             magneticResizeEnabled: runtime.settings.magneticResizeEnabled,
-            magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints)
+            magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints),
+            lockedTarget: lockedTarget
         )
         if event.kind == .leftDown {
             downLocation = event.locationAppKit
@@ -83,6 +92,12 @@ final class SnapEngine {
             }
             stickyArm = true
         }
+        if case .digit = event.kind, isArmed(output.phase) {
+            stickyArm = true
+            if case .highlighting(_, let target) = output.phase {
+                lockedTarget = target
+            }
+        }
         phase = output.phase
         apply(output.effects)
         if phase == .idle {
@@ -92,9 +107,20 @@ final class SnapEngine {
             pointerTrace = []
             stickyArm = false
             armOrigin = nil
+            lockedTarget = nil
             runtime.pendingWindow = nil
             runtime.pendingFrame = nil
         }
+    }
+
+    func handleOverlayDigit(_ number: Int) {
+        handleMouse(
+            SnapMouseEvent(
+                kind: .digit(number),
+                locationAppKit: NSEvent.mouseLocation,
+                modifiers: []
+            )
+        )
     }
 
     func handleQuickSnapper(_ event: QuickSnapperEvent) {
@@ -277,6 +303,7 @@ final class SnapEngine {
         pointerTrace = []
         stickyArm = false
         armOrigin = nil
+        lockedTarget = nil
         if isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
         }
@@ -340,7 +367,8 @@ final class SnapEngine {
             runtime.overlay.show(
                 displayID: overlayDisplayID,
                 zones: lastZones,
-                highlight: overlayHighlight ?? .none
+                highlight: overlayHighlight ?? .none,
+                forceNumbers: true
             )
         } else if let overlayHighlight {
             runtime.overlay.highlight(overlayHighlight)

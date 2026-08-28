@@ -310,6 +310,12 @@ public enum ShortcutCatalog {
                 binding: .gesture(.shortcutGestureShiftDrag)
             ),
             ShortcutSpec(
+                id: "overlayDigit",
+                surface: .snap,
+                titleKey: .shortcutSnapOverlayDigit,
+                binding: .gesture(.shortcutGestureOverlayDigit)
+            ),
+            ShortcutSpec(
                 id: "rightClickDrag",
                 surface: .snap,
                 titleKey: .shortcutSnapRightClick,

@@ -35,7 +35,7 @@ make test
    - **Open Layout Editor** — pick Columns/Rows/2×2 or draw zones, then Save
    - **Layouts** — switch the layout for the display under the mouse
    - **Settings…** — Shift-drag, gutter, hotkeys notes
-4. Snap a window: drag it by the title bar, hold **Shift** (or right-click while dragging), drop on a numbered zone.
+4. Snap a window: drag it by the title bar, hold **Shift** (or right-click while dragging), drop on a numbered zone. While the overlay is visible, press **1…9** to snap to that zone.
 5. Keyboard: **Control+Option+1…9** snaps the focused window; **Control+Option+Z** opens the editor; **Control+Option+U** unsnaps; **Control+Option+/** opens the keyboard shortcuts panel.
 
 ## Identifiers

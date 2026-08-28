@@ -96,6 +96,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutSnapShake
     case shortcutSnapGridDraw
     case shortcutSnapMagneticResize
+    case shortcutSnapOverlayDigit
     case shortcutSettings
     case shortcutQuit
     case shortcutGestureScroll
@@ -105,6 +106,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureShake
     case shortcutGestureGridDraw
     case shortcutGestureMagneticResize
+    case shortcutGestureOverlayDigit
     case shortcutGestureDrag
 
     case onboardingWindowTitle
@@ -310,6 +312,7 @@ public enum L10n {
         .shortcutSnapShake: "Shake title bar to snap",
         .shortcutSnapGridDraw: "Draw a rectangle across grid cells",
         .shortcutSnapMagneticResize: "Magnetic resize to zone edges",
+        .shortcutSnapOverlayDigit: "Snap to a numbered zone while the overlay is showing",
         .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
         .shortcutGestureScroll: "Scroll",
@@ -319,6 +322,7 @@ public enum L10n {
         .shortcutGestureShake: "Shake while dragging",
         .shortcutGestureGridDraw: "⇧  drag across cells",
         .shortcutGestureMagneticResize: "Drag a window edge",
+        .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "Drag",
 
         .onboardingWindowTitle: "Enable Accessibility",
@@ -443,6 +447,7 @@ public enum L10n {
         .shortcutSnapShake: "晃动标题栏吸附",
         .shortcutSnapGridDraw: "在网格上画矩形吸附",
         .shortcutSnapMagneticResize: "缩放时磁性对齐分区边缘",
+        .shortcutSnapOverlayDigit: "覆盖层显示时按分区编号吸附",
         .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
         .shortcutGestureScroll: "滚动",
@@ -452,6 +457,7 @@ public enum L10n {
         .shortcutGestureShake: "拖动时晃动",
         .shortcutGestureGridDraw: "⇧  拖过多个格子",
         .shortcutGestureMagneticResize: "拖动窗口边缘",
+        .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "拖动",
 
         .onboardingWindowTitle: "开启辅助功能",

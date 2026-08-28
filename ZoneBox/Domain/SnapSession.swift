@@ -71,6 +71,9 @@ public struct SnapReducerInput: Equatable, Sendable {
     public var magneticResizeEnabled: Bool
     public var magneticThreshold: CGFloat
 
+    /// Zone chosen by overlay digit; hover must not replace it.
+    public var lockedTarget: SnapTarget?
+
     public init(
         phase: SnapSessionPhase,
         event: SnapMouseEvent,
@@ -98,7 +101,8 @@ public struct SnapReducerInput: Equatable, Sendable {
         gridGutter: CGFloat = 0,
         gridWorkAreaAX: CGRect = .null,
         magneticResizeEnabled: Bool = true,
-        magneticThreshold: CGFloat = MagneticResize.defaultThreshold
+        magneticThreshold: CGFloat = MagneticResize.defaultThreshold,
+        lockedTarget: SnapTarget? = nil
     ) {
         self.phase = phase
         self.event = event
@@ -127,6 +131,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.gridWorkAreaAX = gridWorkAreaAX
         self.magneticResizeEnabled = magneticResizeEnabled
         self.magneticThreshold = magneticThreshold
+        self.lockedTarget = lockedTarget
     }
 }
 
