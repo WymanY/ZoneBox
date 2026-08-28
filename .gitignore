@@ -12,3 +12,5 @@ DerivedData/
 .codegraph/
 *.xccheckout
 *.xcscmblueprint
+.codex/config.toml
+.codex/worktrees/
