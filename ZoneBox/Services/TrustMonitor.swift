@@ -1,35 +1,17 @@
 import ApplicationServices
 import AppKit
-import Darwin
 import ZoneBoxCore
-
-enum TrustStatus: Equatable {
-    case trusted
-    case untrusted
-    /// Debugger attached: TCC switch can be on for ZoneBox, but this process still fails `AXIsProcessTrusted()`.
-    case runningUnderDebugger
-}
 
 @MainActor
 final class TrustMonitor {
     /// Usable for snapping: either the official TCC flag *or* a live AX probe.
-    /// Xcode-launched Debug builds often report `AXIsProcessTrusted() == false`
-    /// even when the Accessibility switch is already on.
     func isTrusted() -> Bool {
         Self.hasAccessibilityAccess()
     }
 
-    func status() -> TrustStatus {
-        if Self.hasAccessibilityAccess() { return .trusted }
-        if Self.isDebuggerAttached() { return .runningUnderDebugger }
-        return .untrusted
-    }
-
     /// Menu-bar warning triangle only when Accessibility is actually off.
-    /// Under Xcode the TCC switch can already be on while `AXIsProcessTrusted()` is false —
-    /// that must not keep showing the exclamation.
     func showsMenuBarWarning() -> Bool {
-        status() == .untrusted
+        !isTrusted()
     }
 
     nonisolated static func hasAccessibilityAccess() -> Bool {
@@ -69,14 +51,6 @@ final class TrustMonitor {
             if error == .apiDisabled { return false }
         }
         return false
-    }
-
-    nonisolated static func isDebuggerAttached() -> Bool {
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.stride
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
-        let result = sysctl(&mib, u_int(mib.count), &info, &size, nil, 0)
-        return result == 0 && (info.kp_proc.p_flag & P_TRACED) != 0
     }
 
     static var currentBuildPath: String {

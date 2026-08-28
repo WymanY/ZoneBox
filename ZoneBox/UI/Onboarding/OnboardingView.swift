@@ -7,7 +7,6 @@ final class OnboardingView: NSView {
         case waiting
         case granted
         case needsRelaunch
-        case runningUnderDebugger
     }
 
     var onOpenSettings: (() -> Void)?
@@ -99,15 +98,6 @@ final class OnboardingView: NSView {
             primaryButton.title = L10n.text(.onboardingQuitRelaunchApp)
             primaryButton.action = #selector(tapRelaunch)
             secondaryButton.title = L10n.text(.onboardingOpenSettingsAgainShort)
-            secondaryButton.action = #selector(tapOpen)
-            checkButton.isHidden = true
-        case .runningUnderDebugger:
-            statusIcon.image = NSImage(systemSymbolName: "hammer.fill", accessibilityDescription: nil)
-            statusIcon.contentTintColor = .systemOrange
-            statusLabel.stringValue = L10n.text(.onboardingStatusDebugger)
-            primaryButton.title = L10n.text(.onboardingQuitOpenWithoutDebugger)
-            primaryButton.action = #selector(tapRelaunch)
-            secondaryButton.title = L10n.text(.onboardingOpenSettings)
             secondaryButton.action = #selector(tapOpen)
             checkButton.isHidden = true
         }

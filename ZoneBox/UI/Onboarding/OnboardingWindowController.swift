@@ -106,11 +106,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
 
     private func initialPhase() -> OnboardingView.Phase {
-        switch runtime.trust.status() {
-        case .trusted: return .granted
-        case .runningUnderDebugger: return .runningUnderDebugger
-        case .untrusted: return .needsPermission
-        }
+        runtime.trust.isTrusted() ? .granted : .needsPermission
     }
 
     private func tick() {
@@ -123,10 +119,6 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
                 self?.close()
             }
-            return
-        }
-        if runtime.trust.status() == .runningUnderDebugger {
-            content.apply(.runningUnderDebugger)
             return
         }
         if let openedSettingsAt, Date().timeIntervalSince(openedSettingsAt) > 14 {

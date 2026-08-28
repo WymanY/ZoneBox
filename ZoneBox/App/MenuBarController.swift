@@ -35,12 +35,7 @@ final class MenuBarController: NSObject {
         let warning = runtime.trust.showsMenuBarWarning()
         button.image = Self.statusImage(warning: warning)
         button.contentTintColor = warning ? .systemOrange : nil
-        switch runtime.trust.status() {
-        case .trusted, .runningUnderDebugger:
-            button.toolTip = L10n.text(.statusTooltip)
-        case .untrusted:
-            button.toolTip = L10n.text(.statusTooltipNeedsAccess)
-        }
+        button.toolTip = L10n.text(warning ? .statusTooltipNeedsAccess : .statusTooltip)
     }
 
     private static func statusImage(warning: Bool) -> NSImage? {
