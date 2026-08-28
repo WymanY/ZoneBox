@@ -85,7 +85,9 @@ public enum SnapSessionReducer {
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
         case .armed, .highlighting:
             let target: SnapTarget
-            if case .highlighting(_, let highlighted) = input.phase, highlighted.frameAX != nil {
+            if let locked = lockedTarget(input) {
+                target = locked
+            } else if case .highlighting(_, let highlighted) = input.phase, highlighted.frameAX != nil {
                 target = highlighted
             } else {
                 target = currentTarget(input)
