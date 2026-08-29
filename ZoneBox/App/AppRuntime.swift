@@ -169,6 +169,15 @@ final class AppRuntime {
         }
     }
 
+    func openEditor(for layout: Layout) {
+        guard editor == nil else {
+            editor?.activate()
+            return
+        }
+        guard let target = pointerEditorTarget() else { return }
+        beginEditing(layout, isNew: false, target: target)
+    }
+
     private func openEditor(on target: EditorTarget) {
         guard editor == nil else {
             editor?.activate()
@@ -277,16 +286,33 @@ final class AppRuntime {
     }
 
     func newCanvasLayout() {
+        newLayout(kind: .canvas)
+    }
+
+    func newGridLayout() {
+        newLayout(kind: .grid)
+    }
+
+    private func newLayout(kind: LayoutKind) {
         guard editor == nil else {
             editor?.activate()
             return
         }
         guard let target = pointerEditorTarget() else { return }
-        let name = LayoutEditTransaction.uniqueName(
-            base: "Canvas \(document.layouts.count + 1)",
-            existingNames: document.layouts.map(\.name)
-        )
-        beginEditing(LayoutTemplates.emptyCanvas(name: name), isNew: true, target: target)
+        let count = document.layouts.count + 1
+        if kind == .grid {
+            let name = LayoutEditTransaction.uniqueName(
+                base: "Grid \(count)",
+                existingNames: document.layouts.map(\.name)
+            )
+            beginEditing(GridEditing.empty(name: name), isNew: true, target: target)
+        } else {
+            let name = LayoutEditTransaction.uniqueName(
+                base: "Canvas \(count)",
+                existingNames: document.layouts.map(\.name)
+            )
+            beginEditing(LayoutTemplates.emptyCanvas(name: name), isNew: true, target: target)
+        }
     }
 
     private typealias EditorTarget = (screen: NSScreen, area: WorkArea)

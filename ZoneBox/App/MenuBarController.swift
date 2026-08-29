@@ -210,6 +210,10 @@ final class MenuBarController: NSObject {
         layouts.submenu = makeLayoutsMenu()
         menu.addItem(layouts)
 
+        let newGrid = NSMenuItem(title: L10n.text(.menuNewGrid), action: #selector(newGrid(_:)), keyEquivalent: "")
+        newGrid.target = self
+        menu.addItem(newGrid)
+
         let newCanvas = NSMenuItem(title: L10n.text(.menuNewCanvas), action: #selector(newCanvas(_:)), keyEquivalent: "")
         newCanvas.target = self
         menu.addItem(newCanvas)
@@ -324,6 +328,11 @@ final class MenuBarController: NSObject {
     @objc
     private func newCanvas(_ sender: NSMenuItem) {
         runtime.newCanvasLayout()
+    }
+
+    @objc
+    private func newGrid(_ sender: NSMenuItem) {
+        runtime.newGridLayout()
     }
 
     @objc

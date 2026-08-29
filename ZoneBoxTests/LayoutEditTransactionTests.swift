@@ -48,39 +48,38 @@ final class LayoutEditTransactionTests: XCTestCase {
 
     func testUnchangedGridCommitIsNoOp() throws {
         let original = LayoutTemplates.columns(2)
-        let editable = try original.convertingGridToCanvas(workAreaAX: workArea)
-        let transaction = LayoutEditTransaction(original: original, draft: editable, targetDisplayID: displayID)
+        let transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
 
         XCTAssertFalse(transaction.hasChanges)
         XCTAssertNil(transaction.layoutForCommit(existingNames: [original.name]))
         XCTAssertEqual(original.kind, .grid)
     }
 
-    func testExplicitlyNamedUnchangedGridCreatesCanvasCopy() throws {
+    func testExplicitlyNamedUnchangedGridCreatesGridCopy() throws {
         let original = LayoutTemplates.columns(2)
-        let editable = try original.convertingGridToCanvas(workAreaAX: workArea)
-        let transaction = LayoutEditTransaction(original: original, draft: editable, targetDisplayID: displayID)
+        let transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
 
         let committed = try XCTUnwrap(
             transaction.layoutForCommit(
                 existingNames: [original.name],
                 newID: copyID,
                 now: now,
-                requestedName: "Desk"
+                requestedName: "Desk",
+                createsCopy: true
             )
         )
 
         XCTAssertEqual(committed.id, copyID)
         XCTAssertEqual(committed.name, "Desk")
-        XCTAssertEqual(committed.kind, .canvas)
+        XCTAssertEqual(committed.kind, .grid)
         XCTAssertEqual(committed.createdAt, now)
     }
 
-    func testChangedGridCommitsAsUniqueCopy() throws {
+    func testChangedGridUpdatesInPlace() throws {
         let original = LayoutTemplates.columns(2)
-        var editable = try original.convertingGridToCanvas(workAreaAX: workArea)
+        var editable = original
         var transaction = LayoutEditTransaction(original: original, draft: editable, targetDisplayID: displayID)
-        editable.zones[0].canvasRect?.width = 0.4
+        editable = try XCTUnwrap(GridEditing.moveLine(editable, axis: .vertical, afterIndex: 0, toNormalized: 0.4))
         transaction.updateDraft(editable)
 
         let committed = try XCTUnwrap(
@@ -91,19 +90,21 @@ final class LayoutEditTransactionTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(committed.id, copyID)
-        XCTAssertEqual(committed.name, "Columns 2 Copy 2")
-        XCTAssertEqual(committed.kind, .canvas)
-        XCTAssertEqual(committed.createdAt, now)
+        XCTAssertEqual(committed.id, original.id)
+        XCTAssertEqual(committed.name, original.name)
+        XCTAssertEqual(committed.kind, .grid)
+        XCTAssertEqual(committed.grid?.columnWeights[0], 4_000)
+        XCTAssertEqual(committed.createdAt, original.createdAt)
+        XCTAssertEqual(committed.updatedAt, now)
         XCTAssertEqual(original.kind, .grid)
         XCTAssertEqual(original.id, transaction.original?.id)
     }
 
     func testChangedGridCommitUsesProvidedCopyName() throws {
         let original = LayoutTemplates.columns(2)
-        var editable = try original.convertingGridToCanvas(workAreaAX: workArea)
+        var editable = original
         var transaction = LayoutEditTransaction(original: original, draft: editable, targetDisplayID: displayID)
-        editable.zones[0].canvasRect?.width = 0.4
+        editable = try XCTUnwrap(GridEditing.moveLine(editable, axis: .vertical, afterIndex: 0, toNormalized: 0.4))
         transaction.updateDraft(editable)
 
         XCTAssertEqual(
@@ -122,10 +123,12 @@ final class LayoutEditTransactionTests: XCTestCase {
                 existingNames: [original.name, "Desk"],
                 newID: copyID,
                 now: now,
-                requestedName: "  Desk  "
+                requestedName: "  Desk  ",
+                createsCopy: true
             )
         )
         XCTAssertEqual(committed.name, "Desk 2")
+        XCTAssertEqual(committed.kind, .grid)
     }
 
     func testNewLayoutCommitUsesProvidedUniqueName() throws {

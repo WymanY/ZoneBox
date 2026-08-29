@@ -31,6 +31,8 @@ final class LayoutEditorCanvasView: NSView {
             secondRect: NormalizedRect,
             start: CGPoint
         )
+        case gridLine(axis: GridAxis, afterIndex: Int)
+        case gridMerge(start: CGPoint)
         case close
     }
 
@@ -64,6 +66,8 @@ final class LayoutEditorCanvasView: NSView {
 
     private var drag: DragKind?
     private var hoverEdge: EdgeInteraction?
+    private var hoverSplit: (axis: GridAxis, x: Double, y: Double, zoneID: UUID)?
+    private var mergeIDs: Set<UUID> = []
     private var lastCycle: (forward: Bool, time: TimeInterval)?
     private var lastPaneMove: (direction: Layout.ArrowDirection, time: TimeInterval)?
     private let closeButtonSize: CGFloat = 22
@@ -127,12 +131,20 @@ final class LayoutEditorCanvasView: NSView {
     override func mouseExited(with event: NSEvent) {
         guard drag == nil else { return }
         hoverEdge = nil
+        hoverSplit = nil
         NSCursor.arrow.set()
         needsDisplay = true
     }
 
     override func cursorUpdate(with event: NSEvent) {
         applyCursor()
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        if layout.kind == .grid, drag == nil, let window {
+            refreshHover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
+        }
+        super.flagsChanged(with: event)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -165,13 +177,20 @@ final class LayoutEditorCanvasView: NSView {
             )
         }
 
+        if layout.kind == .grid {
+            drawGridMergeHighlights()
+            drawGridSplitPreview()
+        }
+
         if let edge = visibleSplitHandle() {
             drawSplitHandle(edge)
         }
 
+        let canDeleteGrid = layout.kind != .grid || layout.zones.count > 1
         for zone in zones {
             let rect = viewRect(for: canvasRect(of: zone))
             guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
+            guard canDeleteGrid else { continue }
             drawCloseButton(in: closeButtonRect(for: rect), highlighted: zone.id == selectedID)
         }
     }
@@ -179,6 +198,10 @@ final class LayoutEditorCanvasView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        if layout.kind == .grid {
+            handleGridMouseDown(at: point)
+            return
+        }
 
         if let zone = hitZone(at: point), closeButtonRect(for: viewRect(for: canvasRect(of: zone))).contains(point) {
             deleteZone(id: zone.id)
@@ -268,6 +291,11 @@ final class LayoutEditorCanvasView: NSView {
                 start: start,
                 point: point
             )
+        case .gridLine(let axis, let afterIndex):
+            applyGridLineDrag(axis: axis, afterIndex: afterIndex, point: point)
+        case .gridMerge:
+            updateGridMergeSelection(at: point)
+            return
         case .close, nil:
             break
         }
@@ -276,6 +304,10 @@ final class LayoutEditorCanvasView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        if layout.kind == .grid {
+            handleGridMouseUp(at: point)
+            return
+        }
         if case .create(let start) = drag {
             let traveled = hypot(point.x - start.x, point.y - start.y)
             if let last = layout.zones.last, last.name == "__creating" {
@@ -293,6 +325,9 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if layout.kind == .grid {
+            return
+        }
         let point = convert(event.locationInWindow, from: nil)
         let targetID = selectedID ?? hitZone(at: point)?.id
         guard let id = targetID, let idx = layout.zones.firstIndex(where: { $0.id == id }) else {
@@ -404,10 +439,15 @@ final class LayoutEditorCanvasView: NSView {
         }
         lastPaneMove = (direction, now)
         window?.makeFirstResponder(self)
-        let rects = Dictionary(uniqueKeysWithValues: layout.zones.compactMap { zone -> (UUID, NormalizedRect)? in
-            guard zone.name != "__creating" else { return nil }
-            return (zone.id, canvasRect(of: zone))
-        })
+        let rects: [UUID: NormalizedRect]
+        if layout.kind == .grid {
+            rects = GridEditing.normalizedRects(for: layout, workAreaAX: workAreaAX)
+        } else {
+            rects = Dictionary(uniqueKeysWithValues: layout.zones.compactMap { zone -> (UUID, NormalizedRect)? in
+                guard zone.name != "__creating" else { return nil }
+                return (zone.id, canvasRect(of: zone))
+            })
+        }
         selectedID = layout.neighborZoneID(from: selectedID, direction: direction, rects: rects)
         needsDisplay = true
     }
@@ -446,6 +486,14 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func deleteZone(id: UUID) {
+        if layout.kind == .grid {
+            if let next = GridEditing.deleteZone(layout, id: id) {
+                layout = next
+                selectedID = layout.zones.first?.id
+                commit()
+            }
+            return
+        }
         layout.zones.removeAll { $0.id == id }
         layout = layout.packedNumbers()
         if selectedID == id { selectedID = nil }
@@ -469,9 +517,7 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func ensureCanvas() {
-        if layout.kind == .grid {
-            layout = (try? layout.convertingGridToCanvas(workAreaAX: workAreaAX)) ?? layout
-        }
+        if layout.kind == .grid { return }
         layout.kind = .canvas
         layout.grid = nil
         for i in layout.zones.indices where layout.zones[i].canvasRect == nil {
@@ -483,6 +529,10 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func canvasRect(of zone: Zone) -> NormalizedRect {
+        if layout.kind == .grid {
+            let rects = GridEditing.normalizedRects(for: layout, workAreaAX: workAreaAX)
+            if let rect = rects[zone.id] { return rect }
+        }
         if let rect = zone.canvasRect { return rect }
         if let resolved = try? resolveLayout(layout, workAreaAX: workAreaAX, gutter: 0),
            let match = resolved.first(where: { $0.zoneID == zone.id }) {
@@ -502,6 +552,10 @@ final class LayoutEditorCanvasView: NSView {
 
     private func refreshHover(at point: CGPoint) {
         guard drag == nil else { return }
+        if layout.kind == .grid {
+            refreshGridHover(at: point)
+            return
+        }
         let next = edgeInteraction(at: point)
         if next != hoverEdge {
             hoverEdge = next
@@ -511,6 +565,22 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func applyCursor() {
+        if layout.kind == .grid {
+            if case .gridLine(let axis, _) = drag {
+                (axis == .vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).set()
+                return
+            }
+            if hoverEdge?.axis == .resizeWidth {
+                NSCursor.resizeLeftRight.set()
+                return
+            }
+            if hoverEdge?.axis == .resizeHeight {
+                NSCursor.resizeUpDown.set()
+                return
+            }
+            NSCursor.crosshair.set()
+            return
+        }
         guard let edge = visibleSplitHandle() else {
             NSCursor.arrow.set()
             return
@@ -542,9 +612,197 @@ final class LayoutEditorCanvasView: NSView {
 
     private func visibleSplitHandle() -> EdgeInteraction? {
         switch drag {
-        case .create, .move, .close: return nil
+        case .create, .move, .close, .gridMerge, .gridLine: return nil
         case .resize, .split, nil: return hoverEdge
         }
+    }
+
+
+    private func handleGridMouseDown(at point: CGPoint) {
+        hoverSplit = nil
+        let n = normalizedPoint(point)
+        if let zone = hitZone(at: point),
+           layout.zones.count > 1,
+           closeButtonRect(for: viewRect(for: canvasRect(of: zone))).contains(point) {
+            deleteZone(id: zone.id)
+            drag = .close
+            hoverEdge = nil
+            setInteracting(false)
+            return
+        }
+        if !NSEvent.modifierFlags.contains(.shift),
+           let spec = layout.grid,
+           let hit = GridEditing.hitLine(
+            normalizedX: n.x,
+            normalizedY: n.y,
+            spec: spec,
+            slopX: Double(linkedEdgeSlop / max(bounds.width, 1)),
+            slopY: Double(linkedEdgeSlop / max(bounds.height, 1))
+           ) {
+            selectedID = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout)
+            drag = .gridLine(axis: hit.axis, afterIndex: hit.afterIndex)
+            hoverEdge = gridEdge(for: hit)
+            setInteracting(true)
+            applyCursor()
+            needsDisplay = true
+            return
+        }
+        if let id = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout) {
+            selectedID = id
+            mergeIDs = [id]
+            drag = .gridMerge(start: point)
+            setInteracting(true)
+            needsDisplay = true
+            return
+        }
+        setInteracting(false)
+    }
+
+    private func handleGridMouseUp(at point: CGPoint) {
+        let n = normalizedPoint(point)
+        switch drag {
+        case .gridMerge(let start):
+            let traveled = hypot(point.x - start.x, point.y - start.y)
+            if traveled < 8 {
+                let axis: GridAxis = NSEvent.modifierFlags.contains(.shift) ? .horizontal : .vertical
+                if let next = GridEditing.split(layout, normalizedX: n.x, normalizedY: n.y, axis: axis) {
+                    layout = next
+                    selectedID = layout.zones.last?.id
+                }
+            } else if mergeIDs.count >= 2, let next = GridEditing.merge(layout, zoneIDs: mergeIDs) {
+                layout = next
+                selectedID = layout.zones.first { mergeIDs.contains($0.id) }?.id ?? layout.zones.first?.id
+            }
+        default:
+            break
+        }
+        drag = nil
+        mergeIDs = []
+        setInteracting(false)
+        refreshHover(at: point)
+        commit()
+    }
+
+    private func applyGridLineDrag(axis: GridAxis, afterIndex: Int, point: CGPoint) {
+        let n = normalizedPoint(point)
+        let t = axis == .vertical ? n.x : n.y
+        if let next = GridEditing.moveLine(layout, axis: axis, afterIndex: afterIndex, toNormalized: t) {
+            layout = next
+            hoverEdge = gridEdge(for: GridLineHit(axis: axis, afterIndex: afterIndex))
+        }
+    }
+
+    private func updateGridMergeSelection(at point: CGPoint) {
+        let n = normalizedPoint(point)
+        if let id = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout) {
+            mergeIDs.insert(id)
+            selectedID = id
+        }
+        needsDisplay = true
+    }
+
+    private func refreshGridHover(at point: CGPoint) {
+        let n = normalizedPoint(point)
+        var nextEdge: EdgeInteraction?
+        var nextSplit: (axis: GridAxis, x: Double, y: Double, zoneID: UUID)?
+        if !NSEvent.modifierFlags.contains(.shift),
+           let spec = layout.grid,
+           let hit = GridEditing.hitLine(
+            normalizedX: n.x,
+            normalizedY: n.y,
+            spec: spec,
+            slopX: Double(linkedEdgeSlop / max(bounds.width, 1)),
+            slopY: Double(linkedEdgeSlop / max(bounds.height, 1))
+           ) {
+            nextEdge = gridEdge(for: hit)
+        } else if let spec = layout.grid,
+                  let zoneID = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout) {
+            let axis: GridAxis = NSEvent.modifierFlags.contains(.shift) ? .horizontal : .vertical
+            if GridEditing.canSplit(spec: spec, normalizedX: n.x, normalizedY: n.y, axis: axis) {
+                nextSplit = (axis, n.x, n.y, zoneID)
+            }
+        }
+        let splitChanged = nextSplit?.axis != hoverSplit?.axis
+            || nextSplit?.x != hoverSplit?.x
+            || nextSplit?.y != hoverSplit?.y
+            || nextSplit?.zoneID != hoverSplit?.zoneID
+        if nextEdge != hoverEdge || splitChanged {
+            hoverEdge = nextEdge
+            hoverSplit = nextSplit
+            needsDisplay = true
+        }
+        applyCursor()
+    }
+
+    private func gridEdge(for hit: GridLineHit) -> EdgeInteraction? {
+        guard let spec = layout.grid else { return nil }
+        let w = bounds.width
+        let h = bounds.height
+        switch hit.axis {
+        case .vertical:
+            let xFrac = Double(spec.columnWeights.prefix(hit.afterIndex + 1).reduce(0, +)) / 10_000
+            let x = CGFloat(xFrac) * w
+            return EdgeInteraction(
+                axis: .resizeWidth,
+                grabber: CGPoint(x: x, y: h / 2),
+                seamStart: CGPoint(x: x, y: 0),
+                seamEnd: CGPoint(x: x, y: h),
+                primaryID: selectedID ?? layout.zones.first?.id ?? UUID(),
+                primaryHandle: .e,
+                neighborID: nil,
+                neighborHandle: nil
+            )
+        case .horizontal:
+            let yFrac = Double(spec.rowWeights.prefix(hit.afterIndex + 1).reduce(0, +)) / 10_000
+            let y = CGFloat(1 - yFrac) * h
+            return EdgeInteraction(
+                axis: .resizeHeight,
+                grabber: CGPoint(x: w / 2, y: y),
+                seamStart: CGPoint(x: 0, y: y),
+                seamEnd: CGPoint(x: w, y: y),
+                primaryID: selectedID ?? layout.zones.first?.id ?? UUID(),
+                primaryHandle: .s,
+                neighborID: nil,
+                neighborHandle: nil
+            )
+        }
+    }
+
+    private func drawGridSplitPreview() {
+        guard let preview = hoverSplit, drag == nil else { return }
+        guard let zone = layout.zones.first(where: { $0.id == preview.zoneID }) else { return }
+        let cell = viewRect(for: canvasRect(of: zone))
+        guard !cell.isNull, cell.width > 1, cell.height > 1 else { return }
+        NSColor.white.withAlphaComponent(0.7).setStroke()
+        let path = NSBezierPath()
+        path.lineWidth = 1.5
+        path.setLineDash([5, 4], count: 2, phase: 0)
+        switch preview.axis {
+        case .vertical:
+            let x = min(max(CGFloat(preview.x) * bounds.width, cell.minX), cell.maxX)
+            path.move(to: CGPoint(x: x, y: cell.minY))
+            path.line(to: CGPoint(x: x, y: cell.maxY))
+        case .horizontal:
+            let y = min(max(CGFloat(1 - preview.y) * bounds.height, cell.minY), cell.maxY)
+            path.move(to: CGPoint(x: cell.minX, y: y))
+            path.line(to: CGPoint(x: cell.maxX, y: y))
+        }
+        path.stroke()
+    }
+
+    private func drawGridMergeHighlights() {
+        guard case .gridMerge = drag, !mergeIDs.isEmpty else { return }
+        for zone in layout.zones where mergeIDs.contains(zone.id) {
+            let rect = viewRect(for: canvasRect(of: zone)).insetBy(dx: 6, dy: 6)
+            NSColor.systemYellow.withAlphaComponent(0.22).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8).fill()
+        }
+    }
+
+    private func normalizedPoint(_ point: CGPoint) -> (x: Double, y: Double) {
+        let w = max(bounds.width, 1)
+        let h = max(bounds.height, 1)
+        return (Double(point.x / w), Double((h - point.y) / h))
     }
 
     private func applySplitDrag(
