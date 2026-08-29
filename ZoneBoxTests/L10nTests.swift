@@ -27,6 +27,27 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.menuQuit, language: .chineseSimplified), "退出 ZoneBox")
         XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .english), "Keyboard Shortcuts")
         XCTAssertEqual(L10n.text(.menuKeyboardShortcuts, language: .chineseSimplified), "键盘快捷键")
+        XCTAssertEqual(L10n.text(.menuOrganizeWindows, language: .english), "Organize Windows")
+        XCTAssertEqual(L10n.text(.menuOrganizeWindows, language: .chineseSimplified), "一键布局")
+        XCTAssertEqual(L10n.text(.consoleOrganize, language: .english), "Organize")
+        XCTAssertEqual(L10n.text(.consoleOrganize, language: .chineseSimplified), "一键布局")
+    }
+
+    func testOrganizeFeedbackCopy() {
+        XCTAssertEqual(L10n.text(.organizeAdjustedTitle, language: .english), "Arrangement adjusted")
+        XCTAssertEqual(L10n.text(.organizePartialTitle, language: .chineseSimplified), "已完成部分整理")
+        XCTAssertEqual(
+            L10n.organizeNeedsSpace("Reminders", language: .english),
+            "Reminders needs more space, so it was placed in the primary area."
+        )
+        XCTAssertEqual(
+            L10n.organizeKeptInPlace("Xcode", language: .chineseSimplified),
+            "Xcode 未接受窗口调整，已保留原位并整理其他窗口。"
+        )
+        XCTAssertEqual(L10n.organizeIgnore("Reminders", language: .english), "Ignore Reminders")
+        XCTAssertEqual(L10n.text(.organizeRestoreAction, language: .english), "Restore Layout")
+        XCTAssertEqual(L10n.text(.organizeClose, language: .english), "Close")
+        XCTAssertEqual(L10n.text(.organizeClose, language: .chineseSimplified), "关闭")
     }
 
     func testConsoleCopy() {

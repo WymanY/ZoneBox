@@ -12,6 +12,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var warningButton: NSButton?
     private var gridView: TileGridView?
     private var gridHeightConstraint: NSLayoutConstraint?
+    private var organizeButton: NSButton?
     private var newButton: NSButton?
     private var settingsButton: NSButton?
     private var quitButton: NSButton?
@@ -214,16 +215,33 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeActions() -> NSView {
+        let organize = NSButton(
+            title: L10n.text(.consoleOrganize),
+            target: self,
+            action: #selector(organizeWindows)
+        )
+        organize.bezelStyle = .rounded
+        organize.controlSize = .small
+        organize.setContentHuggingPriority(.required, for: .horizontal)
+        organize.setContentCompressionResistancePriority(.required, for: .horizontal)
+        organize.translatesAutoresizingMaskIntoConstraints = false
+        organize.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        organize.widthAnchor.constraint(equalToConstant: Metrics.tileWidth).isActive = true
+        organizeButton = organize
         let create = actionButton(title: L10n.text(.consoleNew), action: #selector(newLayout))
+        create.setContentHuggingPriority(.required, for: .horizontal)
+        create.setContentCompressionResistancePriority(.required, for: .horizontal)
+        create.translatesAutoresizingMaskIntoConstraints = false
+        create.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        create.widthAnchor.constraint(equalToConstant: Metrics.tileWidth).isActive = true
         newButton = create
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let row = NSStackView(views: [spacer, create])
+        let row = NSStackView(views: [organize, create])
         row.orientation = .horizontal
         row.alignment = .centerY
+        row.distribution = .fill
         row.spacing = 8
         row.translatesAutoresizingMaskIntoConstraints = false
-        row.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        row.heightAnchor.constraint(equalToConstant: 24).isActive = true
         return row
     }
 
@@ -275,6 +293,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         warningButton?.title = L10n.text(.menuEnableAccessibility)
         warningButton?.isHidden = !warning
 
+        organizeButton?.title = L10n.text(.consoleOrganize)
+        organizeButton?.isEnabled = !runtime.isOrganizingWindows
         newButton?.title = L10n.text(.consoleNew)
         settingsButton?.title = L10n.text(.menuSettings)
         quitButton?.title = L10n.text(.menuQuit)
@@ -302,7 +322,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func contentHeight() -> CGFloat {
         let warning: CGFloat = runtime.trust.showsMenuBarWarning() ? 34 : 0
-        return 12 + 24 + warning + 10 + gridHeight() + 10 + 28 + 10 + 1 + 10 + 24 + 12
+        return 12 + 24 + warning + 10 + gridHeight() + 10 + 24 + 10 + 1 + 10 + 24 + 12
     }
 
     private func gridHeight() -> CGFloat {
@@ -369,6 +389,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func edit(_ layout: Layout) {
         dismiss(handoff: { [runtime] in runtime.openEditor(for: layout) })
+    }
+
+    @objc
+    private func organizeWindows() {
+        dismiss(handoff: { [runtime] in runtime.organizeWindowsFromPointer() })
     }
 
     private func confirmAndDelete(_ layout: Layout) {

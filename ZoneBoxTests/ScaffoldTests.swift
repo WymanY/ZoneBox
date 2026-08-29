@@ -16,4 +16,11 @@ final class ScaffoldTests: XCTestCase {
         XCTAssertTrue(screen.originIsZero)
         XCTAssertEqual(screen.frame.width, 1440)
     }
+
+    func testDefaultExclusionsKeepSystemSettingsOutOfWindowActions() {
+        XCTAssertTrue(AppSettings.default.excludedBundleIDs.contains("com.apple.systempreferences"))
+        XCTAssertTrue(AppSettings.default.excludedBundleIDs.contains("com.apple.Settings"))
+        XCTAssertFalse(AppSettings.default.excludedBundleIDs.contains("com.apple.reminders"))
+        XCTAssertFalse(AppSettings.default.excludedBundleIDs.contains("com.apple.dt.Xcode"))
+    }
 }

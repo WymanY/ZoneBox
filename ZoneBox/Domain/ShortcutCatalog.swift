@@ -16,6 +16,7 @@ public enum HardwareKeyCode {
     public static let s: UInt16 = 1
     public static let d: UInt16 = 2
     public static let z: UInt16 = 6
+    public static let o: UInt16 = 31
     public static let w: UInt16 = 13
     public static let u: UInt16 = 32
     public static let leftBracket: UInt16 = 33
@@ -81,6 +82,7 @@ public extension KeyChord {
         case HardwareKeyCode.d: return "D"
         case HardwareKeyCode.w: return "W"
         case HardwareKeyCode.z: return "Z"
+        case HardwareKeyCode.o: return "O"
         case HardwareKeyCode.u: return "U"
         case HardwareKeyCode.q: return "Q"
         case HardwareKeyCode.leftBracket: return "["
@@ -172,13 +174,14 @@ public enum ShortcutCatalog {
     public static let unsnapHotkeyID: UInt32 = 105
     public static let shortcutsPanelHotkeyID: UInt32 = 106
     public static let quickSnapperHotkeyID: UInt32 = 107
+    public static let organizeHotkeyID: UInt32 = 108
     public static let editorSaveChord = KeyChord(
         keyCode: HardwareKeyCode.s,
         carbonModifiers: CarbonModifier.command
     )
 
     /// IDs that must fire even when Accessibility is not granted.
-    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID]
+    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID]
 
     public static func items(from settings: AppSettings) -> [ShortcutSpec] {
         var items: [ShortcutSpec] = [
@@ -241,6 +244,13 @@ public enum ShortcutCatalog {
                 binding: .chord(
                     KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: settings.editorHotkey.carbonModifiers)
                 )
+            ),
+            ShortcutSpec(
+                id: "organizeWindows",
+                surface: .global,
+                titleKey: .shortcutOrganizeWindows,
+                hotkeyID: organizeHotkeyID,
+                binding: .chord(settings.organizeHotkey)
             ),
         ]
 

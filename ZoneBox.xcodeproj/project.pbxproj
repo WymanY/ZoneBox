@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */; };
+		0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */; };
 		077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */; };
 		0AE7E89A6887FED40C2DD84A /* CoordinateConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */; };
 		0BE1560BB10D4319D04E012A /* GridCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF21D7874A246CBEA1AEE0C6 /* GridCoverageTests.swift */; };
@@ -32,6 +33,7 @@
 		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
 		4C8F02506923A238F526AF4F /* ShakeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */; };
+		4CC68B6A2EF49FB06FE2D6E1 /* WindowOrganize.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */; };
 		4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */; };
 		4DC8E3DCE4158DBCB5228FB9 /* LayoutThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */; };
 		4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446A73B628D4176872A8FC46 /* SnapSession.swift */; };
@@ -73,6 +75,7 @@
 		C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C17F30BC95D5A464046FA95 /* LayoutKind.swift */; };
 		C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */; };
 		D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A2957655E620023F8101FFC /* WindowIdentity.swift */; };
+		E48786CD7BB2321DFE94BC20 /* OrganizeFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */; };
 		E583D858D4C31324E6FE3F24 /* ZoneOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */; };
 		E78BF40426FF7526FEA2C369 /* MagneticResizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 417A2EC9036C59A559CA8C33 /* MagneticResizeTests.swift */; };
 		E8405C23906B84C40461F26F /* WorkArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFE483F6CBDB37363637CAD /* WorkArea.swift */; };
@@ -106,6 +109,7 @@
 /* Begin PBXFileReference section */
 		0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayIdentity.swift; sourceTree = "<group>"; };
 		047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
+		059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrganizeTests.swift; sourceTree = "<group>"; };
 		0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverterTests.swift; sourceTree = "<group>"; };
 		16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridEditingTests.swift; sourceTree = "<group>"; };
 		1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorController.swift; sourceTree = "<group>"; };
@@ -154,6 +158,7 @@
 		A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSessionReducer.swift; sourceTree = "<group>"; };
 		A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayWatcher.swift; sourceTree = "<group>"; };
 		A727A3139F1922D21AA08BFD /* ZoneSplit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplit.swift; sourceTree = "<group>"; };
+		ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOrganize.swift; sourceTree = "<group>"; };
 		AF21D7874A246CBEA1AEE0C6 /* GridCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCoverageTests.swift; sourceTree = "<group>"; };
 		AF32320082E685F5BED369E0 /* UISession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UISession.swift; sourceTree = "<group>"; };
 		B16192ECC49D6E451A8936A8 /* RectMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectMath.swift; sourceTree = "<group>"; };
@@ -174,6 +179,7 @@
 		E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapMouseEvent.swift; sourceTree = "<group>"; };
 		E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransaction.swift; sourceTree = "<group>"; };
 		E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoom.swift; sourceTree = "<group>"; };
+		F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizeFeedbackController.swift; sourceTree = "<group>"; };
 		F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngine.swift; sourceTree = "<group>"; };
 		F3029ADED93C5B74F5139101 /* GridEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridEditing.swift; sourceTree = "<group>"; };
 		F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneOverlayView.swift; sourceTree = "<group>"; };
@@ -252,6 +258,7 @@
 				A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */,
 				B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */,
 				9A2957655E620023F8101FFC /* WindowIdentity.swift */,
+				ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */,
 				DD96966B883ED6C884EED18A /* Zone.swift */,
 			);
 			path = Domain;
@@ -319,6 +326,7 @@
 		44B9EB6803A213ECA69D3464 /* Overlay */ = {
 			isa = PBXGroup;
 			children = (
+				F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */,
 				DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */,
 				F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */,
 			);
@@ -382,6 +390,7 @@
 				4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */,
 				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
+				059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */,
 				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
 				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
 				F81C871383393D0659A6781B /* Fakes */,
@@ -578,6 +587,7 @@
 				B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */,
 				B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */,
 				7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */,
+				E48786CD7BB2321DFE94BC20 /* OrganizeFeedbackController.swift in Sources */,
 				C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */,
 				5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */,
 				1FEED08B78CA303B00219320 /* SettingsWindowController.swift in Sources */,
@@ -625,6 +635,7 @@
 				C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */,
 				1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */,
 				D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */,
+				4CC68B6A2EF49FB06FE2D6E1 /* WindowOrganize.swift in Sources */,
 				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
 				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,
 				995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */,
@@ -649,6 +660,7 @@
 				8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */,
 				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
+				0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */,
 				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
 				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,
 			);

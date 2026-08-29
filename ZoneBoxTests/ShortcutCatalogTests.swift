@@ -8,6 +8,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.editorHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.shortcutsPanelHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
+        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 1 }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 9 }))
         for pair in pairs {
@@ -29,6 +30,8 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.a), "A")
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.s), "S")
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.d), "D")
+        XCTAssertEqual(HardwareKeyCode.o, 31)
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.o), "O")
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.d))
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.w))
         XCTAssertFalse(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.tab))
@@ -67,6 +70,14 @@ final class ShortcutCatalogTests: XCTestCase {
                 settings: settings
             ),
             ShortcutCatalog.quickSnapperHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.o,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            ShortcutCatalog.organizeHotkeyID
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(
@@ -176,6 +187,7 @@ final class ShortcutCatalogTests: XCTestCase {
     func testTrustExemptIDsDoNotRequireAccessibility() {
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.editorHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.shortcutsPanelHotkeyID))
+        XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.organizeHotkeyID))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(1))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.unsnapHotkeyID))
     }
@@ -205,5 +217,24 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(chord.displayCaps, ["⌘", "S"])
         XCTAssertEqual(save.title(language: .english), "Save layout or copy")
         XCTAssertEqual(save.title(language: .chineseSimplified), "保存布局或另存副本")
+    }
+
+    func testOrganizeUsesControlOptionO() throws {
+        let item = try XCTUnwrap(
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "organizeWindows" })
+        )
+        guard case .chord(let chord) = item.binding else {
+            return XCTFail("organizeWindows must be a keyboard chord")
+        }
+        XCTAssertTrue(chord.isSequoiaLegal)
+        XCTAssertTrue(
+            chord.matches(
+                keyCode: HardwareKeyCode.o,
+                carbonModifiers: CarbonModifier.controlOption
+            )
+        )
+        XCTAssertEqual(chord.displayCaps, ["⌃", "⌥", "O"])
+        XCTAssertEqual(item.title(language: .english), "Organize windows")
+        XCTAssertEqual(item.title(language: .chineseSimplified), "一键布局")
     }
 }
