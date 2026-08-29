@@ -93,6 +93,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsLanguageEnglish
     case settingsLanguageChinese
     case settingsShowShortcuts
+    case settingsSectionGeneral
+    case settingsSectionSnapping
+    case settingsSectionOverlay
+    case settingsSectionKeyboard
 
     case shortcutsTitle
     case shortcutsSectionGlobal
@@ -365,6 +369,10 @@ public enum L10n {
         .settingsLanguageSystem: "Follow System",
         .settingsLanguageEnglish: "English",
         .settingsLanguageChinese: "简体中文",
+        .settingsSectionGeneral: "General",
+        .settingsSectionSnapping: "Snapping",
+        .settingsSectionOverlay: "Overlay",
+        .settingsSectionKeyboard: "Keyboard",
 
         .shortcutsTitle: "Keyboard Shortcuts",
         .shortcutsSectionGlobal: "Global",
@@ -536,6 +544,10 @@ public enum L10n {
         .settingsLanguageSystem: "跟随系统",
         .settingsLanguageEnglish: "English",
         .settingsLanguageChinese: "简体中文",
+        .settingsSectionGeneral: "通用",
+        .settingsSectionSnapping: "吸附",
+        .settingsSectionOverlay: "覆盖层",
+        .settingsSectionKeyboard: "键盘",
 
         .shortcutsTitle: "键盘快捷键",
         .shortcutsSectionGlobal: "全局",
