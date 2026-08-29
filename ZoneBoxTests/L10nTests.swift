@@ -71,6 +71,17 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.editorSaveCopy, language: .chineseSimplified), "另存副本")
     }
 
+    func testSettingsSectionTitles() {
+        XCTAssertEqual(L10n.text(.settingsSectionGeneral, language: .english), "General")
+        XCTAssertEqual(L10n.text(.settingsSectionSnapping, language: .english), "Snapping")
+        XCTAssertEqual(L10n.text(.settingsSectionOverlay, language: .english), "Overlay")
+        XCTAssertEqual(L10n.text(.settingsSectionKeyboard, language: .english), "Keyboard")
+        XCTAssertEqual(L10n.text(.settingsSectionGeneral, language: .chineseSimplified), "通用")
+        XCTAssertEqual(L10n.text(.settingsSectionSnapping, language: .chineseSimplified), "吸附")
+        XCTAssertEqual(L10n.text(.settingsSectionOverlay, language: .chineseSimplified), "覆盖层")
+        XCTAssertEqual(L10n.text(.settingsSectionKeyboard, language: .chineseSimplified), "键盘")
+    }
+
     func testUnchangedCopyWarningLocalized() {
         XCTAssertEqual(
             L10n.text(.editorCopyUnchangedMessage, language: .english),
