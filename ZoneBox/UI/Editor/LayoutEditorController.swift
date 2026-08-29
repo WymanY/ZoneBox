@@ -10,12 +10,13 @@ final class LayoutEditorController: NSObject {
     private var canvas: LayoutEditorCanvasView?
     private var toolbar: NSView?
     private var saveButton: EditorChipButton?
+    private var saveCopyButton: EditorChipButton?
     private var cancelButton: EditorChipButton?
     private var deleteButton: EditorChipButton?
     private var saveNameAlert: NSAlert?
-    private var presetButtons: [EditorChipButton] = []
+    private var templatePopup: NSPopUpButton?
+    private var templateLabel: NSTextField?
     private var selectedPresetIndex: Int?
-    private var savedLayoutButton: EditorChipButton?
     private var savedToolbarLayout: Layout?
     private var selectedSavedLayout = false
     private var hintLabel: NSTextField?
@@ -174,43 +175,24 @@ final class LayoutEditorController: NSObject {
     private func makeToolbar() -> NSView {
         let bar = EditorToolbarChrome()
 
-        let presets = NSStackView()
-        presets.orientation = .horizontal
-        presets.spacing = 6
-        presets.setHuggingPriority(.defaultHigh, for: .horizontal)
-        presetButtons = []
-        for (key, symbol, action) in [
-            (L10nKey.editorColumns2, "rectangle.split.2x1", #selector(presetColumns2)),
-            (L10nKey.editorColumns3, "rectangle.split.3x1", #selector(presetColumns3)),
-            (L10nKey.editorRows2, "rectangle.split.1x2", #selector(presetRows2)),
-            (L10nKey.editorGrid2x2, "square.grid.2x2", #selector(presetGrid)),
-            (L10nKey.editorPriority, "rectangle.leadinghalf.inset.filled", #selector(presetPriority)),
-            (L10nKey.editorFocus, "rectangle.center.inset.filled", #selector(presetFocus)),
-        ] as [(L10nKey, String, Selector)] {
-            let button = EditorChipButton(title: L10n.text(key), symbol: symbol, target: self, action: action, kind: .preset)
-            presets.addArrangedSubview(button)
-            presetButtons.append(button)
-        }
-        savedLayoutButton = nil
-        if let saved = savedToolbarLayout {
-            let button = EditorChipButton(
-                title: savedLayoutChipTitle(saved.name),
-                symbol: nil,
-                target: self,
-                action: #selector(applySavedToolbarLayout),
-                kind: .preset
-            )
-            button.toolTip = L10n.layoutDisplayName(saved.name)
-            button.setThumbnail(from: saved)
-            presets.addArrangedSubview(button)
-            savedLayoutButton = button
-        }
-        refreshPresetSelection()
+        let template = makeTemplatePopup()
+        templatePopup = template
+        let templateLabel = NSTextField(labelWithString: L10n.text(.editorFromTemplate))
+        templateLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        templateLabel.textColor = NSColor.white.withAlphaComponent(0.72)
+        templateLabel.isBezeled = false
+        templateLabel.drawsBackground = false
+        templateLabel.isSelectable = false
+        self.templateLabel = templateLabel
+        let templateRow = NSStackView(views: [templateLabel, template])
+        templateRow.orientation = .horizontal
+        templateRow.alignment = .centerY
+        templateRow.spacing = 6
 
         let mode = NSSegmentedControl(labels: [L10n.text(.editorModeGrid), L10n.text(.editorModeCanvas)], trackingMode: .selectOne, target: self, action: #selector(modeChanged(_:)))
         mode.segmentStyle = .rounded
-        mode.setWidth(72, forSegment: 0)
-        mode.setWidth(84, forSegment: 1)
+        mode.setWidth(64, forSegment: 0)
+        mode.setWidth(76, forSegment: 1)
         mode.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: L10n.text(.editorModeGrid)), forSegment: 0)
         mode.setImage(NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: L10n.text(.editorModeCanvas)), forSegment: 1)
         mode.setImageScaling(.scaleProportionallyDown, forSegment: 0)
@@ -221,9 +203,12 @@ final class LayoutEditorController: NSObject {
         let saveTitle = L10n.text(.editorSave)
         let save = EditorChipButton(title: saveTitle, symbol: nil, target: self, action: #selector(save), kind: .save)
         saveButton = save
+        let saveCopy = EditorChipButton(title: L10n.text(.editorSaveCopy), symbol: nil, target: self, action: #selector(saveCopyShortcut), kind: .preset)
+        saveCopy.toolTip = L10n.text(.editorSaveCopyTooltip)
+        saveCopyButton = saveCopy
         let cancel = EditorChipButton(title: L10n.text(.editorCancel), symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
         cancelButton = cancel
-        var actionViews: [NSView] = [save, cancel]
+        var actionViews: [NSView] = [save, saveCopy, cancel]
         if canDeleteOriginal {
             let delete = EditorChipButton(
                 title: L10n.text(.editorDelete),
@@ -243,9 +228,9 @@ final class LayoutEditorController: NSObject {
         let topRow = NSStackView()
         topRow.orientation = .horizontal
         topRow.alignment = .centerY
-        topRow.spacing = 12
+        topRow.spacing = 10
         topRow.addArrangedSubview(mode)
-        topRow.addArrangedSubview(presets)
+        topRow.addArrangedSubview(templateRow)
         topRow.addArrangedSubview(actions)
         topRow.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         topRow.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
@@ -272,6 +257,7 @@ final class LayoutEditorController: NSObject {
         hint.isSelectable = false
         hint.lineBreakMode = .byWordWrapping
         hint.maximumNumberOfLines = 3
+        hint.preferredMaxLayoutWidth = 520
         hint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         hint.setContentHuggingPriority(.defaultLow, for: .horizontal)
         hintLabel = hint
@@ -301,13 +287,6 @@ final class LayoutEditorController: NSObject {
         refreshPresetSelection()
     }
 
-    @objc private func presetColumns2() { applyPreset(LayoutTemplates.columns(2), index: 0) }
-    @objc private func presetColumns3() { applyPreset(LayoutTemplates.columns(3), index: 1) }
-    @objc private func presetRows2() { applyPreset(LayoutTemplates.rows(2), index: 2) }
-    @objc private func presetGrid() { applyPreset(LayoutTemplates.grid2x2(), index: 3) }
-    @objc private func presetPriority() { applyPreset(LayoutTemplates.priority3(), index: 4) }
-    @objc private func presetFocus() { applyPreset(LayoutTemplates.focus(), index: 5) }
-
     @objc private func applySavedToolbarLayout() {
         guard let saved = savedToolbarLayout else { return }
         applyDraftLayout(saved)
@@ -317,16 +296,63 @@ final class LayoutEditorController: NSObject {
     }
 
     private func refreshPresetSelection() {
-        for (index, button) in presetButtons.enumerated() {
-            button.setPresetSelected(index == selectedPresetIndex)
-        }
-        savedLayoutButton?.setPresetSelected(selectedSavedLayout)
+        rebuildTemplateMenu()
     }
 
-    private func savedLayoutChipTitle(_ storedName: String) -> String {
-        let title = L10n.layoutDisplayName(storedName)
-        guard title.count > 18 else { return title }
-        return String(title.prefix(17)) + "..."
+    private func makeTemplatePopup() -> NSPopUpButton {
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.bezelStyle = .rounded
+        popup.target = self
+        popup.action = #selector(templateChanged(_:))
+        popup.toolTip = L10n.text(.editorFromTemplateTooltip)
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 108).isActive = true
+        rebuildTemplateMenu(in: popup)
+        return popup
+    }
+
+    private func rebuildTemplateMenu(in popup: NSPopUpButton? = nil) {
+        guard let popup = popup ?? templatePopup else { return }
+        popup.removeAllItems()
+
+        if let saved = savedToolbarLayout {
+            popup.addItem(withTitle: L10n.layoutDisplayName(saved.name))
+            popup.lastItem?.tag = -1
+            popup.lastItem?.toolTip = L10n.layoutDisplayName(saved.name)
+        }
+
+        let keys: [L10nKey] = [
+            .editorColumns2, .editorColumns3, .editorRows2, .editorGrid2x2, .editorPriority, .editorFocus,
+        ]
+        for (index, key) in keys.enumerated() {
+            popup.addItem(withTitle: L10n.text(key))
+            popup.lastItem?.tag = index
+        }
+
+        if selectedSavedLayout, savedToolbarLayout != nil {
+            popup.selectItem(withTag: -1)
+        } else if let index = selectedPresetIndex {
+            popup.selectItem(withTag: index)
+        } else {
+            popup.addItem(withTitle: L10n.text(.editorCustomLayout))
+            popup.lastItem?.tag = -2
+            popup.lastItem?.isEnabled = false
+            popup.selectItem(withTag: -2)
+        }
+    }
+
+    @objc private func templateChanged(_ sender: NSPopUpButton) {
+        let tag = sender.selectedItem?.tag ?? Int.min
+        if tag == -1 {
+            applySavedToolbarLayout()
+            return
+        }
+        let presets = LayoutTemplates.editorPresets()
+        guard presets.indices.contains(tag) else {
+            refreshPresetSelection()
+            return
+        }
+        applyPreset(presets[tag], index: tag)
     }
 
     private func applyDraftLayout(_ layout: Layout) {
@@ -385,7 +411,7 @@ final class LayoutEditorController: NSObject {
         commitSave(requestedName: nil, createsCopy: false)
     }
 
-    private func saveCopyShortcut() {
+    @objc private func saveCopyShortcut() {
         guard let transaction = validTransactionForSave() else { return }
         Log.hotkey.info("Editor save-copy shortcut invoked newLayout=\(self.isNew, privacy: .public)")
         if isNew {
@@ -519,23 +545,17 @@ final class LayoutEditorController: NSObject {
     }
 
     func applyLanguage() {
-        let keys: [L10nKey] = [
-            .editorColumns2, .editorColumns3, .editorRows2, .editorGrid2x2, .editorPriority, .editorFocus,
-        ]
-        for (button, key) in zip(presetButtons, keys) {
-            button.setChipTitle(L10n.text(key))
-        }
-        if let saved = savedToolbarLayout {
-            savedLayoutButton?.setChipTitle(savedLayoutChipTitle(saved.name))
-            savedLayoutButton?.toolTip = L10n.layoutDisplayName(saved.name)
-        }
         refreshPresetSelection()
         let saveTitle = L10n.text(.editorSave)
         saveButton?.setChipTitle(saveTitle)
+        saveCopyButton?.setChipTitle(L10n.text(.editorSaveCopy))
+        saveCopyButton?.toolTip = L10n.text(.editorSaveCopyTooltip)
         cancelButton?.setChipTitle(L10n.text(.editorCancel))
         deleteButton?.setChipTitle(L10n.text(.editorDelete))
         deleteButton?.toolTip = L10n.text(.editorDeleteTooltip)
         hintLabel?.stringValue = L10n.text(hintKey)
+        templatePopup?.toolTip = L10n.text(.editorFromTemplateTooltip)
+        templateLabel?.stringValue = L10n.text(.editorFromTemplate)
         if let mode = modeControl {
             mode.setLabel(L10n.text(.editorModeGrid), forSegment: 0)
             mode.setLabel(L10n.text(.editorModeCanvas), forSegment: 1)
@@ -548,6 +568,18 @@ final class LayoutEditorController: NSObject {
 
     private func updateDraft(_ layout: Layout) {
         transaction?.updateDraft(layout)
+        if let workAX = canvas?.workAreaAX {
+            selectedPresetIndex = LayoutTemplates.matchingEditorPresetIndex(for: layout, workAreaAX: workAX)
+            selectedSavedLayout = savedToolbarLayout.map { saved in
+                LayoutTemplates.matchingEditorPresetIndex(for: saved, workAreaAX: workAX) == nil
+                    && LayoutTemplates.matchingEditorPresetIndex(for: layout, workAreaAX: workAX) == nil
+                    && saved.id == original.id
+            } ?? false
+            if selectedSavedLayout {
+                selectedPresetIndex = nil
+            }
+            refreshPresetSelection()
+        }
         updateSaveState()
         hintLabel?.stringValue = L10n.text(hintKey)
     }
@@ -563,7 +595,9 @@ final class LayoutEditorController: NSObject {
     private func updateSaveState() {
         guard let transaction else { return }
         saveButton?.isEnabled = transaction.canCommit
-        saveButton?.toolTip = nil
+        saveButton?.toolTip = transaction.canCommit ? L10n.text(.editorSaveTooltip) : L10n.text(.editorSaveDisabledTooltip)
+        saveCopyButton?.isEnabled = transaction.canCommit
+        saveCopyButton?.toolTip = transaction.canCommit ? L10n.text(.editorSaveCopyTooltip) : L10n.text(.editorSaveDisabledTooltip)
     }
 
     private func setToolbarReceded(_ receded: Bool) {
@@ -634,11 +668,12 @@ final class LayoutEditorController: NSObject {
         canvas = nil
         toolbar = nil
         saveButton = nil
+        saveCopyButton = nil
         cancelButton = nil
         deleteButton = nil
-        presetButtons = []
+        templatePopup = nil
+        templateLabel = nil
         selectedPresetIndex = nil
-        savedLayoutButton = nil
         savedToolbarLayout = nil
         selectedSavedLayout = false
         hintLabel = nil

@@ -175,6 +175,9 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorCancel
     case editorDelete
     case editorDeleteTooltip
+    case editorFromTemplate
+    case editorCustomLayout
+    case editorFromTemplateTooltip
     case editorHint
     case editorGridHint
     case editorGridProtected
@@ -444,8 +447,11 @@ public enum L10n {
         .editorCancel: "Cancel",
         .editorDelete: "Delete",
         .editorDeleteTooltip: "Delete this saved layout",
-        .editorHint: "Shared divider moves both zones. WASD moves to the adjacent pane. Tab / Shift+Tab cycle zones. Drag edges or corners to resize. Vertical scroll changes height, horizontal scroll changes width. × deletes. Esc exits.",
-        .editorGridHint: "Click splits a cell vertically. Shift-click splits horizontally. Drag a shared divider to resize neighbors. Drag across adjacent cells to merge. × merges into a neighbor. WASD / Tab select cells. Esc exits.",
+        .editorFromTemplate: "From Template",
+        .editorCustomLayout: "Custom",
+        .editorFromTemplateTooltip: "Replace the draft with a template. Save updates this layout. Save Copy creates a new one.",
+        .editorHint: "Drag edges to resize. WASD selects a pane. Esc exits.",
+        .editorGridHint: "Click splits a cell. Shift-click splits a row. Save Copy keeps the original.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
         .editorSaveCopyTooltip: "Save changes as a new layout",
@@ -612,8 +618,11 @@ public enum L10n {
         .editorCancel: "取消",
         .editorDelete: "删除",
         .editorDeleteTooltip: "删除这个已保存的布局",
-        .editorHint: "中间分隔条可同时移动两侧格子。WASD 切换到相邻格子。Tab 切换格子，Shift+Tab 反向。拖动边缘或角落缩放。垂直滚动改高度，水平滚动改宽度。× 删除。Esc 退出",
-        .editorGridHint: "点击竖切一格，Shift+点击横切。拖共享边改比例，划过相邻格子合并。× 并进邻居。WASD / Tab 选格。Esc 退出。",
+        .editorFromTemplate: "基于模板",
+        .editorCustomLayout: "自定义",
+        .editorFromTemplateTooltip: "用模板替换当前草稿。保存会更新当前布局，另存副本会创建新布局。",
+        .editorHint: "拖边缘缩放。WASD 选格。Esc 退出。",
+        .editorGridHint: "点击竖切，Shift+点击横切。另存副本会保留原布局。",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
         .editorSaveCopyTooltip: "将修改保存为新布局",

@@ -33,6 +33,7 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(committed?.id, draft.id)
         XCTAssertEqual(committed?.name, draft.name)
         XCTAssertEqual(document.layout(for: displayID)?.id, committed?.id)
+        XCTAssertEqual(document.layouts.first?.id, committed?.id)
     }
 
     func testDeletingEveryZoneCannotCommit() {
@@ -210,6 +211,7 @@ final class LayoutEditTransactionTests: XCTestCase {
 
         XCTAssertEqual(document.layout(for: displayID)?.id, layout.id)
         XCTAssertEqual(document.layouts.filter { $0.id == layout.id }.count, 1)
+        XCTAssertEqual(document.layouts.first?.id, layout.id)
     }
 
     func testDeleteLayoutReassignsDisplaysAndKeepsLastLayout() {
