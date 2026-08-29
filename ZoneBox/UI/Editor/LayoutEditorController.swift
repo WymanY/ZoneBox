@@ -8,7 +8,7 @@ final class LayoutEditorController: NSObject {
     private let isNew: Bool
     private var panel: EditorPanel?
     private var canvas: LayoutEditorCanvasView?
-    private var toolbar: NSView?
+    private var toolbar: EditorToolbarChrome?
     private var saveButton: EditorChipButton?
     private var saveCopyButton: EditorChipButton?
     private var cancelButton: EditorChipButton?
@@ -25,6 +25,7 @@ final class LayoutEditorController: NSObject {
     private var transaction: LayoutEditTransaction?
     private var appSwitchObservations: [Any] = []
     private var canCancelOnAppSwitch = false
+    private var toolbarHasCustomPosition = false
 
     private enum SaveNamePromptKind {
         case newLayout
@@ -74,8 +75,8 @@ final class LayoutEditorController: NSObject {
         canvas.translatesAutoresizingMaskIntoConstraints = false
 
         let toolbar = makeToolbar()
-        toolbar.translatesAutoresizingMaskIntoConstraints = false
         self.toolbar = toolbar
+        canvas.chromeView = toolbar
 
         let root = NSView()
         root.addSubview(canvas)
@@ -83,15 +84,16 @@ final class LayoutEditorController: NSObject {
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.contentView = root
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
-            toolbar.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            toolbar.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: 16),
-            toolbar.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -16),
             canvas.topAnchor.constraint(equalTo: root.topAnchor),
             canvas.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             canvas.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             canvas.bottomAnchor.constraint(equalTo: root.bottomAnchor),
         ])
+        toolbarHasCustomPosition = false
+        toolbar.onMove = { [weak self] in
+            self?.toolbarHasCustomPosition = true
+            self?.canvas?.noteChromeMoved()
+        }
 
         panel.onEscape = { [weak self] in self?.cancel() }
         panel.onCycleZones = { [weak canvas] forward in
@@ -165,14 +167,15 @@ final class LayoutEditorController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeFirstResponder(canvas)
-        DispatchQueue.main.async { [weak panel, weak canvas] in
-            guard let panel, let canvas else { return }
+        DispatchQueue.main.async { [weak self, weak panel, weak canvas] in
+            guard let self, let panel, let canvas else { return }
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(canvas)
+            self.layoutToolbar()
         }
     }
 
-    private func makeToolbar() -> NSView {
+    private func makeToolbar() -> EditorToolbarChrome {
         let bar = EditorToolbarChrome()
 
         let template = makeTemplatePopup()
@@ -369,6 +372,7 @@ final class LayoutEditorController: NSObject {
         hintLabel?.stringValue = L10n.text(hintKey)
         refreshModeControl()
         updateSaveState()
+        layoutToolbar()
     }
 
     @objc private func modeChanged(_ sender: NSSegmentedControl) {
@@ -582,6 +586,7 @@ final class LayoutEditorController: NSObject {
         }
         updateSaveState()
         hintLabel?.stringValue = L10n.text(hintKey)
+        layoutToolbar()
     }
 
     private var hintKey: L10nKey {
@@ -606,6 +611,39 @@ final class LayoutEditorController: NSObject {
             context.duration = receded ? 0.12 : 0.2
             toolbar.animator().alphaValue = receded ? 0.12 : 1
         }
+    }
+
+    private func layoutToolbar() {
+        guard let toolbar, let root = toolbar.superview else { return }
+        toolbar.layoutSubtreeIfNeeded()
+        var size = toolbar.fittingSize
+        let inset: CGFloat = 16
+        let maxWidth = max(root.bounds.width - inset * 2, 1)
+        size.width = min(max(size.width, 1), maxWidth)
+        size.height = max(size.height, 1)
+        let origin: CGPoint
+        if toolbarHasCustomPosition {
+            origin = clampToolbarOrigin(toolbar.frame.origin, size: size, in: root.bounds)
+        } else {
+            origin = CGPoint(
+                x: root.bounds.midX - size.width / 2,
+                y: root.bounds.maxY - 14 - size.height
+            )
+        }
+        toolbar.frame = CGRect(origin: clampToolbarOrigin(origin, size: size, in: root.bounds), size: size)
+        canvas?.noteChromeMoved()
+    }
+
+    private func clampToolbarOrigin(_ origin: CGPoint, size: CGSize, in bounds: CGRect) -> CGPoint {
+        let inset: CGFloat = 16
+        let minX = bounds.minX + inset
+        let maxX = bounds.maxX - inset - size.width
+        let minY = bounds.minY + inset
+        let maxY = bounds.maxY - inset - size.height
+        return CGPoint(
+            x: min(max(origin.x, minX), max(minX, maxX)),
+            y: min(max(origin.y, minY), max(minY, maxY))
+        )
     }
 
     private func observeAppSwitchToCancel() {
@@ -699,9 +737,17 @@ extension LayoutEditorController: NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) {
         panel?.makeFirstResponder(canvas)
     }
+
+    func windowDidResize(_ notification: Notification) {
+        layoutToolbar()
+    }
 }
 
 private final class EditorToolbarChrome: NSView {
+    var onMove: (() -> Void)?
+    private var dragOrigin: CGPoint?
+    private var dragMouseInSuperview: CGPoint?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -721,15 +767,66 @@ private final class EditorToolbarChrome: NSView {
     }
 
     override var wantsUpdateLayer: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard let hit = super.hitTest(point) else { return nil }
         var view: NSView? = hit
         while let current = view, current !== self {
-            if current is NSButton || current is NSSegmentedControl { return hit }
+            if current is NSButton || current is NSSegmentedControl || current is NSPopUpButton {
+                return hit
+            }
             view = current.superview
         }
-        return nil
+        return self
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseMoved, .cursorUpdate, .activeInKeyWindow, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        (dragOrigin == nil ? NSCursor.openHand : NSCursor.closedHand).set()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let superview else { return }
+        dragOrigin = frame.origin
+        dragMouseInSuperview = superview.convert(event.locationInWindow, from: nil)
+        NSCursor.closedHand.set()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let superview, let dragOrigin, let dragMouseInSuperview else { return }
+        let current = superview.convert(event.locationInWindow, from: nil)
+        var origin = CGPoint(
+            x: dragOrigin.x + current.x - dragMouseInSuperview.x,
+            y: dragOrigin.y + current.y - dragMouseInSuperview.y
+        )
+        let inset: CGFloat = 16
+        let minX = superview.bounds.minX + inset
+        let maxX = superview.bounds.maxX - inset - frame.width
+        let minY = superview.bounds.minY + inset
+        let maxY = superview.bounds.maxY - inset - frame.height
+        origin.x = min(max(origin.x, minX), max(minX, maxX))
+        origin.y = min(max(origin.y, minY), max(minY, maxY))
+        setFrameOrigin(origin)
+        onMove?()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        dragOrigin = nil
+        dragMouseInSuperview = nil
+        NSCursor.openHand.set()
     }
 }
 
