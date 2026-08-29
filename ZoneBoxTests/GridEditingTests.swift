@@ -57,9 +57,69 @@ final class GridEditingTests: XCTestCase {
     }
 
     func testSplitIgnoresEdgesBelowMinimum() {
-        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.02, normalizedY: 0.5, axis: .vertical))
-        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.98, normalizedY: 0.5, axis: .vertical))
-        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.01, axis: .horizontal))
+        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.004, normalizedY: 0.5, axis: .vertical))
+        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.996, normalizedY: 0.5, axis: .vertical))
+        XCTAssertNil(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.004, axis: .horizontal))
+    }
+
+    func testRepeatedHalvesKeepSplittingPastFivePercentCells() throws {
+        var layout = GridEditing.empty()
+        for expected in 2...7 {
+            let spec = try XCTUnwrap(layout.grid)
+            let last = Double(spec.columnWeights.dropLast().reduce(0, +)) / 10_000
+            let width = Double(spec.columnWeights.last ?? 10_000) / 10_000
+            let x = last + width * 0.5
+            XCTAssertTrue(GridEditing.canSplit(spec: spec, normalizedX: x, normalizedY: 0.5, axis: .vertical))
+            layout = try XCTUnwrap(GridEditing.split(layout, normalizedX: x, normalizedY: 0.5, axis: .vertical))
+            XCTAssertEqual(layout.zones.count, expected)
+            try XCTUnwrap(layout.grid).validated(zoneCount: expected)
+        }
+        let spec = try XCTUnwrap(layout.grid)
+        XCTAssertEqual(spec.columns, 7)
+        XCTAssertGreaterThanOrEqual(spec.columnWeights.min() ?? 0, 1)
+        XCTAssertEqual(spec.columnWeights.reduce(0, +), 10_000)
+        try assertTilesWorkArea(layout, workArea: small)
+    }
+
+    func testManySpreadSplitsFillTheRow() throws {
+        var layout = GridEditing.empty()
+        for i in 1...12 {
+            let x = Double(i) / 13.0
+            layout = try XCTUnwrap(GridEditing.split(layout, normalizedX: x, normalizedY: 0.5, axis: .vertical))
+        }
+        let spec = try XCTUnwrap(layout.grid)
+        XCTAssertEqual(layout.zones.count, 13)
+        XCTAssertEqual(spec.columns, 13)
+        try spec.validated(zoneCount: 13)
+        try assertTilesWorkArea(layout, workArea: large)
+    }
+
+    func testCanSplitAllowsReuseAfterSixteenLines() throws {
+        var layout = GridEditing.empty()
+        var x = 1.0 / 32.0
+        for _ in 0..<15 {
+            layout = try XCTUnwrap(GridEditing.split(layout, normalizedX: x, normalizedY: 0.5, axis: .vertical))
+            x += 1.0 / 32.0
+        }
+        let spec = try XCTUnwrap(layout.grid)
+        XCTAssertEqual(spec.columns, 16)
+        XCTAssertTrue(GridEditing.canSplit(spec: spec, normalizedX: 0.75, normalizedY: 0.25, axis: .horizontal))
+        XCTAssertFalse(GridEditing.canSplit(spec: spec, normalizedX: 0.98, normalizedY: 0.5, axis: .vertical))
+    }
+
+    func testMergedZoneKeepsOtherColumnsWhenSplit() throws {
+        var layout = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
+        layout = try XCTUnwrap(GridEditing.split(layout, normalizedX: 0.25, normalizedY: 0.5, axis: .horizontal))
+        let before = try XCTUnwrap(layout.grid)
+        XCTAssertEqual(before.cellMap[0][1], before.cellMap[1][1])
+        let split = try XCTUnwrap(GridEditing.split(layout, normalizedX: 0.75, normalizedY: 0.5, axis: .vertical))
+        let spec = try XCTUnwrap(split.grid)
+        XCTAssertEqual(spec.columns, 3)
+        XCTAssertEqual(spec.rows, 2)
+        XCTAssertEqual(spec.columnWeights.reduce(0, +), 10_000)
+        XCTAssertNotEqual(spec.cellMap[0][1], spec.cellMap[0][2])
+        try spec.validated(zoneCount: split.zones.count)
+        try assertTilesWorkArea(split, workArea: small)
     }
 
     func testSplitKeepsUnclickedMergedZoneIntact() throws {

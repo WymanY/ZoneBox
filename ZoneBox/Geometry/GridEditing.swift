@@ -22,7 +22,9 @@ public struct GridLineHit: Equatable, Sendable {
 public enum GridEditing {
     public static let minFraction = ZoneSplit.minSize
     public static let weightTotal = 10_000
-    public static var minWeight: Int { Int((minFraction * Double(weightTotal)).rounded()) }
+    /// Keep a split pane usable, but allow many successive cuts. 5% of the
+    /// whole work area was blocking the 5th+ split of a shrinking cell.
+    public static var minWeight: Int { 80 }
 
     public static func empty(name: String = "Grid") -> Layout {
         Layout(
@@ -304,10 +306,14 @@ public enum GridEditing {
         let box = zoneBox(spec.cellMap[row][col], in: spec)
         switch axis {
         case .vertical:
-            guard spec.columns < 16 else { return false }
+            guard spec.columns < 16 || !needsInsertedLine(spec.columnWeights, at: x, spanning: box.c0...box.c1) else {
+                return false
+            }
             return splitting(spec.columnWeights, spanning: box.c0...box.c1, at: x) != nil
         case .horizontal:
-            guard spec.rows < 16 else { return false }
+            guard spec.rows < 16 || !needsInsertedLine(spec.rowWeights, at: y, spanning: box.r0...box.r1) else {
+                return false
+            }
             return splitting(spec.rowWeights, spanning: box.r0...box.r1, at: y) != nil
         }
     }
@@ -500,22 +506,9 @@ private extension GridEditing {
             }
         }
 
-        var next: [Int] = []
-        var inserted = false
-        var afterIndex = range.lowerBound
-        for i in weights.indices {
-            if range.contains(i) {
-                if !inserted {
-                    next.append(max(leftTotal, 1))
-                    afterIndex = next.count - 1
-                    next.append(max(rightTotal, 1))
-                    inserted = true
-                }
-            } else {
-                next.append(weights[i])
-            }
-        }
-        return inserted ? (renormalized(next), afterIndex, true) : nil
+        // A merged zone can span several existing lines. Collapse only as a
+        // last resort, and only when that still leaves two usable panes.
+        return nil
     }
 
     static func moving(_ weights: [Int], afterIndex: Int, to t: Double) -> [Int]? {

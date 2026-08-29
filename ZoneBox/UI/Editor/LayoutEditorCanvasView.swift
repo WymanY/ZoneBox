@@ -18,6 +18,9 @@ final class LayoutEditorCanvasView: NSView {
     var onChange: ((Layout) -> Void)?
     var onCancel: (() -> Void)?
     var onInteractionChange: ((Bool) -> Void)?
+    /// Floating editor chrome sits above the canvas but is click-through.
+    /// Pointers over that chrome should not show a grid split preview.
+    var chromeView: NSView?
 
     private enum DragKind {
         case create(start: CGPoint)
@@ -32,7 +35,7 @@ final class LayoutEditorCanvasView: NSView {
             start: CGPoint
         )
         case gridLine(axis: GridAxis, afterIndex: Int)
-        case gridMerge(start: CGPoint)
+        case gridMerge(start: CGPoint, normalizedStart: (x: Double, y: Double))
         case close
     }
 
@@ -68,6 +71,7 @@ final class LayoutEditorCanvasView: NSView {
     private var hoverEdge: EdgeInteraction?
     private var hoverSplit: (axis: GridAxis, x: Double, y: Double, zoneID: UUID)?
     private var mergeIDs: Set<UUID> = []
+    private var pointerOverChrome = false
     private var lastCycle: (forward: Bool, time: TimeInterval)?
     private var lastPaneMove: (direction: Layout.ArrowDirection, time: TimeInterval)?
     private let closeButtonSize: CGFloat = 22
@@ -75,6 +79,7 @@ final class LayoutEditorCanvasView: NSView {
     private let edgeSlop: CGFloat = 12
     /// Wider than a single-edge hit so the always-visible linked sash is easy to grab.
     private let linkedEdgeSlop: CGFloat = 20
+    private let gridSplitLineSlop: CGFloat = 6
     private let minSeamOverlap: CGFloat = 36
     private let cornerClearance: CGFloat = 18
     private let cornerSlop: CGFloat = 18
@@ -132,6 +137,7 @@ final class LayoutEditorCanvasView: NSView {
         guard drag == nil else { return }
         hoverEdge = nil
         hoverSplit = nil
+        pointerOverChrome = false
         NSCursor.arrow.set()
         needsDisplay = true
     }
@@ -145,6 +151,11 @@ final class LayoutEditorCanvasView: NSView {
             refreshHover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
         }
         super.flagsChanged(with: event)
+    }
+
+    func noteChromeMoved() {
+        guard drag == nil, let window else { return }
+        refreshHover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -566,6 +577,10 @@ final class LayoutEditorCanvasView: NSView {
 
     private func applyCursor() {
         if layout.kind == .grid {
+            if pointerOverChrome, drag == nil {
+                NSCursor.arrow.set()
+                return
+            }
             if case .gridLine(let axis, _) = drag {
                 (axis == .vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).set()
                 return
@@ -636,8 +651,8 @@ final class LayoutEditorCanvasView: NSView {
             normalizedX: n.x,
             normalizedY: n.y,
             spec: spec,
-            slopX: Double(linkedEdgeSlop / max(bounds.width, 1)),
-            slopY: Double(linkedEdgeSlop / max(bounds.height, 1))
+            slopX: Double(gridSplitLineSlop / max(bounds.width, 1)),
+            slopY: Double(gridSplitLineSlop / max(bounds.height, 1))
            ) {
             selectedID = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout)
             drag = .gridLine(axis: hit.axis, afterIndex: hit.afterIndex)
@@ -650,7 +665,7 @@ final class LayoutEditorCanvasView: NSView {
         if let id = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout) {
             selectedID = id
             mergeIDs = [id]
-            drag = .gridMerge(start: point)
+            drag = .gridMerge(start: point, normalizedStart: (n.x, n.y))
             setInteracting(true)
             needsDisplay = true
             return
@@ -659,13 +674,17 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func handleGridMouseUp(at point: CGPoint) {
-        let n = normalizedPoint(point)
         switch drag {
-        case .gridMerge(let start):
+        case .gridMerge(let start, let normalizedStart):
             let traveled = hypot(point.x - start.x, point.y - start.y)
             if traveled < 8 {
                 let axis: GridAxis = NSEvent.modifierFlags.contains(.shift) ? .horizontal : .vertical
-                if let next = GridEditing.split(layout, normalizedX: n.x, normalizedY: n.y, axis: axis) {
+                if let next = GridEditing.split(
+                    layout,
+                    normalizedX: normalizedStart.x,
+                    normalizedY: normalizedStart.y,
+                    axis: axis
+                ) {
                     layout = next
                     selectedID = layout.zones.last?.id
                 }
@@ -702,6 +721,18 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func refreshGridHover(at point: CGPoint) {
+        if isPointOverChrome(point) {
+            let changed = hoverEdge != nil || hoverSplit != nil || !pointerOverChrome
+            hoverEdge = nil
+            hoverSplit = nil
+            pointerOverChrome = true
+            if changed {
+                needsDisplay = true
+            }
+            applyCursor()
+            return
+        }
+        pointerOverChrome = false
         let n = normalizedPoint(point)
         var nextEdge: EdgeInteraction?
         var nextSplit: (axis: GridAxis, x: Double, y: Double, zoneID: UUID)?
@@ -711,8 +742,8 @@ final class LayoutEditorCanvasView: NSView {
             normalizedX: n.x,
             normalizedY: n.y,
             spec: spec,
-            slopX: Double(linkedEdgeSlop / max(bounds.width, 1)),
-            slopY: Double(linkedEdgeSlop / max(bounds.height, 1))
+            slopX: Double(gridSplitLineSlop / max(bounds.width, 1)),
+            slopY: Double(gridSplitLineSlop / max(bounds.height, 1))
            ) {
             nextEdge = gridEdge(for: hit)
         } else if let spec = layout.grid,
@@ -732,6 +763,12 @@ final class LayoutEditorCanvasView: NSView {
             needsDisplay = true
         }
         applyCursor()
+    }
+
+    private func isPointOverChrome(_ point: CGPoint) -> Bool {
+        guard let chrome = chromeView, let chromeSuperview = chrome.superview else { return false }
+        let chromeRect = convert(chrome.frame, from: chromeSuperview)
+        return chromeRect.contains(point)
     }
 
     private func gridEdge(for hit: GridLineHit) -> EdgeInteraction? {
