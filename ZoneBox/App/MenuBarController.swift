@@ -198,6 +198,11 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
+        let organize = NSMenuItem(title: L10n.text(.menuOrganizeWindows), action: #selector(organizeWindows(_:)), keyEquivalent: "")
+        organize.target = self
+        organize.isEnabled = !runtime.isOrganizingWindows
+        menu.addItem(organize)
+
         let editor = NSMenuItem(title: L10n.text(.menuOpenEditor), action: #selector(openEditor(_:)), keyEquivalent: "")
         editor.target = self
         menu.addItem(editor)
@@ -318,6 +323,11 @@ final class MenuBarController: NSObject {
     @objc
     private func openEditor(_ sender: NSMenuItem) {
         runtime.openEditor()
+    }
+
+    @objc
+    private func organizeWindows(_ sender: NSMenuItem) {
+        runtime.organizeWindowsFromPointer()
     }
 
     @objc

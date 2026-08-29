@@ -14,6 +14,7 @@ final class AppRuntime {
     let trust = TrustMonitor()
     let displays = DisplayWatcher()
     let overlay = OverlayController()
+    let organizeFeedback = OrganizeFeedbackController()
     let catalog = WindowCatalog()
     let engine = SnapEngine()
     let drag = DragMonitor()
@@ -30,6 +31,9 @@ final class AppRuntime {
     private var shortcutPanel: ShortcutPanelController?
     private var quickSnapperUIActive = false
     private var previewHideWorkItem: DispatchWorkItem?
+    private(set) var isOrganizingWindows = false
+    private var organizeBehaviorCache: [WindowIdentity: WindowOrganizeWindowBehavior] = [:]
+    private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
 
     init() {
         ax = AccessibilityClientLive(
@@ -97,6 +101,7 @@ final class AppRuntime {
 
     func teardown() {
         overlay.hideAll()
+        organizeFeedback.dismiss()
         drag.stop()
         hotkeys.stop()
         previewHideWorkItem?.cancel()
@@ -352,6 +357,44 @@ final class AppRuntime {
         controller.show(on: target.screen)
     }
 
+    func organizeWindowsFromPointer() {
+        guard beginOrganizingWindows() else { return }
+        let area = displays.area(containingAppKit: NSEvent.mouseLocation)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { finishOrganizingWindows() }
+            await organizeWindows(on: area)
+        }
+    }
+
+    func organizeWindowsFromHotkey() {
+        guard beginOrganizingWindows() else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { finishOrganizingWindows() }
+            guard let target = await focusedWindowTarget() else {
+                NSSound.beep()
+                return
+            }
+            await organizeWindows(on: target.area)
+        }
+    }
+
+    private func beginOrganizingWindows() -> Bool {
+        guard !isOrganizingWindows else {
+            Log.ax.info("Organize ignored because another transaction is running")
+            return false
+        }
+        isOrganizingWindows = true
+        menuBar?.reloadMenu()
+        return true
+    }
+
+    private func finishOrganizingWindows() {
+        isOrganizingWindows = false
+        menuBar?.reloadMenu()
+    }
+
     func previewZones() {
         previewHideWorkItem?.cancel()
         previewHideWorkItem = nil
@@ -372,6 +415,383 @@ final class AppRuntime {
         }
         previewHideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+    }
+
+    private func organizeWindows(on area: WorkArea?) async {
+        if isEditorOpen {
+            NSSound.beep()
+            return
+        }
+        guard trust.isTrusted() else {
+            openAccessibility()
+            return
+        }
+        guard let area, displays.isActive(displayID: area.display.id) else {
+            NSSound.beep()
+            return
+        }
+
+        let focused = await ax.focusedWindow()
+        let focusedIdentity = focused?.identity
+        let candidates = await snappableWindows(on: area)
+        let ranked = WindowOrganize.rankedIdentities(
+            candidates: candidates.map(\.identity),
+            focused: focusedIdentity
+        )
+        let byIdentity = Dictionary(uniqueKeysWithValues: candidates.map { ($0.identity, $0) })
+        let orderedWindows = ranked.compactMap { identity -> (identity: WindowIdentity, handle: AXWindow)? in
+            guard let window = byIdentity[identity] else { return nil }
+            return (identity, window)
+        }
+        var issues: [WindowOrganizeIssue] = []
+        var knownFixed: [WindowOrganizeIssue] = []
+        var knownConstrained: [WindowOrganizeIssue] = []
+        var activeWindows: [(identity: WindowIdentity, handle: AXWindow)] = []
+        for entry in orderedWindows {
+            switch organizeBehaviorCache[entry.identity] {
+            case .sizeConstrained:
+                guard let frame = await ax.frame(of: entry.handle) else { continue }
+                knownConstrained.append(
+                    WindowOrganizeIssue(
+                        identity: entry.identity,
+                        behavior: .sizeConstrained,
+                        obstacleFrameAX: frame,
+                        observedFrameAX: frame
+                    )
+                )
+                activeWindows.append(entry)
+            case .positionConstrained, .immutable, .unstable:
+                guard let frame = await ax.frame(of: entry.handle) else { continue }
+                knownFixed.append(
+                    WindowOrganizeIssue(
+                        identity: entry.identity,
+                        behavior: organizeBehaviorCache[entry.identity] ?? .immutable,
+                        obstacleFrameAX: frame,
+                        observedFrameAX: frame
+                    )
+                )
+            default:
+                activeWindows.append(entry)
+            }
+        }
+        issues = knownFixed + knownConstrained
+        lastOrganizeSnapshot = [:]
+        previewHideWorkItem?.cancel()
+        overlay.hideAll()
+        let result = await WindowOrganizeExecutor.execute(
+            windows: activeWindows,
+            initialSkipped: knownFixed.map(\.identity),
+            makePlan: { [weak self] identities in
+                guard let self else { return nil }
+                let fixed = issues.filter { $0.behavior != .sizeConstrained }
+                if !knownConstrained.isEmpty,
+                   let plan = WindowOrganize.fallbackPlan(forWindowCount: identities.count)
+                {
+                    let ranked = WindowOrganize.fallbackRanking(
+                        candidates: identities,
+                        rejected: knownConstrained.map(\.identity)
+                    )
+                    return organizeAttemptPlan(for: ranked, using: plan, avoiding: fixed, on: area)
+                }
+                return organizeAttemptPlan(for: identities, avoiding: fixed, on: area)
+            },
+            makeFallbackPlan: { [weak self] identities, observed in
+                self?.organizeFallbackPlan(for: identities, issues: knownFixed + observed, on: area)
+            },
+            readFrame: { [ax] window in await ax.frame(of: window) },
+            applyFrame: { [weak self] frame, window in
+                guard let self else {
+                    return WindowOrganizeApplication(actualFrameAX: nil, behavior: .immutable)
+                }
+                return await applyOrganizeFrame(frame, to: window)
+            },
+            onIssues: { observed in
+                for issue in observed {
+                    issues.removeAll { $0.identity == issue.identity }
+                    issues.append(issue)
+                }
+            }
+        )
+
+        for issue in issues {
+            organizeBehaviorCache[issue.identity] = issue.behavior
+        }
+
+        switch result {
+        case .success(let plan, let moves, let skipped):
+            lastOrganizeSnapshot = Dictionary(uniqueKeysWithValues: moves.compactMap { move in
+                guard let window = byIdentity[move.identity] else { return nil }
+                return (move.identity, (window, move.originalFrameAX))
+            })
+            for move in moves {
+                catalog.record(
+                    UnsnapRecord(
+                        identity: move.identity,
+                        originalFrameAX: move.originalFrameAX,
+                        snappedFrameAX: move.appliedFrameAX,
+                        zoneIDs: []
+                    ),
+                    displayID: area.display.id
+                )
+            }
+            if let identity = plan.placements.first?.identity, let moved = byIdentity[identity] {
+                await ax.raise(moved)
+                NSRunningApplication(processIdentifier: moved.identity.pid)?.activate()
+            }
+            if !skipped.isEmpty {
+                Log.ax.info("Organize completed after skipping \(skipped.count, privacy: .public) windows")
+            }
+            if !issues.isEmpty || !skipped.isEmpty {
+                showOrganizeFeedback(issues: issues, skipped: skipped, failed: false, area: area)
+            } else {
+                flashZones(area: area, layout: plan.layout, duration: 1.2, workAreaAX: plan.workAreaAX)
+            }
+
+        case .noMovableWindows(let skipped):
+            Log.ax.info("Organize found no movable windows skipped=\(skipped.count, privacy: .public)")
+            NSSound.beep()
+            showOrganizeFeedback(issues: issues, skipped: skipped, failed: true, area: area)
+
+        case .failed(let skipped, let rollbackFailed):
+            Log.ax.error(
+                "Organize failed skipped=\(skipped.count, privacy: .public) rollbackFailed=\(rollbackFailed.count, privacy: .public)"
+            )
+            NSSound.beep()
+            showOrganizeFeedback(
+                issues: issues,
+                skipped: skipped,
+                failed: true,
+                rollbackFailed: rollbackFailed,
+                area: area
+            )
+        }
+    }
+
+    private func organizeAttemptPlan(
+        for identities: [WindowIdentity],
+        using requestedPlan: WindowOrganizePlan? = nil,
+        avoiding issues: [WindowOrganizeIssue] = [],
+        on area: WorkArea
+    ) -> WindowOrganizeAttemptPlan? {
+        guard displays.isActive(displayID: area.display.id),
+              let plan = requestedPlan ?? WindowOrganize.plan(forWindowCount: identities.count)
+        else { return nil }
+        let layout = WindowOrganize.layout(for: plan)
+        var workAX = CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: displays.primaryFlipHeight
+        )
+        if !issues.isEmpty {
+            guard let available = WindowOrganize.largestAvailableRect(
+                in: workAX,
+                avoiding: issues.map(\.obstacleFrameAX)
+            ) else { return nil }
+            workAX = available
+        }
+        guard let zones = try? resolveLayout(
+            layout,
+            workAreaAX: workAX,
+            gutter: CGFloat(settings.gutterPoints)
+        ) else { return nil }
+        let frames = WindowOrganize.frames(for: plan, windowCount: identities.count, zones: zones)
+        guard frames.count == identities.count else { return nil }
+        return WindowOrganizeAttemptPlan(
+            layout: layout,
+            placements: zip(identities, frames).map {
+                WindowOrganizePlacement(identity: $0.0, targetFrameAX: $0.1)
+            },
+            workAreaAX: workAX
+        )
+    }
+
+    private func organizeFallbackPlan(
+        for identities: [WindowIdentity],
+        issues: [WindowOrganizeIssue],
+        on area: WorkArea
+    ) -> WindowOrganizeAttemptPlan? {
+        guard let plan = WindowOrganize.fallbackPlan(forWindowCount: identities.count) else { return nil }
+        let constrained = issues.filter { $0.behavior == .sizeConstrained }.map(\.identity)
+        guard !constrained.isEmpty else { return nil }
+        let ranked = WindowOrganize.fallbackRanking(candidates: identities, rejected: constrained)
+        Log.ax.info(
+            "Organize retrying constrained layout windows=\(identities.count, privacy: .public) issues=\(issues.count, privacy: .public)"
+        )
+        let fixed = issues.filter { $0.behavior != .sizeConstrained }
+        return organizeAttemptPlan(for: ranked, using: plan, avoiding: fixed, on: area)
+    }
+
+    private func applyOrganizeFrame(_ target: CGRect, to window: AXWindow) async -> WindowOrganizeApplication {
+        _ = await ax.setFrame(target, of: window)
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        let first = await ax.frame(of: window)
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        let second = await ax.frame(of: window)
+        let stable = framesMatch(first, second, tolerance: 2)
+        return WindowOrganizeApplication(
+            actualFrameAX: second ?? first,
+            behavior: WindowOrganize.behavior(actual: second ?? first, target: target, stable: stable)
+        )
+    }
+
+    private func framesMatch(_ lhs: CGRect?, _ rhs: CGRect?, tolerance: CGFloat) -> Bool {
+        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+        return abs(lhs.minX - rhs.minX) <= tolerance
+            && abs(lhs.minY - rhs.minY) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance
+            && abs(lhs.height - rhs.height) <= tolerance
+    }
+
+    private func showOrganizeFeedback(
+        issues: [WindowOrganizeIssue],
+        skipped: [WindowIdentity],
+        failed: Bool,
+        rollbackFailed: [WindowIdentity] = [],
+        area: WorkArea
+    ) {
+        guard let screen = displays.screen(for: area.display.id) else { return }
+        let namedIssues = uniqueFeedbackIssues(issues)
+        let primaryIssue = namedIssues.first
+        let appName = primaryIssue.map { applicationName(for: $0.identity) }
+        let title: String
+        let detail: String
+
+        if !rollbackFailed.isEmpty {
+            title = L10n.text(.organizeFailedTitle)
+            detail = L10n.text(.organizeRestoreFailedDetail)
+        } else if failed {
+            title = L10n.text(skipped.isEmpty ? .organizeFailedTitle : .organizeNoWindowsTitle)
+            detail = feedbackDetail(for: namedIssues) ?? L10n.text(.organizeRestoredDetail)
+        } else if !namedIssues.isEmpty {
+            let hasFixed = namedIssues.contains { $0.behavior != .sizeConstrained }
+            title = hasFixed ? L10n.text(.organizePartialTitle) : L10n.text(.organizeAdjustedTitle)
+            detail = feedbackDetail(for: namedIssues) ?? L10n.organizeSkipped(skipped.count)
+        } else {
+            title = L10n.text(.organizePartialTitle)
+            detail = L10n.organizeSkipped(skipped.count)
+        }
+
+        let ignoredBundle = primaryIssue?.identity.bundleID
+        organizeFeedback.show(
+            OrganizeFeedback(
+                tone: failed || !rollbackFailed.isEmpty ? .error : .warning,
+                title: title,
+                detail: detail,
+                restoreTitle: lastOrganizeSnapshot.isEmpty ? nil : L10n.text(.organizeRestoreAction),
+                ignoreTitle: ignoredBundle == nil || appName == nil ? nil : L10n.organizeIgnore(appName!),
+                onRestore: lastOrganizeSnapshot.isEmpty ? nil : { [weak self] in
+                    Task { @MainActor in await self?.restoreLastOrganize(on: area) }
+                },
+                onIgnore: ignoredBundle.map { bundleID in
+                    { [weak self] in self?.ignoreApplication(bundleID, name: appName ?? bundleID, on: area) }
+                }
+            ),
+            on: screen
+        )
+    }
+
+    private func issueDetail(_ issue: WindowOrganizeIssue, appName: String) -> String {
+        switch issue.behavior {
+        case .sizeConstrained:
+            L10n.organizeNeedsSpace(appName)
+        case .positionConstrained, .immutable, .unstable, .compliant:
+            L10n.organizeKeptInPlace(appName)
+        }
+    }
+
+    private func uniqueFeedbackIssues(_ issues: [WindowOrganizeIssue]) -> [WindowOrganizeIssue] {
+        var seen = Set<String>()
+        return issues.filter { issue in
+            let name = applicationName(for: issue.identity)
+            return seen.insert("\(issue.behavior.rawValue)|\(name)").inserted
+        }
+    }
+
+    private func feedbackDetail(for issues: [WindowOrganizeIssue]) -> String? {
+        let parts = issues.map { issueDetail($0, appName: applicationName(for: $0.identity)) }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    private func applicationName(for identity: WindowIdentity) -> String {
+        NSRunningApplication(processIdentifier: identity.pid)?.localizedName
+            ?? identity.bundleID
+            ?? L10n.text(.organizeNoWindowsTitle)
+    }
+
+    private func restoreLastOrganize(on area: WorkArea) async {
+        let snapshot = lastOrganizeSnapshot
+        lastOrganizeSnapshot = [:]
+        var failed = false
+        for entry in snapshot.values {
+            let restored = await applyOrganizeFrame(entry.frame, to: entry.window)
+            if restored.behavior != .compliant { failed = true }
+        }
+        guard let screen = displays.screen(for: area.display.id) else { return }
+        organizeFeedback.show(
+            OrganizeFeedback(
+                tone: failed ? .error : .warning,
+                title: L10n.text(failed ? .organizeFailedTitle : .organizeRestoredTitle),
+                detail: L10n.text(failed ? .organizeRestoreFailedDetail : .organizeRestoredDetail)
+            ),
+            on: screen
+        )
+    }
+
+    private func ignoreApplication(_ bundleID: String, name: String, on area: WorkArea) {
+        guard !settings.excludedBundleIDs.contains(bundleID) else { return }
+        settings.excludedBundleIDs.append(bundleID)
+        persistSettings()
+        organizeBehaviorCache = organizeBehaviorCache.filter { $0.key.bundleID != bundleID }
+        guard let screen = displays.screen(for: area.display.id) else { return }
+        organizeFeedback.show(
+            OrganizeFeedback(
+                tone: .warning,
+                title: L10n.text(.organizeIgnoredTitle),
+                detail: L10n.organizeIgnored(name)
+            ),
+            on: screen
+        )
+    }
+
+    private func snappableWindows(on area: WorkArea) async -> [AXWindow] {
+        var seen = Set<WindowIdentity>()
+        var windows: [AXWindow] = []
+        for ref in query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier) {
+            guard let window = await ax.resolveAsync(ref: ref) else { continue }
+            guard !seen.contains(window.identity) else { continue }
+            guard let frameAX = await ax.frame(of: window) else { continue }
+            guard let owner = DisplayTargetResolver.workArea(
+                containingWindowFrameAX: frameAX,
+                from: displays.workAreas,
+                primaryFlipHeight: displays.primaryFlipHeight
+            ), owner.display.id == area.display.id else { continue }
+            seen.insert(window.identity)
+            windows.append(window)
+        }
+        return windows
+    }
+
+    private func flashZones(
+        area: WorkArea,
+        layout: Layout,
+        duration: TimeInterval,
+        workAreaAX: CGRect? = nil
+    ) {
+        previewHideWorkItem?.cancel()
+        previewHideWorkItem = nil
+        let workAX = workAreaAX ?? CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: displays.primaryFlipHeight
+        )
+        let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
+        overlay.settings = settings
+        overlay.primaryFlipHeight = displays.primaryFlipHeight
+        overlay.show(displayID: area.display.id, zones: zones, highlight: .none)
+        let work = DispatchWorkItem { [weak self] in
+            self?.overlay.hideAll()
+            self?.previewHideWorkItem = nil
+        }
+        previewHideWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
     }
 
     func openAccessibility() {

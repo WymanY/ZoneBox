@@ -97,6 +97,64 @@ public enum LayoutTemplates {
         )
     }
 
+    public static func fill() -> Layout {
+        Layout(
+            name: WindowOrganize.fillName,
+            kind: .canvas,
+            zones: [
+                Zone(number: 1, canvasRect: NormalizedRect(x: 0, y: 0, width: 1, height: 1)),
+            ]
+        )
+    }
+
+    public static func split65() -> Layout {
+        let zones = (1...2).map { Zone(number: $0) }
+        return Layout(
+            name: WindowOrganize.split65Name,
+            kind: .grid,
+            zones: zones,
+            grid: GridSpec(
+                rows: 1,
+                columns: 2,
+                rowWeights: [10_000],
+                columnWeights: [6_500, 3_500],
+                cellMap: [[0, 1]]
+            )
+        )
+    }
+
+    public static func priority60() -> Layout {
+        let zones = (1...3).map { Zone(number: $0) }
+        return Layout(
+            name: WindowOrganize.priority60Name,
+            kind: .grid,
+            zones: zones,
+            grid: GridSpec(
+                rows: 2,
+                columns: 2,
+                rowWeights: [5_000, 5_000],
+                columnWeights: [6_000, 4_000],
+                cellMap: [[0, 1], [0, 2]]
+            )
+        )
+    }
+
+    public static func focusStack() -> Layout {
+        let zones = (1...2).map { Zone(number: $0) }
+        return Layout(
+            name: WindowOrganize.focusStackName,
+            kind: .grid,
+            zones: zones,
+            grid: GridSpec(
+                rows: 1,
+                columns: 2,
+                rowWeights: [10_000],
+                columnWeights: [6_000, 4_000],
+                cellMap: [[0, 1]]
+            )
+        )
+    }
+
     public static func focus() -> Layout {
         Layout(
             name: "Focus",

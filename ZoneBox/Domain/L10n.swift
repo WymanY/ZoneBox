@@ -36,6 +36,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuEnableAccessibility
     case menuSnapEnabled
     case menuHotkeysPausedVO
+    case menuOrganizeWindows
     case menuOpenEditor
     case menuPreviewZones
     case menuLayouts
@@ -49,10 +50,26 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuKeyboardShortcuts
     case menuQuit
     case consoleSnap
+    case consoleOrganize
     case consoleEdit
     case consolePreview
     case consoleNew
     case consoleNoDisplay
+    case organizeAdjustedTitle
+    case organizePartialTitle
+    case organizeFailedTitle
+    case organizeNoWindowsTitle
+    case organizeNeedsSpaceDetail
+    case organizeKeptInPlaceDetail
+    case organizeSkippedDetail
+    case organizeRestoredDetail
+    case organizeRestoreFailedDetail
+    case organizeRestoredTitle
+    case organizeIgnoredTitle
+    case organizeIgnoredDetail
+    case organizeRestoreAction
+    case organizeIgnoreAction
+    case organizeClose
 
     case settingsTitle
     case settingsAccessBanner
@@ -94,6 +111,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutUnsnap
     case shortcutShowShortcuts
     case shortcutQuickSnapper
+    case shortcutOrganizeWindows
     case shortcutEditorCancel
     case shortcutEditorCycle
     case shortcutEditorCycleBack
@@ -223,6 +241,26 @@ public enum L10n {
         String(format: text(.onboardingStepAccessibility, language: language), locale: language.locale, number)
     }
 
+    public static func organizeNeedsSpace(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.organizeNeedsSpaceDetail, language: language), locale: language.locale, appName)
+    }
+
+    public static func organizeKeptInPlace(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.organizeKeptInPlaceDetail, language: language), locale: language.locale, appName)
+    }
+
+    public static func organizeSkipped(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.organizeSkippedDetail, language: language), locale: language.locale, count)
+    }
+
+    public static func organizeIgnore(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.organizeIgnoreAction, language: language), locale: language.locale, appName)
+    }
+
+    public static func organizeIgnored(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.organizeIgnoredDetail, language: language), locale: language.locale, appName)
+    }
+
     /// Localize a stored layout name. Canonical storage stays English (`Columns 2`, `Canvas 3 Copy`).
     public static func layoutDisplayName(_ stored: String, language: AppLanguage = LanguageCenter.language) -> String {
         let copyWord = text(.layoutCopy, language: .english)
@@ -267,6 +305,7 @@ public enum L10n {
         .menuEnableAccessibility: "Enable Accessibility to Snap Windows…",
         .menuSnapEnabled: "Snap Enabled",
         .menuHotkeysPausedVO: "Hotkeys paused — VoiceOver on",
+        .menuOrganizeWindows: "Organize Windows",
         .menuOpenEditor: "Open Layout Editor",
         .menuPreviewZones: "Preview Zones",
         .menuLayouts: "Layouts",
@@ -280,10 +319,26 @@ public enum L10n {
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
         .consoleSnap: "Snap",
+        .consoleOrganize: "Organize",
         .consoleEdit: "Edit",
         .consolePreview: "Preview",
         .consoleNew: "New",
         .consoleNoDisplay: "No display",
+        .organizeAdjustedTitle: "Arrangement adjusted",
+        .organizePartialTitle: "Partially organized",
+        .organizeFailedTitle: "Arrangement not completed",
+        .organizeNoWindowsTitle: "No windows were moved",
+        .organizeNeedsSpaceDetail: "%@ needs more space, so it was placed in the primary area.",
+        .organizeKeptInPlaceDetail: "%@ did not accept window changes. It was kept in place while other windows were organized.",
+        .organizeSkippedDetail: "%d windows could not be adjusted and were left in place.",
+        .organizeRestoredDetail: "The windows were restored to their previous positions.",
+        .organizeRestoreFailedDetail: "Some windows could not be restored. Their current positions were preserved.",
+        .organizeRestoredTitle: "Previous layout restored",
+        .organizeIgnoredTitle: "Application ignored",
+        .organizeIgnoredDetail: "%@ will be excluded from future window actions.",
+        .organizeRestoreAction: "Restore Layout",
+        .organizeIgnoreAction: "Ignore %@",
+        .organizeClose: "Close",
 
         .settingsTitle: "ZoneBox Settings",
         .settingsAccessBanner: "Snapping is off until Accessibility is allowed. Open the guide to turn on the ZoneBox switch.",
@@ -325,6 +380,7 @@ public enum L10n {
         .shortcutUnsnap: "Unsnap window",
         .shortcutShowShortcuts: "Keyboard shortcuts",
         .shortcutQuickSnapper: "Quick Snapper overlay",
+        .shortcutOrganizeWindows: "Organize windows",
         .shortcutEditorCancel: "Close editor",
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
@@ -417,6 +473,7 @@ public enum L10n {
         .menuEnableAccessibility: "开启辅助功能以吸附窗口…",
         .menuSnapEnabled: "启用吸附",
         .menuHotkeysPausedVO: "快捷键已暂停 — VoiceOver 开启中",
+        .menuOrganizeWindows: "一键布局",
         .menuOpenEditor: "打开布局编辑器",
         .menuPreviewZones: "预览分区",
         .menuLayouts: "布局",
@@ -430,10 +487,26 @@ public enum L10n {
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
         .consoleSnap: "吸附",
+        .consoleOrganize: "一键布局",
         .consoleEdit: "编辑",
         .consolePreview: "预览",
         .consoleNew: "新建",
         .consoleNoDisplay: "没有显示器",
+        .organizeAdjustedTitle: "已调整整理方式",
+        .organizePartialTitle: "已完成部分整理",
+        .organizeFailedTitle: "整理未完成",
+        .organizeNoWindowsTitle: "没有移动窗口",
+        .organizeNeedsSpaceDetail: "%@ 需要更大空间，已将它放入主区域。",
+        .organizeKeptInPlaceDetail: "%@ 未接受窗口调整，已保留原位并整理其他窗口。",
+        .organizeSkippedDetail: "%d 个窗口无法调整，已保留原位。",
+        .organizeRestoredDetail: "窗口已恢复到整理前的位置。",
+        .organizeRestoreFailedDetail: "部分窗口无法恢复，已保留它们当前的位置。",
+        .organizeRestoredTitle: "已恢复原布局",
+        .organizeIgnoredTitle: "已忽略应用",
+        .organizeIgnoredDetail: "之后的窗口操作将不再处理 %@。",
+        .organizeRestoreAction: "恢复原布局",
+        .organizeIgnoreAction: "以后忽略 %@",
+        .organizeClose: "关闭",
 
         .settingsTitle: "ZoneBox 设置",
         .settingsAccessBanner: "未允许辅助功能时无法吸附。请打开引导，打开 ZoneBox 开关。",
@@ -475,6 +548,7 @@ public enum L10n {
         .shortcutUnsnap: "取消吸附",
         .shortcutShowShortcuts: "键盘快捷键",
         .shortcutQuickSnapper: "快速吸附覆盖层",
+        .shortcutOrganizeWindows: "一键布局",
         .shortcutEditorCancel: "关闭编辑器",
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",
