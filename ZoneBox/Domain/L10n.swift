@@ -40,6 +40,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuPreviewZones
     case menuLayouts
     case menuNewCanvas
+    case menuNewGrid
     case menuDeleteLayout
     case menuDeleteLayoutTitle
     case menuDeleteLayoutMessage
@@ -149,12 +150,15 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorGrid2x2
     case editorPriority
     case editorFocus
+    case editorModeGrid
+    case editorModeCanvas
     case editorSave
     case editorSaveCopy
     case editorCancel
     case editorDelete
     case editorDeleteTooltip
     case editorHint
+    case editorGridHint
     case editorGridProtected
     case editorSaveTooltip
     case editorSaveCopyTooltip
@@ -267,6 +271,7 @@ public enum L10n {
         .menuPreviewZones: "Preview Zones",
         .menuLayouts: "Layouts",
         .menuNewCanvas: "New Canvas Layout…",
+        .menuNewGrid: "New Grid Layout…",
         .menuDeleteLayout: "Delete Current Layout…",
         .menuDeleteLayoutTitle: "Delete %@?",
         .menuDeleteLayoutMessage: "This layout is removed from every display that uses it. ZoneBox keeps at least one layout.",
@@ -376,12 +381,15 @@ public enum L10n {
         .editorGrid2x2: "2×2",
         .editorPriority: "Priority",
         .editorFocus: "Focus",
+        .editorModeGrid: "Grid",
+        .editorModeCanvas: "Canvas",
         .editorSave: "Save",
         .editorSaveCopy: "Save Copy",
         .editorCancel: "Cancel",
         .editorDelete: "Delete",
         .editorDeleteTooltip: "Delete this saved layout",
         .editorHint: "Shared divider moves both zones. WASD moves to the adjacent pane. Tab / Shift+Tab cycle zones. Drag edges or corners to resize. Vertical scroll changes height, horizontal scroll changes width. × deletes. Esc exits.",
+        .editorGridHint: "Click splits a cell vertically. Shift-click splits horizontally. Drag a shared divider to resize neighbors. Drag across adjacent cells to merge. × merges into a neighbor. WASD / Tab select cells. Esc exits.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
         .editorSaveCopyTooltip: "Save changes as a new layout",
@@ -413,6 +421,7 @@ public enum L10n {
         .menuPreviewZones: "预览分区",
         .menuLayouts: "布局",
         .menuNewCanvas: "新建画布布局…",
+        .menuNewGrid: "新建网格布局…",
         .menuDeleteLayout: "删除当前布局…",
         .menuDeleteLayoutTitle: "删除“%@”？",
         .menuDeleteLayoutMessage: "使用这个布局的显示器都会改用剩余布局。ZoneBox 至少会保留一个布局。",
@@ -522,12 +531,15 @@ public enum L10n {
         .editorGrid2x2: "2×2",
         .editorPriority: "优先",
         .editorFocus: "焦点",
+        .editorModeGrid: "网格",
+        .editorModeCanvas: "画布",
         .editorSave: "保存",
         .editorSaveCopy: "另存副本",
         .editorCancel: "取消",
         .editorDelete: "删除",
         .editorDeleteTooltip: "删除这个已保存的布局",
         .editorHint: "中间分隔条可同时移动两侧格子。WASD 切换到相邻格子。Tab 切换格子，Shift+Tab 反向。拖动边缘或角落缩放。垂直滚动改高度，水平滚动改宽度。× 删除。Esc 退出",
+        .editorGridHint: "点击竖切一格，Shift+点击横切。拖共享边改比例，划过相邻格子合并。× 并进邻居。WASD / Tab 选格。Esc 退出。",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
         .editorSaveCopyTooltip: "将修改保存为新布局",

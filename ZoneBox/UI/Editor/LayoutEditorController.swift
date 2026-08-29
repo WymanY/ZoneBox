@@ -19,7 +19,7 @@ final class LayoutEditorController: NSObject {
     private var savedToolbarLayout: Layout?
     private var selectedSavedLayout = false
     private var hintLabel: NSTextField?
-    private var protectionLabel: NSTextField?
+    private var modeControl: NSSegmentedControl?
     private let original: Layout
     private var transaction: LayoutEditTransaction?
     private var appSwitchObservations: [Any] = []
@@ -52,9 +52,6 @@ final class LayoutEditorController: NSObject {
         let flip = runtime.displays.primaryFlipHeight
         let workAX = CoordinateConverter.axRect(fromAppKit: screen.visibleFrame, primaryFlipHeight: flip)
         var draft = original
-        if draft.kind == .grid {
-            draft = (try? draft.convertingGridToCanvas(workAreaAX: workAX)) ?? draft
-        }
         transaction = LayoutEditTransaction(
             original: isNew ? nil : original,
             draft: draft,
@@ -210,7 +207,18 @@ final class LayoutEditorController: NSObject {
         }
         refreshPresetSelection()
 
-        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
+        let mode = NSSegmentedControl(labels: [L10n.text(.editorModeGrid), L10n.text(.editorModeCanvas)], trackingMode: .selectOne, target: self, action: #selector(modeChanged(_:)))
+        mode.segmentStyle = .rounded
+        mode.setWidth(72, forSegment: 0)
+        mode.setWidth(84, forSegment: 1)
+        mode.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: L10n.text(.editorModeGrid)), forSegment: 0)
+        mode.setImage(NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: L10n.text(.editorModeCanvas)), forSegment: 1)
+        mode.setImageScaling(.scaleProportionallyDown, forSegment: 0)
+        mode.setImageScaling(.scaleProportionallyDown, forSegment: 1)
+        modeControl = mode
+        refreshModeControl()
+
+        let saveTitle = L10n.text(.editorSave)
         let save = EditorChipButton(title: saveTitle, symbol: nil, target: self, action: #selector(save), kind: .save)
         saveButton = save
         let cancel = EditorChipButton(title: L10n.text(.editorCancel), symbol: nil, target: self, action: #selector(cancel), kind: .cancel)
@@ -236,6 +244,7 @@ final class LayoutEditorController: NSObject {
         topRow.orientation = .horizontal
         topRow.alignment = .centerY
         topRow.spacing = 12
+        topRow.addArrangedSubview(mode)
         topRow.addArrangedSubview(presets)
         topRow.addArrangedSubview(actions)
         topRow.setContentHuggingPriority(.defaultHigh, for: .horizontal)
@@ -254,6 +263,7 @@ final class LayoutEditorController: NSObject {
         ])
 
         let hint = NSTextField(wrappingLabelWithString: L10n.text(.editorHint))
+        hint.stringValue = L10n.text(hintKey)
         hint.font = .systemFont(ofSize: 12, weight: .medium)
         hint.textColor = NSColor.white.withAlphaComponent(0.92)
         hint.alignment = .center
@@ -267,21 +277,6 @@ final class LayoutEditorController: NSObject {
         hintLabel = hint
 
         var rows: [NSView] = [topRowCenter]
-        if !isNew && original.kind == .grid {
-            let protection = NSTextField(wrappingLabelWithString: L10n.text(.editorGridProtected))
-            protection.font = .systemFont(ofSize: 12, weight: .semibold)
-            protection.textColor = .systemOrange
-            protection.alignment = .center
-            protection.isBezeled = false
-            protection.drawsBackground = false
-            protection.isSelectable = false
-            protection.lineBreakMode = .byWordWrapping
-            protection.maximumNumberOfLines = 2
-            protection.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            protection.isHidden = true
-            protectionLabel = protection
-            rows.append(protection)
-        }
         rows.append(hint)
 
         let column = NSStackView(views: rows)
@@ -340,25 +335,51 @@ final class LayoutEditorController: NSObject {
         draft.id = transaction.draft.id
         draft.name = transaction.draft.name
         draft.createdAt = transaction.draft.createdAt
-        if draft.kind == .grid, let workAreaAX = canvas?.workAreaAX {
-            draft = (try? draft.convertingGridToCanvas(workAreaAX: workAreaAX)) ?? draft
-        }
         transaction.updateDraft(draft)
         self.transaction = transaction
         canvas?.layout = draft
         canvas?.selectFirstZone()
         canvas?.needsDisplay = true
+        hintLabel?.stringValue = L10n.text(hintKey)
+        refreshModeControl()
         updateSaveState()
+    }
+
+    @objc private func modeChanged(_ sender: NSSegmentedControl) {
+        let wantsGrid = sender.selectedSegment == 0
+        switchEditorMode(toGrid: wantsGrid)
+    }
+
+    private func switchEditorMode(toGrid: Bool) {
+        guard let transaction else { return }
+        let current = transaction.draft
+        if toGrid, current.kind == .grid { refreshModeControl(); return }
+        if !toGrid, current.kind == .canvas { refreshModeControl(); return }
+
+        let next: Layout
+        if toGrid {
+            next = GridEditing.convertingCanvasToGrid(current)
+        } else if let workAX = canvas?.workAreaAX, let converted = try? current.convertingGridToCanvas(workAreaAX: workAX) {
+            next = converted
+        } else {
+            refreshModeControl()
+            return
+        }
+        applyDraftLayout(next)
+        selectedPresetIndex = canvas.flatMap { LayoutTemplates.matchingEditorPresetIndex(for: next, workAreaAX: $0.workAreaAX) }
+        selectedSavedLayout = savedToolbarLayout.map { $0.id == next.id } ?? false
+        refreshPresetSelection()
+    }
+
+    private func refreshModeControl() {
+        let isGrid = (transaction?.draft.kind ?? original.kind) == .grid
+        modeControl?.selectedSegment = isGrid ? 0 : 1
     }
 
     @objc private func save() {
         guard let transaction = validTransactionForSave() else { return }
         if isNew {
             promptForSaveName(defaultName: transaction.draft.name, kind: .newLayout)
-            return
-        }
-        if !isNew, original.kind == .grid {
-            promptForCopyName(transaction)
             return
         }
         commitSave(requestedName: nil, createsCopy: false)
@@ -509,24 +530,34 @@ final class LayoutEditorController: NSObject {
             savedLayoutButton?.toolTip = L10n.layoutDisplayName(saved.name)
         }
         refreshPresetSelection()
-        let saveTitle = !isNew && original.kind == .grid ? L10n.text(.editorSaveCopy) : L10n.text(.editorSave)
+        let saveTitle = L10n.text(.editorSave)
         saveButton?.setChipTitle(saveTitle)
         cancelButton?.setChipTitle(L10n.text(.editorCancel))
         deleteButton?.setChipTitle(L10n.text(.editorDelete))
         deleteButton?.toolTip = L10n.text(.editorDeleteTooltip)
-        hintLabel?.stringValue = L10n.text(.editorHint)
-        protectionLabel?.stringValue = L10n.text(.editorGridProtected)
+        hintLabel?.stringValue = L10n.text(hintKey)
+        if let mode = modeControl {
+            mode.setLabel(L10n.text(.editorModeGrid), forSegment: 0)
+            mode.setLabel(L10n.text(.editorModeCanvas), forSegment: 1)
+            mode.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: L10n.text(.editorModeGrid)), forSegment: 0)
+            mode.setImage(NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: L10n.text(.editorModeCanvas)), forSegment: 1)
+        }
+        refreshModeControl()
         updateSaveState()
     }
 
     private func updateDraft(_ layout: Layout) {
         transaction?.updateDraft(layout)
         updateSaveState()
+        hintLabel?.stringValue = L10n.text(hintKey)
+    }
+
+    private var hintKey: L10nKey {
+        (transaction?.draft.kind ?? original.kind) == .grid ? .editorGridHint : .editorHint
     }
 
     fileprivate func chipHoverChanged(_ button: EditorChipButton, hovering: Bool) {
-        guard button === saveButton, !isNew, original.kind == .grid else { return }
-        protectionLabel?.isHidden = !hovering
+        _ = (button, hovering)
     }
 
     private func updateSaveState() {
@@ -611,7 +642,7 @@ final class LayoutEditorController: NSObject {
         savedToolbarLayout = nil
         selectedSavedLayout = false
         hintLabel = nil
-        protectionLabel = nil
+        modeControl = nil
         transaction = nil
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
@@ -660,7 +691,7 @@ private final class EditorToolbarChrome: NSView {
         guard let hit = super.hitTest(point) else { return nil }
         var view: NSView? = hit
         while let current = view, current !== self {
-            if current is NSButton { return hit }
+            if current is NSButton || current is NSSegmentedControl { return hit }
             view = current.superview
         }
         return nil

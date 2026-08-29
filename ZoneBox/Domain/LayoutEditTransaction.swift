@@ -34,7 +34,6 @@ public struct LayoutEditTransaction: Sendable {
     }
 
     /// Returns nil when Save should only close the editor, or when the draft is invalid.
-    /// Grid layouts are protected because this editor only produces Canvas geometry.
     public func layoutForCommit(
         existingNames: [String],
         newID: UUID = UUID(),
@@ -43,7 +42,7 @@ public struct LayoutEditTransaction: Sendable {
         createsCopy: Bool = false
     ) -> Layout? {
         guard canCommit else { return nil }
-        let isCopyCommit = original.map { $0.kind == .grid || createsCopy } ?? false
+        let isCopyCommit = createsCopy
         let explicitlyNamedCopy = isCopyCommit && requestedName != nil
         if original != nil, !hasChanges, !explicitlyNamedCopy { return nil }
 

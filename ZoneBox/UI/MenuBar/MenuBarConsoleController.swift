@@ -12,8 +12,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var warningButton: NSButton?
     private var gridView: TileGridView?
     private var gridHeightConstraint: NSLayoutConstraint?
-    private var editButton: NSButton?
-    private var previewButton: NSButton?
     private var newButton: NSButton?
     private var settingsButton: NSButton?
     private var quitButton: NSButton?
@@ -201,9 +199,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         scroll.hasHorizontalScroller = false
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
+        scroll.verticalScroller = ThinOverlayScroller()
+        scroll.verticalScroller?.controlSize = .mini
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsets()
-        scroll.verticalScrollElasticity = .none
+        scroll.verticalScrollElasticity = .allowed
         scroll.documentView = grid
         let height = scroll.heightAnchor.constraint(equalToConstant: gridHeight())
         gridHeightConstraint = height
@@ -214,16 +214,13 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeActions() -> NSView {
-        let edit = actionButton(title: L10n.text(.consoleEdit), action: #selector(editLayout))
-        let preview = actionButton(title: L10n.text(.consolePreview), action: #selector(previewCurrent))
         let create = actionButton(title: L10n.text(.consoleNew), action: #selector(newLayout))
-        editButton = edit
-        previewButton = preview
         newButton = create
-        let row = NSStackView(views: [edit, preview, create])
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let row = NSStackView(views: [spacer, create])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.distribution = .fillEqually
         row.spacing = 8
         row.translatesAutoresizingMaskIntoConstraints = false
         row.heightAnchor.constraint(equalToConstant: 28).isActive = true
@@ -278,8 +275,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         warningButton?.title = L10n.text(.menuEnableAccessibility)
         warningButton?.isHidden = !warning
 
-        editButton?.title = L10n.text(.consoleEdit)
-        previewButton?.title = L10n.text(.consolePreview)
         newButton?.title = L10n.text(.consoleNew)
         settingsButton?.title = L10n.text(.menuSettings)
         quitButton?.title = L10n.text(.menuQuit)
@@ -294,9 +289,12 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             LayoutTileView(
                 layout: layout,
                 selected: layout.id == currentID,
+                canDelete: runtime.document.layouts.count > 1,
                 width: Metrics.tileWidth,
                 thumbnailSize: Metrics.thumbnailSize,
-                onSelect: { [weak self] in self?.select(layout) }
+                onSelect: { [weak self] in self?.select(layout) },
+                onEdit: { [weak self] in self?.edit(layout) },
+                onDelete: { [weak self] in self?.confirmAndDelete(layout) }
             )
         }
         gridView.setTiles(tiles)
@@ -369,19 +367,45 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         dismiss(handoff: { [runtime] in runtime.openAccessibility() })
     }
 
-    @objc
-    private func editLayout() {
-        dismiss(handoff: { [runtime] in runtime.openEditor() })
+    private func edit(_ layout: Layout) {
+        dismiss(handoff: { [runtime] in runtime.openEditor(for: layout) })
     }
 
-    @objc
-    private func previewCurrent() {
-        runtime.previewZones()
+    private func confirmAndDelete(_ layout: Layout) {
+        guard runtime.document.layouts.count > 1 else {
+            NSSound.beep()
+            return
+        }
+        let name = L10n.layoutDisplayName(layout.name)
+        let alert = NSAlert()
+        alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
+        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        if let panel {
+            alert.beginSheetModal(for: panel) { [weak self] response in
+                guard let self, response == .alertFirstButtonReturn else { return }
+                if !self.runtime.deleteLayout(layout) {
+                    NSSound.beep()
+                    return
+                }
+                self.reload()
+            }
+        } else {
+            let response = alert.runModal()
+            guard response == .alertFirstButtonReturn else { return }
+            if !runtime.deleteLayout(layout) {
+                NSSound.beep()
+                return
+            }
+            reload()
+        }
     }
 
     @objc
     private func newLayout() {
-        dismiss(handoff: { [runtime] in runtime.newCanvasLayout() })
+        dismiss(handoff: { [runtime] in runtime.newGridLayout() })
     }
 
     @objc
@@ -398,6 +422,16 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 private final class ConsolePanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+private final class ThinOverlayScroller: NSScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool { true }
+
+    override class func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
+        8
+    }
+
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 }
 
 private enum Metrics {
@@ -457,20 +491,31 @@ private final class TileGridView: NSView {
 
 private final class LayoutTileView: NSView {
     private let selected: Bool
+    private let canDelete: Bool
     private let onSelect: () -> Void
+    private let onEdit: () -> Void
+    private let onDelete: () -> Void
     private let title: String
     private let thumbnail: NSImage
     private var hovering = false { didSet { needsDisplay = true } }
+    private let editButton = NSButton()
+    private let deleteButton = NSButton()
 
     init(
         layout: Layout,
         selected: Bool,
+        canDelete: Bool,
         width: CGFloat,
         thumbnailSize: NSSize,
-        onSelect: @escaping () -> Void
+        onSelect: @escaping () -> Void,
+        onEdit: @escaping () -> Void,
+        onDelete: @escaping () -> Void
     ) {
         self.selected = selected
+        self.canDelete = canDelete
         self.onSelect = onSelect
+        self.onEdit = onEdit
+        self.onDelete = onDelete
         self.title = L10n.layoutDisplayName(layout.name)
         let fill = selected
             ? NSColor.controlAccentColor.withAlphaComponent(0.55)
@@ -490,9 +535,76 @@ private final class LayoutTileView: NSView {
         layer?.cornerRadius = 8
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        setAccessibilityRole(.button)
+        setAccessibilityRole(.group)
         setAccessibilityLabel(title)
         autoresizingMask = []
+        configureActionButtons()
+    }
+
+    private func configureActionButtons() {
+        configureChromeButton(
+            editButton,
+            symbol: "pencil",
+            title: L10n.text(.consoleEdit),
+            tint: .labelColor,
+            action: #selector(editTapped)
+        )
+        configureChromeButton(
+            deleteButton,
+            symbol: "trash",
+            title: L10n.text(.editorDelete),
+            tint: NSColor.systemRed,
+            action: #selector(deleteTapped)
+        )
+        deleteButton.isHidden = !canDelete
+        addSubview(editButton)
+        addSubview(deleteButton)
+        layoutActionButtons()
+    }
+
+    private func configureChromeButton(
+        _ button: NSButton,
+        symbol: String,
+        title: String,
+        tint: NSColor,
+        action: Selector
+    ) {
+        button.bezelStyle = .regularSquare
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.refusesFirstResponder = true
+        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
+            .withSymbolConfiguration(config)
+        button.contentTintColor = tint
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        button.target = self
+        button.action = action
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 6
+        button.layer?.cornerCurve = .continuous
+        button.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94).cgColor
+        button.layer?.borderWidth = 1
+        button.layer?.borderColor = NSColor.separatorColor.cgColor
+        button.translatesAutoresizingMaskIntoConstraints = true
+    }
+
+    @objc private func deleteTapped() {
+        onDelete()
+    }
+
+    @objc private func editTapped() {
+        onEdit()
+    }
+
+    private func layoutActionButtons() {
+        let size: CGFloat = 20
+        let inset: CGFloat = 6
+        editButton.frame = NSRect(x: bounds.maxX - inset - size, y: bounds.maxY - inset - size, width: size, height: size)
+        deleteButton.frame = NSRect(x: inset, y: bounds.maxY - inset - size, width: size, height: size)
+        deleteButton.isHidden = !canDelete
     }
 
     required init?(coder: NSCoder) { nil }
@@ -523,7 +635,21 @@ private final class LayoutTileView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if editButton.frame.contains(point) {
+            onEdit()
+            return
+        }
+        if canDelete, deleteButton.frame.contains(point) {
+            onDelete()
+            return
+        }
         onSelect()
+    }
+
+    override func layout() {
+        super.layout()
+        layoutActionButtons()
     }
 
     override func draw(_ dirtyRect: NSRect) {
