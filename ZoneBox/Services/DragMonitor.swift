@@ -13,8 +13,7 @@ final class DragMonitor {
     private var holdGeneration = 0
     private var sampleTimer: Timer?
     private var lastSample: CGPoint?
-    private var frameRefreshTask: Task<Void, Never>?
-    private var frameRefreshRequested = false
+    private var capturedRef: WindowRef?
 
     func start() {
         stop()
@@ -50,9 +49,7 @@ final class DragMonitor {
         upSent = false
         holdGeneration += 1
         lastSample = nil
-        frameRefreshTask?.cancel()
-        frameRefreshTask = nil
-        frameRefreshRequested = false
+        capturedRef = nil
     }
 
     private func handle(_ event: NSEvent) {
@@ -105,23 +102,22 @@ final class DragMonitor {
         upSent = false
         lastSample = mouse.locationAppKit
         holdGeneration += 1
-        frameRefreshTask?.cancel()
-        frameRefreshTask = nil
-        frameRefreshRequested = false
-        let generation = holdGeneration
-        Task { @MainActor in
-            let capture = await captureWindow(at: mouse.locationAppKit)
-            guard self.leftButtonHeld, self.holdGeneration == generation else { return }
-            runtime.pendingWindow = capture?.window
-            runtime.pendingFrame = capture?.frame
-            runtime.engine.handleMouse(mouse)
-            dragSessionReady = true
-            let queued = bufferedDrags
-            bufferedDrags.removeAll()
-            for queuedEvent in queued {
-                runtime.engine.handleMouse(queuedEvent)
-            }
-        }
+        capturedRef = nil
+        runtime.pendingWindow = nil
+        runtime.pendingIdentity = nil
+        runtime.pendingFrame = nil
+        runtime.pendingStartedOnMoveChrome = false
+
+        // CGWindowList is synchronous. Waiting on AX here used to stall the
+        // next Shift-drag behind the previous snap's setFrame retries.
+        let snapshot = snapshotWindow(at: mouse.locationAppKit)
+        capturedRef = snapshot?.ref
+        runtime.pendingIdentity = snapshot?.identity
+        runtime.pendingFrame = snapshot?.frame
+        runtime.pendingStartedOnMoveChrome = snapshot?.startedOnMoveChrome ?? false
+        runtime.engine.handleMouse(mouse)
+        dragSessionReady = true
+        resolveCapturedWindow(generation: holdGeneration)
     }
 
     private func ensureHold(at location: CGPoint, modifiers: SnapModifiers) {
@@ -133,6 +129,7 @@ final class DragMonitor {
         if let last = lastSample, RectMath.chebyshev(location, last) < 1 { return }
         lastSample = location
         let mouse = SnapMouseEvent(kind: .leftDragged, locationAppKit: location, modifiers: modifiers)
+        refreshCapturedFrame()
         if !dragSessionReady {
             bufferedDrags.append(mouse)
             if bufferedDrags.count > 64 {
@@ -141,34 +138,6 @@ final class DragMonitor {
             return
         }
         runtime.engine.handleMouse(mouse)
-        requestFrameRefresh()
-    }
-
-    /// AX reads run on a serial queue. Coalesce pointer samples so a fast drag
-    /// never builds a backlog of stale frame requests behind the cursor.
-    private func requestFrameRefresh() {
-        frameRefreshRequested = true
-        guard frameRefreshTask == nil else { return }
-        let generation = holdGeneration
-        frameRefreshTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            while self.frameRefreshRequested,
-                  self.leftButtonHeld,
-                  self.holdGeneration == generation
-            {
-                self.frameRefreshRequested = false
-                guard let window = self.runtime.pendingWindow else { break }
-                let frame = await self.runtime.ax.frame(of: window)
-                guard !Task.isCancelled,
-                      self.leftButtonHeld,
-                      self.holdGeneration == generation
-                else { break }
-                self.runtime.pendingFrame = frame
-            }
-            if self.holdGeneration == generation {
-                self.frameRefreshTask = nil
-            }
-        }
     }
 
     private func finishHold(_ mouse: SnapMouseEvent) {
@@ -177,9 +146,6 @@ final class DragMonitor {
         leftButtonHeld = false
         upSent = true
         holdGeneration += 1
-        frameRefreshTask?.cancel()
-        frameRefreshTask = nil
-        frameRefreshRequested = false
         bufferedDrags.removeAll()
         dragSessionReady = false
         runtime.engine.handleMouse(mouse)
@@ -222,7 +188,12 @@ final class DragMonitor {
         ingestDrag(at: location, modifiers: modifiers)
     }
 
-    private func captureWindow(at location: CGPoint) async -> (window: AXWindow, frame: CGRect)? {
+    private func snapshotWindow(at location: CGPoint) -> (
+        ref: WindowRef,
+        identity: WindowIdentity,
+        frame: CGRect,
+        startedOnMoveChrome: Bool
+    )? {
         let flip = runtime.displays.primaryFlipHeight
         let axPoint = CoordinateConverter.axPoint(fromAppKit: location, primaryFlipHeight: flip)
         let ourPID = ProcessInfo.processInfo.processIdentifier
@@ -232,12 +203,38 @@ final class DragMonitor {
             Log.snap.debug("No snappable window captured for pointer hold")
             return nil
         }
-        guard let window = await runtime.ax.resolveAsync(ref: ref) else {
-            Log.snap.debug("Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) resolved=false")
-            return nil
+        let identity = WindowIdentity(pid: ref.pid, windowNumber: ref.windowNumber, bundleID: ref.bundleID)
+        let startedOnMoveChrome = WindowMoveChrome.contains(
+            axPoint: axPoint,
+            windowFrameAX: ref.boundsAX,
+            hitRole: nil,
+            hitSubrole: nil,
+            ancestorRoles: []
+        )
+        Log.snap.debug(
+            "Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) moveChrome=\(startedOnMoveChrome, privacy: .public)"
+        )
+        return (ref, identity, ref.boundsAX, startedOnMoveChrome)
+    }
+
+    /// AX resolve is only needed to apply a snap. The overlay must arm from the
+    /// CG snapshot even if the previous drop is still writing a frame.
+    private func resolveCapturedWindow(generation: Int) {
+        guard let ref = capturedRef else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let window = await self.runtime.ax.resolveAsync(ref: ref)
+            guard self.leftButtonHeld, self.holdGeneration == generation else { return }
+            self.runtime.pendingWindow = window
         }
-        Log.snap.debug("Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) resolved=true")
-        return (window, ref.boundsAX)
+    }
+
+    private func refreshCapturedFrame() {
+        guard let identity = runtime.pendingIdentity else { return }
+        if let ref = query.windows(pid: identity.pid).first(where: { $0.windowNumber == identity.windowNumber }) {
+            runtime.pendingFrame = ref.boundsAX
+            capturedRef = ref
+        }
     }
 
     private static func modifiers(flags: NSEvent.ModifierFlags) -> SnapModifiers {

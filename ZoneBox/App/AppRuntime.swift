@@ -9,6 +9,8 @@ final class AppRuntime {
     var document = StoreDocument()
     var pendingWindow: AXWindow?
     var pendingFrame: CGRect?
+    var pendingStartedOnMoveChrome = false
+    var pendingIdentity: WindowIdentity?
 
     let uiSession = UISession()
     let trust = TrustMonitor()

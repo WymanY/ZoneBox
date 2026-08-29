@@ -42,6 +42,7 @@
 		5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9118B8805E80F4D1DA3FC84D /* AppSettings.swift */; };
 		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
 		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		68AAC6FA693112B8729E97B3 /* WindowMoveChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */; };
 		737615E270F4C3235085D72A /* MenuBarConsoleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */; };
 		74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */; };
 		76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */; };
@@ -69,6 +70,7 @@
 		BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977E18A00CB22B850795CDAA /* NormalizedRect.swift */; };
 		BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A727A3139F1922D21AA08BFD /* ZoneSplit.swift */; };
 		C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D5122A337EC77F24071CC7 /* AppDelegate.swift */; };
+		C4468985A7D42FCA94C8EF75 /* WindowMoveChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */; };
 		C5C75A6F7AAB652A75CF4527 /* HitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2450A6958359F65AFC611957 /* HitTester.swift */; };
 		C6347820CB7380152FEE57FA /* QuickSnapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */; };
 		C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB08C54E77DFC28D032D8B18 /* OverlayController.swift */; };
@@ -138,6 +140,7 @@
 		6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorCanvasView.swift; sourceTree = "<group>"; };
 		6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarConsoleController.swift; sourceTree = "<group>"; };
 		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChromeTests.swift; sourceTree = "<group>"; };
 		7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		7EFE483F6CBDB37363637CAD /* WorkArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkArea.swift; sourceTree = "<group>"; };
 		85AF3584B40B1DE9E539564D /* MagneticResize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagneticResize.swift; sourceTree = "<group>"; };
@@ -168,6 +171,7 @@
 		BA9D165C2B155D2E12A803AB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChrome.swift; sourceTree = "<group>"; };
 		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD0B8B1AA2CD7208340838FC /* Gutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gutter.swift; sourceTree = "<group>"; };
 		D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyCenter.swift; sourceTree = "<group>"; };
@@ -223,6 +227,7 @@
 				977E18A00CB22B850795CDAA /* NormalizedRect.swift */,
 				8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */,
 				B16192ECC49D6E451A8936A8 /* RectMath.swift */,
+				CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */,
 				7EFE483F6CBDB37363637CAD /* WorkArea.swift */,
 				E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */,
 				A727A3139F1922D21AA08BFD /* ZoneSplit.swift */,
@@ -390,6 +395,7 @@
 				4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */,
 				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
+				769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */,
 				059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */,
 				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
 				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
@@ -635,6 +641,7 @@
 				C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */,
 				1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */,
 				D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */,
+				C4468985A7D42FCA94C8EF75 /* WindowMoveChrome.swift in Sources */,
 				4CC68B6A2EF49FB06FE2D6E1 /* WindowOrganize.swift in Sources */,
 				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
 				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,
@@ -660,6 +667,7 @@
 				8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */,
 				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
+				68AAC6FA693112B8729E97B3 /* WindowMoveChromeTests.swift in Sources */,
 				0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */,
 				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
 				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,

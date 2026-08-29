@@ -1048,11 +1048,11 @@ sequenceDiagram
 
 **Move vs resize:** leave `mouseDown` only when mouse translation ≥ 4 pt **or** AX origin moved ≥ 2 pt. Enter **`resizing`** (not `dragging`) if AX **size** differs by > 2 pt from the down-frame. `resizing` never arms, never shows overlay, never snaps. FancyZones snaps on **move**, not resize.
 
-**Arming:** Shift while `dragging`, or `.rightMouseDown` during an existing left-drag (`NSEvent.type == .rightMouseDown`, **not** `.otherMouseDown`). Shift up while armed → hide overlay, drop will not snap.
+**Arming:** Shift while `dragging`, or `.rightMouseDown` during an existing left-drag (`NSEvent.type == .rightMouseDown`, **not** `.otherMouseDown`). The press must start on window-move chrome (title bar / title-bar toolbar). Content-area drags never arm, even with Shift, right-click, or shake. Shift up while armed → hide overlay, drop will not snap.
 
 **Overlay screen:** resolve layouts + show overlay for **the `WorkArea` containing the cursor** (`NSMouseInRect` / `NSScreen` hit). Window center is a fallback **only** if there is no cursor event. Cross-monitor drag is a required `SnapEngineTests` case: cursor on screen B, window center on A → overlay and hit-test use B.
 
-**Unsnap-on-drag (state machine, not just prose):** on **`leftUp` only**, if phase was `dragging` (never armed), `restoreSizeOnUnsnap`, a record exists, and chebyshev translation of the **cursor** from down-point is ≥ 30 pt → `setFrame(originalFrameAX)` clamped to **current** work areas (the original display may be gone). Never `setFrame` mid-drag. A 30 pt nudge the user meant as a small move will restore — accepted v1 tradeoff; hotkey unsnap remains available.
+**Unsnap-on-drag (state machine, not just prose):** on **`leftUp` only**, if phase was `dragging` (never armed), the press started on move chrome, `restoreSizeOnUnsnap`, a record exists, and chebyshev translation of the **cursor** from down-point is ≥ 30 pt → `setFrame(originalFrameAX)` clamped to **current** work areas (the original display may be gone). Never `setFrame` mid-drag. A 30 pt nudge the user meant as a small move will restore — accepted v1 tradeoff; hotkey unsnap remains available.
 
 **Our windows:** ignore if owner PID is us or `NSApp.window(withWindowNumber:)` is ours. **Editor open:** `AppRuntime.isEditorOpen == true` (set by the editor in PR 8; declared in PR 1). `DragMonitor` (PR 6) returns immediately when that flag is true; snap overlays `orderOut`. The editor PR does **not** edit `DragMonitor.swift`.
 

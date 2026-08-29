@@ -17,6 +17,7 @@ final class SnapEngine {
 
     /// Overlay digit 1...9; hover must not replace it until mouse-up.
     private var lockedTarget: SnapTarget?
+    private var startedOnMoveChrome = false
 
     unowned var runtime: AppRuntime!
 
@@ -37,12 +38,13 @@ final class SnapEngine {
         let cursorArea = runtime.displays.area(containingAppKit: event.locationAppKit)
         let zones = runtime.resolvedZones(for: cursorArea)
         lastZones = zones
-        let window = activeWindow ?? runtime.pendingWindow?.identity
+        let window = activeWindow ?? runtime.pendingWindow?.identity ?? runtime.pendingIdentity
         if event.kind == .leftDown {
             pointerTrace = [event.locationAppKit]
             stickyArm = false
             armOrigin = nil
             lockedTarget = nil
+            startedOnMoveChrome = runtime.pendingStartedOnMoveChrome
         } else if event.kind == .leftDragged {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
@@ -78,12 +80,13 @@ final class SnapEngine {
             gridWorkAreaAX: grid.workAreaAX,
             magneticResizeEnabled: runtime.settings.magneticResizeEnabled,
             magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints),
-            lockedTarget: lockedTarget
+            lockedTarget: lockedTarget,
+            startedOnMoveChrome: startedOnMoveChrome
         )
         if event.kind == .leftDown {
             downLocation = event.locationAppKit
             downFrame = runtime.pendingFrame
-            activeWindow = runtime.pendingWindow?.identity
+            activeWindow = runtime.pendingWindow?.identity ?? runtime.pendingIdentity
         }
         let output = SnapSessionReducer.reduce(input)
         if isArmed(output.phase) {
@@ -109,7 +112,10 @@ final class SnapEngine {
             armOrigin = nil
             lockedTarget = nil
             runtime.pendingWindow = nil
+            runtime.pendingIdentity = nil
             runtime.pendingFrame = nil
+            runtime.pendingStartedOnMoveChrome = false
+            startedOnMoveChrome = false
         }
     }
 
@@ -307,6 +313,11 @@ final class SnapEngine {
         if isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
         }
+        runtime.pendingWindow = nil
+        runtime.pendingIdentity = nil
+        runtime.pendingFrame = nil
+        runtime.pendingStartedOnMoveChrome = false
+        startedOnMoveChrome = false
     }
 
     private func isArmed(_ phase: SnapSessionPhase) -> Bool {

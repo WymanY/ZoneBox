@@ -60,6 +60,87 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
     }
 
+    func testShiftArmsFromMouseDownAfterCursorHasMoved() {
+        var input = base(phase: .mouseDown(window, originAX: frame), kind: .flagsChanged)
+        input.event.modifiers = [.shift]
+        input.event.locationAppKit = CGPoint(x: 24, y: 0)
+        input.downLocationAppKit = .zero
+        input.workAreas = [sampleWorkArea()]
+        input.resolvedZones = [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 700, height: 900)),
+        ]
+        input.primaryFlipHeight = 900
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testSmallChromeSizeJitterDoesNotCountAsResize() {
+        var input = base(phase: .mouseDown(window, originAX: frame), kind: .leftDragged)
+        input.downFrameAX = frame
+        input.currentFrameAX = CGRect(x: 10, y: 10, width: 406, height: 304)
+        input.event.modifiers = [.shift]
+        input.event.locationAppKit = CGPoint(x: 40, y: 0)
+        input.workAreas = [sampleWorkArea()]
+        input.resolvedZones = [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 700, height: 900)),
+        ]
+        input.primaryFlipHeight = 900
+        XCTAssertNotEqual(SnapSessionReducer.reduce(input).phase, .resizing)
+    }
+
+    func testContentAreaShiftDragDoesNotArmOverlay() {
+        var input = base(phase: .dragging(window), kind: .leftDragged)
+        input.startedOnMoveChrome = false
+        input.event.modifiers = [.shift]
+        input.event.locationAppKit = CGPoint(x: 100, y: 100)
+        input.workAreas = [sampleWorkArea()]
+        input.resolvedZones = [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 700, height: 900)),
+        ]
+        input.primaryFlipHeight = 900
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .dragging(window))
+        XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testContentAreaShakeDoesNotArmOverlay() {
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftDragged)
+        input.startedOnMoveChrome = false
+        input.pointerTrace = ShakeDetectorTests.shakeTrace()
+        input.shakeToSnapEnabled = true
+        input.event.modifiers = []
+        input.event.locationAppKit = ShakeDetectorTests.shakeTrace().last!
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .dragging(window))
+        XCTAssertFalse(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+    }
+
+    func testContentAreaRightClickDoesNotArmOverlay() {
+        var input = armedReadyInput(phase: .dragging(window), kind: .rightDown)
+        input.startedOnMoveChrome = false
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .dragging(window))
+        XCTAssertEqual(out.effects, [])
+    }
+
+    func testContentAreaUnarmedDragDoesNotRestoreSnappedSize() {
+        let record = UnsnapRecord(
+            identity: window,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: frame,
+            zoneIDs: [UUID()]
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftUp)
+        input.startedOnMoveChrome = false
+        input.restoreSizeOnUnsnap = true
+        input.unsnapRecord = record
+        input.downLocationAppKit = .zero
+        input.event.locationAppKit = CGPoint(x: 80, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+    }
+
     func testShiftReleaseKeepsHighlightedZoneWhenSticky() {
         let zone = ResolvedZone(
             zoneID: UUID(),
