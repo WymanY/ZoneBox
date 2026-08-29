@@ -72,7 +72,8 @@ public enum SnapSessionReducer {
         case .resizing:
             return reduceResizeUp(input)
         case .dragging(let window):
-            if input.restoreSizeOnUnsnap,
+            if input.startedOnMoveChrome,
+               input.restoreSizeOnUnsnap,
                let record = input.unsnapRecord,
                let down = input.downLocationAppKit,
                RectMath.chebyshev(input.event.locationAppKit, down) >= 30 {
@@ -115,7 +116,7 @@ public enum SnapSessionReducer {
 
     private static func reduceArm(_ input: SnapReducerInput, sticky: Bool) -> SnapReducerOutput {
         _ = sticky
-        guard input.snapOnRightClickDrag else {
+        guard input.snapOnRightClickDrag, input.startedOnMoveChrome else {
             return SnapReducerOutput(phase: input.phase, effects: [])
         }
         switch input.phase {
@@ -131,7 +132,10 @@ public enum SnapSessionReducer {
     private static func reduceFlags(_ input: SnapReducerInput) -> SnapReducerOutput {
         let shift = input.event.modifiers.contains(.shift)
         switch input.phase {
-        case .dragging(let window) where shift && input.snapOnShiftDrag:
+        case .mouseDown(let window, let originAX)
+            where shift && input.snapOnShiftDrag && input.startedOnMoveChrome && !isResize(input) && hasMoved(input, originAX: originAX):
+            return arm(window, input: input)
+        case .dragging(let window) where shift && input.snapOnShiftDrag && input.startedOnMoveChrome:
             return arm(window, input: input)
         case .armed, .highlighting:
             if !shift && !input.stickyArm && input.lockedTarget == nil {
@@ -326,7 +330,9 @@ public enum SnapSessionReducer {
 
     private static func isResize(_ input: SnapReducerInput) -> Bool {
         guard let down = input.downFrameAX, let current = input.currentFrameAX else { return false }
-        return RectMath.chebyshevSize(down.size, current.size) > 2
+        // CG vs AX chrome and snap rounding can jitter a few points. A real
+        // resize is a clear size change, not a 2–8 pt shadow/title-bar mismatch.
+        return RectMath.chebyshevSize(down.size, current.size) > 8
     }
 
     private static func hasMoved(_ input: SnapReducerInput, originAX: CGRect) -> Bool {
@@ -346,6 +352,7 @@ public enum SnapSessionReducer {
     }
 
     private static func shouldArm(_ input: SnapReducerInput) -> Bool {
+        guard input.startedOnMoveChrome else { return false }
         if input.snapOnShiftDrag && input.event.modifiers.contains(.shift) {
             return true
         }

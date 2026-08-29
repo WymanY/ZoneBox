@@ -74,6 +74,10 @@ public struct SnapReducerInput: Equatable, Sendable {
     /// Zone chosen by overlay digit; hover must not replace it.
     public var lockedTarget: SnapTarget?
 
+    /// True when the press started on window-move chrome (title bar).
+    /// Content-area drags must not arm the zone overlay.
+    public var startedOnMoveChrome: Bool
+
     public init(
         phase: SnapSessionPhase,
         event: SnapMouseEvent,
@@ -102,7 +106,8 @@ public struct SnapReducerInput: Equatable, Sendable {
         gridWorkAreaAX: CGRect = .null,
         magneticResizeEnabled: Bool = true,
         magneticThreshold: CGFloat = MagneticResize.defaultThreshold,
-        lockedTarget: SnapTarget? = nil
+        lockedTarget: SnapTarget? = nil,
+        startedOnMoveChrome: Bool = true
     ) {
         self.phase = phase
         self.event = event
@@ -132,6 +137,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.magneticResizeEnabled = magneticResizeEnabled
         self.magneticThreshold = magneticThreshold
         self.lockedTarget = lockedTarget
+        self.startedOnMoveChrome = startedOnMoveChrome
     }
 }
 
