@@ -131,7 +131,7 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         if let index = layouts.firstIndex(where: { $0.id == layout.id }) {
             layouts[index] = layout
         } else {
-            layouts.append(layout)
+            layouts.insert(layout, at: 0)
         }
         assign(layoutID: layout.id, to: displayID)
     }

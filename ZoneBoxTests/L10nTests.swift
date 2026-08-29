@@ -63,6 +63,14 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .chineseSimplified), "没有显示器")
     }
 
+    func testEditorTemplateToolbarCopy() {
+        XCTAssertEqual(L10n.text(.editorFromTemplate, language: .english), "From Template")
+        XCTAssertEqual(L10n.text(.editorFromTemplate, language: .chineseSimplified), "基于模板")
+        XCTAssertEqual(L10n.text(.editorCustomLayout, language: .english), "Custom")
+        XCTAssertEqual(L10n.text(.editorSaveCopy, language: .english), "Save Copy")
+        XCTAssertEqual(L10n.text(.editorSaveCopy, language: .chineseSimplified), "另存副本")
+    }
+
     func testUnchangedCopyWarningLocalized() {
         XCTAssertEqual(
             L10n.text(.editorCopyUnchangedMessage, language: .english),
