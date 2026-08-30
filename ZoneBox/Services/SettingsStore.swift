@@ -4,8 +4,7 @@ public struct SettingsStore: Sendable {
     public let fileURL: URL
 
     public init(directory: URL? = nil) {
-        let root = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.fancyzone.app", isDirectory: true)
+        let root = directory ?? AppIdentity.defaultSupportDirectory
         self.fileURL = root.appendingPathComponent("settings.json")
     }
 

@@ -54,6 +54,7 @@
 		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
 		7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */; };
 		7F23DFA154585AA604CE2EC0 /* ShortcutBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */; };
+		7F883E7B97E6010C2A8C49F7 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7FE0911F56CC8CD3AA4FDBA /* SettingsStoreTests.swift */; };
 		87808C55FDDC7CB7F87CE4A1 /* GridEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */; };
 		89DE65C466B12BA30754A933 /* ShortcutCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */; };
 		8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */; };
@@ -74,6 +75,7 @@
 		BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977E18A00CB22B850795CDAA /* NormalizedRect.swift */; };
 		BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A727A3139F1922D21AA08BFD /* ZoneSplit.swift */; };
 		C08A4BF5CC67A7CEAC675D06 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D5122A337EC77F24071CC7 /* AppDelegate.swift */; };
+		C161D00E490572EA176CC384 /* AppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62292FD18B81A5F1168FDFD /* AppIdentity.swift */; };
 		C4468985A7D42FCA94C8EF75 /* WindowMoveChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */; };
 		C5C75A6F7AAB652A75CF4527 /* HitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2450A6958359F65AFC611957 /* HitTester.swift */; };
 		C6347820CB7380152FEE57FA /* QuickSnapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */; };
@@ -175,6 +177,7 @@
 		B16192ECC49D6E451A8936A8 /* RectMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectMath.swift; sourceTree = "<group>"; };
 		B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoomTests.swift; sourceTree = "<group>"; };
 		B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapTarget.swift; sourceTree = "<group>"; };
+		B7FE0911F56CC8CD3AA4FDBA /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		B9EAE7A248496492835F307F /* GridCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCoverage.swift; sourceTree = "<group>"; };
 		BA9D165C2B155D2E12A803AB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
@@ -189,6 +192,7 @@
 		DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanel.swift; sourceTree = "<group>"; };
 		E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShakeDetector.swift; sourceTree = "<group>"; };
 		E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapMouseEvent.swift; sourceTree = "<group>"; };
+		E62292FD18B81A5F1168FDFD /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
 		E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransaction.swift; sourceTree = "<group>"; };
 		E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoom.swift; sourceTree = "<group>"; };
 		F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizeFeedbackController.swift; sourceTree = "<group>"; };
@@ -256,6 +260,7 @@
 		1AA399626E846F66CD09BF3C /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				E62292FD18B81A5F1168FDFD /* AppIdentity.swift */,
 				9118B8805E80F4D1DA3FC84D /* AppSettings.swift */,
 				0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */,
 				BA9D165C2B155D2E12A803AB /* L10n.swift */,
@@ -403,6 +408,7 @@
 				417A2EC9036C59A559CA8C33 /* MagneticResizeTests.swift */,
 				A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */,
 				A4ED48EADD1D174472389480 /* ScaffoldTests.swift */,
+				B7FE0911F56CC8CD3AA4FDBA /* SettingsStoreTests.swift */,
 				4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */,
 				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
@@ -623,6 +629,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C161D00E490572EA176CC384 /* AppIdentity.swift in Sources */,
 				5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */,
 				0AE7E89A6887FED40C2DD84A /* CoordinateConverter.swift in Sources */,
 				7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */,
@@ -679,6 +686,7 @@
 				E78BF40426FF7526FEA2C369 /* MagneticResizeTests.swift in Sources */,
 				C6347820CB7380152FEE57FA /* QuickSnapperTests.swift in Sources */,
 				40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */,
+				7F883E7B97E6010C2A8C49F7 /* SettingsStoreTests.swift in Sources */,
 				8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */,
 				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,

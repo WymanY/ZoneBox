@@ -2,6 +2,12 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class LayoutStoreTests: XCTestCase {
+    func testDefaultDirectoryFollowsAppIdentity() {
+        let store = LayoutStore()
+        XCTAssertEqual(store.fileURL.deletingLastPathComponent().lastPathComponent, AppIdentity.bundleID)
+        XCTAssertEqual(store.fileURL.lastPathComponent, "store.json")
+    }
+
     func testRoundTrip() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = LayoutStore(directory: dir)

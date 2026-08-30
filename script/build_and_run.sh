@@ -10,7 +10,16 @@ DERIVED_DATA="$ROOT_DIR/.build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+stop_debug_app() {
+  local pids
+  pids="$(pgrep -f "$APP_BINARY" || true)"
+  if [[ -n "$pids" ]]; then
+    # shellcheck disable=SC2086
+    kill $pids >/dev/null 2>&1 || true
+  fi
+}
+
+stop_debug_app
 
 xcodebuild \
   -project "$ROOT_DIR/ZoneBox.xcodeproj" \
@@ -42,7 +51,7 @@ case "$MODE" in
   --verify|verify)
     open_app
     sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    pgrep -f "$APP_BINARY" >/dev/null
     ;;
   *)
     echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
