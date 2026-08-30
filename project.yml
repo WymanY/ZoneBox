@@ -61,6 +61,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fancyzone.app
         PRODUCT_NAME: ZoneBox
+        APP_DISPLAY_NAME: ZoneBox
         INFOPLIST_FILE: ZoneBox/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: ZoneBox/ZoneBox.entitlements
@@ -70,6 +71,10 @@ targets:
         # Xcode 16+/26 Debug otherwise splits main into ZoneBox.debug.dylib;
         # launching outside the debugger never reaches AppDelegate.
         ENABLE_DEBUG_DYLIB: NO
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.fancyzone.app.debug
+          APP_DISPLAY_NAME: "ZoneBox Debug"
   ZoneBoxTests:
     type: bundle.unit-test
     platform: macOS

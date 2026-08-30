@@ -537,6 +537,7 @@ final class LayoutEditorController: NSObject {
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.buttons.first?.hasDestructiveAction = true
         guard let panel else { return }
         alert.beginSheetModal(for: panel) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }

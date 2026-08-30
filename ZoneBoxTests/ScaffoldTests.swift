@@ -3,7 +3,11 @@ import XCTest
 
 final class ScaffoldTests: XCTestCase {
     func testCoreLoggerSubsystem() {
+        #if DEBUG
+        XCTAssertEqual(Log.subsystem, "com.fancyzone.app.debug")
+        #else
         XCTAssertEqual(Log.subsystem, "com.fancyzone.app")
+        #endif
     }
 
     func testFakeScreenStoresFrames() {

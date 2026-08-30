@@ -61,6 +61,10 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.consoleNew, language: .chineseSimplified), "新建布局")
         XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .english), "No display")
         XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .chineseSimplified), "没有显示器")
+        XCTAssertEqual(L10n.text(.consoleCurrentDisplay, language: .english), "Current Display")
+        XCTAssertEqual(L10n.text(.consoleCurrentDisplay, language: .chineseSimplified), "当前显示器")
+        XCTAssertEqual(L10n.text(.consoleOtherLayouts, language: .english), "Other Layouts")
+        XCTAssertEqual(L10n.text(.consoleOtherLayouts, language: .chineseSimplified), "其他布局")
     }
 
     func testEditorTemplateToolbarCopy() {
