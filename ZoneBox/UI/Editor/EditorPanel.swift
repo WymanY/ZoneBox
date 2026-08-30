@@ -29,12 +29,22 @@ final class EditorPanel: NSPanel {
         }
     }
 
+    var onUndo: (() -> Void)?
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
         if ShortcutCatalog.editorSaveChord.matches(
             keyCode: event.keyCode,
-            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+            carbonModifiers: modifiers
         ) {
             onSaveCopy?()
+            return true
+        }
+        if ShortcutCatalog.isEditorUndoChord(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onUndo?()
             return true
         }
         return super.performKeyEquivalent(with: event)

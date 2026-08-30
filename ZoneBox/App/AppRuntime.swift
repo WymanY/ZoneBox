@@ -206,10 +206,19 @@ final class AppRuntime {
         return editor?.owns(key) == true
     }
 
+    var isEditorEditingMetrics: Bool { editor?.isEditingMetrics == true }
+
     @discardableResult
     func handleEditorKey(_ event: NSEvent) -> Bool {
+        if editor?.isEditingMetrics == true { return false }
         let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
         if ShortcutCatalog.editorSaveChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
+        if ShortcutCatalog.isEditorUndoChord(
             keyCode: event.keyCode,
             carbonModifiers: modifiers
         ) {

@@ -197,6 +197,9 @@ final class HotkeyCenter {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         if event.keyCode == HardwareKeyCode.escape, !flags.contains(.command), !flags.contains(.control) {
+            if consume, runtime.isEditorEditingMetrics {
+                return event
+            }
             if consume {
                 return handleEscape(event, consume: true)
             }
@@ -237,6 +240,9 @@ final class HotkeyCenter {
         if consume, runtime.editorClaimsKeyboard {
             if event.isARepeat,
                ShortcutCatalog.editorSaveChord.matches(
+                   keyCode: event.keyCode,
+                   carbonModifiers: modifiers
+               ) || ShortcutCatalog.isEditorUndoChord(
                    keyCode: event.keyCode,
                    carbonModifiers: modifiers
                )

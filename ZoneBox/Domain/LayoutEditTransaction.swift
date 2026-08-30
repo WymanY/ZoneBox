@@ -6,6 +6,7 @@ public struct LayoutEditTransaction: Sendable {
     public let baseline: Layout
     public let targetDisplayID: DisplayIdentity.ID
     public private(set) var draft: Layout
+    private var undoStack: [Layout] = []
 
     public init(original: Layout?, draft: Layout, targetDisplayID: DisplayIdentity.ID) {
         self.original = original
@@ -25,7 +26,36 @@ public struct LayoutEditTransaction: Sendable {
     }
 
     public mutating func updateDraft(_ layout: Layout) {
+        recordUndoIfNeeded(layout)
         draft = layout
+    }
+
+    public mutating func replaceDraftWithoutRecording(_ layout: Layout) {
+        draft = layout
+    }
+
+    public var canUndo: Bool { !undoStack.isEmpty }
+
+    @discardableResult
+    public mutating func undo() -> Layout? {
+        guard let previous = undoStack.popLast() else { return nil }
+        draft = previous
+        return previous
+    }
+
+    private mutating func recordUndoIfNeeded(_ layout: Layout) {
+        guard !Self.sameEditingState(layout, draft) else { return }
+        if let last = undoStack.last, Self.sameEditingState(last, draft) { return }
+        undoStack.append(draft)
+        if undoStack.count > 50 {
+            undoStack.removeFirst(undoStack.count - 50)
+        }
+    }
+
+    static func sameEditingState(_ lhs: Layout, _ rhs: Layout) -> Bool {
+        lhs.kind == rhs.kind
+            && lhs.zones == rhs.zones
+            && lhs.grid == rhs.grid
     }
 
     public func suggestedCopyName(sourceName: String? = nil, existingNames: [String]) -> String {

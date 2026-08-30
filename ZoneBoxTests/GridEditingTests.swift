@@ -182,13 +182,19 @@ final class GridEditingTests: XCTestCase {
         XCTAssertEqual(layout.grid?.cellMap, [[0, 1], [0, 2]])
     }
 
-    func testDeleteMergesIntoNeighborWithoutHoles() throws {
-        let start = LayoutTemplates.columns(3)
-        let deleted = try XCTUnwrap(GridEditing.deleteZone(start, id: start.zones[1].id))
-        XCTAssertEqual(deleted.zones.count, 2)
-        try XCTUnwrap(deleted.grid).validated(zoneCount: 2)
-        try assertTilesWorkArea(deleted, workArea: small)
-        XCTAssertNil(GridEditing.deleteZone(GridEditing.empty(), id: GridEditing.empty().zones[0].id))
+    func testMergeAdjacentPriorityCellsKeepsTheTallColumn() throws {
+        let start = LayoutTemplates.priority3()
+        XCTAssertEqual(start.grid?.cellMap, [[0, 1], [0, 2]])
+        let merged = try XCTUnwrap(GridEditing.merge(start, zoneIDs: [start.zones[1].id, start.zones[2].id]))
+        XCTAssertEqual(merged.zones.count, 2)
+        XCTAssertEqual(merged.grid?.cellMap, [[0, 1]])
+        try XCTUnwrap(merged.grid).validated(zoneCount: 2)
+        try assertTilesWorkArea(merged, workArea: small)
+        XCTAssertTrue(merged.zones.contains(where: { $0.id == start.zones[0].id }))
+        XCTAssertTrue(
+            merged.zones.contains(where: { $0.id == start.zones[1].id })
+                || merged.zones.contains(where: { $0.id == start.zones[2].id })
+        )
     }
 
     func testCanvasRoundTripKeepsColumnGeometry() throws {
@@ -216,6 +222,38 @@ final class GridEditingTests: XCTestCase {
         layout = try XCTUnwrap(GridEditing.split(layout, normalizedX: 0.7, normalizedY: 0.4, axis: .horizontal))
         try assertTilesWorkArea(layout, workArea: small)
         try assertTilesWorkArea(layout, workArea: large)
+    }
+
+    func testResizingZoneMovesSharedVerticalLine() throws {
+        let start = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
+        let leftID = try XCTUnwrap(start.zones.first?.id)
+        let resized = try XCTUnwrap(
+            GridEditing.resizingZone(
+                start,
+                id: leftID,
+                toWidth: 300,
+                height: nil,
+                workAreaAX: small,
+                lockAspect: false
+            )
+        )
+        let spec = try XCTUnwrap(resized.grid)
+        XCTAssertEqual(spec.columnWeights[0], 3_000)
+        XCTAssertEqual(spec.columnWeights[1], 7_000)
+        try assertTilesWorkArea(resized, workArea: small)
+    }
+
+    func testResolvedGutterLeavesOuterEdgesFlush() throws {
+        let layout = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
+        let resolved = try resolveLayout(layout, workAreaAX: small, gutter: 16)
+        XCTAssertEqual(resolved.count, 2)
+        let left = try XCTUnwrap(resolved.min(by: { $0.frameAX.minX < $1.frameAX.minX }))
+        let right = try XCTUnwrap(resolved.max(by: { $0.frameAX.maxX < $1.frameAX.maxX }))
+        XCTAssertEqual(left.frameAX.minX, small.minX, accuracy: 0.6)
+        XCTAssertEqual(right.frameAX.maxX, small.maxX, accuracy: 0.6)
+        XCTAssertEqual(left.frameAX.minY, small.minY, accuracy: 0.6)
+        XCTAssertEqual(right.frameAX.maxY, small.maxY, accuracy: 0.6)
+        XCTAssertEqual(right.frameAX.minX - left.frameAX.maxX, 16, accuracy: 0.6)
     }
 
     private func assertTilesWorkArea(_ layout: Layout, workArea: CGRect) throws {
