@@ -33,6 +33,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var numbersSwitch: NSSwitch?
     private var restoreSwitch: NSSwitch?
     private var gutterLabel: NSTextField?
+    private var gutterSlider: NSSlider?
     private var hotkeysLabel: NSTextField?
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
@@ -417,8 +418,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let slider = NSSlider(value: Double(runtime.settings.gutterPoints), minValue: 0, maxValue: 40, target: self, action: #selector(gutterChanged(_:)))
         slider.controlSize = .small
         slider.isContinuous = true
-        slider.setAccessibilityLabel(L10n.text(.settingsGutter))
         slider.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        gutterSlider = slider
+        applyGutterAccessibility()
 
         let icon = SettingsRowIconView(
             symbolName: availableSymbol("arrow.left.and.right.square", fallback: "rectangle.split.2x1"),
@@ -740,7 +742,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         imageView.setAccessibilityLabel(L10n.text(selectedCategory.previewTitleKey))
     }
 
-    private func refreshAccessStatus() {
+    func refreshAccessStatus() {
         let trusted = runtime.trust.isTrusted()
         accessStatusIcon?.image = NSImage(
             systemSymbolName: trusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
@@ -771,7 +773,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
         shakeIntensitySlider?.setAccessibilityLabel(L10n.text(.settingsShakeIntensityHint))
-        gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
+        applyGutterAccessibility()
         if let popup = languagePopup {
             popup.removeAllItems()
             popup.addItems(withTitles: Self.languageTitles())
@@ -963,8 +965,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     @objc private func gutterChanged(_ sender: NSSlider) {
         runtime.settings.gutterPoints = Int(sender.doubleValue.rounded())
-        gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
+        applyGutterAccessibility()
         runtime.persistSettings()
+    }
+
+    private func applyGutterAccessibility() {
+        let value = L10n.gutter(runtime.settings.gutterPoints)
+        gutterLabel?.stringValue = value
+        gutterSlider?.setAccessibilityLabel(value)
+        gutterSlider?.setAccessibilityValue(value)
     }
 
     @objc private func toggleLogin(_ sender: NSSwitch) {
