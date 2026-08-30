@@ -1188,7 +1188,7 @@ Carbon `RegisterEventHotKey` + `InstallEventHandler` for `kEventHotKeyPressed`. 
 | Cycle | Control+Option+[ / ] |
 | Unsnap | Control+Option+U |
 
-1–9 are rebound **as a block** in settings (same modifiers, keys 1–9).
+1–9 are rebound **as a block** in Settings → Keyboard (same modifiers, keys 1–9). Each other global action has its own chord. Recording a shortcut rejects Sequoia-illegal chords, duplicates, and reserved system shortcuts, then re-registers immediately.
 
 **VoiceOver:** `NSWorkspace.shared.isVoiceOverEnabled`. While true, **do not register** Control+Option chords (VO modifier **is** Control+Option: `VO-Left/Right` move the VO cursor, `VO-U` Window Chooser, `VO-Z` undo, `VO-1…9` number commands). `CopySymbolicHotKeys` does **not** cover VO. Status item: “Hotkeys paused — VoiceOver on.” Settings copy documents the conflict and offers Control+Shift as an alternative (Sequoia-legal).
 

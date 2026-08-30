@@ -42,27 +42,19 @@ final class MenuBarController: NSObject {
     func updateTrustAppearance() {
         guard let button = statusItem?.button else { return }
         let warning = runtime.trust.showsMenuBarWarning()
-        button.image = Self.statusImage(warning: warning, snapEnabled: runtime.snapEnabled)
-        button.alphaValue = warning || runtime.snapEnabled ? 1 : 0.45
-        button.contentTintColor = warning ? .systemOrange : (runtime.snapEnabled ? nil : .secondaryLabelColor)
+        button.image = Self.statusImage(warning: warning)
+        button.alphaValue = 1
+        button.contentTintColor = warning ? .systemOrange : nil
         button.toolTip = L10n.text(warning ? .statusTooltipNeedsAccess : .statusTooltip)
     }
 
-    private static func statusImage(warning: Bool, snapEnabled: Bool = true) -> NSImage? {
+    private static func statusImage(warning: Bool) -> NSImage? {
         if warning {
             let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
             let image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "ZoneBox")?
                 .withSymbolConfiguration(config)
             image?.isTemplate = true
             return image
-        }
-
-        if !snapEnabled {
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            let image = NSImage(systemSymbolName: "rectangle.split.3x1.slash", accessibilityDescription: "ZoneBox")?
-                .withSymbolConfiguration(config)
-            image?.isTemplate = true
-            if image != nil { return image }
         }
 
         let image = (NSImage(named: "MenuBarIcon")?.copy() as? NSImage)
@@ -86,6 +78,8 @@ final class MenuBarController: NSObject {
         console?.close()
     }
 
+    var isConsoleVisible: Bool { console?.isShown == true }
+
     func reloadMenu() {
         fallbackMenu = makeMenu()
         if usesFallbackMenu {
@@ -102,6 +96,24 @@ final class MenuBarController: NSObject {
         NSWorkspace.shared.isVoiceOverEnabled
     }
 
+    private static func menuKeyEquivalent(for chord: KeyChord) -> String? {
+        let glyph = KeyChord.glyph(for: chord.keyCode)
+        if glyph == "•" { return nil }
+        if glyph == "space" { return " " }
+        if glyph.count == 1 { return glyph.lowercased() }
+        return nil
+    }
+
+    private static func menuModifierMask(for chord: KeyChord) -> NSEvent.ModifierFlags? {
+        let mods = chord.carbonModifiers & KeyChord.modifierMask
+        var flags: NSEvent.ModifierFlags = []
+        if mods & CarbonModifier.command != 0 { flags.insert(.command) }
+        if mods & CarbonModifier.shift != 0 { flags.insert(.shift) }
+        if mods & CarbonModifier.option != 0 { flags.insert(.option) }
+        if mods & CarbonModifier.control != 0 { flags.insert(.control) }
+        return flags.isEmpty ? nil : flags
+    }
+
     @objc
     private func statusItemClicked(_ sender: Any?) {
         guard let item = statusItem, let button = item.button else { return }
@@ -111,11 +123,6 @@ final class MenuBarController: NSObject {
         if isRightClick {
             console?.close()
             showFallbackMenu(from: button)
-            return
-        }
-        if event?.modifierFlags.contains(.option) == true {
-            console?.close()
-            runtime.setSnapEnabled(!runtime.snapEnabled)
             return
         }
         if usesFallbackMenu {
@@ -138,18 +145,33 @@ final class MenuBarController: NSObject {
         let settings = NSMenuItem(
             title: L10n.text(.menuSettings),
             action: #selector(openSettings(_:)),
-            keyEquivalent: ","
+            keyEquivalent: Self.menuKeyEquivalent(for: runtime.settings.settingsHotkey) ?? ""
         )
+        let settingsPaused = ShortcutVoiceOverPolicy.shouldPause(
+            chord: runtime.settings.settingsHotkey,
+            voiceOverEnabled: voiceOver
+        )
+        if settingsPaused {
+            settings.keyEquivalent = ""
+        } else if let mask = Self.menuModifierMask(for: runtime.settings.settingsHotkey) {
+            settings.keyEquivalentModifierMask = mask
+        }
         settings.target = self
         appMenu.addItem(settings)
 
         let shortcuts = NSMenuItem(
             title: L10n.text(.menuKeyboardShortcuts),
             action: #selector(openShortcuts(_:)),
-            keyEquivalent: voiceOver ? "" : "/"
+            keyEquivalent: Self.menuKeyEquivalent(for: runtime.settings.shortcutsPanelHotkey) ?? ""
         )
-        if !voiceOver {
-            shortcuts.keyEquivalentModifierMask = [.control, .option]
+        let paused = ShortcutVoiceOverPolicy.shouldPause(
+            chord: runtime.settings.shortcutsPanelHotkey,
+            voiceOverEnabled: voiceOver
+        )
+        if paused {
+            shortcuts.keyEquivalent = ""
+        } else if let mask = Self.menuModifierMask(for: runtime.settings.shortcutsPanelHotkey) {
+            shortcuts.keyEquivalentModifierMask = mask
         }
         shortcuts.target = self
         appMenu.addItem(shortcuts)
@@ -185,11 +207,6 @@ final class MenuBarController: NSObject {
             menu.addItem(.separator())
         }
 
-        let snap = NSMenuItem(title: L10n.text(.menuSnapEnabled), action: #selector(toggleSnapEnabled(_:)), keyEquivalent: "")
-        snap.target = self
-        snap.state = runtime.snapEnabled ? .on : .off
-        menu.addItem(snap)
-
         if NSWorkspace.shared.isVoiceOverEnabled {
             let vo = NSMenuItem(title: L10n.text(.menuHotkeysPausedVO), action: nil, keyEquivalent: "")
             vo.isEnabled = false
@@ -198,10 +215,12 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        let organize = NSMenuItem(title: L10n.text(.menuOrganizeWindows), action: #selector(organizeWindows(_:)), keyEquivalent: "")
-        organize.target = self
-        organize.isEnabled = !runtime.isOrganizingWindows
-        menu.addItem(organize)
+        if WindowOrganize.isPubliclyAvailable {
+            let organize = NSMenuItem(title: L10n.text(.menuOrganizeWindows), action: #selector(organizeWindows(_:)), keyEquivalent: "")
+            organize.target = self
+            organize.isEnabled = !runtime.isOrganizingWindows
+            menu.addItem(organize)
+        }
 
         let editor = NSMenuItem(title: L10n.text(.menuOpenEditor), action: #selector(openEditor(_:)), keyEquivalent: "")
         editor.target = self
@@ -303,11 +322,6 @@ final class MenuBarController: NSObject {
               let preference = AppLanguagePreference(rawValue: raw)
         else { return }
         runtime.setUILanguage(preference)
-    }
-
-    @objc
-    private func toggleSnapEnabled(_ sender: NSMenuItem) {
-        runtime.setSnapEnabled(!runtime.snapEnabled)
     }
 
     @objc

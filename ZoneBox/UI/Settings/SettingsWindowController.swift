@@ -12,7 +12,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var snappingHeader: NSTextField?
     private var overlayHeader: NSTextField?
     private var keyboardHeader: NSTextField?
-    private var snapCheckbox: NSButton?
     private var shiftCheckbox: NSButton?
     private var rightCheckbox: NSButton?
     private var shakeCheckbox: NSButton?
@@ -32,6 +31,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var loginSwitch: NSSwitch?
     private var languageLabel: NSTextField?
     private var languagePopup: NSPopUpButton?
+    private var hotkeyList: NSStackView?
+    private var hotkeyErrorLabel: NSTextField?
+    private var resetAllButton: NSButton?
+    private var recordingID: ShortcutCustomizationID?
+    private var localKeyMonitor: Any?
 
     init(runtime: AppRuntime) {
         self.runtime = runtime
@@ -40,26 +44,48 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func showWindow() {
         if window == nil { window = makeWindow() }
-        window?.level = runtime.isEditorOpen
-            ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 3)
-            : .normal
+        applyPresentation()
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func applyPresentation() {
+        guard let window else { return }
+        applyPresentation(to: window)
+    }
+
+    private func applyPresentation(to window: NSWindow) {
+        window.hidesOnDeactivate = false
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)) + 1)
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     }
 
     func close() {
         window?.close()
     }
 
+    var isKey: Bool { window?.isKeyWindow == true }
+    var isRecordingHotkey: Bool { recordingID != nil }
+
+    @discardableResult
+    func cancelHotkeyRecording() -> Bool {
+        guard recordingID != nil else { return false }
+        stopRecording()
+        reloadHotkeyRows()
+        return true
+    }
+
     func windowWillClose(_ notification: Notification) {
+        stopRecording()
         window = nil
         runtime.settingsDidClose()
     }
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 680),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 760),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -70,6 +96,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.center()
+        window.minSize = NSSize(width: 520, height: 560)
+        applyPresentation(to: window)
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -99,22 +127,19 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             tint: .systemPurple,
             header: &snappingHeader
         )
-        snapCheckbox = checkbox(L10n.text(.settingsEnableSnapping), runtime.settings.snapEnabled, #selector(toggleSnap))
-        snapCheckbox?.font = .systemFont(ofSize: 13, weight: .medium)
         shiftCheckbox = checkbox(L10n.text(.settingsShiftDrag), runtime.settings.snapOnShiftDrag, #selector(toggleShift))
         rightCheckbox = checkbox(L10n.text(.settingsRightClick), runtime.settings.snapOnRightClickDrag, #selector(toggleRight))
         shakeCheckbox = checkbox(L10n.text(.settingsShakeToSnap), runtime.settings.shakeToSnapEnabled, #selector(toggleShake))
         magneticCheckbox = checkbox(L10n.text(.settingsMagneticResize), runtime.settings.magneticResizeEnabled, #selector(toggleMagnetic))
         restoreCheckbox = checkbox(L10n.text(.settingsRestoreSize), runtime.settings.restoreSizeOnUnsnap, #selector(toggleRestore))
         quickSnapperCheckbox = checkbox(L10n.text(.settingsQuickSnapper), runtime.settings.quickSnapperEnabled, #selector(toggleQuickSnapper))
-        addSectionContent(snapCheckbox!, to: snapping)
-        addSectionContent(shiftCheckbox!, to: snapping, additionalLeading: 20)
-        addSectionContent(rightCheckbox!, to: snapping, additionalLeading: 20)
-        addSectionContent(shakeCheckbox!, to: snapping, additionalLeading: 20)
-        addSectionContent(makeShakeControls(), to: snapping, additionalLeading: 20)
-        addSectionContent(magneticCheckbox!, to: snapping, additionalLeading: 20)
-        addSectionContent(restoreCheckbox!, to: snapping, additionalLeading: 20)
-        addSectionContent(quickSnapperCheckbox!, to: snapping, additionalLeading: 20)
+        addSectionContent(shiftCheckbox!, to: snapping)
+        addSectionContent(rightCheckbox!, to: snapping)
+        addSectionContent(shakeCheckbox!, to: snapping)
+        addSectionContent(makeShakeControls(), to: snapping)
+        addSectionContent(magneticCheckbox!, to: snapping)
+        addSectionContent(restoreCheckbox!, to: snapping)
+        addSectionContent(quickSnapperCheckbox!, to: snapping)
         addSection(snapping, to: stack, separated: true)
 
         let overlay = makeSection(
@@ -134,12 +159,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             tint: .systemOrange,
             header: &keyboardHeader
         )
-        let hotkeys = NSTextField(wrappingLabelWithString: L10n.text(.settingsHotkeys))
+        let hotkeys = NSTextField(wrappingLabelWithString: L10n.text(.settingsHotkeyCaptureHint))
         hotkeys.textColor = .secondaryLabelColor
         hotkeys.font = .systemFont(ofSize: 12)
         hotkeys.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         self.hotkeysLabel = hotkeys
         addSectionContent(makeInfoBox(label: hotkeys), to: keyboard)
+        addSectionContent(makeHotkeyList(), to: keyboard)
+        addSectionContent(makeHotkeyErrorLabel(), to: keyboard)
         addSectionContent(makeActionRow(), to: keyboard)
         addSection(keyboard, to: stack, separated: false)
 
@@ -416,7 +443,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         access.controlSize = .small
         self.accessButton = access
 
-        let row = NSStackView(views: [shortcuts, access])
+        let resetAll = NSButton(
+            title: L10n.text(.settingsResetAllShortcuts),
+            target: self,
+            action: #selector(resetAllShortcuts)
+        )
+        resetAll.bezelStyle = .rounded
+        resetAll.controlSize = .small
+        self.resetAllButton = resetAll
+
+        let row = NSStackView(views: [shortcuts, resetAll, access])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
@@ -424,6 +460,26 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         row.addArrangedSubview(spacer)
         return row
+    }
+
+    private func makeHotkeyList() -> NSView {
+        let list = NSStackView()
+        list.orientation = .vertical
+        list.alignment = .width
+        list.spacing = 6
+        self.hotkeyList = list
+        reloadHotkeyRows()
+        return list
+    }
+
+    private func makeHotkeyErrorLabel() -> NSView {
+        let label = NSTextField(wrappingLabelWithString: "")
+        label.font = .systemFont(ofSize: 11, weight: .medium)
+        label.textColor = .systemRed
+        label.isHidden = true
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        self.hotkeyErrorLabel = label
+        return label
     }
 
     private func checkbox(_ title: String, _ on: Bool, _ selector: Selector) -> NSButton {
@@ -462,7 +518,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         snappingHeader?.stringValue = L10n.text(.settingsSectionSnapping)
         overlayHeader?.stringValue = L10n.text(.settingsSectionOverlay)
         keyboardHeader?.stringValue = L10n.text(.settingsSectionKeyboard)
-        snapCheckbox?.title = L10n.text(.settingsEnableSnapping)
         shiftCheckbox?.title = L10n.text(.settingsShiftDrag)
         rightCheckbox?.title = L10n.text(.settingsRightClick)
         shakeCheckbox?.title = L10n.text(.settingsShakeToSnap)
@@ -473,7 +528,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         numbersCheckbox?.title = L10n.text(.settingsShowNumbers)
         restoreCheckbox?.title = L10n.text(.settingsRestoreSize)
         gutterLabel?.stringValue = L10n.gutter(runtime.settings.gutterPoints)
-        hotkeysLabel?.stringValue = L10n.text(.settingsHotkeys)
+        hotkeysLabel?.stringValue = L10n.text(.settingsHotkeyCaptureHint)
         shortcutsButton?.title = L10n.text(.settingsShowShortcuts)
         accessButton?.title = L10n.text(.settingsOpenAccess)
         loginLabel?.stringValue = L10n.text(.settingsLaunchAtLogin)
@@ -484,6 +539,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             popup.addItems(withTitles: Self.languageTitles())
             popup.selectItem(at: Self.languageIndex(runtime.settings.uiLanguage))
         }
+        resetAllButton?.title = L10n.text(.settingsResetAllShortcuts)
+        reloadHotkeyRows()
     }
 
     private static func languageTitles() -> [String] {
@@ -512,7 +569,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         runtime.setUILanguage(preference)
     }
 
-    @objc private func toggleSnap(_ sender: NSButton) { runtime.setSnapEnabled(sender.state == .on) }
     @objc private func toggleShift(_ sender: NSButton) { runtime.settings.snapOnShiftDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRight(_ sender: NSButton) { runtime.settings.snapOnRightClickDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleShake(_ sender: NSButton) {
@@ -533,6 +589,145 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func toggleRestore(_ sender: NSButton) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func openAccess() { runtime.openAccessibility() }
     @objc private func openShortcuts() { runtime.openShortcutPanel() }
+
+    @objc private func resetAllShortcuts() {
+        stopRecording()
+        runtime.resetAllHotkeys()
+        clearHotkeyError()
+        reloadHotkeyRows()
+    }
+
+    private func reloadHotkeyRows() {
+        guard let list = hotkeyList else { return }
+        for view in list.arrangedSubviews {
+            list.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+        for binding in ShortcutCatalog.customizableBindings(from: runtime.settings) {
+            list.addArrangedSubview(makeHotkeyRow(binding.id, titleKey: binding.titleKey, chord: binding.chord))
+        }
+    }
+
+    private func makeHotkeyRow(_ id: ShortcutCustomizationID, titleKey: L10nKey, chord: KeyChord) -> NSView {
+        let title = NSTextField(labelWithString: L10n.text(titleKey))
+        title.font = .systemFont(ofSize: 13)
+        title.lineBreakMode = .byTruncatingTail
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let record = NSButton(title: recordingTitle(for: id, chord: chord), target: self, action: #selector(beginRecording(_:)))
+        record.bezelStyle = .rounded
+        record.controlSize = .small
+        record.tag = ShortcutCustomizationID.allCases.firstIndex(of: id) ?? 0
+        record.setContentHuggingPriority(.required, for: .horizontal)
+
+        let reset = NSButton(title: L10n.text(.settingsResetShortcut), target: self, action: #selector(resetShortcut(_:)))
+        reset.bezelStyle = .inline
+        reset.controlSize = .small
+        reset.tag = record.tag
+        reset.setContentHuggingPriority(.required, for: .horizontal)
+
+        let row = NSStackView(views: [title, record, reset])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        return row
+    }
+
+    private func recordingTitle(for id: ShortcutCustomizationID, chord: KeyChord) -> String {
+        if recordingID == id {
+            return L10n.text(.settingsHotkeyRecording)
+        }
+        if id == .snapZones {
+            return (Array(chord.displayCaps.dropLast()) + ["1–9"]).joined(separator: " ")
+        }
+        return chord.displayCaps.joined(separator: " ")
+    }
+
+    @objc private func beginRecording(_ sender: NSButton) {
+        guard ShortcutCustomizationID.allCases.indices.contains(sender.tag) else { return }
+        let id = ShortcutCustomizationID.allCases[sender.tag]
+        if recordingID == id {
+            stopRecording()
+            reloadHotkeyRows()
+            return
+        }
+        startRecording(id)
+        reloadHotkeyRows()
+    }
+
+    @objc private func resetShortcut(_ sender: NSButton) {
+        guard ShortcutCustomizationID.allCases.indices.contains(sender.tag) else { return }
+        let id = ShortcutCustomizationID.allCases[sender.tag]
+        stopRecording()
+        if let issue = runtime.resetHotkey(id) {
+            showHotkeyError(issue.message(language: LanguageCenter.language))
+        } else {
+            clearHotkeyError()
+        }
+        reloadHotkeyRows()
+    }
+
+    private func startRecording(_ id: ShortcutCustomizationID) {
+        recordingID = id
+        clearHotkeyError()
+        runtime.setHotkeyRecording(true)
+        if let localKeyMonitor {
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleRecordingEvent(event) ?? event
+        }
+    }
+
+    private func stopRecording() {
+        recordingID = nil
+        if localKeyMonitor != nil {
+            runtime.setHotkeyRecording(false)
+        }
+        if let localKeyMonitor {
+            NSEvent.removeMonitor(localKeyMonitor)
+            self.localKeyMonitor = nil
+        }
+    }
+
+    private func handleRecordingEvent(_ event: NSEvent) -> NSEvent? {
+        guard let id = recordingID else { return event }
+        if event.keyCode == HardwareKeyCode.escape {
+            stopRecording()
+            reloadHotkeyRows()
+            return nil
+        }
+        if event.isARepeat { return nil }
+        let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        guard modifiers != 0 else { return nil }
+        if HardwareKeyCode.isModifierKey(event.keyCode) { return nil }
+        let chord: KeyChord
+        if id == .snapZones {
+            chord = KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: modifiers)
+        } else {
+            chord = KeyChord(keyCode: event.keyCode, carbonModifiers: modifiers)
+        }
+        if let issue = runtime.updateHotkey(id, to: chord) {
+            showHotkeyError(issue.message(language: LanguageCenter.language))
+            return nil
+        }
+        stopRecording()
+        clearHotkeyError()
+        reloadHotkeyRows()
+        return nil
+    }
+
+    private func showHotkeyError(_ message: String) {
+        hotkeyErrorLabel?.stringValue = message
+        hotkeyErrorLabel?.isHidden = false
+    }
+
+    private func clearHotkeyError() {
+        hotkeyErrorLabel?.stringValue = ""
+        hotkeyErrorLabel?.isHidden = true
+    }
 
     @objc private func gutterChanged(_ sender: NSSlider) {
         runtime.settings.gutterPoints = Int(sender.doubleValue.rounded())

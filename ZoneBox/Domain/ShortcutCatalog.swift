@@ -15,10 +15,13 @@ public enum HardwareKeyCode {
     public static let a: UInt16 = 0
     public static let s: UInt16 = 1
     public static let d: UInt16 = 2
+    public static let e: UInt16 = 14
     public static let z: UInt16 = 6
     public static let o: UInt16 = 31
     public static let w: UInt16 = 13
     public static let u: UInt16 = 32
+    public static let h: UInt16 = 4
+    public static let m: UInt16 = 46
     public static let leftBracket: UInt16 = 33
     public static let rightBracket: UInt16 = 30
     public static let slash: UInt16 = 44
@@ -35,11 +38,30 @@ public enum HardwareKeyCode {
     public static let right: UInt16 = 124
     public static let down: UInt16 = 125
     public static let up: UInt16 = 126
+    public static let rightCommand: UInt16 = 54
+    public static let command: UInt16 = 55
+    public static let shift: UInt16 = 56
+    public static let capsLock: UInt16 = 57
+    public static let option: UInt16 = 58
+    public static let control: UInt16 = 59
+    public static let rightShift: UInt16 = 60
+    public static let rightOption: UInt16 = 61
+    public static let rightControl: UInt16 = 62
+    public static let function: UInt16 = 63
 
     public static func isEditorPaneNavigation(_ keyCode: UInt16) -> Bool {
         switch keyCode {
         case a, s, d, w: true
         default: false
+        }
+    }
+
+    public static func isModifierKey(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case rightCommand, command, shift, capsLock, option, control, rightShift, rightOption, rightControl, function:
+            true
+        default:
+            false
         }
     }
 }
@@ -77,18 +99,43 @@ public extension KeyChord {
         case 28: return "8"
         case 25: return "9"
         case 29: return "0"
-        case HardwareKeyCode.s: return "S"
         case HardwareKeyCode.a: return "A"
+        case HardwareKeyCode.s: return "S"
         case HardwareKeyCode.d: return "D"
-        case HardwareKeyCode.w: return "W"
+        case 3: return "F"
+        case 5: return "G"
+        case 4: return "H"
+        case 38: return "J"
+        case 40: return "K"
+        case 37: return "L"
         case HardwareKeyCode.z: return "Z"
-        case HardwareKeyCode.o: return "O"
-        case HardwareKeyCode.u: return "U"
+        case 7: return "X"
+        case 8: return "C"
+        case 9: return "V"
+        case 11: return "B"
+        case 45: return "N"
+        case 46: return "M"
         case HardwareKeyCode.q: return "Q"
+        case HardwareKeyCode.w: return "W"
+        case 14: return "E"
+        case 15: return "R"
+        case 17: return "T"
+        case 16: return "Y"
+        case HardwareKeyCode.u: return "U"
+        case 34: return "I"
+        case HardwareKeyCode.o: return "O"
+        case 35: return "P"
         case HardwareKeyCode.leftBracket: return "["
         case HardwareKeyCode.rightBracket: return "]"
         case HardwareKeyCode.slash: return "/"
         case HardwareKeyCode.comma: return ","
+        case 47: return "."
+        case 42: return "\\"
+        case 41: return ";"
+        case 39: return "'"
+        case 24: return "="
+        case 27: return "-"
+        case 50: return "`"
         case HardwareKeyCode.tab: return "⇥"
         case HardwareKeyCode.escape: return "esc"
         case HardwareKeyCode.delete: return "⌫"
@@ -99,6 +146,18 @@ public extension KeyChord {
         case HardwareKeyCode.right: return "→"
         case HardwareKeyCode.down: return "↓"
         case HardwareKeyCode.up: return "↑"
+        case 122: return "F1"
+        case 120: return "F2"
+        case 99: return "F3"
+        case 118: return "F4"
+        case 96: return "F5"
+        case 97: return "F6"
+        case 98: return "F7"
+        case 100: return "F8"
+        case 101: return "F9"
+        case 109: return "F10"
+        case 103: return "F11"
+        case 111: return "F12"
         default: return "•"
         }
     }
@@ -109,6 +168,20 @@ public extension KeyChord {
         guard mods != 0 else { return false }
         return (mods & (CarbonModifier.control | CarbonModifier.command)) != 0
     }
+}
+
+public enum ShortcutCustomizationID: String, Sendable, CaseIterable, Equatable {
+    case openEditor
+    case previousZone
+    case nextZone
+    case cycleBackward
+    case cycleForward
+    case unsnap
+    case showShortcuts
+    case quickSnapper
+    case organizeWindows
+    case snapZones
+    case openSettings
 }
 
 public enum ShortcutSurface: String, Sendable, CaseIterable, Equatable {
@@ -175,13 +248,14 @@ public enum ShortcutCatalog {
     public static let shortcutsPanelHotkeyID: UInt32 = 106
     public static let quickSnapperHotkeyID: UInt32 = 107
     public static let organizeHotkeyID: UInt32 = 108
+    public static let settingsHotkeyID: UInt32 = 109
     public static let editorSaveChord = KeyChord(
         keyCode: HardwareKeyCode.s,
         carbonModifiers: CarbonModifier.command
     )
 
     /// IDs that must fire even when Accessibility is not granted.
-    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID]
+    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID, settingsHotkeyID]
 
     public static func items(from settings: AppSettings) -> [ShortcutSpec] {
         var items: [ShortcutSpec] = [
@@ -232,27 +306,38 @@ public enum ShortcutCatalog {
                 surface: .global,
                 titleKey: .shortcutShowShortcuts,
                 hotkeyID: shortcutsPanelHotkeyID,
-                binding: .chord(
-                    KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: settings.editorHotkey.carbonModifiers)
-                )
+                binding: .chord(settings.shortcutsPanelHotkey)
             ),
             ShortcutSpec(
                 id: "quickSnapper",
                 surface: .global,
                 titleKey: .shortcutQuickSnapper,
                 hotkeyID: quickSnapperHotkeyID,
-                binding: .chord(
-                    KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: settings.editorHotkey.carbonModifiers)
-                )
-            ),
-            ShortcutSpec(
-                id: "organizeWindows",
-                surface: .global,
-                titleKey: .shortcutOrganizeWindows,
-                hotkeyID: organizeHotkeyID,
-                binding: .chord(settings.organizeHotkey)
+                binding: .chord(settings.quickSnapperHotkey)
             ),
         ]
+
+        if WindowOrganize.isPubliclyAvailable {
+            items.append(
+                ShortcutSpec(
+                    id: "organizeWindows",
+                    surface: .global,
+                    titleKey: .shortcutOrganizeWindows,
+                    hotkeyID: organizeHotkeyID,
+                    binding: .chord(settings.organizeHotkey)
+                )
+            )
+        }
+
+        items.append(
+            ShortcutSpec(
+                id: "openSettings",
+                surface: .global,
+                titleKey: .shortcutSettings,
+                hotkeyID: settingsHotkeyID,
+                binding: .chord(settings.settingsHotkey)
+            )
+        )
 
         if settings.snapZoneHotkeysEnabled {
             for (index, code) in AppSettings.zoneKeyCodes.enumerated() {
@@ -264,7 +349,7 @@ public enum ShortcutCatalog {
                         titleKey: .shortcutSnapZone,
                         titleArgument: number,
                         hotkeyID: UInt32(number),
-                        binding: .chord(KeyChord(keyCode: code, carbonModifiers: settings.editorHotkey.carbonModifiers))
+                        binding: .chord(KeyChord(keyCode: code, carbonModifiers: settings.zoneHotkeyModifiers))
                     )
                 )
             }
@@ -350,12 +435,6 @@ public enum ShortcutCatalog {
                 binding: .gesture(.shortcutGestureMagneticResize)
             ),
             ShortcutSpec(
-                id: "settings",
-                surface: .application,
-                titleKey: .shortcutSettings,
-                binding: .chord(KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command))
-            ),
-            ShortcutSpec(
                 id: "quit",
                 surface: .application,
                 titleKey: .shortcutQuit,
@@ -410,13 +489,124 @@ public enum ShortcutCatalog {
             return group.isEmpty ? nil : (surface, group)
         }
     }
+
+    public static func customizableBindings(from settings: AppSettings) -> [(id: ShortcutCustomizationID, titleKey: L10nKey, chord: KeyChord)] {
+        storedBindings(from: settings).filter { binding in
+            binding.id != .organizeWindows || WindowOrganize.isPubliclyAvailable
+        }
+    }
+
+    private static func storedBindings(from settings: AppSettings) -> [(id: ShortcutCustomizationID, titleKey: L10nKey, chord: KeyChord)] {
+        [
+            (.openEditor, .shortcutOpenEditor, settings.editorHotkey),
+            (.previousZone, .shortcutPreviousZone, settings.previousZoneHotkey),
+            (.nextZone, .shortcutNextZone, settings.nextZoneHotkey),
+            (.cycleBackward, .shortcutCycleBackward, settings.cycleBackwardHotkey),
+            (.cycleForward, .shortcutCycleForward, settings.cycleForwardHotkey),
+            (.unsnap, .shortcutUnsnap, settings.unsnapHotkey),
+            (.showShortcuts, .shortcutShowShortcuts, settings.shortcutsPanelHotkey),
+            (.quickSnapper, .shortcutQuickSnapper, settings.quickSnapperHotkey),
+            (.organizeWindows, .shortcutOrganizeWindows, settings.organizeHotkey),
+            (.openSettings, .shortcutSettings, settings.settingsHotkey),
+            (.snapZones, .shortcutSnapZones, KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: settings.zoneHotkeyModifiers)),
+        ]
+    }
+
+    public static func chord(for id: ShortcutCustomizationID, in settings: AppSettings) -> KeyChord {
+        storedBindings(from: settings).first { $0.id == id }!.chord
+    }
+
+    public static func applying(_ chord: KeyChord, to id: ShortcutCustomizationID, in settings: AppSettings) -> AppSettings {
+        var next = settings
+        let normalized = KeyChord(
+            keyCode: chord.keyCode,
+            carbonModifiers: chord.carbonModifiers & KeyChord.modifierMask
+        )
+        switch id {
+        case .openEditor: next.editorHotkey = normalized
+        case .previousZone: next.previousZoneHotkey = normalized
+        case .nextZone: next.nextZoneHotkey = normalized
+        case .cycleBackward: next.cycleBackwardHotkey = normalized
+        case .cycleForward: next.cycleForwardHotkey = normalized
+        case .unsnap: next.unsnapHotkey = normalized
+        case .showShortcuts: next.shortcutsPanelHotkey = normalized
+        case .quickSnapper: next.quickSnapperHotkey = normalized
+        case .organizeWindows: next.organizeHotkey = normalized
+        case .openSettings: next.settingsHotkey = normalized
+        case .snapZones: next.zoneHotkeyModifiers = normalized.carbonModifiers
+        }
+        return next
+    }
+
+    public static func resetting(_ id: ShortcutCustomizationID, in settings: AppSettings) -> AppSettings {
+        applying(chord(for: id, in: .default), to: id, in: settings)
+    }
+
+    public static func resettingAll(in settings: AppSettings) -> AppSettings {
+        ShortcutCustomizationID.allCases.reduce(settings) { resetting($1, in: $0) }
+    }
+
+    public static func validate(_ chord: KeyChord, replacing id: ShortcutCustomizationID, in settings: AppSettings) -> ShortcutBindingIssue? {
+        let normalized = KeyChord(
+            keyCode: chord.keyCode,
+            carbonModifiers: chord.carbonModifiers & KeyChord.modifierMask
+        )
+        if id == .snapZones {
+            let probe = KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: normalized.carbonModifiers)
+            if !probe.isSequoiaLegal { return .sequoiaIllegal }
+        } else if !normalized.isSequoiaLegal {
+            return .sequoiaIllegal
+        }
+
+        let next = applying(normalized, to: id, in: settings)
+        if let reserved = reservedSystemConflict(in: next) {
+            return .reservedSystem(reserved)
+        }
+
+        var seen: [KeyChord: ShortcutCustomizationID] = [:]
+        for binding in customizableBindings(from: next) {
+            if binding.id == .snapZones {
+                let modifiers = binding.chord.carbonModifiers & KeyChord.modifierMask
+                for code in AppSettings.zoneKeyCodes {
+                    let zoneChord = KeyChord(keyCode: code, carbonModifiers: modifiers)
+                    if let existing = seen[zoneChord] {
+                        return .duplicate(existing)
+                    }
+                    seen[zoneChord] = .snapZones
+                }
+                continue
+            }
+            let chord = KeyChord(
+                keyCode: binding.chord.keyCode,
+                carbonModifiers: binding.chord.carbonModifiers & KeyChord.modifierMask
+            )
+            if let existing = seen[chord] {
+                return .duplicate(existing == id ? binding.id : existing)
+            }
+            seen[chord] = binding.id
+        }
+        return nil
+    }
+
+    public static func reservedSystemConflict(in settings: AppSettings) -> String? {
+        for pair in carbonHotkeys(from: settings) {
+            if let name = ReservedSystemHotkeys.displayName(matching: pair.chord) {
+                return name
+            }
+        }
+        return nil
+    }
 }
 
 public enum ShortcutEscapeAction: Equatable, Sendable {
+    case cancelHotkeyRecording
     case closeShortcuts
     case cancelEditor
     case dismissQuickSnapper
     case cancelSnap
+    case closeSettings
+    case closeOnboarding
+    case closeConsole
     case ignore
 }
 
@@ -425,23 +615,39 @@ public struct ShortcutRouteContext: Equatable, Sendable {
     public var editorClaimsKeyboard: Bool
     public var appHasKeyWindow: Bool
     public var quickSnapperShowing: Bool
+    public var isRecordingHotkey: Bool
+    public var settingsIsKey: Bool
+    public var onboardingIsKey: Bool
+    public var consoleIsVisible: Bool
 
     public init(
         shortcutsPanelIsKey: Bool,
         editorClaimsKeyboard: Bool,
         appHasKeyWindow: Bool,
-        quickSnapperShowing: Bool = false
+        quickSnapperShowing: Bool = false,
+        isRecordingHotkey: Bool = false,
+        settingsIsKey: Bool = false,
+        onboardingIsKey: Bool = false,
+        consoleIsVisible: Bool = false
     ) {
         self.shortcutsPanelIsKey = shortcutsPanelIsKey
         self.editorClaimsKeyboard = editorClaimsKeyboard
         self.appHasKeyWindow = appHasKeyWindow
         self.quickSnapperShowing = quickSnapperShowing
+        self.isRecordingHotkey = isRecordingHotkey
+        self.settingsIsKey = settingsIsKey
+        self.onboardingIsKey = onboardingIsKey
+        self.consoleIsVisible = consoleIsVisible
     }
 
     public static func escapeAction(_ context: ShortcutRouteContext) -> ShortcutEscapeAction {
+        if context.isRecordingHotkey { return .cancelHotkeyRecording }
         if context.shortcutsPanelIsKey { return .closeShortcuts }
         if context.editorClaimsKeyboard { return .cancelEditor }
         if context.quickSnapperShowing { return .dismissQuickSnapper }
+        if context.settingsIsKey { return .closeSettings }
+        if context.onboardingIsKey { return .closeOnboarding }
+        if context.consoleIsVisible { return .closeConsole }
         if !context.appHasKeyWindow { return .cancelSnap }
         return .ignore
     }

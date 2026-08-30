@@ -43,7 +43,8 @@ final class HotkeyCenter {
     private var monitors: [Any] = []
     private var voiceOverObservation: NSKeyValueObservation?
     private var lastHandled: (id: UInt32, time: TimeInterval)?
-    private var globalChordsEnabled = false
+    private var voiceOverEnabled = false
+    private var recordingPaused = false
     private var chordIndex: [(id: UInt32, chord: KeyChord)] = []
     private static weak var shared: HotkeyCenter?
 
@@ -84,19 +85,24 @@ final class HotkeyCenter {
     func reregister() {
         unregisterAll()
         removeMonitors()
-        globalChordsEnabled = !NSWorkspace.shared.isVoiceOverEnabled
+        voiceOverEnabled = NSWorkspace.shared.isVoiceOverEnabled
         rebuildChordIndex()
-        if globalChordsEnabled {
-            registerAll()
-        }
+        registerAll()
         installKeyMonitors()
         runtime.menuBar?.reloadMenu()
+    }
+
+    func setRecordingPaused(_ paused: Bool) {
+        recordingPaused = paused
+        reregister()
     }
 
     private func rebuildChordIndex() {
         let trusted = runtime.trust.isTrusted()
         chordIndex = ShortcutCatalog.carbonHotkeys(from: runtime.settings).filter { pair in
-            trusted || ShortcutCatalog.trustExemptIDs.contains(pair.id)
+            (trusted || ShortcutCatalog.trustExemptIDs.contains(pair.id))
+                && !recordingPaused
+                && !ShortcutVoiceOverPolicy.shouldPause(chord: pair.chord, voiceOverEnabled: voiceOverEnabled)
         }
     }
 
@@ -121,6 +127,8 @@ final class HotkeyCenter {
         var registered = 0
         for pair in ShortcutCatalog.carbonHotkeys(from: runtime.settings) {
             if !trusted && !ShortcutCatalog.trustExemptIDs.contains(pair.id) { continue }
+            if recordingPaused { continue }
+            if ShortcutVoiceOverPolicy.shouldPause(chord: pair.chord, voiceOverEnabled: voiceOverEnabled) { continue }
             if register(id: pair.id, chord: pair.chord) {
                 registered += 1
             }
@@ -190,32 +198,9 @@ final class HotkeyCenter {
 
         if event.keyCode == HardwareKeyCode.escape, !flags.contains(.command), !flags.contains(.control) {
             if consume {
-                switch ShortcutRouteContext.escapeAction(
-                    ShortcutRouteContext(
-                        shortcutsPanelIsKey: runtime.shortcutPanelIsKey,
-                        editorClaimsKeyboard: runtime.editorClaimsKeyboard,
-                        appHasKeyWindow: NSApp.keyWindow != nil,
-                        quickSnapperShowing: runtime.engine.isQuickSnapperShowing
-                    )
-                ) {
-                case .closeShortcuts:
-                    _ = runtime.closeShortcutPanelIfOpen()
-                    return nil
-                case .cancelEditor:
-                    runtime.cancelEditor()
-                    return nil
-                case .dismissQuickSnapper:
-                    runtime.engine.handleQuickSnapper(.dismiss)
-                    return nil
-                case .cancelSnap:
-                    runtime.engine.cancelSession()
-                    return nil
-                case .ignore:
-                    return event
-                }
+                return handleEscape(event, consume: true)
             }
-            runtime.engine.cancelSession()
-            return event
+            return handleEscape(event, consume: false)
         }
 
         if runtime.engine.isQuickSnapperShowing,
@@ -236,12 +221,11 @@ final class HotkeyCenter {
             return consume ? nil : event
         }
 
-        if globalChordsEnabled,
-           let id = ShortcutCatalog.hotkeyID(
-               matching: event.keyCode,
-               carbonModifiers: modifiers,
-               chords: chordIndex
-           )
+        if let id = ShortcutCatalog.hotkeyID(
+            matching: event.keyCode,
+            carbonModifiers: modifiers,
+            chords: chordIndex
+        )
         {
             if event.isARepeat, !ShortcutCatalog.allowsKeyRepeat(hotkeyID: id) {
                 return consume ? nil : event
@@ -274,6 +258,45 @@ final class HotkeyCenter {
         return event
     }
 
+    private func handleEscape(_ event: NSEvent, consume: Bool) -> NSEvent? {
+        let action = ShortcutRouteContext.escapeAction(
+            ShortcutRouteContext(
+                shortcutsPanelIsKey: runtime.shortcutPanelIsKey,
+                editorClaimsKeyboard: runtime.editorClaimsKeyboard,
+                appHasKeyWindow: NSApp.keyWindow != nil,
+                quickSnapperShowing: runtime.engine.isQuickSnapperShowing,
+                isRecordingHotkey: runtime.isRecordingHotkey,
+                settingsIsKey: runtime.settingsIsKey,
+                onboardingIsKey: runtime.onboardingIsKey,
+                consoleIsVisible: runtime.consoleIsVisible
+            )
+        )
+        switch action {
+        case .cancelHotkeyRecording:
+            _ = runtime.cancelHotkeyRecordingIfNeeded()
+        case .closeShortcuts:
+            _ = runtime.closeShortcutPanelIfOpen()
+        case .cancelEditor:
+            runtime.cancelEditor()
+        case .dismissQuickSnapper:
+            runtime.engine.handleQuickSnapper(.dismiss)
+        case .closeSettings:
+            _ = runtime.closeSettingsIfOpen()
+        case .closeOnboarding:
+            _ = runtime.closeOnboardingIfOpen()
+        case .closeConsole:
+            _ = runtime.closeConsoleIfOpen()
+        case .cancelSnap:
+            runtime.engine.cancelSession()
+        case .ignore:
+            break
+        }
+        if !consume {
+            return nil
+        }
+        return action == .ignore ? event : nil
+    }
+
     func handle(id: UInt32) {
         let now = ProcessInfo.processInfo.systemUptime
         if let lastHandled, lastHandled.id == id, now - lastHandled.time < Self.dedupWindow {
@@ -302,6 +325,8 @@ final class HotkeyCenter {
             runtime.engine.handleQuickSnapper(.invoke)
         case ShortcutCatalog.organizeHotkeyID:
             runtime.organizeWindowsFromHotkey()
+        case ShortcutCatalog.settingsHotkeyID:
+            runtime.openSettings()
         case 1...9:
             if runtime.engine.isQuickSnapperShowing {
                 runtime.engine.handleQuickSnapper(.digit(Int(id)))

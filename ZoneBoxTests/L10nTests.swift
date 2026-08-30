@@ -57,8 +57,8 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.consoleEdit, language: .chineseSimplified), "编辑")
         XCTAssertEqual(L10n.text(.consolePreview, language: .english), "Preview")
         XCTAssertEqual(L10n.text(.consolePreview, language: .chineseSimplified), "预览")
-        XCTAssertEqual(L10n.text(.consoleNew, language: .english), "New")
-        XCTAssertEqual(L10n.text(.consoleNew, language: .chineseSimplified), "新建")
+        XCTAssertEqual(L10n.text(.consoleNew, language: .english), "New Layout")
+        XCTAssertEqual(L10n.text(.consoleNew, language: .chineseSimplified), "新建布局")
         XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .english), "No display")
         XCTAssertEqual(L10n.text(.consoleNoDisplay, language: .chineseSimplified), "没有显示器")
     }
@@ -80,6 +80,20 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.settingsSectionSnapping, language: .chineseSimplified), "吸附")
         XCTAssertEqual(L10n.text(.settingsSectionOverlay, language: .chineseSimplified), "覆盖层")
         XCTAssertEqual(L10n.text(.settingsSectionKeyboard, language: .chineseSimplified), "键盘")
+    }
+
+    func testShortcutCustomizationCopy() {
+        XCTAssertEqual(L10n.text(.settingsResetAllShortcuts, language: .english), "Reset All Shortcuts")
+        XCTAssertEqual(L10n.text(.settingsResetAllShortcuts, language: .chineseSimplified), "还原全部快捷键")
+        XCTAssertEqual(L10n.text(.settingsHotkeyRecording, language: .english), "Press a shortcut…")
+        XCTAssertEqual(
+            L10n.shortcutDuplicate("Unsnap window", language: .english),
+            "That shortcut is already used by Unsnap window."
+        )
+        XCTAssertEqual(
+            L10n.shortcutReserved("Spotlight", language: .chineseSimplified),
+            "这个快捷键保留给 Spotlight。"
+        )
     }
 
     func testUnchangedCopyWarningLocalized() {

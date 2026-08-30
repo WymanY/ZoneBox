@@ -338,6 +338,9 @@ public enum WindowOrganizeExecutor {
 }
 
 public enum WindowOrganize {
+    /// Temporary product gate. Flip this back to `true` to restore the
+    /// Organize button, menu item, and Control+Option+O shortcut.
+    public static let isPubliclyAvailable = false
     public static let fillName = "Fill"
     public static let split65Name = "Split 65/35"
     public static let priority60Name = "Priority 60"
