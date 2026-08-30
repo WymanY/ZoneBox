@@ -77,7 +77,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             "com.apple.Spotlight",
             "com.apple.screencaptureui",
             "com.apple.WindowManager",
-            "com.fancyzone.app",
+            AppIdentity.releaseBundleID,
+            AppIdentity.debugBundleID,
         ],
         launchAtLogin: false,
         uiLanguage: .system,
@@ -122,7 +123,9 @@ extension AppSettings {
         zoneBorderColorHex = try c.decodeIfPresent(String.self, forKey: .zoneBorderColorHex) ?? defaults.zoneBorderColorHex
         restoreSizeOnUnsnap = try c.decodeIfPresent(Bool.self, forKey: .restoreSizeOnUnsnap) ?? defaults.restoreSizeOnUnsnap
         snapDialogs = try c.decodeIfPresent(Bool.self, forKey: .snapDialogs) ?? defaults.snapDialogs
-        excludedBundleIDs = try c.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? defaults.excludedBundleIDs
+        excludedBundleIDs = Self.includingOwnIdentities(
+            try c.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? defaults.excludedBundleIDs
+        )
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         editorHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .editorHotkey) ?? defaults.editorHotkey
@@ -140,5 +143,13 @@ extension AppSettings {
         unsnapHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .unsnapHotkey) ?? defaults.unsnapHotkey
         organizeHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .organizeHotkey) ?? defaults.organizeHotkey
         settingsHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .settingsHotkey) ?? defaults.settingsHotkey
+    }
+
+    static func includingOwnIdentities(_ bundleIDs: [String]) -> [String] {
+        var ids = bundleIDs
+        for identity in [AppIdentity.releaseBundleID, AppIdentity.debugBundleID] where !ids.contains(identity) {
+            ids.append(identity)
+        }
+        return ids
     }
 }

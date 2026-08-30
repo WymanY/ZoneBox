@@ -3,11 +3,21 @@ import XCTest
 
 final class ScaffoldTests: XCTestCase {
     func testCoreLoggerSubsystem() {
-        #if DEBUG
-        XCTAssertEqual(Log.subsystem, "com.fancyzone.app.debug")
-        #else
-        XCTAssertEqual(Log.subsystem, "com.fancyzone.app")
-        #endif
+        XCTAssertEqual(Log.subsystem, AppIdentity.bundleID)
+    }
+
+    func testDebugAndReleaseUseSeparateSupportDirectories() {
+        XCTAssertEqual(AppIdentity.releaseBundleID, "com.fancyzone.app")
+        XCTAssertEqual(AppIdentity.debugBundleID, "com.fancyzone.app.debug")
+        XCTAssertEqual(AppIdentity.defaultSupportDirectory.lastPathComponent, AppIdentity.bundleID)
+        XCTAssertNotEqual(AppIdentity.debugBundleID, AppIdentity.releaseBundleID)
+        XCTAssertTrue(AppIdentity.ownBundleIDs.contains(AppIdentity.releaseBundleID))
+        XCTAssertTrue(AppIdentity.ownBundleIDs.contains(AppIdentity.debugBundleID))
+    }
+
+    func testDefaultExclusionsKeepBothAppIdentitiesOutOfWindowActions() {
+        XCTAssertTrue(AppSettings.default.excludedBundleIDs.contains(AppIdentity.releaseBundleID))
+        XCTAssertTrue(AppSettings.default.excludedBundleIDs.contains(AppIdentity.debugBundleID))
     }
 
     func testFakeScreenStoresFrames() {
