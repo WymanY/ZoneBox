@@ -97,6 +97,14 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSectionSnapping
     case settingsSectionOverlay
     case settingsSectionKeyboard
+    case settingsHotkeyCaptureHint
+    case settingsHotkeyRecording
+    case settingsResetShortcut
+    case settingsResetAllShortcuts
+    case settingsQuickSnapperToggle
+    case shortcutErrorSequoia
+    case shortcutErrorDuplicate
+    case shortcutErrorReserved
 
     case shortcutsTitle
     case shortcutsSectionGlobal
@@ -218,6 +226,14 @@ public enum L10n {
         String(format: text(.settingsShakeIntensity, language: language), locale: language.locale, value)
     }
 
+    public static func shortcutDuplicate(_ name: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.shortcutErrorDuplicate, language: language), locale: language.locale, name)
+    }
+
+    public static func shortcutReserved(_ name: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.shortcutErrorReserved, language: language), locale: language.locale, name)
+    }
+
     public static func columns(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
         if language == .chineseSimplified {
             switch count {
@@ -329,7 +345,7 @@ public enum L10n {
         .consoleOrganize: "Organize",
         .consoleEdit: "Edit",
         .consolePreview: "Preview",
-        .consoleNew: "New",
+        .consoleNew: "New Layout",
         .consoleNoDisplay: "No display",
         .organizeAdjustedTitle: "Arrangement adjusted",
         .organizePartialTitle: "Partially organized",
@@ -356,12 +372,12 @@ public enum L10n {
         .settingsShakeToSnap: "Shake the title bar while dragging to snap",
         .settingsShakeIntensity: "Shake force: %d",
         .settingsShakeIntensityHint: "Lower is easier to trigger",
-        .settingsQuickSnapper: "Quick Snapper (Control+Option+Space, then 1–9)",
+        .settingsQuickSnapper: "Quick Snapper overlay, then 1–9",
         .settingsMagneticResize: "Magnet window edges to zones while resizing",
         .settingsShowNumbers: "Show zone numbers",
         .settingsRestoreSize: "Restore size when unsnapping",
         .settingsGutter: "Gutter: %d pt",
-        .settingsHotkeys: "Global hotkeys use Control+Option and are paused while VoiceOver is on. Open the keyboard shortcuts panel for the full list.",
+        .settingsHotkeys: "Click a shortcut to record a new combination. Global shortcuts need Control or Command. VoiceOver still pauses only Control+Option chords.",
         .settingsShowShortcuts: "Keyboard Shortcuts…",
         .settingsOpenAccess: "Open Accessibility Settings",
         .settingsLaunchAtLogin: "Launch at login",
@@ -373,14 +389,22 @@ public enum L10n {
         .settingsSectionSnapping: "Snapping",
         .settingsSectionOverlay: "Overlay",
         .settingsSectionKeyboard: "Keyboard",
+        .settingsHotkeyCaptureHint: "Click a shortcut, then press a new key combination. Global shortcuts need Control or Command. VoiceOver still pauses only Control+Option chords.",
+        .settingsHotkeyRecording: "Press a shortcut…",
+        .settingsResetShortcut: "Reset",
+        .settingsResetAllShortcuts: "Reset All Shortcuts",
+        .settingsQuickSnapperToggle: "Enable Quick Snapper overlay",
+        .shortcutErrorSequoia: "macOS requires Control or Command in a global shortcut.",
+        .shortcutErrorDuplicate: "That shortcut is already used by %@.",
+        .shortcutErrorReserved: "That shortcut is reserved by %@.",
 
         .shortcutsTitle: "Keyboard Shortcuts",
         .shortcutsSectionGlobal: "Global",
         .shortcutsSectionEditor: "Layout Editor",
         .shortcutsSectionSnap: "Snap",
         .shortcutsSectionApp: "ZoneBox",
-        .shortcutsVoiceOverNote: "Control+Option global hotkeys pause automatically while VoiceOver is on.",
-        .shortcutsSubtitle: "Global actions use Control+Option",
+        .shortcutsVoiceOverNote: "VoiceOver still pauses Control+Option global shortcuts. Other modifiers stay active.",
+        .shortcutsSubtitle: "Customize global shortcuts in Settings",
         .shortcutOpenEditor: "Open layout editor",
         .shortcutSnapZone: "Snap to zone %d",
         .shortcutSnapZones: "Snap to zone",
@@ -504,7 +528,7 @@ public enum L10n {
         .consoleOrganize: "一键布局",
         .consoleEdit: "编辑",
         .consolePreview: "预览",
-        .consoleNew: "新建",
+        .consoleNew: "新建布局",
         .consoleNoDisplay: "没有显示器",
         .organizeAdjustedTitle: "已调整整理方式",
         .organizePartialTitle: "已完成部分整理",
@@ -531,12 +555,12 @@ public enum L10n {
         .settingsShakeToSnap: "拖动标题栏时左右晃动即可吸附",
         .settingsShakeIntensity: "晃动力度：%d",
         .settingsShakeIntensityHint: "数值越小越容易触发",
-        .settingsQuickSnapper: "快速吸附（Control+Option+空格，再按 1–9）",
+        .settingsQuickSnapper: "快速吸附覆盖层，再按 1–9",
         .settingsMagneticResize: "缩放窗口时边缘吸附到分区",
         .settingsShowNumbers: "显示分区编号",
         .settingsRestoreSize: "取消吸附时恢复原来的大小",
         .settingsGutter: "间距：%d 点",
-        .settingsHotkeys: "全局快捷键使用 Control+Option；开启 VoiceOver 时会自动暂停。完整列表请打开键盘快捷键面板。",
+        .settingsHotkeys: "点一下快捷键即可录制新组合。全局快捷键需要 Control 或 Command。VoiceOver 仍只暂停 Control+Option 组合。",
         .settingsShowShortcuts: "键盘快捷键…",
         .settingsOpenAccess: "打开辅助功能设置",
         .settingsLaunchAtLogin: "登录时启动",
@@ -548,14 +572,22 @@ public enum L10n {
         .settingsSectionSnapping: "吸附",
         .settingsSectionOverlay: "覆盖层",
         .settingsSectionKeyboard: "键盘",
+        .settingsHotkeyCaptureHint: "点一下快捷键，再按下新的组合。全局快捷键需要 Control 或 Command。VoiceOver 仍只暂停 Control+Option 组合。",
+        .settingsHotkeyRecording: "请按下快捷键…",
+        .settingsResetShortcut: "还原",
+        .settingsResetAllShortcuts: "还原全部快捷键",
+        .settingsQuickSnapperToggle: "启用快速吸附覆盖层",
+        .shortcutErrorSequoia: "macOS 要求全局快捷键包含 Control 或 Command。",
+        .shortcutErrorDuplicate: "这个快捷键已被“%@”占用。",
+        .shortcutErrorReserved: "这个快捷键保留给 %@。",
 
         .shortcutsTitle: "键盘快捷键",
         .shortcutsSectionGlobal: "全局",
         .shortcutsSectionEditor: "布局编辑器",
         .shortcutsSectionSnap: "吸附",
         .shortcutsSectionApp: "ZoneBox",
-        .shortcutsVoiceOverNote: "开启 VoiceOver 时，Control+Option 全局快捷键会自动暂停。",
-        .shortcutsSubtitle: "全局操作使用 Control+Option",
+        .shortcutsVoiceOverNote: "开启 VoiceOver 时，仍会暂停 Control+Option 全局快捷键。其他修饰键组合保持可用。",
+        .shortcutsSubtitle: "可在设置里自定义全局快捷键",
         .shortcutOpenEditor: "打开布局编辑器",
         .shortcutSnapZone: "吸附到分区 %d",
         .shortcutSnapZones: "吸附到分区",

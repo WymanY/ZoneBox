@@ -7,14 +7,12 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var panel: ConsolePanel?
     private var sessionActive = false
     private var displayLabel: NSTextField?
-    private var snapSwitch: NSSwitch?
-    private var snapLabel: NSTextField?
     private var warningButton: NSButton?
     private var gridView: TileGridView?
     private var gridHeightConstraint: NSLayoutConstraint?
     private var organizeButton: NSButton?
-    private var newButton: NSButton?
     private var settingsButton: NSButton?
+    private var newButton: NSButton?
     private var quitButton: NSButton?
     private var eventMonitor: Any?
     private weak var statusButton: NSStatusBarButton?
@@ -46,6 +44,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         applyContent()
         applyPanelFrame(under: button)
         panel.orderFront(nil)
+        panel.makeKey()
         startDismissMonitors()
     }
 
@@ -124,7 +123,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(makeHeader())
         stack.addArrangedSubview(makeWarningButton())
         stack.addArrangedSubview(makeGrid())
-        stack.addArrangedSubview(makeActions())
         stack.addArrangedSubview(makeSeparator())
         stack.addArrangedSubview(makeFooter())
 
@@ -144,27 +142,23 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         name.font = .systemFont(ofSize: 13, weight: .semibold)
         name.lineBreakMode = .byTruncatingTail
         name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        name.setContentHuggingPriority(.defaultLow, for: .horizontal)
         displayLabel = name
 
-        let snap = NSTextField(labelWithString: L10n.text(.consoleSnap))
-        snap.font = .systemFont(ofSize: 11, weight: .medium)
-        snap.textColor = .secondaryLabelColor
-        snap.setContentHuggingPriority(.required, for: .horizontal)
-        snapLabel = snap
+        let create = NSButton(title: L10n.text(.consoleNew), target: self, action: #selector(newLayout))
+        create.bezelStyle = .rounded
+        create.controlSize = .small
+        create.image = NSImage(systemSymbolName: "plus", accessibilityDescription: L10n.text(.consoleNew))
+        create.imagePosition = .imageLeading
+        create.imageScaling = .scaleProportionallyDown
+        create.imageHugsTitle = true
+        create.toolTip = L10n.text(.consoleNew)
+        create.setAccessibilityLabel(L10n.text(.consoleNew))
+        create.setContentHuggingPriority(.required, for: .horizontal)
+        create.setContentCompressionResistancePriority(.required, for: .horizontal)
+        newButton = create
 
-        let toggle = NSSwitch()
-        toggle.controlSize = .small
-        toggle.target = self
-        toggle.action = #selector(snapSwitchChanged(_:))
-        toggle.setContentHuggingPriority(.required, for: .horizontal)
-        snapSwitch = toggle
-
-        let snapRow = NSStackView(views: [snap, toggle])
-        snapRow.orientation = .horizontal
-        snapRow.alignment = .centerY
-        snapRow.spacing = 6
-
-        let header = NSStackView(views: [name, snapRow])
+        let header = NSStackView(views: [name, create])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 8
@@ -214,37 +208,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return scroll
     }
 
-    private func makeActions() -> NSView {
-        let organize = NSButton(
-            title: L10n.text(.consoleOrganize),
-            target: self,
-            action: #selector(organizeWindows)
-        )
-        organize.bezelStyle = .rounded
-        organize.controlSize = .small
-        organize.setContentHuggingPriority(.required, for: .horizontal)
-        organize.setContentCompressionResistancePriority(.required, for: .horizontal)
-        organize.translatesAutoresizingMaskIntoConstraints = false
-        organize.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        organize.widthAnchor.constraint(equalToConstant: Metrics.tileWidth).isActive = true
-        organizeButton = organize
-        let create = actionButton(title: L10n.text(.consoleNew), action: #selector(newLayout))
-        create.setContentHuggingPriority(.required, for: .horizontal)
-        create.setContentCompressionResistancePriority(.required, for: .horizontal)
-        create.translatesAutoresizingMaskIntoConstraints = false
-        create.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        create.widthAnchor.constraint(equalToConstant: Metrics.tileWidth).isActive = true
-        newButton = create
-        let row = NSStackView(views: [organize, create])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.distribution = .fill
-        row.spacing = 8
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        return row
-    }
-
     private func makeFooter() -> NSView {
         let settings = NSButton(title: L10n.text(.menuSettings), target: self, action: #selector(openSettings))
         settings.bezelStyle = .rounded
@@ -274,29 +237,19 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return line
     }
 
-    private func actionButton(title: String, action: Selector) -> NSButton {
-        let button = NSButton(title: title, target: self, action: action)
-        button.bezelStyle = .rounded
-        button.controlSize = .small
-        return button
-    }
-
     private func applyContent() {
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
         displayLabel?.stringValue = area?.display.localizedName ?? L10n.text(.consoleNoDisplay)
-        snapLabel?.stringValue = L10n.text(.consoleSnap)
-        snapSwitch?.state = runtime.snapEnabled ? .on : .off
-        snapSwitch?.toolTip = L10n.text(.menuSnapEnabled)
-        snapSwitch?.setAccessibilityLabel(L10n.text(.menuSnapEnabled))
-
         let warning = runtime.trust.showsMenuBarWarning()
         warningButton?.title = L10n.text(.menuEnableAccessibility)
         warningButton?.isHidden = !warning
 
         organizeButton?.title = L10n.text(.consoleOrganize)
         organizeButton?.isEnabled = !runtime.isOrganizingWindows
-        newButton?.title = L10n.text(.consoleNew)
         settingsButton?.title = L10n.text(.menuSettings)
+        newButton?.title = L10n.text(.consoleNew)
+        newButton?.toolTip = L10n.text(.consoleNew)
+        newButton?.setAccessibilityLabel(L10n.text(.consoleNew))
         quitButton?.title = L10n.text(.menuQuit)
 
         rebuildTiles(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
@@ -305,7 +258,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func rebuildTiles(currentID: UUID?) {
         guard let gridView else { return }
-        let tiles = runtime.document.layouts.map { layout in
+        let tiles: [NSView] = runtime.document.layouts.map { layout in
             LayoutTileView(
                 layout: layout,
                 selected: layout.id == currentID,
@@ -322,7 +275,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func contentHeight() -> CGFloat {
         let warning: CGFloat = runtime.trust.showsMenuBarWarning() ? 34 : 0
-        return 12 + 24 + warning + 10 + gridHeight() + 10 + 24 + 10 + 1 + 10 + 24 + 12
+        return 12 + 24 + warning + 10 + gridHeight() + 10 + 1 + 10 + 24 + 12
     }
 
     private func gridHeight() -> CGFloat {
@@ -375,11 +328,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private func select(_ layout: Layout) {
         runtime.selectLayout(layout)
         reload()
-    }
-
-    @objc
-    private func snapSwitchChanged(_ sender: NSSwitch) {
-        runtime.setSnapEnabled(sender.state == .on)
     }
 
     @objc
@@ -445,8 +393,12 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 }
 
 private final class ConsolePanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func cancelOperation(_ sender: Any?) {
+        (delegate as? MenuBarConsoleController)?.close()
+    }
 }
 
 private final class ThinOverlayScroller: NSScroller {

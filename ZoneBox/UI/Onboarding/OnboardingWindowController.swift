@@ -33,6 +33,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         startPolling()
     }
 
+    var isKey: Bool { window?.isKeyWindow == true }
+
     func close() {
         stopPolling()
         let win = window

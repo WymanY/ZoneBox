@@ -53,7 +53,7 @@ final class DragMonitor {
     }
 
     private func handle(_ event: NSEvent) {
-        guard !runtime.isEditorOpen, runtime.settings.snapEnabled else { return }
+        guard !runtime.isEditorOpen else { return }
         guard runtime.trust.isTrusted() else { return }
 
         if event.type == .mouseMoved {
@@ -93,7 +93,7 @@ final class DragMonitor {
 
     private func beginHold(_ mouse: SnapMouseEvent) {
         guard !leftButtonHeld else { return }
-        guard !runtime.isEditorOpen, runtime.settings.snapEnabled else { return }
+        guard !runtime.isEditorOpen else { return }
         guard runtime.trust.isTrusted() else { return }
         Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
         leftButtonHeld = true
@@ -182,7 +182,7 @@ final class DragMonitor {
             finishHold(mouse)
             return
         }
-        guard !runtime.isEditorOpen, runtime.settings.snapEnabled else { return }
+        guard !runtime.isEditorOpen else { return }
         guard runtime.trust.isTrusted() else { return }
         ensureHold(at: location, modifiers: modifiers)
         ingestDrag(at: location, modifiers: modifiers)

@@ -120,20 +120,15 @@ final class AppRuntime {
         overlay.hideAll()
     }
 
-    var snapEnabled: Bool { settings.snapEnabled }
-
-    func setSnapEnabled(_ enabled: Bool) {
-        settings.snapEnabled = enabled
-        persistSettings()
-        menuBar?.reloadMenu()
-        if !enabled { overlay.hideAll() }
-    }
+    var snapEnabled: Bool { true }
 
     func openSettings() {
+        menuBar?.closeConsole()
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(runtime: self)
             uiSession.enterRegular()
         }
+        NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.showWindow()
     }
 
@@ -245,12 +240,42 @@ final class AppRuntime {
     }
 
     var shortcutPanelIsKey: Bool { shortcutPanel?.isKey == true }
+    var settingsIsKey: Bool { settingsWindow?.isKey == true }
+    var onboardingIsKey: Bool { onboarding?.isKey == true }
+    var consoleIsVisible: Bool { menuBar?.isConsoleVisible == true }
+    var isRecordingHotkey: Bool { settingsWindow?.isRecordingHotkey == true }
 
     @discardableResult
     func closeShortcutPanelIfOpen() -> Bool {
         guard shortcutPanelIsKey else { return false }
         shortcutPanel?.close()
         return true
+    }
+
+    @discardableResult
+    func closeSettingsIfOpen() -> Bool {
+        guard settingsWindow != nil else { return false }
+        settingsWindow?.close()
+        return true
+    }
+
+    @discardableResult
+    func closeOnboardingIfOpen() -> Bool {
+        guard onboarding != nil else { return false }
+        onboarding?.close()
+        return true
+    }
+
+    @discardableResult
+    func closeConsoleIfOpen() -> Bool {
+        guard consoleIsVisible else { return false }
+        menuBar?.closeConsole()
+        return true
+    }
+
+    @discardableResult
+    func cancelHotkeyRecordingIfNeeded() -> Bool {
+        settingsWindow?.cancelHotkeyRecording() == true
     }
 
     func shortcutPanelDidClose() {
@@ -360,6 +385,7 @@ final class AppRuntime {
     }
 
     func organizeWindowsFromPointer() {
+        guard WindowOrganize.isPubliclyAvailable else { return }
         guard beginOrganizingWindows() else { return }
         let area = displays.area(containingAppKit: NSEvent.mouseLocation)
         Task { @MainActor [weak self] in
@@ -370,6 +396,7 @@ final class AppRuntime {
     }
 
     func organizeWindowsFromHotkey() {
+        guard WindowOrganize.isPubliclyAvailable else { return }
         guard beginOrganizingWindows() else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -861,6 +888,32 @@ final class AppRuntime {
 
     func persistSettings() {
         try? settingsStore.save(settings)
+    }
+
+    func setHotkeyRecording(_ recording: Bool) {
+        hotkeys.setRecordingPaused(recording)
+    }
+
+    func updateHotkey(_ id: ShortcutCustomizationID, to chord: KeyChord) -> ShortcutBindingIssue? {
+        if let issue = ShortcutCatalog.validate(chord, replacing: id, in: settings) {
+            return issue
+        }
+        settings = ShortcutCatalog.applying(chord, to: id, in: settings)
+        persistSettings()
+        hotkeys.reregister()
+        shortcutPanel?.applyLanguage()
+        return nil
+    }
+
+    func resetHotkey(_ id: ShortcutCustomizationID) -> ShortcutBindingIssue? {
+        updateHotkey(id, to: ShortcutCatalog.chord(for: id, in: .default))
+    }
+
+    func resetAllHotkeys() {
+        settings = ShortcutCatalog.resettingAll(in: settings)
+        persistSettings()
+        hotkeys.reregister()
+        shortcutPanel?.applyLanguage()
     }
 
     func applyLanguage() {

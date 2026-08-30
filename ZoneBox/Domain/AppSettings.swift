@@ -33,6 +33,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     public var uiLanguage: AppLanguagePreference
     public var editorHotkey: KeyChord
+    public var shortcutsPanelHotkey: KeyChord
+    public var quickSnapperHotkey: KeyChord
+    public var zoneHotkeyModifiers: UInt32
     public var snapZoneHotkeysEnabled: Bool
     public var nextZoneHotkey: KeyChord
     public var previousZoneHotkey: KeyChord
@@ -40,6 +43,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var cycleBackwardHotkey: KeyChord
     public var unsnapHotkey: KeyChord
     public var organizeHotkey: KeyChord
+    public var settingsHotkey: KeyChord
 
     public static let controlOption: UInt32 = CarbonModifier.controlOption
 
@@ -78,13 +82,17 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLogin: false,
         uiLanguage: .system,
         editorHotkey: KeyChord(keyCode: 6, carbonModifiers: controlOption),
+        shortcutsPanelHotkey: KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: controlOption),
+        quickSnapperHotkey: KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: controlOption),
+        zoneHotkeyModifiers: controlOption,
         snapZoneHotkeysEnabled: true,
         nextZoneHotkey: KeyChord(keyCode: 124, carbonModifiers: controlOption),
         previousZoneHotkey: KeyChord(keyCode: 123, carbonModifiers: controlOption),
         cycleForwardHotkey: KeyChord(keyCode: 30, carbonModifiers: controlOption),
         cycleBackwardHotkey: KeyChord(keyCode: 33, carbonModifiers: controlOption),
         unsnapHotkey: KeyChord(keyCode: 32, carbonModifiers: controlOption),
-        organizeHotkey: KeyChord(keyCode: HardwareKeyCode.o, carbonModifiers: controlOption)
+        organizeHotkey: KeyChord(keyCode: HardwareKeyCode.o, carbonModifiers: controlOption),
+        settingsHotkey: KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command)
     )
 
     public static let zoneKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
@@ -118,6 +126,12 @@ extension AppSettings {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         editorHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .editorHotkey) ?? defaults.editorHotkey
+        shortcutsPanelHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .shortcutsPanelHotkey)
+            ?? KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: editorHotkey.carbonModifiers)
+        quickSnapperHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .quickSnapperHotkey)
+            ?? KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: editorHotkey.carbonModifiers)
+        zoneHotkeyModifiers = try c.decodeIfPresent(UInt32.self, forKey: .zoneHotkeyModifiers)
+            ?? editorHotkey.carbonModifiers
         snapZoneHotkeysEnabled = try c.decodeIfPresent(Bool.self, forKey: .snapZoneHotkeysEnabled) ?? defaults.snapZoneHotkeysEnabled
         nextZoneHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .nextZoneHotkey) ?? defaults.nextZoneHotkey
         previousZoneHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .previousZoneHotkey) ?? defaults.previousZoneHotkey
@@ -125,5 +139,6 @@ extension AppSettings {
         cycleBackwardHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .cycleBackwardHotkey) ?? defaults.cycleBackwardHotkey
         unsnapHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .unsnapHotkey) ?? defaults.unsnapHotkey
         organizeHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .organizeHotkey) ?? defaults.organizeHotkey
+        settingsHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .settingsHotkey) ?? defaults.settingsHotkey
     }
 }

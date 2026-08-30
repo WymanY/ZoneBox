@@ -8,7 +8,9 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.editorHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.shortcutsPanelHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
-        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
+        XCTAssertEqual(WindowOrganize.isPubliclyAvailable, false)
+        XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
+        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.settingsHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 1 }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 9 }))
         for pair in pairs {
@@ -35,6 +37,10 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.d))
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.w))
         XCTAssertFalse(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.tab))
+        XCTAssertEqual(KeyChord.glyph(for: 14), "E")
+        XCTAssertEqual(KeyChord.glyph(for: 122), "F1")
+        XCTAssertTrue(HardwareKeyCode.isModifierKey(HardwareKeyCode.command))
+        XCTAssertFalse(HardwareKeyCode.isModifierKey(HardwareKeyCode.z))
     }
 
     func testControlOptionZMatchesEditorDefault() {
@@ -77,7 +83,15 @@ final class ShortcutCatalogTests: XCTestCase {
                 carbonModifiers: CarbonModifier.controlOption,
                 settings: settings
             ),
-            ShortcutCatalog.organizeHotkeyID
+            nil
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.comma,
+                carbonModifiers: CarbonModifier.command,
+                settings: settings
+            ),
+            ShortcutCatalog.settingsHotkeyID
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(
@@ -174,6 +188,51 @@ final class ShortcutCatalogTests: XCTestCase {
             ),
             .ignore
         )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    isRecordingHotkey: true,
+                    settingsIsKey: true
+                )
+            ),
+            .cancelHotkeyRecording
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    settingsIsKey: true
+                )
+            ),
+            .closeSettings
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    onboardingIsKey: true
+                )
+            ),
+            .closeOnboarding
+        )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    consoleIsVisible: true
+                )
+            ),
+            .closeConsole
+        )
     }
 
     func testOnlyAdjacentAndCycleHotkeysRepeat() {
@@ -188,6 +247,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.editorHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.shortcutsPanelHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.organizeHotkeyID))
+        XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.settingsHotkeyID))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(1))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.unsnapHotkeyID))
     }
@@ -220,21 +280,182 @@ final class ShortcutCatalogTests: XCTestCase {
     }
 
     func testOrganizeUsesControlOptionO() throws {
+        XCTAssertFalse(WindowOrganize.isPubliclyAvailable)
+        XCTAssertNil(ShortcutCatalog.items(from: .default).first(where: { $0.id == "organizeWindows" }))
+        XCTAssertFalse(ShortcutCatalog.customizableBindings(from: .default).contains(where: { $0.id == .organizeWindows }))
+        XCTAssertEqual(AppSettings.default.organizeHotkey.displayCaps, ["⌃", "⌥", "O"])
+    }
+
+    func testSettingsUsesCommandComma() throws {
         let item = try XCTUnwrap(
-            ShortcutCatalog.items(from: .default).first(where: { $0.id == "organizeWindows" })
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "openSettings" })
         )
         guard case .chord(let chord) = item.binding else {
-            return XCTFail("organizeWindows must be a keyboard chord")
+            return XCTFail("openSettings must be a keyboard chord")
         }
-        XCTAssertTrue(chord.isSequoiaLegal)
-        XCTAssertTrue(
-            chord.matches(
-                keyCode: HardwareKeyCode.o,
-                carbonModifiers: CarbonModifier.controlOption
-            )
+        XCTAssertEqual(item.surface, .global)
+        XCTAssertEqual(item.hotkeyID, ShortcutCatalog.settingsHotkeyID)
+        XCTAssertTrue(chord.matches(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command))
+        XCTAssertEqual(chord.displayCaps, ["⌘", ","])
+        XCTAssertTrue(ShortcutCatalog.customizableBindings(from: .default).contains(where: { $0.id == .openSettings }))
+    }
+
+    func testIndependentHotkeysDoNotShareEditorModifiers() {
+        var settings = AppSettings.default
+        settings.editorHotkey = KeyChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.control | CarbonModifier.shift)
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.slash,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            ShortcutCatalog.shortcutsPanelHotkeyID
         )
-        XCTAssertEqual(chord.displayCaps, ["⌃", "⌥", "O"])
-        XCTAssertEqual(item.title(language: .english), "Organize windows")
-        XCTAssertEqual(item.title(language: .chineseSimplified), "一键布局")
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.space,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            ShortcutCatalog.quickSnapperHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: 18,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            1
+        )
+    }
+
+    func testRebindingRejectsDuplicatesAndSequoiaIllegalChords() {
+        var settings = AppSettings.default
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                KeyChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.option),
+                replacing: .openEditor,
+                in: settings
+            ),
+            .sequoiaIllegal
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                settings.unsnapHotkey,
+                replacing: .openEditor,
+                in: settings
+            ),
+            .duplicate(.unsnap)
+        )
+
+        settings = ShortcutCatalog.applying(
+            KeyChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.command),
+            to: .openEditor,
+            in: settings
+        )
+        XCTAssertEqual(settings.editorHotkey.keyCode, HardwareKeyCode.z)
+        XCTAssertEqual(settings.shortcutsPanelHotkey.keyCode, HardwareKeyCode.slash)
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.z,
+                carbonModifiers: CarbonModifier.command,
+                settings: settings
+            ),
+            ShortcutCatalog.editorHotkeyID
+        )
+    }
+
+    func testLegacySettingsInheritEditorModifiers() throws {
+        let json = """
+        {"schemaVersion":1,"editorHotkey":{"keyCode":6,"carbonModifiers":4608}}
+        """.data(using: .utf8)!
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+        XCTAssertEqual(settings.editorHotkey.carbonModifiers, CarbonModifier.control | CarbonModifier.shift)
+        XCTAssertEqual(settings.shortcutsPanelHotkey.carbonModifiers, settings.editorHotkey.carbonModifiers)
+        XCTAssertEqual(settings.quickSnapperHotkey.carbonModifiers, settings.editorHotkey.carbonModifiers)
+        XCTAssertEqual(settings.zoneHotkeyModifiers, settings.editorHotkey.carbonModifiers)
+        XCTAssertEqual(settings.shortcutsPanelHotkey.keyCode, HardwareKeyCode.slash)
+        XCTAssertEqual(settings.quickSnapperHotkey.keyCode, HardwareKeyCode.space)
+    }
+
+    func testCustomHotkeysSurviveJSONRoundTrip() throws {
+        var settings = AppSettings.default
+        settings.editorHotkey = KeyChord(keyCode: HardwareKeyCode.e, carbonModifiers: CarbonModifier.command | CarbonModifier.shift)
+        settings.shortcutsPanelHotkey = KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: CarbonModifier.control | CarbonModifier.shift)
+        settings.zoneHotkeyModifiers = CarbonModifier.control | CarbonModifier.shift
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+        XCTAssertEqual(decoded.editorHotkey, settings.editorHotkey)
+        XCTAssertEqual(decoded.shortcutsPanelHotkey, settings.shortcutsPanelHotkey)
+        XCTAssertEqual(decoded.zoneHotkeyModifiers, settings.zoneHotkeyModifiers)
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.e,
+                carbonModifiers: CarbonModifier.command | CarbonModifier.shift,
+                settings: decoded
+            ),
+            ShortcutCatalog.editorHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: 18,
+                carbonModifiers: CarbonModifier.control | CarbonModifier.shift,
+                settings: decoded
+            ),
+            1
+        )
+    }
+
+    func testVoiceOverOnlyPausesControlOptionChords() {
+        let controlOption = AppSettings.default.editorHotkey
+        let command = KeyChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.command)
+        XCTAssertTrue(ShortcutVoiceOverPolicy.shouldPause(chord: controlOption, voiceOverEnabled: true))
+        XCTAssertFalse(ShortcutVoiceOverPolicy.shouldPause(chord: command, voiceOverEnabled: true))
+        XCTAssertFalse(ShortcutVoiceOverPolicy.shouldPause(chord: controlOption, voiceOverEnabled: false))
+    }
+
+    func testReservedSystemChordsAreRejected() {
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: CarbonModifier.command),
+                replacing: .quickSnapper,
+                in: .default
+            ),
+            .reservedSystem("Spotlight")
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                KeyChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.command),
+                replacing: .openEditor,
+                in: .default
+            ),
+            .reservedSystem("Undo")
+        )
+    }
+
+    func testZoneModifierConflictUsesTheOtherAction() {
+        var settings = AppSettings.default
+        settings.unsnapHotkey = KeyChord(keyCode: 18, carbonModifiers: CarbonModifier.control | CarbonModifier.shift)
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                KeyChord(keyCode: 18, carbonModifiers: CarbonModifier.control | CarbonModifier.shift),
+                replacing: .snapZones,
+                in: settings
+            ),
+            .duplicate(.unsnap)
+        )
+    }
+
+    func testResettingAShortcutStillRejectsACollision() {
+        var settings = AppSettings.default
+        settings.unsnapHotkey = AppSettings.default.editorHotkey
+        XCTAssertEqual(
+            ShortcutCatalog.validate(
+                AppSettings.default.editorHotkey,
+                replacing: .openEditor,
+                in: settings
+            ),
+            .duplicate(.unsnap)
+        )
     }
 }

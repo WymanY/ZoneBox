@@ -50,6 +50,7 @@
 		7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */; };
 		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
 		7DC9D03511A512EFA42631F8 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */; };
+		7F23DFA154585AA604CE2EC0 /* ShortcutBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */; };
 		87808C55FDDC7CB7F87CE4A1 /* GridEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */; };
 		89DE65C466B12BA30754A933 /* ShortcutCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */; };
 		8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */; };
@@ -153,6 +154,7 @@
 		930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutThumbnailRenderer.swift; sourceTree = "<group>"; };
 		977E18A00CB22B850795CDAA /* NormalizedRect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NormalizedRect.swift; sourceTree = "<group>"; };
 		9A2957655E620023F8101FFC /* WindowIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIdentity.swift; sourceTree = "<group>"; };
+		9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBinding.swift; sourceTree = "<group>"; };
 		9C17F30BC95D5A464046FA95 /* LayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutKind.swift; sourceTree = "<group>"; };
 		A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSnapperTests.swift; sourceTree = "<group>"; };
 		A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplitTests.swift; sourceTree = "<group>"; };
@@ -257,6 +259,7 @@
 				5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */,
 				8D39E9BE7A08C15E0BA42702 /* QuickSnapper.swift */,
 				E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */,
+				9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */,
 				8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */,
 				E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */,
 				446A73B628D4176872A8FC46 /* SnapSession.swift */,
@@ -635,6 +638,7 @@
 				AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */,
 				20720D2F728CA9DF1F78256A /* SettingsStore.swift in Sources */,
 				4C8F02506923A238F526AF4F /* ShakeDetector.swift in Sources */,
+				7F23DFA154585AA604CE2EC0 /* ShortcutBinding.swift in Sources */,
 				89DE65C466B12BA30754A933 /* ShortcutCatalog.swift in Sources */,
 				49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */,
 				4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */,
