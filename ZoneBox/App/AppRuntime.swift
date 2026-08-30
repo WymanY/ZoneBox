@@ -855,6 +855,7 @@ final class AppRuntime {
     func refreshTrustChrome() {
         menuBar?.reloadMenu()
         menuBar?.updateTrustAppearance()
+        settingsWindow?.refreshAccessStatus()
     }
 
     func noteQuickSnapperUI(showing: Bool) {

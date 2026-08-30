@@ -99,6 +99,33 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSectionSnapping
     case settingsSectionOverlay
     case settingsSectionKeyboard
+    case settingsGeneralSubtitle
+    case settingsSnappingSubtitle
+    case settingsOverlaySubtitle
+    case settingsKeyboardSubtitle
+    case settingsLanguageDetail
+    case settingsLaunchAtLoginDetail
+    case settingsShiftDragDetail
+    case settingsRightClickDetail
+    case settingsShakeToSnapDetail
+    case settingsMagneticResizeDetail
+    case settingsRestoreSizeDetail
+    case settingsQuickSnapperDetail
+    case settingsShowNumbersDetail
+    case settingsGutterDetail
+    case settingsSnappingTriggersSection
+    case settingsSnappingBehaviorSection
+    case settingsGeneralPreviewTitle
+    case settingsSnappingPreviewTitle
+    case settingsOverlayPreviewTitle
+    case settingsKeyboardPreviewTitle
+    case settingsGeneralPreviewDescription
+    case settingsSnappingPreviewDescription
+    case settingsOverlayPreviewDescription
+    case settingsKeyboardPreviewDescription
+    case settingsAccessGranted
+    case settingsAccessRequired
+    case settingsManageAccess
     case settingsHotkeyCaptureHint
     case settingsHotkeyRecording
     case settingsResetShortcut
@@ -404,6 +431,33 @@ public enum L10n {
         .settingsSectionSnapping: "Snapping",
         .settingsSectionOverlay: "Overlay",
         .settingsSectionKeyboard: "Keyboard",
+        .settingsGeneralSubtitle: "Choose the language and how ZoneBox starts.",
+        .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
+        .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
+        .settingsKeyboardSubtitle: "Record the shortcuts you use to move between zones.",
+        .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
+        .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
+        .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
+        .settingsRightClickDetail: "Use the secondary button without changing your drag.",
+        .settingsShakeToSnapDetail: "Reveal zones after a short left-right motion.",
+        .settingsMagneticResizeDetail: "Align a resizing edge with the nearest zone boundary.",
+        .settingsRestoreSizeDetail: "Return the window to its pre-snap dimensions.",
+        .settingsQuickSnapperDetail: "Show the overlay first, then choose a numbered zone.",
+        .settingsShowNumbersDetail: "Make numbered keyboard targets visible in the overlay.",
+        .settingsGutterDetail: "Set the breathing room between neighboring zones.",
+        .settingsSnappingTriggersSection: "Snap triggers",
+        .settingsSnappingBehaviorSection: "Window behavior",
+        .settingsGeneralPreviewTitle: "General overview",
+        .settingsSnappingPreviewTitle: "Snapping preview",
+        .settingsOverlayPreviewTitle: "Overlay preview",
+        .settingsKeyboardPreviewTitle: "Keyboard control",
+        .settingsGeneralPreviewDescription: "Language and startup preferences apply across ZoneBox.",
+        .settingsSnappingPreviewDescription: "Drag, right-click, or shake a title bar to place a window in a zone.",
+        .settingsOverlayPreviewDescription: "Zone labels and spacing stay visible only while you need them.",
+        .settingsKeyboardPreviewDescription: "Move, cycle, and restore windows without leaving the keyboard.",
+        .settingsAccessGranted: "Accessibility allowed",
+        .settingsAccessRequired: "Accessibility required",
+        .settingsManageAccess: "Manage…",
         .settingsHotkeyCaptureHint: "Click a shortcut, then press a new key combination. Global shortcuts need Control or Command. VoiceOver still pauses only Control+Option chords.",
         .settingsHotkeyRecording: "Press a shortcut…",
         .settingsResetShortcut: "Reset",
@@ -600,6 +654,33 @@ public enum L10n {
         .settingsSectionSnapping: "吸附",
         .settingsSectionOverlay: "覆盖层",
         .settingsSectionKeyboard: "键盘",
+        .settingsGeneralSubtitle: "设置界面语言，以及 ZoneBox 的启动方式。",
+        .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
+        .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",
+        .settingsKeyboardSubtitle: "录制用于移动、切换和恢复窗口的快捷键。",
+        .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
+        .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
+        .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",
+        .settingsRightClickDetail: "拖动时按下鼠标右键即可显示分区。",
+        .settingsShakeToSnapDetail: "短距离左右晃动标题栏即可显示分区。",
+        .settingsMagneticResizeDetail: "缩放时让窗口边缘对齐最近的分区边界。",
+        .settingsRestoreSizeDetail: "离开吸附后恢复窗口原来的尺寸。",
+        .settingsQuickSnapperDetail: "先显示覆盖层，再按数字选择分区。",
+        .settingsShowNumbersDetail: "在覆盖层中显示可用键盘选择的编号。",
+        .settingsGutterDetail: "设置相邻分区之间的留白。",
+        .settingsSnappingTriggersSection: "吸附触发方式",
+        .settingsSnappingBehaviorSection: "窗口行为",
+        .settingsGeneralPreviewTitle: "通用概览",
+        .settingsSnappingPreviewTitle: "吸附预览",
+        .settingsOverlayPreviewTitle: "覆盖层预览",
+        .settingsKeyboardPreviewTitle: "键盘控制",
+        .settingsGeneralPreviewDescription: "语言和启动偏好会应用到整个 ZoneBox。",
+        .settingsSnappingPreviewDescription: "通过拖动、右键或晃动标题栏，将窗口快速吸附到分区。",
+        .settingsOverlayPreviewDescription: "分区编号和间距只在需要吸附时出现。",
+        .settingsKeyboardPreviewDescription: "不用离开键盘，即可移动、切换和恢复窗口。",
+        .settingsAccessGranted: "辅助功能权限：已授权",
+        .settingsAccessRequired: "需要辅助功能权限",
+        .settingsManageAccess: "管理权限…",
         .settingsHotkeyCaptureHint: "点一下快捷键，再按下新的组合。全局快捷键需要 Control 或 Command。VoiceOver 仍只暂停 Control+Option 组合。",
         .settingsHotkeyRecording: "请按下快捷键…",
         .settingsResetShortcut: "还原",

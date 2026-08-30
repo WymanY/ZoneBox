@@ -84,6 +84,14 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.settingsSectionSnapping, language: .chineseSimplified), "吸附")
         XCTAssertEqual(L10n.text(.settingsSectionOverlay, language: .chineseSimplified), "覆盖层")
         XCTAssertEqual(L10n.text(.settingsSectionKeyboard, language: .chineseSimplified), "键盘")
+        XCTAssertEqual(
+            L10n.text(.settingsSnappingSubtitle, language: .chineseSimplified),
+            "选择窗口如何进入分区，以及离开吸附时如何恢复。"
+        )
+        XCTAssertEqual(L10n.text(.settingsSnappingPreviewTitle, language: .english), "Snapping preview")
+        XCTAssertEqual(L10n.text(.settingsAccessGranted, language: .chineseSimplified), "辅助功能权限：已授权")
+        XCTAssertEqual(L10n.text(.settingsSnappingTriggersSection, language: .english), "Snap triggers")
+        XCTAssertEqual(L10n.text(.settingsSnappingBehaviorSection, language: .chineseSimplified), "窗口行为")
     }
 
     func testShortcutCustomizationCopy() {
