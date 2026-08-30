@@ -14,6 +14,7 @@ final class MenuBarController: NSObject {
 
     func install() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "ZoneBoxStatusItem"
         item.isVisible = true
         if let button = item.button {
             button.toolTip = L10n.text(.statusTooltip)
@@ -389,6 +390,7 @@ final class MenuBarController: NSObject {
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.buttons.first?.hasDestructiveAction = true
         let response = alert.runModal()
         guard response == .alertFirstButtonReturn else { return }
         if !runtime.deleteLayout(layout) {

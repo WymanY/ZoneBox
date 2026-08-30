@@ -2,7 +2,11 @@ import Foundation
 import os
 
 public enum Log {
+    #if DEBUG
+    public static let subsystem = "com.fancyzone.app.debug"
+    #else
     public static let subsystem = "com.fancyzone.app"
+    #endif
 
     public static let app = Logger(subsystem: subsystem, category: "app")
     public static let ax = Logger(subsystem: subsystem, category: "ax")

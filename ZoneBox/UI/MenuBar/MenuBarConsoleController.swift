@@ -6,10 +6,16 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private unowned let runtime: AppRuntime
     private var panel: ConsolePanel?
     private var sessionActive = false
+    private var currentDisplayLabel: NSTextField?
     private var displayLabel: NSTextField?
     private var warningButton: NSButton?
-    private var gridView: TileGridView?
+    private var featuredLayoutHost: NSView?
+    private var otherLayoutsHeader: NSView?
+    private var otherLayoutsLabel: NSTextField?
+    private var otherLayoutsScrollView: NSScrollView?
+    private var gridView: LayoutGridView?
     private var gridHeightConstraint: NSLayoutConstraint?
+    private var otherLayoutCount = 0
     private var organizeButton: NSButton?
     private var settingsButton: NSButton?
     private var newButton: NSButton?
@@ -103,26 +109,21 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeRoot() -> NSView {
-        let root = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: Metrics.width, height: 240))
-        root.material = .menu
-        root.blendingMode = .behindWindow
-        root.state = .active
-        root.wantsLayer = true
-        root.layer?.cornerRadius = 12
-        root.layer?.cornerCurve = .continuous
-        root.layer?.masksToBounds = true
+        let root = ConsoleMaterialView(frame: NSRect(x: 0, y: 0, width: Metrics.width, height: 240))
 
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = 10
+        stack.spacing = Metrics.stackSpacing
         stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        stack.edgeInsets = Metrics.panelInsets
         stack.detachesHiddenViews = true
         stack.addArrangedSubview(makeHeader())
         stack.addArrangedSubview(makeWarningButton())
-        stack.addArrangedSubview(makeGrid())
+        stack.addArrangedSubview(makeFeaturedLayoutHost())
+        stack.addArrangedSubview(makeOtherLayoutsHeader())
+        stack.addArrangedSubview(makeOtherLayoutsGrid())
         stack.addArrangedSubview(makeSeparator())
         stack.addArrangedSubview(makeFooter())
 
@@ -138,12 +139,25 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeHeader() -> NSView {
+        let eyebrow = NSTextField(labelWithString: L10n.text(.consoleCurrentDisplay))
+        eyebrow.font = .systemFont(ofSize: 9, weight: .medium)
+        eyebrow.textColor = .secondaryLabelColor
+        eyebrow.lineBreakMode = .byTruncatingTail
+        currentDisplayLabel = eyebrow
+
         let name = NSTextField(labelWithString: "")
-        name.font = .systemFont(ofSize: 13, weight: .semibold)
+        name.font = .systemFont(ofSize: 15, weight: .semibold)
         name.lineBreakMode = .byTruncatingTail
         name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         name.setContentHuggingPriority(.defaultLow, for: .horizontal)
         displayLabel = name
+
+        let titleStack = NSStackView(views: [eyebrow, name])
+        titleStack.orientation = .vertical
+        titleStack.alignment = .leading
+        titleStack.spacing = 1
+        titleStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        titleStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         let create = NSButton(title: L10n.text(.consoleNew), target: self, action: #selector(newLayout))
         create.bezelStyle = .rounded
@@ -152,19 +166,51 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         create.imagePosition = .imageLeading
         create.imageScaling = .scaleProportionallyDown
         create.imageHugsTitle = true
+        create.contentTintColor = .controlAccentColor
+        create.refusesFirstResponder = true
         create.toolTip = L10n.text(.consoleNew)
         create.setAccessibilityLabel(L10n.text(.consoleNew))
         create.setContentHuggingPriority(.required, for: .horizontal)
         create.setContentCompressionResistancePriority(.required, for: .horizontal)
         newButton = create
 
-        let header = NSStackView(views: [name, create])
+        let header = NSStackView(views: [titleStack, create])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 8
         header.translatesAutoresizingMaskIntoConstraints = false
-        header.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        header.heightAnchor.constraint(equalToConstant: Metrics.headerHeight).isActive = true
         return header
+    }
+
+    private func makeFeaturedLayoutHost() -> NSView {
+        let host = NSView()
+        host.translatesAutoresizingMaskIntoConstraints = false
+        host.heightAnchor.constraint(equalToConstant: Metrics.featuredHeight).isActive = true
+        featuredLayoutHost = host
+        return host
+    }
+
+    private func makeOtherLayoutsHeader() -> NSView {
+        let label = NSTextField(labelWithString: L10n.text(.consoleOtherLayouts))
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        otherLayoutsLabel = label
+
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [label, separator])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.heightAnchor.constraint(equalToConstant: Metrics.sectionHeaderHeight).isActive = true
+        otherLayoutsHeader = row
+        return row
     }
 
     private func makeWarningButton() -> NSButton {
@@ -182,8 +228,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return button
     }
 
-    private func makeGrid() -> NSView {
-        let grid = TileGridView()
+    private func makeOtherLayoutsGrid() -> NSView {
+        let grid = LayoutGridView()
         gridView = grid
 
         let scroll = NSScrollView()
@@ -199,9 +245,16 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsets()
         scroll.verticalScrollElasticity = .allowed
+        let clipView = ScrollAwareClipView()
+        clipView.drawsBackground = false
+        clipView.onBoundsChange = { [weak grid] in
+            grid?.reconcileHoverState()
+        }
+        scroll.contentView = clipView
         scroll.documentView = grid
         let height = scroll.heightAnchor.constraint(equalToConstant: gridHeight())
         gridHeightConstraint = height
+        otherLayoutsScrollView = scroll
         NSLayoutConstraint.activate([
             height,
         ])
@@ -239,7 +292,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func applyContent() {
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+        currentDisplayLabel?.stringValue = L10n.text(.consoleCurrentDisplay)
         displayLabel?.stringValue = area?.display.localizedName ?? L10n.text(.consoleNoDisplay)
+        otherLayoutsLabel?.stringValue = L10n.text(.consoleOtherLayouts)
         let warning = runtime.trust.showsMenuBarWarning()
         warningButton?.title = L10n.text(.menuEnableAccessibility)
         warningButton?.isHidden = !warning
@@ -247,41 +302,89 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         organizeButton?.title = L10n.text(.consoleOrganize)
         organizeButton?.isEnabled = !runtime.isOrganizingWindows
         settingsButton?.title = L10n.text(.menuSettings)
-        newButton?.title = L10n.text(.consoleNew)
+        if let newButton {
+            newButton.attributedTitle = NSAttributedString(
+                string: L10n.text(.consoleNew),
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                    .foregroundColor: NSColor.controlAccentColor,
+                ]
+            )
+        }
         newButton?.toolTip = L10n.text(.consoleNew)
         newButton?.setAccessibilityLabel(L10n.text(.consoleNew))
         quitButton?.title = L10n.text(.menuQuit)
 
-        rebuildTiles(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
+        rebuildLayoutViews(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
         gridHeightConstraint?.constant = gridHeight()
     }
 
-    private func rebuildTiles(currentID: UUID?) {
-        guard let gridView else { return }
-        let tiles: [NSView] = runtime.document.layouts.map { layout in
-            LayoutTileView(
+    private func rebuildLayoutViews(currentID: UUID?) {
+        guard let featuredLayoutHost, let gridView else { return }
+        let layouts = runtime.document.layouts
+        guard let featured = layouts.first(where: { $0.id == currentID }) ?? layouts.first else {
+            featuredLayoutHost.subviews.forEach { $0.removeFromSuperview() }
+            gridView.setTiles([])
+            otherLayoutCount = 0
+            otherLayoutsHeader?.isHidden = true
+            otherLayoutsScrollView?.isHidden = true
+            return
+        }
+
+        featuredLayoutHost.subviews.forEach { $0.removeFromSuperview() }
+        let featuredCard = LayoutCardView(
+            layout: featured,
+            mode: .featured,
+            selected: featured.id == currentID,
+            canDelete: layouts.count > 1,
+            onSelect: { [weak self] in self?.select(featured) },
+            onEdit: { [weak self] in self?.edit(featured) },
+            onDelete: { [weak self] in self?.confirmAndDelete(featured) }
+        )
+        featuredCard.frame = featuredLayoutHost.bounds
+        featuredCard.autoresizingMask = [.width, .height]
+        featuredLayoutHost.addSubview(featuredCard)
+
+        let otherLayouts = layouts.filter { $0.id != featured.id }
+        let tiles: [NSView] = otherLayouts.map { layout in
+            LayoutCardView(
                 layout: layout,
-                selected: layout.id == currentID,
-                canDelete: runtime.document.layouts.count > 1,
-                width: Metrics.tileWidth,
-                thumbnailSize: Metrics.thumbnailSize,
+                mode: .compact,
+                selected: false,
+                canDelete: layouts.count > 1,
                 onSelect: { [weak self] in self?.select(layout) },
                 onEdit: { [weak self] in self?.edit(layout) },
                 onDelete: { [weak self] in self?.confirmAndDelete(layout) }
             )
         }
         gridView.setTiles(tiles)
+        otherLayoutCount = otherLayouts.count
+        let hidesOthers = otherLayouts.isEmpty
+        otherLayoutsHeader?.isHidden = hidesOthers
+        otherLayoutsScrollView?.isHidden = hidesOthers
     }
 
     private func contentHeight() -> CGFloat {
-        let warning: CGFloat = runtime.trust.showsMenuBarWarning() ? 34 : 0
-        return 12 + 24 + warning + 10 + gridHeight() + 10 + 1 + 10 + 24 + 12
+        var visibleHeights: [CGFloat] = [
+            Metrics.headerHeight,
+            Metrics.featuredHeight,
+            1,
+            Metrics.footerHeight,
+        ]
+        if runtime.trust.showsMenuBarWarning() {
+            visibleHeights.insert(Metrics.warningHeight, at: 1)
+        }
+        if otherLayoutCount > 0 {
+            visibleHeights.insert(contentsOf: [Metrics.sectionHeaderHeight, gridHeight()], at: visibleHeights.count - 2)
+        }
+        let gaps = CGFloat(max(visibleHeights.count - 1, 0)) * Metrics.stackSpacing
+        return Metrics.panelInsets.top + visibleHeights.reduce(0, +) + gaps + Metrics.panelInsets.bottom
     }
 
     private func gridHeight() -> CGFloat {
-        let layouts = max(runtime.document.layouts.count, 1)
-        let rows = Int(ceil(Double(layouts) / Double(Metrics.columns)))
-        let natural = CGFloat(rows) * Metrics.tileHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
+        guard otherLayoutCount > 0 else { return 0 }
+        let rows = Int(ceil(Double(otherLayoutCount) / Double(Metrics.columns)))
+        let natural = CGFloat(rows) * Metrics.compactHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
         return min(Metrics.maxGridHeight, natural)
     }
 
@@ -313,6 +416,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         }
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
         panel.contentView?.setFrameSize(size)
+        panel.invalidateShadow()
 
     }
 
@@ -356,6 +460,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.buttons.first?.hasDestructiveAction = true
         if let panel {
             alert.beginSheetModal(for: panel) { [weak self] response in
                 guard let self, response == .alertFirstButtonReturn else { return }
@@ -399,6 +504,49 @@ private final class ConsolePanel: NSPanel {
     override func cancelOperation(_ sender: Any?) {
         (delegate as? MenuBarConsoleController)?.close()
     }
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        super.setFrame(frameRect, display: flag)
+        invalidateShadow()
+    }
+}
+
+private final class ConsoleMaterialView: NSVisualEffectView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        material = .menu
+        blendingMode = .behindWindow
+        state = .active
+        wantsLayer = true
+        layer?.cornerRadius = Metrics.panelCornerRadius
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        autoresizingMask = [.width, .height]
+        maskImage = Self.roundedMaskImage(cornerRadius: Metrics.panelCornerRadius)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        window?.invalidateShadow()
+    }
+
+    private static func roundedMaskImage(cornerRadius: CGFloat) -> NSImage {
+        let cap = ceil(cornerRadius)
+        let size = NSSize(width: cap * 2 + 1, height: cap * 2 + 1)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: cap, yRadius: cap).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: cap, left: cap, bottom: cap, right: cap)
+        image.resizingMode = .stretch
+        return image
+    }
 }
 
 private final class ThinOverlayScroller: NSScroller {
@@ -411,18 +559,51 @@ private final class ThinOverlayScroller: NSScroller {
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
 }
 
-private enum Metrics {
-    static let width: CGFloat = 300
-    static let columns = 2
-    static let columnSpacing: CGFloat = 8
-    static let rowSpacing: CGFloat = 8
-    static let thumbnailSize = NSSize(width: 126, height: 58)
-    static let tileWidth: CGFloat = 134
-    static let tileHeight: CGFloat = 108
-    static let maxGridHeight: CGFloat = 456
+private final class ScrollAwareClipView: NSClipView {
+    var onBoundsChange: (() -> Void)?
+    private var reportedBoundsOrigin: NSPoint?
+
+    override func setBoundsOrigin(_ newOrigin: NSPoint) {
+        super.setBoundsOrigin(newOrigin)
+        reportBoundsOriginChange()
+    }
+
+    override func scroll(to newOrigin: NSPoint) {
+        super.scroll(to: newOrigin)
+        reportBoundsOriginChange()
+    }
+
+    private func reportBoundsOriginChange() {
+        let origin = bounds.origin
+        guard reportedBoundsOrigin != origin else { return }
+        reportedBoundsOrigin = origin
+        onBoundsChange?()
+    }
 }
 
-private final class TileGridView: NSView {
+private enum Metrics {
+    static let width: CGFloat = 360
+    static let panelCornerRadius: CGFloat = 12
+    static let panelInsets = NSEdgeInsets(top: 14, left: 14, bottom: 12, right: 14)
+    static let stackSpacing: CGFloat = 10
+    static let headerHeight: CGFloat = 42
+    static let warningHeight: CGFloat = 24
+    static let featuredHeight: CGFloat = 120
+    static let sectionHeaderHeight: CGFloat = 18
+    static let footerHeight: CGFloat = 24
+    static let columns = 2
+    static let columnSpacing: CGFloat = 8
+    static let rowSpacing: CGFloat = 10
+    static let contentWidth = width - panelInsets.left - panelInsets.right
+    static let compactWidth = (contentWidth - columnSpacing) / 2
+    static let compactHeight: CGFloat = 88
+    static let compactPreviewSize = NSSize(width: compactWidth - 16, height: 52)
+    static let compactThumbnailSize = NSSize(width: compactPreviewSize.width - 6, height: compactPreviewSize.height - 6)
+    static let featuredThumbnailSize = NSSize(width: 180, height: 86)
+    static let maxGridHeight: CGFloat = compactHeight * 3 + rowSpacing * 2
+}
+
+private final class LayoutGridView: NSView {
     override var isFlipped: Bool { true }
 
     func setTiles(_ tiles: [NSView]) {
@@ -433,19 +614,27 @@ private final class TileGridView: NSView {
         }
         needsLayout = true
         invalidateIntrinsicContentSize()
+        setFrameSize(intrinsicContentSize)
+    }
+
+    func reconcileHoverState() {
+        for case let tile as LayoutCardView in subviews {
+            tile.reconcileHoverState()
+        }
     }
 
     override var intrinsicContentSize: NSSize {
-        let count = max(subviews.count, 1)
+        let count = subviews.count
+        guard count > 0 else { return NSSize(width: Metrics.contentWidth, height: 0) }
         let rows = Int(ceil(Double(count) / Double(Metrics.columns)))
-        let height = CGFloat(rows) * Metrics.tileHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
-        return NSSize(width: Metrics.width - 24, height: height)
+        let height = CGFloat(rows) * Metrics.compactHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
+        return NSSize(width: Metrics.contentWidth, height: height)
     }
 
     override func layout() {
         super.layout()
-        let tileW = Metrics.tileWidth
-        let tileH = Metrics.tileHeight
+        let tileW = Metrics.compactWidth
+        let tileH = Metrics.compactHeight
         let colGap = Metrics.columnSpacing
         let rowGap = Metrics.rowSpacing
         for (index, tile) in subviews.enumerated() {
@@ -458,15 +647,22 @@ private final class TileGridView: NSView {
                 height: tileH
             )
         }
-        let rows = max(1, Int(ceil(Double(max(subviews.count, 1)) / Double(Metrics.columns))))
+        let rows = Int(ceil(Double(subviews.count) / Double(Metrics.columns)))
         let height = CGFloat(rows) * tileH + CGFloat(max(rows - 1, 0)) * rowGap
-        if abs(frame.height - height) > 0.5 || abs(frame.width - (Metrics.width - 24)) > 0.5 {
-            setFrameSize(NSSize(width: Metrics.width - 24, height: height))
+        if abs(frame.height - height) > 0.5 || abs(frame.width - Metrics.contentWidth) > 0.5 {
+            setFrameSize(NSSize(width: Metrics.contentWidth, height: height))
         }
+        reconcileHoverState()
     }
 }
 
-private final class LayoutTileView: NSView {
+private final class LayoutCardView: NSView {
+    enum Mode {
+        case featured
+        case compact
+    }
+
+    private let mode: Mode
     private let selected: Bool
     private let canDelete: Bool
     private let onSelect: () -> Void
@@ -474,48 +670,73 @@ private final class LayoutTileView: NSView {
     private let onDelete: () -> Void
     private let title: String
     private let thumbnail: NSImage
-    private var hovering = false { didSet { needsDisplay = true } }
+    private var hovering = false {
+        didSet {
+            guard oldValue != hovering else { return }
+            updateActionVisibility()
+            needsDisplay = true
+        }
+    }
     private let editButton = NSButton()
     private let deleteButton = NSButton()
+    private let checkImageView = NSImageView()
 
     init(
         layout: Layout,
+        mode: Mode,
         selected: Bool,
         canDelete: Bool,
-        width: CGFloat,
-        thumbnailSize: NSSize,
         onSelect: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
+        self.mode = mode
         self.selected = selected
         self.canDelete = canDelete
         self.onSelect = onSelect
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.title = L10n.layoutDisplayName(layout.name)
+        let thumbnailSize = mode == .featured
+            ? Metrics.featuredThumbnailSize
+            : Metrics.compactThumbnailSize
         let fill = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.55)
+            ? NSColor.controlAccentColor.withAlphaComponent(0.36)
             : NSColor.controlAccentColor.withAlphaComponent(0.28)
         let stroke = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.9)
-            : NSColor.white.withAlphaComponent(0.35)
+            ? NSColor.controlAccentColor.withAlphaComponent(0.76)
+            : NSColor.white.withAlphaComponent(0.38)
         self.thumbnail = LayoutThumbnailRenderer.image(
             for: layout,
             size: thumbnailSize,
             fill: fill,
             stroke: stroke
         )
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: Metrics.tileHeight))
+        let size = mode == .featured
+            ? NSSize(width: Metrics.contentWidth, height: Metrics.featuredHeight)
+            : NSSize(width: Metrics.compactWidth, height: Metrics.compactHeight)
+        super.init(frame: NSRect(origin: .zero, size: size))
         translatesAutoresizingMaskIntoConstraints = true
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = mode == .featured ? 10 : 8
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        setAccessibilityRole(.group)
+        setAccessibilityRole(.button)
         setAccessibilityLabel(title)
+        setAccessibilitySelected(selected)
         autoresizingMask = []
+        configureCheckmark()
         configureActionButtons()
+    }
+
+    private func configureCheckmark() {
+        let config = NSImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+        checkImageView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        checkImageView.contentTintColor = .controlAccentColor
+        checkImageView.imageScaling = .scaleProportionallyDown
+        checkImageView.isHidden = !selected || mode != .featured
+        addSubview(checkImageView)
     }
 
     private func configureActionButtons() {
@@ -523,19 +744,19 @@ private final class LayoutTileView: NSView {
             editButton,
             symbol: "pencil",
             title: L10n.text(.consoleEdit),
-            tint: .labelColor,
+            role: .edit,
             action: #selector(editTapped)
         )
         configureChromeButton(
             deleteButton,
             symbol: "trash",
             title: L10n.text(.editorDelete),
-            tint: NSColor.systemRed,
+            role: .delete,
             action: #selector(deleteTapped)
         )
-        deleteButton.isHidden = !canDelete
         addSubview(editButton)
         addSubview(deleteButton)
+        updateActionVisibility()
         layoutActionButtons()
     }
 
@@ -543,7 +764,7 @@ private final class LayoutTileView: NSView {
         _ button: NSButton,
         symbol: String,
         title: String,
-        tint: NSColor,
+        role: ActionRole,
         action: Selector
     ) {
         button.bezelStyle = .regularSquare
@@ -554,18 +775,22 @@ private final class LayoutTileView: NSView {
         let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
             .withSymbolConfiguration(config)
-        button.contentTintColor = tint
         button.toolTip = title
         button.setAccessibilityLabel(title)
         button.target = self
         button.action = action
         button.wantsLayer = true
-        button.layer?.cornerRadius = 6
+        button.layer?.cornerRadius = mode == .featured ? 6 : 5
         button.layer?.cornerCurve = .continuous
-        button.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94).cgColor
-        button.layer?.borderWidth = 1
-        button.layer?.borderColor = NSColor.separatorColor.cgColor
+        button.layer?.masksToBounds = true
         button.translatesAutoresizingMaskIntoConstraints = true
+        applyActionChrome(button, role: role)
+    }
+
+    private func updateActionVisibility() {
+        let showsActions = mode == .featured || hovering
+        editButton.isHidden = !showsActions
+        deleteButton.isHidden = !showsActions || !canDelete
     }
 
     @objc private func deleteTapped() {
@@ -577,17 +802,35 @@ private final class LayoutTileView: NSView {
     }
 
     private func layoutActionButtons() {
-        let size: CGFloat = 20
-        let inset: CGFloat = 6
-        editButton.frame = NSRect(x: bounds.maxX - inset - size, y: bounds.maxY - inset - size, width: size, height: size)
-        deleteButton.frame = NSRect(x: inset, y: bounds.maxY - inset - size, width: size, height: size)
-        deleteButton.isHidden = !canDelete
+        let size: CGFloat = mode == .featured ? 22 : 20
+        let inset: CGFloat = mode == .featured ? 8 : 6
+        let gap: CGFloat = 6
+        deleteButton.frame = NSRect(
+            x: bounds.maxX - inset - size,
+            y: bounds.maxY - inset - size,
+            width: size,
+            height: size
+        )
+        editButton.frame = NSRect(
+            x: deleteButton.frame.minX - gap - size,
+            y: deleteButton.frame.minY,
+            width: size,
+            height: size
+        )
+        if mode == .featured {
+            checkImageView.frame = NSRect(x: bounds.maxX - 32, y: 18, width: 20, height: 20)
+        } else {
+            checkImageView.frame = .zero
+        }
+        updateActionVisibility()
     }
 
     required init?(coder: NSCoder) { nil }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: Metrics.tileWidth, height: Metrics.tileHeight)
+        mode == .featured
+            ? NSSize(width: Metrics.contentWidth, height: Metrics.featuredHeight)
+            : NSSize(width: Metrics.compactWidth, height: Metrics.compactHeight)
     }
 
     override func updateTrackingAreas() {
@@ -604,20 +847,33 @@ private final class LayoutTileView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        hovering = true
+        if let grid = superview as? LayoutGridView {
+            grid.reconcileHoverState()
+        } else {
+            reconcileHoverState()
+        }
     }
 
     override func mouseExited(with event: NSEvent) {
         hovering = false
     }
 
+    func reconcileHoverState() {
+        guard mode == .compact, let window else {
+            hovering = false
+            return
+        }
+        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        hovering = bounds.contains(point) && visibleRect.contains(point)
+    }
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if editButton.frame.contains(point) {
+        if !editButton.isHidden, editButton.frame.contains(point) {
             onEdit()
             return
         }
-        if canDelete, deleteButton.frame.contains(point) {
+        if !deleteButton.isHidden, deleteButton.frame.contains(point) {
             onDelete()
             return
         }
@@ -629,49 +885,130 @@ private final class LayoutTileView: NSView {
         layoutActionButtons()
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyActionChrome(editButton, role: .edit)
+        applyActionChrome(deleteButton, role: .delete)
+        needsDisplay = true
+    }
+
+    private enum ActionRole {
+        case edit
+        case delete
+    }
+
+    private func applyActionChrome(_ button: NSButton, role: ActionRole) {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let tint: NSColor
+        let fill: NSColor
+        let border: NSColor
+        switch role {
+        case .edit:
+            tint = .controlAccentColor
+            fill = NSColor.controlAccentColor.withAlphaComponent(dark ? 0.28 : 0.16)
+            border = NSColor.controlAccentColor.withAlphaComponent(dark ? 0.46 : 0.28)
+        case .delete:
+            tint = .systemRed
+            fill = NSColor.systemRed.withAlphaComponent(dark ? 0.28 : 0.14)
+            border = NSColor.systemRed.withAlphaComponent(dark ? 0.46 : 0.26)
+        }
+        button.contentTintColor = tint
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            button.layer?.backgroundColor = fill.cgColor
+            button.layer?.borderColor = border.cgColor
+            button.layer?.borderWidth = 1
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let fill: NSColor
-        if selected {
-            fill = NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22 : 0.16)
-        } else if hovering {
-            fill = (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.06)
-        } else {
-            fill = (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.04)
+        switch mode {
+        case .featured:
+            fill = selected
+                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.20 : 0.10)
+                : (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.045)
+        case .compact:
+            fill = hovering
+                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.14 : 0.08)
+                : NSColor.controlBackgroundColor.withAlphaComponent(dark ? 0.20 : 0.56)
         }
         fill.setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
-        if selected {
-            NSColor.controlAccentColor.setStroke()
-            let border = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8)
-            border.lineWidth = 2
-            border.stroke()
-        }
+        let radius: CGFloat = mode == .featured ? 10 : 8
+        NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
 
-        let captionHeight: CGFloat = 22
-        let thumbRect = NSRect(
-            x: ((bounds.width - Metrics.thumbnailSize.width) / 2).rounded(),
-            y: bounds.maxY - 8 - Metrics.thumbnailSize.height,
-            width: Metrics.thumbnailSize.width,
-            height: Metrics.thumbnailSize.height
+        let border = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            xRadius: radius,
+            yRadius: radius
         )
-        thumbnail.draw(in: thumbRect)
-
-        let caption = NSRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: captionHeight)
-        let captionFill = dark
-            ? NSColor.black.withAlphaComponent(0.72)
-            : NSColor.windowBackgroundColor
-        captionFill.setFill()
-        caption.fill()
+        if mode == .featured, selected {
+            NSColor.controlAccentColor.withAlphaComponent(0.88).setStroke()
+            border.lineWidth = 1.5
+        } else if mode == .compact {
+            let compactBorder = hovering
+                ? NSColor.controlAccentColor.withAlphaComponent(0.72)
+                : NSColor.separatorColor.withAlphaComponent(0.48)
+            compactBorder.setStroke()
+            border.lineWidth = 1
+        } else {
+            NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+            border.lineWidth = 1
+        }
+        border.stroke()
 
         let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
         paragraph.lineBreakMode = .byTruncatingTail
+
+        let thumbRect: NSRect
+        let titleRect: NSRect
+        let font: NSFont
+        switch mode {
+        case .featured:
+            thumbRect = NSRect(
+                x: 12,
+                y: ((bounds.height - Metrics.featuredThumbnailSize.height) / 2).rounded(),
+                width: Metrics.featuredThumbnailSize.width,
+                height: Metrics.featuredThumbnailSize.height
+            )
+            titleRect = NSRect(
+                x: thumbRect.maxX + 14,
+                y: 42,
+                width: max(0, bounds.maxX - thumbRect.maxX - 54),
+                height: 22
+            )
+            font = .systemFont(ofSize: 13, weight: .semibold)
+            paragraph.alignment = .left
+        case .compact:
+            let previewRect = NSRect(
+                x: ((bounds.width - Metrics.compactPreviewSize.width) / 2).rounded(),
+                y: bounds.maxY - 8 - Metrics.compactPreviewSize.height,
+                width: Metrics.compactPreviewSize.width,
+                height: Metrics.compactPreviewSize.height
+            )
+            NSColor.labelColor.withAlphaComponent(dark ? 0.055 : 0.035).setFill()
+            let previewPath = NSBezierPath(roundedRect: previewRect, xRadius: 5, yRadius: 5)
+            previewPath.fill()
+            NSColor.separatorColor.withAlphaComponent(0.28).setStroke()
+            previewPath.lineWidth = 0.5
+            previewPath.stroke()
+            thumbRect = NSRect(
+                x: previewRect.minX + 3,
+                y: previewRect.minY + 3,
+                width: Metrics.compactThumbnailSize.width,
+                height: Metrics.compactThumbnailSize.height
+            )
+            titleRect = NSRect(x: 8, y: 4, width: bounds.width - 16, height: 18)
+            font = .systemFont(ofSize: 11, weight: .medium)
+            paragraph.alignment = .center
+        }
+        thumbnail.draw(in: thumbRect)
+
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: selected ? .semibold : .medium),
+            .font: font,
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph,
         ]
-        (title as NSString).draw(in: caption.insetBy(dx: 6, dy: 3), withAttributes: attrs)
+        (title as NSString).draw(in: titleRect, withAttributes: attrs)
     }
 }
