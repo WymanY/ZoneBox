@@ -243,6 +243,25 @@ final class GridEditingTests: XCTestCase {
         try assertTilesWorkArea(resized, workArea: small)
     }
 
+    func testResizingTrailingZoneKeepsOuterEdge() throws {
+        let start = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
+        let rightID = try XCTUnwrap(start.zones.last?.id)
+        let resized = try XCTUnwrap(
+            GridEditing.resizingZone(
+                start,
+                id: rightID,
+                toWidth: 300,
+                height: nil,
+                workAreaAX: small,
+                lockAspect: false
+            )
+        )
+        let spec = try XCTUnwrap(resized.grid)
+        XCTAssertEqual(spec.columnWeights[0], 7_000)
+        XCTAssertEqual(spec.columnWeights[1], 3_000)
+        try assertTilesWorkArea(resized, workArea: small)
+    }
+
     func testResolvedGutterLeavesOuterEdgesFlush() throws {
         let layout = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
         let resolved = try resolveLayout(layout, workAreaAX: small, gutter: 16)

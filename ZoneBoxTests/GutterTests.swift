@@ -34,6 +34,20 @@ final class GutterTests: XCTestCase {
         XCTAssertEqual(Gutter.apply(rect, gutter: 0, workAreaAX: work), rect)
     }
 
+    func testCenteredCanvasZoneDoesNotShrinkWithoutNeighbors() {
+        let rect = CGRect(x: 200, y: 150, width: 400, height: 300)
+        XCTAssertEqual(Gutter.apply(rect, gutter: 16, workAreaAX: work), rect)
+        XCTAssertEqual(Gutter.apply([rect], gutter: 16, workAreaAX: work), [rect])
+    }
+
+    func testSeparatedCanvasZonesDoNotInventSharedEdges() {
+        let left = CGRect(x: 40, y: 80, width: 200, height: 240)
+        let right = CGRect(x: 520, y: 80, width: 200, height: 240)
+        let frames = Gutter.apply([left, right], gutter: 16, workAreaAX: work)
+        XCTAssertEqual(frames[0], left)
+        XCTAssertEqual(frames[1], right)
+    }
+
     func testFullWorkAreaZoneStaysFlushWithGutter() {
         let frame = Gutter.apply(work, gutter: 16, workAreaAX: work)
         XCTAssertEqual(frame, work)

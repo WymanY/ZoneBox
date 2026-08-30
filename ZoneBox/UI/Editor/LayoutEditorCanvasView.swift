@@ -21,7 +21,8 @@ final class LayoutEditorCanvasView: NSView {
         }
     }
     var onChange: ((Layout) -> Void)?
-    var recordsUndoOnChange = true
+    var onPreview: ((Layout) -> Void)?
+    var onInteractionBegin: (() -> Void)?
     var onCancel: (() -> Void)?
     var onInteractionChange: ((Bool) -> Void)?
     var onSelectionChange: (() -> Void)?
@@ -271,6 +272,7 @@ final class LayoutEditorCanvasView: NSView {
                     handle: edge.primaryHandle
                 )
             }
+            beginUndoInteraction()
             setInteracting(true)
             applyCursor()
             needsDisplay = true
@@ -290,6 +292,7 @@ final class LayoutEditorCanvasView: NSView {
             drag = .create(start: point)
         }
         hoverEdge = nil
+        beginUndoInteraction()
         setInteracting(true)
         needsDisplay = true
     }
@@ -333,11 +336,12 @@ final class LayoutEditorCanvasView: NSView {
             applyGridLineDrag(axis: axis, afterIndex: afterIndex, point: point)
         case .gridMerge:
             updateGridMergeSelection(at: point)
+            previewDraft()
             return
         case .close, nil:
             break
         }
-        commit(recordsUndo: false)
+        previewDraft()
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -552,17 +556,30 @@ final class LayoutEditorCanvasView: NSView {
         onInteractionChange?(active)
     }
 
-    private func commit(recordsUndo: Bool = true) {
-        let previous = recordsUndoOnChange
-        recordsUndoOnChange = recordsUndo
+    private func beginUndoInteraction() {
+        onInteractionBegin?()
+    }
+
+    private func previewDraft() {
+        onPreview?(layout)
+        needsDisplay = true
+    }
+
+    private func commit() {
+        sanitizeCreatingZoneIfNeeded()
         onChange?(layout)
-        recordsUndoOnChange = previous
         needsDisplay = true
     }
 
     func commitFromMetrics() {
-        commit(recordsUndo: true)
+        commit()
         onSelectionChange?()
+    }
+
+    private func sanitizeCreatingZoneIfNeeded() {
+        if let last = layout.zones.last, last.name == "__creating" {
+            layout.zones[layout.zones.count - 1].name = nil
+        }
     }
 
     private func ensureCanvas() {
@@ -686,6 +703,7 @@ final class LayoutEditorCanvasView: NSView {
             selectedID = GridEditing.zoneID(normalizedX: n.x, normalizedY: n.y, layout: layout)
             drag = .gridLine(axis: hit.axis, afterIndex: hit.afterIndex)
             hoverEdge = gridEdge(for: hit)
+            beginUndoInteraction()
             setInteracting(true)
             applyCursor()
             needsDisplay = true
@@ -695,6 +713,7 @@ final class LayoutEditorCanvasView: NSView {
             selectedID = id
             mergeIDs = [id]
             drag = .gridMerge(start: point, normalizedStart: (n.x, n.y))
+            beginUndoInteraction()
             setInteracting(true)
             needsDisplay = true
             return

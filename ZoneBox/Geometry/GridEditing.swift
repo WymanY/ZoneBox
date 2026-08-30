@@ -184,14 +184,15 @@ public enum GridEditing {
         var result = layout
         if abs(next.width - current.width) > 0.0005 {
             let box = zoneBox(idx, in: spec)
-            let nextMaxX = next.x + next.width
             if box.c1 < spec.columns - 1 {
+                let nextMaxX = next.x + next.width
                 guard let moved = moveLine(result, axis: .vertical, afterIndex: box.c1, toNormalized: nextMaxX) else {
                     return nil
                 }
                 result = moved
             } else if box.c0 > 0 {
-                guard let moved = moveLine(result, axis: .vertical, afterIndex: box.c0 - 1, toNormalized: next.x) else {
+                let nextOriginX = current.x + current.width - next.width
+                guard let moved = moveLine(result, axis: .vertical, afterIndex: box.c0 - 1, toNormalized: nextOriginX) else {
                     return nil
                 }
                 result = moved
@@ -200,14 +201,15 @@ public enum GridEditing {
         if abs(next.height - current.height) > 0.0005 {
             let latest = result.grid ?? spec
             let box = zoneBox(idx, in: latest)
-            let nextMaxY = next.y + next.height
             if box.r1 < latest.rows - 1 {
+                let nextMaxY = next.y + next.height
                 guard let moved = moveLine(result, axis: .horizontal, afterIndex: box.r1, toNormalized: nextMaxY) else {
                     return nil
                 }
                 result = moved
             } else if box.r0 > 0 {
-                guard let moved = moveLine(result, axis: .horizontal, afterIndex: box.r0 - 1, toNormalized: next.y) else {
+                let nextOriginY = current.y + current.height - next.height
+                guard let moved = moveLine(result, axis: .horizontal, afterIndex: box.r0 - 1, toNormalized: nextOriginY) else {
                     return nil
                 }
                 result = moved

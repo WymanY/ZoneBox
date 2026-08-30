@@ -51,14 +51,31 @@ final class LayoutEditTransactionTests: XCTestCase {
         var live = first
         live.zones.removeLast()
         live = live.packedNumbers()
-        transaction.replaceDraftWithoutRecording(live)
+        transaction.previewDraft(live)
+        XCTAssertEqual(transaction.draft.zones.count, 1)
+        XCTAssertTrue(transaction.canUndo)
+
+        transaction.finishInteraction(live)
         XCTAssertEqual(transaction.draft.zones.count, 1)
 
         let undone = transaction.undo()
-        XCTAssertEqual(undone?.zones.count, original.zones.count)
-        XCTAssertEqual(transaction.draft.zones.count, original.zones.count)
-        XCTAssertFalse(transaction.canUndo)
-        XCTAssertNil(transaction.undo())
+        XCTAssertEqual(undone?.zones.count, 2)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        XCTAssertTrue(transaction.canUndo)
+    }
+
+
+    func testPreviewThenFinishRecordsOnlyThePreDragLayout() {
+        let original = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        var live = original
+        live.zones.removeLast()
+        live = live.packedNumbers()
+        transaction.beginInteraction()
+        transaction.previewDraft(live)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        transaction.finishInteraction(live)
+        XCTAssertEqual(try XCTUnwrap(transaction.undo()).zones.count, 3)
     }
 
     func testUndoAfterGridToCanvasDeleteRestoresCanvasNotGrid() throws {

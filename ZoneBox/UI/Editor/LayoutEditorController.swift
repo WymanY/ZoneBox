@@ -80,7 +80,9 @@ final class LayoutEditorController: NSObject {
 
         let canvas = LayoutEditorCanvasView(layout: draft, workAreaAX: workAX, primaryFlipHeight: flip)
         canvas.selectFirstZone()
-        canvas.onChange = { [weak self] layout in self?.updateDraft(layout) }
+        canvas.onChange = { [weak self] layout in self?.finishDraft(layout) }
+        canvas.onPreview = { [weak self] layout in self?.previewDraft(layout) }
+        canvas.onInteractionBegin = { [weak self] in self?.transaction?.beginInteraction() }
         canvas.onCancel = { [weak self] in self?.cancel() }
         canvas.onInteractionChange = { [weak self] active in self?.setToolbarReceded(active) }
         canvas.onSelectionChange = { [weak self] in self?.refreshMetrics() }
@@ -891,12 +893,22 @@ final class LayoutEditorController: NSObject {
         refreshMetrics()
     }
 
+    private func previewDraft(_ layout: Layout) {
+        transaction?.previewDraft(layout)
+        refreshLiveDraftChrome(layout)
+    }
+
+    private func finishDraft(_ layout: Layout) {
+        transaction?.finishInteraction(layout)
+        refreshLiveDraftChrome(layout)
+    }
+
     private func updateDraft(_ layout: Layout) {
-        if canvas?.recordsUndoOnChange == false {
-            transaction?.replaceDraftWithoutRecording(layout)
-        } else {
-            transaction?.updateDraft(layout)
-        }
+        transaction?.updateDraft(layout)
+        refreshLiveDraftChrome(layout)
+    }
+
+    private func refreshLiveDraftChrome(_ layout: Layout) {
         if let workAX = canvas?.workAreaAX {
             selectedPresetIndex = LayoutTemplates.matchingEditorPresetIndex(for: layout, workAreaAX: workAX)
             selectedSavedLayout = savedToolbarLayout.map { saved in
