@@ -36,6 +36,73 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertEqual(document.layouts.first?.id, committed?.id)
     }
 
+    func testUndoRestoresPreviousDraftAndIgnoresLivePreview() {
+        let original = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        XCTAssertFalse(transaction.canUndo)
+
+        var first = original
+        first.zones.removeLast()
+        first = first.packedNumbers()
+        transaction.updateDraft(first)
+        XCTAssertTrue(transaction.canUndo)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+
+        var live = first
+        live.zones.removeLast()
+        live = live.packedNumbers()
+        transaction.previewDraft(live)
+        XCTAssertEqual(transaction.draft.zones.count, 1)
+        XCTAssertTrue(transaction.canUndo)
+
+        transaction.finishInteraction(live)
+        XCTAssertEqual(transaction.draft.zones.count, 1)
+
+        let undone = transaction.undo()
+        XCTAssertEqual(undone?.zones.count, 2)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        XCTAssertTrue(transaction.canUndo)
+    }
+
+
+    func testPreviewThenFinishRecordsOnlyThePreDragLayout() {
+        let original = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        var live = original
+        live.zones.removeLast()
+        live = live.packedNumbers()
+        transaction.beginInteraction()
+        transaction.previewDraft(live)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        transaction.finishInteraction(live)
+        XCTAssertEqual(try XCTUnwrap(transaction.undo()).zones.count, 3)
+    }
+
+    func testUndoAfterGridToCanvasDeleteRestoresCanvasNotGrid() throws {
+        let grid = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: grid, draft: grid, targetDisplayID: displayID)
+        let canvas = try grid.convertingGridToCanvas(workAreaAX: workArea)
+        XCTAssertEqual(canvas.kind, .canvas)
+        transaction.updateDraft(canvas)
+        XCTAssertTrue(transaction.canUndo)
+        XCTAssertEqual(transaction.draft.kind, .canvas)
+
+        var deleted = canvas
+        deleted.zones.removeLast()
+        deleted = deleted.packedNumbers()
+        transaction.updateDraft(deleted)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+
+        let restoredCanvas = try XCTUnwrap(transaction.undo())
+        XCTAssertEqual(restoredCanvas.kind, .canvas)
+        XCTAssertEqual(restoredCanvas.zones.count, 3)
+        XCTAssertEqual(transaction.draft.kind, .canvas)
+
+        let restoredGrid = try XCTUnwrap(transaction.undo())
+        XCTAssertEqual(restoredGrid.kind, .grid)
+        XCTAssertEqual(transaction.draft.kind, .grid)
+    }
+
     func testDeletingEveryZoneCannotCommit() {
         let original = LayoutTemplates.focus()
         var empty = original

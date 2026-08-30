@@ -29,7 +29,7 @@ public enum GridResolver {
             }
         }
 
-        return try cellsByIndex.keys.sorted().map { idx in
+        let ordered = try cellsByIndex.keys.sorted().map { idx -> (zone: Zone, unguttered: CGRect) in
             guard zones.indices.contains(idx) else { throw GridValidationError.zoneCountMismatch }
             let box = cellsByIndex[idx]!
             let unguttered = CGRect(
@@ -38,8 +38,11 @@ public enum GridResolver {
                 width: colPrefix[box.c1 + 1] - colPrefix[box.c0],
                 height: rowPrefix[box.r1 + 1] - rowPrefix[box.r0]
             )
-            let frame = Gutter.apply(unguttered, gutter: gutter, workAreaAX: workAreaAX)
-            return ResolvedZone(zoneID: zones[idx].id, number: zones[idx].number, frameAX: frame)
+            return (zones[idx], unguttered)
+        }
+        let frames = Gutter.apply(ordered.map { $0.unguttered }, gutter: gutter, workAreaAX: workAreaAX)
+        return zip(ordered, frames).map { item, frame in
+            ResolvedZone(zoneID: item.zone.id, number: item.zone.number, frameAX: frame)
         }
     }
 }
@@ -47,12 +50,14 @@ public enum GridResolver {
 public func resolveLayout(_ layout: Layout, workAreaAX: CGRect, gutter: CGFloat) throws -> [ResolvedZone] {
     switch layout.kind {
     case .canvas:
-        return layout.zones.sorted { $0.number < $1.number }.compactMap { zone in
+        let ordered = layout.zones.sorted { $0.number < $1.number }.compactMap { zone -> (zone: Zone, unguttered: CGRect)? in
             guard let n = zone.canvasRect else { return nil }
-            var r = n.denormalize(in: workAreaAX)
-            r = Gutter.apply(r, gutter: gutter, workAreaAX: workAreaAX)
-            guard r.width >= 40, r.height >= 40 else { return nil }
-            return ResolvedZone(zoneID: zone.id, number: zone.number, frameAX: r)
+            return (zone, n.denormalize(in: workAreaAX))
+        }
+        let frames = Gutter.apply(ordered.map { $0.unguttered }, gutter: gutter, workAreaAX: workAreaAX)
+        return zip(ordered, frames).compactMap { item, frame in
+            guard frame.width >= 40, frame.height >= 40 else { return nil }
+            return ResolvedZone(zoneID: item.zone.id, number: item.zone.number, frameAX: frame)
         }
     case .grid:
         guard let grid = layout.grid else { return [] }

@@ -253,6 +253,19 @@ public enum ShortcutCatalog {
         keyCode: HardwareKeyCode.s,
         carbonModifiers: CarbonModifier.command
     )
+    public static let editorUndoChord = KeyChord(
+        keyCode: HardwareKeyCode.z,
+        carbonModifiers: CarbonModifier.command
+    )
+    public static let editorUndoAlternateChord = KeyChord(
+        keyCode: HardwareKeyCode.z,
+        carbonModifiers: CarbonModifier.control
+    )
+
+    public static func isEditorUndoChord(keyCode: UInt16, carbonModifiers: UInt32) -> Bool {
+        editorUndoChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
+            || editorUndoAlternateChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
+    }
 
     /// IDs that must fire even when Accessibility is not granted.
     public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID, settingsHotkeyID]
@@ -385,6 +398,12 @@ public enum ShortcutCatalog {
                 surface: .editor,
                 titleKey: .shortcutEditorSave,
                 binding: .chord(editorSaveChord)
+            ),
+            ShortcutSpec(
+                id: "editorUndo",
+                surface: .editor,
+                titleKey: .shortcutEditorUndo,
+                binding: .chord(editorUndoChord)
             ),
             ShortcutSpec(
                 id: "editorZoomHeight",

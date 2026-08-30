@@ -279,6 +279,31 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(save.title(language: .chineseSimplified), "保存布局或另存副本")
     }
 
+    func testEditorUndoUsesControlZ() throws {
+        let undo = try XCTUnwrap(
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "editorUndo" })
+        )
+        guard case .chord(let chord) = undo.binding else {
+            return XCTFail("editorUndo must be a keyboard chord")
+        }
+
+        XCTAssertTrue(
+            chord.matches(
+                keyCode: HardwareKeyCode.z,
+                carbonModifiers: CarbonModifier.command
+            )
+        )
+        XCTAssertTrue(
+            ShortcutCatalog.isEditorUndoChord(
+                keyCode: HardwareKeyCode.z,
+                carbonModifiers: CarbonModifier.control
+            )
+        )
+        XCTAssertEqual(chord.displayCaps, ["⌘", "Z"])
+        XCTAssertEqual(undo.title(language: .english), "Undo last edit")
+        XCTAssertEqual(undo.title(language: .chineseSimplified), "撤销上一步")
+    }
+
     func testOrganizeUsesControlOptionO() throws {
         XCTAssertFalse(WindowOrganize.isPubliclyAvailable)
         XCTAssertNil(ShortcutCatalog.items(from: .default).first(where: { $0.id == "organizeWindows" }))

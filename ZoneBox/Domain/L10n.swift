@@ -131,6 +131,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutEditorCycleBack
     case shortcutEditorDelete
     case shortcutEditorSave
+    case shortcutEditorUndo
     case shortcutEditorZoomHeight
     case shortcutEditorZoomWidth
     case shortcutSnapShiftDrag
@@ -205,6 +206,16 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorCopyUnchangedMessage
     case editorCopyNamePlaceholder
     case editorCopyNameConfirm
+    case editorWidth
+    case editorHeight
+    case editorPixels
+    case editorAspect
+    case editorAspectFree
+    case editorAspectSquare
+    case editorAspect16x9
+    case editorAspect4x3
+    case editorLockAspect
+    case editorNoZoneSelected
 
     case layoutColumns
     case layoutRows
@@ -380,7 +391,7 @@ public enum L10n {
         .settingsMagneticResize: "Magnet window edges to zones while resizing",
         .settingsShowNumbers: "Show zone numbers",
         .settingsRestoreSize: "Restore size when unsnapping",
-        .settingsGutter: "Gutter: %d pt",
+        .settingsGutter: "Space between zones: %d pt",
         .settingsHotkeys: "Click a shortcut to record a new combination. Global shortcuts need Control or Command. VoiceOver still pauses only Control+Option chords.",
         .settingsShowShortcuts: "Keyboard Shortcuts…",
         .settingsOpenAccess: "Open Accessibility Settings",
@@ -425,6 +436,7 @@ public enum L10n {
         .shortcutEditorCycleBack: "Select previous zone",
         .shortcutEditorDelete: "Delete zone",
         .shortcutEditorSave: "Save layout or copy",
+        .shortcutEditorUndo: "Undo last edit",
         .shortcutEditorZoomHeight: "Scale height",
         .shortcutEditorZoomWidth: "Scale width",
         .shortcutSnapShiftDrag: "Snap while dragging the title bar",
@@ -486,8 +498,8 @@ public enum L10n {
         .editorFromTemplate: "From Template",
         .editorCustomLayout: "Custom",
         .editorFromTemplateTooltip: "Replace the draft with a template. Save updates this layout. Save Copy creates a new one.",
-        .editorHint: "Drag edges to resize. WASD selects a pane. Esc exits.",
-        .editorGridHint: "Click splits a cell. Shift-click splits a row. Save Copy keeps the original.",
+        .editorHint: "Drag edges to resize. Type pixels or lock aspect. WASD selects a pane. ⌘Z undoes. Esc exits.",
+        .editorGridHint: "Click splits a cell. Shift-click splits a row. Drag across cells to merge. ⌘Z undoes.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
         .editorSaveCopyTooltip: "Save changes as a new layout",
@@ -499,6 +511,16 @@ public enum L10n {
         .editorCopyUnchangedMessage: "This layout has no changes. Save an identical copy anyway? You can rename it below.",
         .editorCopyNamePlaceholder: "Layout name",
         .editorCopyNameConfirm: "Save",
+        .editorWidth: "W",
+        .editorHeight: "H",
+        .editorPixels: "px",
+        .editorAspect: "Aspect",
+        .editorAspectFree: "Free",
+        .editorAspectSquare: "1:1",
+        .editorAspect16x9: "16:9",
+        .editorAspect4x3: "4:3",
+        .editorLockAspect: "Lock aspect",
+        .editorNoZoneSelected: "Select a zone to set pixels",
 
         .layoutColumns: "Columns %d",
         .layoutRows: "Rows %d",
@@ -565,7 +587,7 @@ public enum L10n {
         .settingsMagneticResize: "缩放窗口时边缘吸附到分区",
         .settingsShowNumbers: "显示分区编号",
         .settingsRestoreSize: "取消吸附时恢复原来的大小",
-        .settingsGutter: "间距：%d 点",
+        .settingsGutter: "分区间距：%d 点",
         .settingsHotkeys: "点一下快捷键即可录制新组合。全局快捷键需要 Control 或 Command。VoiceOver 仍只暂停 Control+Option 组合。",
         .settingsShowShortcuts: "键盘快捷键…",
         .settingsOpenAccess: "打开辅助功能设置",
@@ -610,6 +632,7 @@ public enum L10n {
         .shortcutEditorCycleBack: "选中上一分区",
         .shortcutEditorDelete: "删除分区",
         .shortcutEditorSave: "保存布局或另存副本",
+        .shortcutEditorUndo: "撤销上一步",
         .shortcutEditorZoomHeight: "缩放高度",
         .shortcutEditorZoomWidth: "缩放宽度",
         .shortcutSnapShiftDrag: "拖动标题栏时吸附",
@@ -671,8 +694,8 @@ public enum L10n {
         .editorFromTemplate: "基于模板",
         .editorCustomLayout: "自定义",
         .editorFromTemplateTooltip: "用模板替换当前草稿。保存会更新当前布局，另存副本会创建新布局。",
-        .editorHint: "拖边缘缩放。WASD 选格。Esc 退出。",
-        .editorGridHint: "点击竖切，Shift+点击横切。另存副本会保留原布局。",
+        .editorHint: "拖边缘缩放。可输入像素或锁定长宽比。WASD 选格。⌘Z 撤销。Esc 退出。",
+        .editorGridHint: "点击竖切，Shift+点击横切。拖过相邻格子可合并。⌘Z 撤销。",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
         .editorSaveCopyTooltip: "将修改保存为新布局",
@@ -684,6 +707,16 @@ public enum L10n {
         .editorCopyUnchangedMessage: "当前布局没有变化。仍要保存一个相同的副本吗？可以在下方修改名称。",
         .editorCopyNamePlaceholder: "布局名称",
         .editorCopyNameConfirm: "保存",
+        .editorWidth: "宽",
+        .editorHeight: "高",
+        .editorPixels: "像素",
+        .editorAspect: "长宽比",
+        .editorAspectFree: "自由",
+        .editorAspectSquare: "1:1",
+        .editorAspect16x9: "16:9",
+        .editorAspect4x3: "4:3",
+        .editorLockAspect: "锁定比例",
+        .editorNoZoneSelected: "选中分区后可设置像素",
 
         .layoutColumns: "%d 列",
         .layoutRows: "%d 行",

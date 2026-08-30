@@ -6,6 +6,8 @@ public struct LayoutEditTransaction: Sendable {
     public let baseline: Layout
     public let targetDisplayID: DisplayIdentity.ID
     public private(set) var draft: Layout
+    private var undoStack: [Layout] = []
+    private var interactionBase: Layout?
 
     public init(original: Layout?, draft: Layout, targetDisplayID: DisplayIdentity.ID) {
         self.original = original
@@ -25,7 +27,68 @@ public struct LayoutEditTransaction: Sendable {
     }
 
     public mutating func updateDraft(_ layout: Layout) {
+        recordUndoIfNeeded(layout)
         draft = layout
+    }
+
+    public mutating func replaceDraftWithoutRecording(_ layout: Layout) {
+        draft = layout
+    }
+
+    public mutating func beginInteraction() {
+        if interactionBase == nil {
+            interactionBase = draft
+        }
+    }
+
+    public mutating func previewDraft(_ layout: Layout) {
+        beginInteraction()
+        draft = layout
+    }
+
+    public mutating func finishInteraction(_ layout: Layout) {
+        let base = interactionBase ?? draft
+        interactionBase = nil
+        if !Self.sameEditingState(layout, base) {
+            if undoStack.last.map({ Self.sameEditingState($0, base) }) != true {
+                undoStack.append(base)
+                if undoStack.count > 50 {
+                    undoStack.removeFirst(undoStack.count - 50)
+                }
+            }
+        }
+        draft = layout
+    }
+
+    public mutating func cancelInteraction() {
+        if let base = interactionBase {
+            draft = base
+        }
+        interactionBase = nil
+    }
+
+    public var canUndo: Bool { !undoStack.isEmpty }
+
+    @discardableResult
+    public mutating func undo() -> Layout? {
+        guard let previous = undoStack.popLast() else { return nil }
+        draft = previous
+        return previous
+    }
+
+    private mutating func recordUndoIfNeeded(_ layout: Layout) {
+        guard !Self.sameEditingState(layout, draft) else { return }
+        if let last = undoStack.last, Self.sameEditingState(last, draft) { return }
+        undoStack.append(draft)
+        if undoStack.count > 50 {
+            undoStack.removeFirst(undoStack.count - 50)
+        }
+    }
+
+    static func sameEditingState(_ lhs: Layout, _ rhs: Layout) -> Bool {
+        lhs.kind == rhs.kind
+            && lhs.zones == rhs.zones
+            && lhs.grid == rhs.grid
     }
 
     public func suggestedCopyName(sourceName: String? = nil, existingNames: [String]) -> String {

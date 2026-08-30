@@ -151,8 +151,90 @@ public enum GridEditing {
         guard let idx = layout.zones.firstIndex(where: { $0.id == id }) else { return nil }
         let unique = Set(spec.cellMap.flatMap { $0 })
         guard unique.count > 1 else { return nil }
-        guard let neighbor = bestNeighbor(of: idx, spec: spec) else { return nil }
-        return merge(layout, zoneIDs: [id, layout.zones[neighbor].id])
+        return absorbing(idx, intoBestNeighborIn: spec, layout: layout)?.layout
+    }
+
+    public static func deletingZone(_ layout: Layout, id: UUID) -> (layout: Layout, absorbedInto: UUID)? {
+        guard layout.kind == .grid, let spec = layout.grid else { return nil }
+        guard let idx = layout.zones.firstIndex(where: { $0.id == id }) else { return nil }
+        let unique = Set(spec.cellMap.flatMap { $0 })
+        guard unique.count > 1 else { return nil }
+        return absorbing(idx, intoBestNeighborIn: spec, layout: layout)
+    }
+
+    public static func resizingZone(
+        _ layout: Layout,
+        id: UUID,
+        toWidth width: Int?,
+        height: Int?,
+        workAreaAX: CGRect,
+        lockAspect: Bool
+    ) -> Layout? {
+        guard layout.kind == .grid, let spec = layout.grid else { return nil }
+        guard let idx = layout.zones.firstIndex(where: { $0.id == id }) else { return nil }
+        let rects = normalizedRects(for: layout, workAreaAX: workAreaAX)
+        guard let current = rects[id] else { return nil }
+        let next = ZonePixelMetrics.resizing(
+            current,
+            toWidth: width,
+            height: height,
+            workAreaAX: workAreaAX,
+            lockAspect: lockAspect
+        )
+        var result = layout
+        if abs(next.width - current.width) > 0.0005 {
+            let box = zoneBox(idx, in: spec)
+            if box.c1 < spec.columns - 1 {
+                let nextMaxX = next.x + next.width
+                guard let moved = moveLine(result, axis: .vertical, afterIndex: box.c1, toNormalized: nextMaxX) else {
+                    return nil
+                }
+                result = moved
+            } else if box.c0 > 0 {
+                let nextOriginX = current.x + current.width - next.width
+                guard let moved = moveLine(result, axis: .vertical, afterIndex: box.c0 - 1, toNormalized: nextOriginX) else {
+                    return nil
+                }
+                result = moved
+            }
+        }
+        if abs(next.height - current.height) > 0.0005 {
+            let latest = result.grid ?? spec
+            let box = zoneBox(idx, in: latest)
+            if box.r1 < latest.rows - 1 {
+                let nextMaxY = next.y + next.height
+                guard let moved = moveLine(result, axis: .horizontal, afterIndex: box.r1, toNormalized: nextMaxY) else {
+                    return nil
+                }
+                result = moved
+            } else if box.r0 > 0 {
+                let nextOriginY = current.y + current.height - next.height
+                guard let moved = moveLine(result, axis: .horizontal, afterIndex: box.r0 - 1, toNormalized: nextOriginY) else {
+                    return nil
+                }
+                result = moved
+            }
+        }
+        return result.grid == layout.grid ? nil : result
+    }
+
+    public static func applyingAspect(
+        _ layout: Layout,
+        id: UUID,
+        aspect: ZoneAspectPreset,
+        workAreaAX: CGRect
+    ) -> Layout? {
+        guard let current = normalizedRects(for: layout, workAreaAX: workAreaAX)[id] else { return nil }
+        let sized = ZonePixelMetrics.applying(aspect: aspect, to: current, workAreaAX: workAreaAX)
+        let pixels = ZonePixelMetrics.pixelSize(of: sized, workAreaAX: workAreaAX)
+        return resizingZone(
+            layout,
+            id: id,
+            toWidth: pixels.width,
+            height: pixels.height,
+            workAreaAX: workAreaAX,
+            lockAspect: false
+        )
     }
 
     public static func hitLine(
@@ -612,6 +694,7 @@ private extension GridEditing {
     }
 
     static func bestNeighbor(of index: Int, spec: GridSpec) -> Int? {
+        let deleted = zoneBox(index, in: spec)
         var shared: [Int: Int] = [:]
         for r in 0..<spec.rows {
             for c in 0..<spec.columns where spec.cellMap[r][c] == index {
@@ -626,8 +709,102 @@ private extension GridEditing {
             }
         }
         return shared.max { lhs, rhs in
+            let leftAligned = isFlushNeighbor(deleted, zoneBox(lhs.key, in: spec))
+            let rightAligned = isFlushNeighbor(deleted, zoneBox(rhs.key, in: spec))
+            if leftAligned != rightAligned { return !leftAligned }
             if lhs.value != rhs.value { return lhs.value < rhs.value }
             return lhs.key > rhs.key
         }?.key
+    }
+
+    static func isFlushNeighbor(
+        _ deleted: (r0: Int, r1: Int, c0: Int, c1: Int),
+        _ host: (r0: Int, r1: Int, c0: Int, c1: Int)
+    ) -> Bool {
+        let sameRows = deleted.r0 == host.r0 && deleted.r1 == host.r1
+        let sameCols = deleted.c0 == host.c0 && deleted.c1 == host.c1
+        let horizontal = sameRows && (deleted.c1 + 1 == host.c0 || host.c1 + 1 == deleted.c0)
+        let vertical = sameCols && (deleted.r1 + 1 == host.r0 || host.r1 + 1 == deleted.r0)
+        return horizontal || vertical
+    }
+
+    /// Absorb only the deleted zone's cells into the neighbor that shares the
+    /// longest aligned edge. Prefer a neighbor that already lines up, so a
+    /// tall or wide neighbor is not split unless nothing else can take the cell.
+    static func absorbing(
+        _ index: Int,
+        intoBestNeighborIn spec: GridSpec,
+        layout: Layout
+    ) -> (layout: Layout, absorbedInto: UUID)? {
+        guard let neighbor = bestNeighbor(of: index, spec: spec) else { return nil }
+        guard layout.zones.indices.contains(neighbor) else { return nil }
+        let absorbedInto = layout.zones[neighbor].id
+        guard let plan = absorbingRectangles(index, into: neighbor, spec: spec) else { return nil }
+        var working = layout
+        if plan.needsNewZone {
+            let nextNumber = (layout.zones.map { $0.number }.max() ?? 0) + 1
+            working.zones.append(Zone(number: nextNumber))
+        }
+        guard let updated = replacing(plan.spec, in: working) else { return nil }
+        return (updated, absorbedInto)
+    }
+
+    static func absorbingRectangles(
+        _ index: Int,
+        into neighbor: Int,
+        spec: GridSpec
+    ) -> (spec: GridSpec, needsNewZone: Bool)? {
+        let deleted = zoneBox(index, in: spec)
+        let host = zoneBox(neighbor, in: spec)
+        var next = spec
+        if deleted.r0 == host.r0, deleted.r1 == host.r1 {
+            for r in deleted.r0...deleted.r1 {
+                for c in deleted.c0...deleted.c1 {
+                    next.cellMap[r][c] = neighbor
+                }
+            }
+            return (next, false)
+        }
+        if deleted.c0 == host.c0, deleted.c1 == host.c1 {
+            for r in deleted.r0...deleted.r1 {
+                for c in deleted.c0...deleted.c1 {
+                    next.cellMap[r][c] = neighbor
+                }
+            }
+            return (next, false)
+        }
+
+        let newIndex = (spec.cellMap.flatMap { $0 }.max() ?? neighbor) + 1
+        if deleted.c1 + 1 == host.c0 || host.c1 + 1 == deleted.c0 {
+            for r in host.r0...host.r1 {
+                for c in host.c0...host.c1 {
+                    if r < deleted.r0 || r > deleted.r1 {
+                        next.cellMap[r][c] = newIndex
+                    }
+                }
+            }
+            for r in deleted.r0...deleted.r1 {
+                for c in deleted.c0...deleted.c1 {
+                    next.cellMap[r][c] = neighbor
+                }
+            }
+            return (next, true)
+        }
+        if deleted.r1 + 1 == host.r0 || host.r1 + 1 == deleted.r0 {
+            for r in host.r0...host.r1 {
+                for c in host.c0...host.c1 {
+                    if c < deleted.c0 || c > deleted.c1 {
+                        next.cellMap[r][c] = newIndex
+                    }
+                }
+            }
+            for r in deleted.r0...deleted.r1 {
+                for c in deleted.c0...deleted.c1 {
+                    next.cellMap[r][c] = neighbor
+                }
+            }
+            return (next, true)
+        }
+        return nil
     }
 }

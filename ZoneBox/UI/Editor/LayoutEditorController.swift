@@ -21,6 +21,17 @@ final class LayoutEditorController: NSObject {
     private var selectedSavedLayout = false
     private var hintLabel: NSTextField?
     private var modeControl: NSSegmentedControl?
+    private var metricsRow: NSStackView?
+    private var widthField: NSTextField?
+    private var heightField: NSTextField?
+    private var widthLabel: NSTextField?
+    private var heightLabel: NSTextField?
+    private var pixelUnitLabel: NSTextField?
+    private var aspectLabel: NSTextField?
+    private var aspectPopup: NSPopUpButton?
+    private var lockAspectButton: NSButton?
+    private var metricsHintLabel: NSTextField?
+    private var lockAspect = false
     private let original: Layout
     private var transaction: LayoutEditTransaction?
     private var appSwitchObservations: [Any] = []
@@ -53,7 +64,7 @@ final class LayoutEditorController: NSObject {
         let panel = EditorPanel(screen: screen)
         let flip = runtime.displays.primaryFlipHeight
         let workAX = CoordinateConverter.axRect(fromAppKit: screen.visibleFrame, primaryFlipHeight: flip)
-        var draft = original
+        let draft = original
         transaction = LayoutEditTransaction(
             original: isNew ? nil : original,
             draft: draft,
@@ -69,9 +80,13 @@ final class LayoutEditorController: NSObject {
 
         let canvas = LayoutEditorCanvasView(layout: draft, workAreaAX: workAX, primaryFlipHeight: flip)
         canvas.selectFirstZone()
-        canvas.onChange = { [weak self] layout in self?.updateDraft(layout) }
+        canvas.onChange = { [weak self] layout in self?.finishDraft(layout) }
+        canvas.onPreview = { [weak self] layout in self?.previewDraft(layout) }
+        canvas.onInteractionBegin = { [weak self] in self?.transaction?.beginInteraction() }
         canvas.onCancel = { [weak self] in self?.cancel() }
         canvas.onInteractionChange = { [weak self] active in self?.setToolbarReceded(active) }
+        canvas.onSelectionChange = { [weak self] in self?.refreshMetrics() }
+        canvas.lockAspect = lockAspect
         canvas.translatesAutoresizingMaskIntoConstraints = false
 
         let toolbar = makeToolbar()
@@ -100,6 +115,7 @@ final class LayoutEditorController: NSObject {
             canvas?.cycleSelection(forward: forward)
         }
         panel.onSaveCopy = { [weak self] in self?.saveCopyShortcut() }
+        panel.onUndo = { [weak self] in self?.undoLastEdit() }
         panel.delegate = self
         self.panel = panel
         self.canvas = canvas
@@ -123,11 +139,21 @@ final class LayoutEditorController: NSObject {
 
     @discardableResult
     func handleLocalKey(_ event: NSEvent) -> Bool {
+        if isEditingMetrics {
+            return false
+        }
         if ShortcutCatalog.editorSaveChord.matches(
             keyCode: event.keyCode,
             carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
         ) {
             saveCopyShortcut()
+            return true
+        }
+        if ShortcutCatalog.isEditorUndoChord(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            undoLastEdit()
             return true
         }
         if event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter {
@@ -267,6 +293,7 @@ final class LayoutEditorController: NSObject {
 
         var rows: [NSView] = [topRowCenter]
         rows.append(hint)
+        rows.append(makeMetricsRow())
 
         let column = NSStackView(views: rows)
         column.orientation = .vertical
@@ -300,6 +327,271 @@ final class LayoutEditorController: NSObject {
 
     private func refreshPresetSelection() {
         rebuildTemplateMenu()
+    }
+
+    private func makeMetricsRow() -> NSView {
+        let widthLabel = metricCaption(L10n.text(.editorWidth))
+        self.widthLabel = widthLabel
+        let widthField = metricField()
+        widthField.identifier = NSUserInterfaceItemIdentifier("editor-width")
+        self.widthField = widthField
+
+        let heightLabel = metricCaption(L10n.text(.editorHeight))
+        self.heightLabel = heightLabel
+        let heightField = metricField()
+        heightField.identifier = NSUserInterfaceItemIdentifier("editor-height")
+        self.heightField = heightField
+
+        let px = metricCaption(L10n.text(.editorPixels))
+        self.pixelUnitLabel = px
+
+        let aspectLabel = metricCaption(L10n.text(.editorAspect))
+        self.aspectLabel = aspectLabel
+        let aspect = NSPopUpButton(frame: .zero, pullsDown: false)
+        aspect.bezelStyle = .rounded
+        aspect.target = self
+        aspect.action = #selector(aspectChanged(_:))
+        aspect.translatesAutoresizingMaskIntoConstraints = false
+        aspect.widthAnchor.constraint(greaterThanOrEqualToConstant: 72).isActive = true
+        aspect.refusesFirstResponder = true
+        aspectPopup = aspect
+        rebuildAspectMenu()
+
+        let lock = NSButton(checkboxWithTitle: L10n.text(.editorLockAspect), target: self, action: #selector(toggleLockAspect(_:)))
+        lock.font = .systemFont(ofSize: 12, weight: .medium)
+        lock.contentTintColor = NSColor.white.withAlphaComponent(0.86)
+        lock.state = lockAspect ? .on : .off
+        lock.refusesFirstResponder = true
+        lockAspectButton = lock
+
+        let hint = metricCaption(L10n.text(.editorNoZoneSelected))
+        hint.textColor = NSColor.white.withAlphaComponent(0.72)
+        metricsHintLabel = hint
+
+        let row = NSStackView(views: [widthLabel, widthField, heightLabel, heightField, px, aspectLabel, aspect, lock, hint])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        metricsRow = row
+        refreshMetrics()
+        let wrap = NSView()
+        wrap.translatesAutoresizingMaskIntoConstraints = false
+        wrap.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: wrap.topAnchor),
+            row.bottomAnchor.constraint(equalTo: wrap.bottomAnchor),
+            row.centerXAnchor.constraint(equalTo: wrap.centerXAnchor),
+            row.leadingAnchor.constraint(greaterThanOrEqualTo: wrap.leadingAnchor),
+            row.trailingAnchor.constraint(lessThanOrEqualTo: wrap.trailingAnchor),
+        ])
+        return wrap
+    }
+
+    private func metricCaption(_ title: String) -> NSTextField {
+        let label = NSTextField(labelWithString: title)
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.textColor = NSColor.white.withAlphaComponent(0.72)
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.isSelectable = false
+        return label
+    }
+
+    private func metricField() -> NSTextField {
+        let field = EditorMetricsField(string: "")
+        field.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        field.alignment = .right
+        field.bezelStyle = .roundedBezel
+        field.delegate = self
+        field.target = self
+        field.action = #selector(metricsEditingEnded(_:))
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        return field
+    }
+
+    private func rebuildAspectMenu() {
+        guard let popup = aspectPopup else { return }
+        popup.removeAllItems()
+        popup.addItem(withTitle: L10n.text(.editorAspectFree))
+        popup.lastItem?.tag = 0
+        popup.addItem(withTitle: L10n.text(.editorAspectSquare))
+        popup.lastItem?.tag = 1
+        popup.addItem(withTitle: L10n.text(.editorAspect16x9))
+        popup.lastItem?.tag = 2
+        popup.addItem(withTitle: L10n.text(.editorAspect4x3))
+        popup.lastItem?.tag = 3
+        popup.selectItem(withTag: 0)
+    }
+
+    private func selectedZoneRect() -> (id: UUID, rect: NormalizedRect)? {
+        guard let canvas, let id = canvas.selectedID,
+              let zone = canvas.layout.zones.first(where: { $0.id == id })
+        else { return nil }
+        if canvas.layout.kind == .grid {
+            let rects = GridEditing.normalizedRects(for: canvas.layout, workAreaAX: canvas.workAreaAX)
+            guard let rect = rects[id] else { return nil }
+            return (id, rect)
+        }
+        return (id, zone.canvasRect ?? NormalizedRect(x: 0.1, y: 0.1, width: 0.3, height: 0.3))
+    }
+
+    private func refreshMetrics() {
+        guard let canvas else { return }
+        let selected = selectedZoneRect()
+        let enabled = selected != nil
+        widthField?.isEnabled = enabled
+        heightField?.isEnabled = enabled
+        aspectPopup?.isEnabled = enabled
+        lockAspectButton?.isEnabled = enabled
+        metricsHintLabel?.isHidden = enabled
+        widthLabel?.isHidden = !enabled
+        heightLabel?.isHidden = !enabled
+        pixelUnitLabel?.isHidden = !enabled
+        aspectLabel?.isHidden = !enabled
+        aspectPopup?.isHidden = !enabled
+        lockAspectButton?.isHidden = !enabled
+        widthField?.isHidden = !enabled
+        heightField?.isHidden = !enabled
+        guard let selected else {
+            widthField?.stringValue = ""
+            heightField?.stringValue = ""
+            aspectPopup?.selectItem(withTag: 0)
+            return
+        }
+        let pixels = ZonePixelMetrics.pixelSize(of: selected.rect, workAreaAX: canvas.workAreaAX)
+        if widthField?.currentEditor() == nil {
+            widthField?.integerValue = pixels.width
+        }
+        if heightField?.currentEditor() == nil {
+            heightField?.integerValue = pixels.height
+        }
+        layoutToolbar()
+        restoreCanvasKeyFocusIfNeeded()
+    }
+
+    private func applyPixelSize(width: Int?, height: Int?) {
+        guard let canvas, let selected = selectedZoneRect() else { return }
+        if canvas.layout.kind == .grid {
+            if let next = GridEditing.resizingZone(
+                canvas.layout,
+                id: selected.id,
+                toWidth: width,
+                height: height,
+                workAreaAX: canvas.workAreaAX,
+                lockAspect: lockAspect
+            ) {
+                canvas.layout = next
+                canvas.selectedID = selected.id
+                canvas.commitFromMetrics()
+                return
+            }
+        }
+        let next = ZonePixelMetrics.resizing(
+            selected.rect,
+            toWidth: width,
+            height: height,
+            workAreaAX: canvas.workAreaAX,
+            lockAspect: lockAspect
+        )
+        applyCanvasRect(next, to: selected.id)
+    }
+
+    private func applyAspect(_ aspect: ZoneAspectPreset) {
+        guard let canvas, let selected = selectedZoneRect() else { return }
+        if canvas.layout.kind == .grid {
+            if let next = GridEditing.applyingAspect(
+                canvas.layout,
+                id: selected.id,
+                aspect: aspect,
+                workAreaAX: canvas.workAreaAX
+            ) {
+                canvas.layout = next
+                canvas.selectedID = selected.id
+                canvas.commitFromMetrics()
+                return
+            }
+        }
+        applyCanvasRect(
+            ZonePixelMetrics.applying(aspect: aspect, to: selected.rect, workAreaAX: canvas.workAreaAX),
+            to: selected.id
+        )
+    }
+
+    private func applyCanvasRect(_ rect: NormalizedRect, to id: UUID) {
+        guard let canvas else { return }
+        var layout = canvas.layout
+        guard let idx = layout.zones.firstIndex(where: { $0.id == id }) else { return }
+        if layout.kind == .grid, let converted = try? layout.convertingGridToCanvas(workAreaAX: canvas.workAreaAX) {
+            layout = converted
+            guard let convertedIndex = layout.zones.firstIndex(where: { $0.id == id }) else { return }
+            layout.zones[convertedIndex].canvasRect = rect
+            canvas.layout = layout
+            canvas.selectedID = id
+            canvas.commitFromMetrics()
+            return
+        }
+        layout.kind = .canvas
+        layout.grid = nil
+        layout.zones[idx].canvasRect = rect
+        canvas.layout = layout
+        canvas.selectedID = id
+        canvas.commitFromMetrics()
+    }
+
+    @objc private func metricsEditingEnded(_ sender: NSTextField) {
+        commitMetricsFields()
+    }
+
+    @objc private func toggleLockAspect(_ sender: NSButton) {
+        lockAspect = sender.state == .on
+        canvas?.lockAspect = lockAspect
+        restoreCanvasKeyFocusIfNeeded()
+    }
+
+    @objc private func aspectChanged(_ sender: NSPopUpButton) {
+        let aspect: ZoneAspectPreset
+        switch sender.selectedItem?.tag {
+        case 1: aspect = .square
+        case 2: aspect = .wide16x9
+        case 3: aspect = .photo4x3
+        default: aspect = .free
+        }
+        if case .free = aspect { return }
+        lockAspect = true
+        lockAspectButton?.state = .on
+        canvas?.lockAspect = true
+        applyAspect(aspect)
+        restoreCanvasKeyFocusIfNeeded()
+    }
+
+    private func commitMetricsFields() {
+        guard let canvas, let selected = selectedZoneRect() else {
+            refreshMetrics()
+            return
+        }
+        let current = ZonePixelMetrics.pixelSize(of: selected.rect, workAreaAX: canvas.workAreaAX)
+        let width = parsedPixel(widthField?.stringValue)
+        let height = parsedPixel(heightField?.stringValue)
+        guard width != nil || height != nil else {
+            refreshMetrics()
+            return
+        }
+        let locked = ZonePixelMetrics.lockedFields(
+            current: current,
+            width: width,
+            height: height,
+            lockAspect: lockAspect
+        )
+        applyPixelSize(width: locked.width, height: locked.height)
+    }
+
+    private func parsedPixel(_ raw: String?) -> Int? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return Int(trimmed)
     }
 
     private func makeTemplatePopup() -> NSPopUpButton {
@@ -366,12 +658,28 @@ final class LayoutEditorController: NSObject {
         draft.createdAt = transaction.draft.createdAt
         transaction.updateDraft(draft)
         self.transaction = transaction
+        presentDraft(draft, reselectFirstZone: true)
+    }
+
+    private func undoLastEdit() {
+        guard var transaction, let previous = transaction.undo() else { return }
+        self.transaction = transaction
+        presentDraft(previous, reselectFirstZone: false)
+    }
+
+    private func presentDraft(_ draft: Layout, reselectFirstZone: Bool) {
         canvas?.layout = draft
-        canvas?.selectFirstZone()
+        if reselectFirstZone {
+            canvas?.selectFirstZone()
+        } else if let selectedID = canvas?.selectedID,
+                  !draft.zones.contains(where: { $0.id == selectedID }) {
+            canvas?.selectFirstZone()
+        }
         canvas?.needsDisplay = true
         hintLabel?.stringValue = L10n.text(hintKey)
         refreshModeControl()
         updateSaveState()
+        refreshMetrics()
         layoutToolbar()
     }
 
@@ -403,7 +711,13 @@ final class LayoutEditorController: NSObject {
 
     private func refreshModeControl() {
         let isGrid = (transaction?.draft.kind ?? original.kind) == .grid
-        modeControl?.selectedSegment = isGrid ? 0 : 1
+        guard let modeControl else { return }
+        let target = isGrid ? 0 : 1
+        guard modeControl.selectedSegment != target else { return }
+        let action = modeControl.action
+        modeControl.action = nil
+        modeControl.selectedSegment = target
+        modeControl.action = action
     }
 
     @objc private func save() {
@@ -567,12 +881,34 @@ final class LayoutEditorController: NSObject {
             mode.setImage(NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: L10n.text(.editorModeGrid)), forSegment: 0)
             mode.setImage(NSImage(systemSymbolName: "rectangle.dashed", accessibilityDescription: L10n.text(.editorModeCanvas)), forSegment: 1)
         }
+        widthLabel?.stringValue = L10n.text(.editorWidth)
+        heightLabel?.stringValue = L10n.text(.editorHeight)
+        pixelUnitLabel?.stringValue = L10n.text(.editorPixels)
+        aspectLabel?.stringValue = L10n.text(.editorAspect)
+        lockAspectButton?.title = L10n.text(.editorLockAspect)
+        metricsHintLabel?.stringValue = L10n.text(.editorNoZoneSelected)
+        rebuildAspectMenu()
         refreshModeControl()
         updateSaveState()
+        refreshMetrics()
+    }
+
+    private func previewDraft(_ layout: Layout) {
+        transaction?.previewDraft(layout)
+        refreshLiveDraftChrome(layout)
+    }
+
+    private func finishDraft(_ layout: Layout) {
+        transaction?.finishInteraction(layout)
+        refreshLiveDraftChrome(layout)
     }
 
     private func updateDraft(_ layout: Layout) {
         transaction?.updateDraft(layout)
+        refreshLiveDraftChrome(layout)
+    }
+
+    private func refreshLiveDraftChrome(_ layout: Layout) {
         if let workAX = canvas?.workAreaAX {
             selectedPresetIndex = LayoutTemplates.matchingEditorPresetIndex(for: layout, workAreaAX: workAX)
             selectedSavedLayout = savedToolbarLayout.map { saved in
@@ -587,11 +923,24 @@ final class LayoutEditorController: NSObject {
         }
         updateSaveState()
         hintLabel?.stringValue = L10n.text(hintKey)
+        refreshMetrics()
+        refreshModeControl()
         layoutToolbar()
     }
 
     private var hintKey: L10nKey {
         (transaction?.draft.kind ?? original.kind) == .grid ? .editorGridHint : .editorHint
+    }
+
+    var isEditingMetrics: Bool {
+        panel?.firstResponder === widthField || panel?.firstResponder === heightField
+            || widthField?.currentEditor() != nil || heightField?.currentEditor() != nil
+    }
+
+    private func restoreCanvasKeyFocusIfNeeded() {
+        guard !isEditingMetrics else { return }
+        guard let canvas, panel?.firstResponder !== canvas else { return }
+        panel?.makeFirstResponder(canvas)
     }
 
     fileprivate func chipHoverChanged(_ button: EditorChipButton, hovering: Bool) {
@@ -604,6 +953,7 @@ final class LayoutEditorController: NSObject {
         saveButton?.toolTip = transaction.canCommit ? L10n.text(.editorSaveTooltip) : L10n.text(.editorSaveDisabledTooltip)
         saveCopyButton?.isEnabled = transaction.canCommit
         saveCopyButton?.toolTip = transaction.canCommit ? L10n.text(.editorSaveCopyTooltip) : L10n.text(.editorSaveDisabledTooltip)
+        saveButton?.keyEquivalent = isEditingMetrics ? "" : "\r"
     }
 
     private func setToolbarReceded(_ receded: Bool) {
@@ -717,6 +1067,16 @@ final class LayoutEditorController: NSObject {
         selectedSavedLayout = false
         hintLabel = nil
         modeControl = nil
+        metricsRow = nil
+        widthField = nil
+        heightField = nil
+        widthLabel = nil
+        heightLabel = nil
+        pixelUnitLabel = nil
+        aspectLabel = nil
+        aspectPopup = nil
+        lockAspectButton = nil
+        metricsHintLabel = nil
         transaction = nil
         runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
@@ -736,11 +1096,48 @@ final class LayoutEditorController: NSObject {
 
 extension LayoutEditorController: NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) {
-        panel?.makeFirstResponder(canvas)
+        if !isEditingMetrics {
+            panel?.makeFirstResponder(canvas)
+        }
     }
 
     func windowDidResize(_ notification: Notification) {
         layoutToolbar()
+    }
+}
+
+extension LayoutEditorController: NSTextFieldDelegate {
+    func controlTextDidBeginEditing(_ obj: Notification) {
+        updateSaveState()
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        commitMetricsFields()
+        updateSaveState()
+        panel?.makeFirstResponder(canvas)
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            commitMetricsFields()
+            panel?.makeFirstResponder(canvas)
+            return true
+        }
+        if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+            refreshMetrics()
+            panel?.makeFirstResponder(canvas)
+            return true
+        }
+        if commandSelector == #selector(NSResponder.insertTab(_:)) {
+            commitMetricsFields()
+            if control === widthField {
+                panel?.makeFirstResponder(heightField)
+            } else {
+                panel?.makeFirstResponder(canvas)
+            }
+            return true
+        }
+        return false
     }
 }
 
@@ -774,7 +1171,7 @@ private final class EditorToolbarChrome: NSView {
         guard let hit = super.hitTest(point) else { return nil }
         var view: NSView? = hit
         while let current = view, current !== self {
-            if current is NSButton || current is NSSegmentedControl || current is NSPopUpButton {
+            if current is NSControl {
                 return hit
             }
             view = current.superview
@@ -994,5 +1391,17 @@ private final class EditorChipButton: NSButton {
 
     override var isHighlighted: Bool {
         didSet { alphaValue = isHighlighted ? 0.72 : 1 }
+    }
+}
+
+/// Click-to-edit pixel fields. They stay out of the key loop so Delete/WASD
+/// keep targeting the selected zone until the user actually clicks a field.
+private final class EditorMetricsField: NSTextField {
+    override var acceptsFirstResponder: Bool { true }
+
+    override var canBecomeKeyView: Bool { false }
+
+    override func becomeFirstResponder() -> Bool {
+        super.becomeFirstResponder()
     }
 }

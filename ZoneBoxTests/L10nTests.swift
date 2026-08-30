@@ -142,8 +142,8 @@ final class L10nTests: XCTestCase {
     }
 
     func testGutterFormat() {
-        XCTAssertEqual(L10n.gutter(12, language: .english), "Gutter: 12 pt")
-        XCTAssertEqual(L10n.gutter(12, language: .chineseSimplified), "间距：12 点")
+        XCTAssertEqual(L10n.gutter(12, language: .english), "Space between zones: 12 pt")
+        XCTAssertEqual(L10n.gutter(12, language: .chineseSimplified), "分区间距：12 点")
     }
 
     func testShakeIntensityFormat() {

@@ -389,6 +389,9 @@ final class SnapEngineTests: XCTestCase {
         let zones = (1...2).map { Zone(number: $0) }
         let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
         let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+        let cells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        let rightCell = try XCTUnwrap(cells.first(where: { $0.zoneIndex == 1 }))
+        let expectedFrame = rightCell.ungutteredFrameAX
 
         var input = armedReadyInput(phase: .highlighting(window, .none), kind: .leftUp)
         input.primaryFlipHeight = 800
@@ -412,7 +415,7 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertEqual(out.effects.filter {
             if case .applyFrame = $0 { return true }
             return false
-        }, [.applyFrame(window, rightZone.frameAX)], "effects=\(out.effects) phase=\(out.phase) right=\(rightZone.frameAX)")
+        }, [.applyFrame(window, expectedFrame)], "effects=\(out.effects) phase=\(out.phase) right=\(expectedFrame)")
     }
 
     func testGridHoverHighlightUsesCellUnderCursor() throws {
@@ -427,6 +430,9 @@ final class SnapEngineTests: XCTestCase {
         let zones = (1...2).map { Zone(number: $0) }
         let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
         let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+        let cells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        let rightCell = try XCTUnwrap(cells.first(where: { $0.zoneIndex == 1 }))
+        let expectedTarget = SnapTarget.span(frameAX: rightCell.ungutteredFrameAX, zoneIDs: [rightZone.zoneID])
 
         var input = armedReadyInput(phase: .armed(window), kind: .leftDragged)
         input.primaryFlipHeight = 800
@@ -446,8 +452,8 @@ final class SnapEngineTests: XCTestCase {
         input.event.locationAppKit = CGPoint(x: 780, y: 400)
 
         let out = SnapSessionReducer.reduce(input)
-        XCTAssertEqual(out.phase, .highlighting(window, .zone(rightZone)), "effects=\(out.effects)")
-        XCTAssertTrue(out.effects.contains(.highlight(.zone(rightZone))), "effects=\(out.effects)")
+        XCTAssertEqual(out.phase, .highlighting(window, expectedTarget), "effects=\(out.effects)")
+        XCTAssertTrue(out.effects.contains(.highlight(expectedTarget)), "effects=\(out.effects)")
     }
 
     func testGridControlDragSpansAdjacentZones() throws {
