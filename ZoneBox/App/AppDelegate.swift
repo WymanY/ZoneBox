@@ -25,6 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         runtime.isEditorOpen = false
         runtime.start()
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--open-settings") {
+            DispatchQueue.main.async { [runtime] in runtime.openSettings() }
+        }
+#endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
