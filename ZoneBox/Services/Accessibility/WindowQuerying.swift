@@ -1,4 +1,5 @@
 import CoreGraphics
+import ZoneBoxCore
 
 struct WindowRef: Equatable, Sendable {
     var pid: pid_t
@@ -8,9 +9,16 @@ struct WindowRef: Equatable, Sendable {
     var layer: Int
 }
 
+extension WindowRef {
+    var identity: WindowIdentity {
+        WindowIdentity(pid: pid, windowNumber: windowNumber, bundleID: bundleID)
+    }
+}
+
 protocol WindowQuerying: Sendable {
     func topmostWindow(atAXPoint point: CGPoint, excludingPID: pid_t) -> WindowRef?
     func windowExists(pid: pid_t, windowNumber: CGWindowID) -> Bool
     func windows(pid: pid_t) -> [WindowRef]
     func windows(excludingPID: pid_t) -> [WindowRef]
+    func allWindows(excludingPID: pid_t) -> [WindowRef]
 }

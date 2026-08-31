@@ -10,4 +10,13 @@ public struct WindowIdentity: Hashable, Sendable {
         self.windowNumber = windowNumber
         self.bundleID = bundleID
     }
+
+    public static func == (lhs: WindowIdentity, rhs: WindowIdentity) -> Bool {
+        lhs.pid == rhs.pid && lhs.windowNumber == rhs.windowNumber
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(pid)
+        hasher.combine(windowNumber)
+    }
 }

@@ -12,4 +12,5 @@ public enum Log {
     public static let hotkey = Logger(subsystem: subsystem, category: "hotkey")
     public static let display = Logger(subsystem: subsystem, category: "display")
     public static let trust = Logger(subsystem: subsystem, category: "trust")
+    public static let pin = Logger(subsystem: subsystem, category: "pin")
 }

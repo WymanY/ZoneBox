@@ -65,6 +65,10 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.consoleCurrentDisplay, language: .chineseSimplified), "当前显示器")
         XCTAssertEqual(L10n.text(.consoleOtherLayouts, language: .english), "Other Layouts")
         XCTAssertEqual(L10n.text(.consoleOtherLayouts, language: .chineseSimplified), "其他布局")
+        XCTAssertEqual(L10n.unpinAll(3, language: .english), "Unpin All Windows (3)")
+        XCTAssertEqual(L10n.unpinAll(3, language: .chineseSimplified), "取消所有窗口置顶（3）")
+        XCTAssertEqual(L10n.text(.pinOnTop, language: .english), "Pin on top")
+        XCTAssertEqual(L10n.text(.pinUnpin, language: .chineseSimplified), "取消置顶")
     }
 
     func testEditorTemplateToolbarCopy() {
@@ -92,6 +96,11 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.settingsAccessGranted, language: .chineseSimplified), "辅助功能权限：已授权")
         XCTAssertEqual(L10n.text(.settingsSnappingTriggersSection, language: .english), "Snap triggers")
         XCTAssertEqual(L10n.text(.settingsSnappingBehaviorSection, language: .chineseSimplified), "窗口行为")
+        XCTAssertEqual(
+            L10n.text(.settingsHoverPin, language: .english),
+            "Show a pin button when hovering a window title bar"
+        )
+        XCTAssertEqual(L10n.text(.settingsHoverPin, language: .chineseSimplified), "悬停窗口标题栏时显示置顶按钮")
     }
 
     func testShortcutCustomizationCopy() {

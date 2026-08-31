@@ -38,6 +38,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var hotkeysLabel: NSTextField?
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
+    private var hoverPinSwitch: NSSwitch?
     private var languagePopup: NSPopUpButton?
     private var hotkeyList: NSStackView?
     private var hotkeyErrorLabel: NSTextField?
@@ -251,8 +252,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         )
         loginSwitch = login
 
+        let hoverPin = settingSwitch(
+            titleKey: .settingsHoverPin,
+            on: runtime.settings.hoverPinEnabled,
+            action: #selector(toggleHoverPin(_:))
+        )
+        hoverPinSwitch = hoverPin
+
         return makeGroupedRows([
             makeSettingRow(symbol: "globe", titleKey: .settingsLanguage, detailKey: .settingsLanguageDetail, trailing: popup),
+            makeSettingRow(
+                symbol: "pin",
+                customIcon: PinIconArtwork.image(state: .pin, size: 17),
+                titleKey: .settingsHoverPin,
+                detailKey: .settingsHoverPinDetail,
+                trailing: hoverPin
+            ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
         ])
     }
@@ -322,13 +337,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private func makeSettingRow(
         symbol: String,
         fallbackSymbol: String? = nil,
+        customIcon: NSImage? = nil,
         titleKey: L10nKey,
         detailKey: L10nKey?,
         trailing: NSView,
         footer: NSView? = nil
     ) -> NSView {
         let icon = SettingsRowIconView(
-            symbolName: availableSymbol(symbol, fallback: fallbackSymbol),
+            image: customIcon ?? NSImage(
+                systemSymbolName: availableSymbol(symbol, fallback: fallbackSymbol),
+                accessibilityDescription: L10n.text(titleKey)
+            ),
             title: L10n.text(titleKey),
             tint: .controlAccentColor
         )
@@ -803,6 +822,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         quickSnapperSwitch?.setAccessibilityLabel(L10n.text(.settingsQuickSnapper))
         numbersSwitch?.setAccessibilityLabel(L10n.text(.settingsShowNumbers))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
+        hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
         shakeIntensitySlider?.setAccessibilityLabel(L10n.text(.settingsShakeIntensityHint))
@@ -857,6 +877,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func toggleMagnetic(_ sender: NSSwitch) { runtime.settings.magneticResizeEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleNumbers(_ sender: NSSwitch) { runtime.settings.showZoneNumbers = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
+    @objc private func toggleHoverPin(_ sender: NSSwitch) { runtime.setHoverPinEnabled(sender.state == .on) }
     @objc private func openAccess() { runtime.openAccessibility() }
     @objc private func openShortcuts() { runtime.openShortcutPanel() }
 
@@ -1214,15 +1235,24 @@ private final class SettingsRowIconView: NSView {
     private let tint: NSColor
     init(symbolName: String, title: String, tint: NSColor) {
         self.tint = tint
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title)
         super.init(frame: .zero)
+        configure(image: image, title: title)
+    }
+    init(image: NSImage?, title: String, tint: NSColor) {
+        self.tint = tint
+        super.init(frame: .zero)
+        configure(image: image, title: title)
+    }
+    private func configure(image: NSImage?, title: String) {
         wantsLayer = true
         layer?.cornerRadius = 9
         layer?.cornerCurve = .continuous
         let imageView = NSImageView()
-        imageView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title)
-        imageView.symbolConfiguration = .init(pointSize: 14, weight: .semibold)
+        imageView.image = image
         imageView.contentTintColor = tint
         imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.setAccessibilityLabel(title)
         imageView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(imageView)
         NSLayoutConstraint.activate([

@@ -214,6 +214,16 @@ final class MenuBarController: NSObject {
             menu.addItem(vo)
         }
 
+        if runtime.pins.hasPins {
+            let unpinAll = NSMenuItem(
+                title: L10n.unpinAll(runtime.pins.count),
+                action: #selector(unpinAllWindows(_:)),
+                keyEquivalent: ""
+            )
+            unpinAll.target = self
+            menu.addItem(unpinAll)
+        }
+
         menu.addItem(.separator())
 
         if WindowOrganize.isPubliclyAvailable {
@@ -346,6 +356,11 @@ final class MenuBarController: NSObject {
     @objc
     private func organizeWindows(_ sender: NSMenuItem) {
         runtime.organizeWindowsFromPointer()
+    }
+
+    @objc
+    private func unpinAllWindows(_ sender: NSMenuItem) {
+        runtime.pins.unpinAll()
     }
 
     @objc

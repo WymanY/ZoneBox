@@ -31,6 +31,10 @@ final class SnapEngine {
         isArmed(phase)
     }
 
+    var isSessionActive: Bool {
+        phase != .idle || isQuickSnapperShowing
+    }
+
     func handleMouse(_ event: SnapMouseEvent) {
         if event.kind == .leftDown, isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
