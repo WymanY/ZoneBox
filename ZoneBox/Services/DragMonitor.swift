@@ -95,6 +95,7 @@ final class DragMonitor {
         guard !leftButtonHeld else { return }
         guard !runtime.isEditorOpen else { return }
         guard runtime.trust.isTrusted() else { return }
+        guard !runtime.pinHover.consumesPoint(mouse.locationAppKit) else { return }
         Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
         leftButtonHeld = true
         bufferedDrags.removeAll()
@@ -126,6 +127,7 @@ final class DragMonitor {
     }
 
     private func ingestDrag(at location: CGPoint, modifiers: SnapModifiers) {
+        guard leftButtonHeld else { return }
         if let last = lastSample, RectMath.chebyshev(location, last) < 1 { return }
         lastSample = location
         let mouse = SnapMouseEvent(kind: .leftDragged, locationAppKit: location, modifiers: modifiers)
@@ -157,8 +159,7 @@ final class DragMonitor {
     private func startSampling() {
         stopSampling()
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.samplePointerState()
+            Task { @MainActor in self?.samplePointerState() }
         }
         RunLoop.main.add(timer, forMode: .common)
         sampleTimer = timer

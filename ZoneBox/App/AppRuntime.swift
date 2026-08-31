@@ -21,6 +21,8 @@ final class AppRuntime {
     let engine = SnapEngine()
     let drag = DragMonitor()
     let hotkeys = HotkeyCenter()
+    let pins = PinCenter()
+    let pinHover = PinHoverMonitor()
     var ax: AccessibilityClientLive
     let query = CGWindowQuery()
 
@@ -55,6 +57,8 @@ final class AppRuntime {
         engine.runtime = self
         drag.runtime = self
         hotkeys.runtime = self
+        pins.runtime = self
+        pinHover.runtime = self
 
         displays.refresh(document: &document)
         overlay.rebuild(workAreas: displays.workAreas, screens: NSScreen.screens)
@@ -79,6 +83,8 @@ final class AppRuntime {
 
         drag.start()
         hotkeys.start()
+        pins.start()
+        pinHover.start()
         observeSystem()
 
         Log.trust.info(
@@ -102,6 +108,8 @@ final class AppRuntime {
     }
 
     func teardown() {
+        pinHover.stop()
+        pins.stop()
         overlay.hideAll()
         organizeFeedback.dismiss()
         drag.stop()
@@ -117,6 +125,8 @@ final class AppRuntime {
     }
 
     func hideAllOverlays() {
+        pinHover.hideImmediately()
+        pins.hideBadges()
         overlay.hideAll()
     }
 
@@ -383,6 +393,8 @@ final class AppRuntime {
     }
 
     private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
+        pinHover.hideImmediately()
+        pins.hideBadges()
         let controller = LayoutEditorController(
             runtime: self,
             layout: layout,
@@ -424,6 +436,7 @@ final class AppRuntime {
             return false
         }
         isOrganizingWindows = true
+        pinHover.hideImmediately()
         menuBar?.reloadMenu()
         return true
     }
@@ -907,6 +920,13 @@ final class AppRuntime {
         settingsWindow?.refreshPreview()
     }
 
+    func setHoverPinEnabled(_ enabled: Bool) {
+        settings.hoverPinEnabled = enabled
+        persistSettings()
+        pinHover.settingsChanged()
+        if !enabled { pinHover.hideImmediately() }
+    }
+
     func setHotkeyRecording(_ recording: Bool) {
         hotkeys.setRecordingPaused(recording)
     }
@@ -936,6 +956,8 @@ final class AppRuntime {
     func applyLanguage() {
         menuBar?.reloadMenu()
         menuBar?.updateTrustAppearance()
+        pins.refreshAppearance()
+        pinHover.refreshAppearance()
         settingsWindow?.applyLanguage()
         onboarding?.applyLanguage()
         editor?.applyLanguage()
@@ -957,11 +979,14 @@ final class AppRuntime {
                 runtime.persist()
             }
         }
-        NotificationCenter.default.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
             let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
             guard let runtime = self else { return }
             Task { @MainActor in
-                if let pid { runtime.catalog.drop(pid: pid) }
+                if let pid {
+                    runtime.catalog.drop(pid: pid)
+                    runtime.pins.drop(pid: pid)
+                }
             }
         }
         DistributedNotificationCenter.default().addObserver(
@@ -970,11 +995,11 @@ final class AppRuntime {
             queue: .main
         ) { [weak self] _ in
             guard let runtime = self else { return }
-            Task { @MainActor in runtime.overlay.hideAll() }
+            Task { @MainActor in runtime.hideAllOverlays() }
         }
-        NotificationCenter.default.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
             guard let runtime = self else { return }
-            Task { @MainActor in runtime.overlay.hideAll() }
+            Task { @MainActor in runtime.hideAllOverlays() }
         }
     }
 }

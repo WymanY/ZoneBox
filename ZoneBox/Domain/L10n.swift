@@ -49,6 +49,12 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuSettings
     case menuKeyboardShortcuts
     case menuQuit
+    case menuUnpinAllWindows
+    case pinOnTop
+    case pinUnpin
+    case pinScreenRecordingTitle
+    case pinScreenRecordingMessage
+    case pinScreenRecordingRequest
     case consoleSnap
     case consoleOrganize
     case consoleEdit
@@ -90,6 +96,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsHotkeys
     case settingsOpenAccess
     case settingsLaunchAtLogin
+    case settingsHoverPin
+    case settingsBeta
     case settingsLanguage
     case settingsLanguageSystem
     case settingsLanguageEnglish
@@ -105,6 +113,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsKeyboardSubtitle
     case settingsLanguageDetail
     case settingsLaunchAtLoginDetail
+    case settingsHoverPinDetail
     case settingsShiftDragDetail
     case settingsRightClickDetail
     case settingsShakeToSnapDetail
@@ -266,6 +275,10 @@ public enum L10n {
         String(format: text(.settingsShakeIntensity, language: language), locale: language.locale, value)
     }
 
+    public static func unpinAll(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.menuUnpinAllWindows, language: language), locale: language.locale, count)
+    }
+
     public static func shortcutDuplicate(_ name: String, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.shortcutErrorDuplicate, language: language), locale: language.locale, name)
     }
@@ -381,6 +394,12 @@ public enum L10n {
         .menuSettings: "Settings…",
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
+        .menuUnpinAllWindows: "Unpin All Windows (%d)",
+        .pinOnTop: "Pin on top",
+        .pinUnpin: "Unpin",
+        .pinScreenRecordingTitle: "Allow Screen Recording to pin windows",
+        .pinScreenRecordingMessage: "ZoneBox mirrors only the window you pin so it can remain visible above other apps. The image stays on this Mac and is never uploaded. macOS may ask you to relaunch ZoneBox after granting access.",
+        .pinScreenRecordingRequest: "Continue",
         .consoleSnap: "Snap",
         .consoleOrganize: "Organize",
         .consoleEdit: "Edit",
@@ -423,6 +442,8 @@ public enum L10n {
         .settingsShowShortcuts: "Keyboard Shortcuts…",
         .settingsOpenAccess: "Open Accessibility Settings",
         .settingsLaunchAtLogin: "Launch at login",
+        .settingsHoverPin: "Show a pin button when hovering a window title bar",
+        .settingsBeta: "Beta",
         .settingsLanguage: "Language",
         .settingsLanguageSystem: "Follow System",
         .settingsLanguageEnglish: "English",
@@ -437,6 +458,7 @@ public enum L10n {
         .settingsKeyboardSubtitle: "Record the shortcuts you use to move between zones.",
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
+        .settingsHoverPinDetail: "This feature is still unstable. Pinned windows use a local live mirror and require Screen Recording permission.",
         .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
         .settingsRightClickDetail: "Use the secondary button without changing your drag.",
         .settingsShakeToSnapDetail: "Reveal zones after a short left-right motion.",
@@ -604,6 +626,12 @@ public enum L10n {
         .menuSettings: "设置…",
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
+        .menuUnpinAllWindows: "取消所有窗口置顶（%d）",
+        .pinOnTop: "置顶显示",
+        .pinUnpin: "取消置顶",
+        .pinScreenRecordingTitle: "允许录屏权限以置顶窗口",
+        .pinScreenRecordingMessage: "ZoneBox 只会在本机镜像你选择置顶的窗口，使它保持显示在其他应用上方；画面不会上传。授权后，macOS 可能会要求重新启动 ZoneBox。",
+        .pinScreenRecordingRequest: "继续",
         .consoleSnap: "吸附",
         .consoleOrganize: "一键布局",
         .consoleEdit: "编辑",
@@ -646,6 +674,8 @@ public enum L10n {
         .settingsShowShortcuts: "键盘快捷键…",
         .settingsOpenAccess: "打开辅助功能设置",
         .settingsLaunchAtLogin: "登录时启动",
+        .settingsHoverPin: "悬停窗口标题栏时显示置顶按钮",
+        .settingsBeta: "Beta",
         .settingsLanguage: "语言",
         .settingsLanguageSystem: "跟随系统",
         .settingsLanguageEnglish: "English",
@@ -660,6 +690,7 @@ public enum L10n {
         .settingsKeyboardSubtitle: "录制用于移动、切换和恢复窗口的快捷键。",
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
+        .settingsHoverPinDetail: "这个功能还不稳定。置顶窗口使用本机实时镜像，并需要录屏权限。",
         .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",
         .settingsRightClickDetail: "拖动时按下鼠标右键即可显示分区。",
         .settingsShakeToSnapDetail: "短距离左右晃动标题栏即可显示分区。",

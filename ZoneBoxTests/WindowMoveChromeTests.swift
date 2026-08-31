@@ -111,4 +111,18 @@ final class WindowMoveChromeTests: XCTestCase {
             )
         )
     }
+
+    func testHoverBandUsesTopThirtySixPoints() {
+        let band = WindowMoveChrome.titleBarBand(frame)
+
+        XCTAssertEqual(band, CGRect(x: 100, y: 80, width: 800, height: 36))
+        XCTAssertTrue(band.contains(CGPoint(x: 899, y: 115)))
+        XCTAssertFalse(band.contains(CGPoint(x: 899, y: 116)))
+    }
+
+    func testHoverBandClampsToSmallWindowHeight() {
+        let small = CGRect(x: 12, y: 24, width: 100, height: 20)
+
+        XCTAssertEqual(WindowMoveChrome.titleBarBand(small), small)
+    }
 }

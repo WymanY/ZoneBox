@@ -31,6 +31,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var snapDialogs: Bool
     public var excludedBundleIDs: [String]
     public var launchAtLogin: Bool
+    public var hoverPinEnabled: Bool
     public var uiLanguage: AppLanguagePreference
     public var editorHotkey: KeyChord
     public var shortcutsPanelHotkey: KeyChord
@@ -81,6 +82,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             AppIdentity.debugBundleID,
         ],
         launchAtLogin: false,
+        hoverPinEnabled: true,
         uiLanguage: .system,
         editorHotkey: KeyChord(keyCode: 6, carbonModifiers: controlOption),
         shortcutsPanelHotkey: KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: controlOption),
@@ -127,6 +129,7 @@ extension AppSettings {
             try c.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? defaults.excludedBundleIDs
         )
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
+        hoverPinEnabled = try c.decodeIfPresent(Bool.self, forKey: .hoverPinEnabled) ?? defaults.hoverPinEnabled
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         editorHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .editorHotkey) ?? defaults.editorHotkey
         shortcutsPanelHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .shortcutsPanelHotkey)

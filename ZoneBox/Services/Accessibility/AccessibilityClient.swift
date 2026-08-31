@@ -18,7 +18,7 @@ protocol AccessibilityClient: AnyObject {
     func window(matching identity: WindowIdentity) async -> AXWindow?
     func frame(of window: AXWindow) async -> CGRect?
     func setFrame(_ frame: CGRect, of window: AXWindow) async -> CGRect?
-    func raise(_ window: AXWindow) async
+    @discardableResult func raise(_ window: AXWindow) async -> AXError
 }
 
 final class AccessibilityClientLive: AccessibilityClient {
@@ -77,9 +77,11 @@ final class AccessibilityClientLive: AccessibilityClient {
         }
     }
 
-    func raise(_ window: AXWindow) async {
-        await onAX {
-            AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
+    @discardableResult
+    func raise(_ window: AXWindow) async -> AXError {
+        await onAX { [self] in
+            guard trusted() else { return .apiDisabled }
+            return AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
         }
     }
 

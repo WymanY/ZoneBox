@@ -18,5 +18,19 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(settings.excludedBundleIDs.contains(AppIdentity.releaseBundleID))
         XCTAssertTrue(settings.excludedBundleIDs.contains(AppIdentity.debugBundleID))
         XCTAssertEqual(settings.excludedBundleIDs.filter { $0 == AppIdentity.releaseBundleID }.count, 1)
+        XCTAssertTrue(settings.hoverPinEnabled)
+    }
+
+    func testHoverPinSettingRoundTripsAndLegacyDefaultsOn() throws {
+        var settings = AppSettings.default
+        settings.hoverPinEnabled = false
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(AppSettings.self, from: data).hoverPinEnabled)
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertTrue(legacy.hoverPinEnabled)
     }
 }
