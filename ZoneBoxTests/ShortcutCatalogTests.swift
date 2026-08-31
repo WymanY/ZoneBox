@@ -10,7 +10,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
         XCTAssertEqual(WindowOrganize.isPubliclyAvailable, false)
         XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
-        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.settingsHotkeyID }))
+        XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.settingsHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 1 }))
         XCTAssertTrue(pairs.contains(where: { $0.id == 9 }))
         for pair in pairs {
@@ -85,13 +85,12 @@ final class ShortcutCatalogTests: XCTestCase {
             ),
             nil
         )
-        XCTAssertEqual(
+        XCTAssertNil(
             ShortcutCatalog.hotkeyID(
                 matching: HardwareKeyCode.comma,
                 carbonModifiers: CarbonModifier.command,
                 settings: settings
-            ),
-            ShortcutCatalog.settingsHotkeyID
+            )
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(
@@ -247,7 +246,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.editorHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.shortcutsPanelHotkeyID))
         XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.organizeHotkeyID))
-        XCTAssertTrue(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.settingsHotkeyID))
+        XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.settingsHotkeyID))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(1))
         XCTAssertFalse(ShortcutCatalog.trustExemptIDs.contains(ShortcutCatalog.unsnapHotkeyID))
     }
@@ -318,8 +317,8 @@ final class ShortcutCatalogTests: XCTestCase {
         guard case .chord(let chord) = item.binding else {
             return XCTFail("openSettings must be a keyboard chord")
         }
-        XCTAssertEqual(item.surface, .global)
-        XCTAssertEqual(item.hotkeyID, ShortcutCatalog.settingsHotkeyID)
+        XCTAssertEqual(item.surface, .application)
+        XCTAssertNil(item.hotkeyID)
         XCTAssertTrue(chord.matches(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command))
         XCTAssertEqual(chord.displayCaps, ["⌘", ","])
         XCTAssertTrue(ShortcutCatalog.customizableBindings(from: .default).contains(where: { $0.id == .openSettings }))

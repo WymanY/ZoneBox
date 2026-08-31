@@ -20,7 +20,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var settingsButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
-    private var eventMonitor: Any?
+    private var eventMonitors: [Any] = []
+    private var activationObservers: [NSObjectProtocol] = []
     private weak var statusButton: NSStatusBarButton?
 
     init(runtime: AppRuntime) {
@@ -41,6 +42,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     func show(from button: NSStatusBarButton) {
         if isShown {
             reload()
+            raisePanel()
             return
         }
         sessionActive = true
@@ -51,7 +53,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         applyPanelFrame(under: button)
         panel.orderFront(nil)
         panel.makeKey()
+        raisePanel()
         startDismissMonitors()
+        startActivationObservers()
     }
 
     func close() {
@@ -68,6 +72,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         stopDismissMonitors()
+        stopActivationObservers()
         panel = nil
         sessionActive = false
         statusButton = nil
@@ -77,6 +82,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         sessionActive = false
         statusButton = nil
         stopDismissMonitors()
+        stopActivationObservers()
         if let panel, panel.isVisible {
             panel.orderOut(nil)
             panel.close()
@@ -424,13 +430,83 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     }
 
-    private func startDismissMonitors() {}
+    private func startActivationObservers() {
+        stopActivationObservers()
+        let resign = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: NSApp,
+            queue: .main
+        ) { [weak self] _ in
+            guard let controller = self else { return }
+            Task { @MainActor in controller.close() }
+        }
+        let switchApp = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let controller = self else { return }
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            Task { @MainActor in controller.handleOtherAppActivated(app) }
+        }
+        activationObservers = [resign, switchApp]
+    }
+
+    private func stopActivationObservers() {
+        for observer in activationObservers {
+            NotificationCenter.default.removeObserver(observer)
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        activationObservers.removeAll()
+    }
+
+    private func handleOtherAppActivated(_ app: NSRunningApplication?) {
+        guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        close()
+    }
+
+    private func raisePanel() {
+        guard let panel else { return }
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.orderFrontRegardless()
+        if NSApp.isActive {
+            panel.makeKey()
+        }
+    }
+
+    private func startDismissMonitors() {
+        stopDismissMonitors()
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { [weak self] event in
+            Task { @MainActor in self?.handleOutsideClick(event) }
+        }) {
+            eventMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { [weak self] event in
+            Task { @MainActor in self?.handleOutsideClick(event) }
+            return event
+        }) {
+            eventMonitors.append(local)
+        }
+    }
 
     private func stopDismissMonitors() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
+        for monitor in eventMonitors {
+            NSEvent.removeMonitor(monitor)
         }
+        eventMonitors.removeAll()
+    }
+
+    private func handleOutsideClick(_ event: NSEvent) {
+        guard sessionActive, let panel, panel.isVisible else { return }
+        let location = NSEvent.mouseLocation
+        if panel.frame.contains(location) { return }
+        if let sheet = panel.attachedSheet, sheet.frame.contains(location) { return }
+        if let button = statusButton, let window = button.window {
+            let buttonRect = window.convertToScreen(button.convert(button.bounds, to: nil))
+            if buttonRect.contains(location) { return }
+        }
+        close()
     }
 
     private func select(_ layout: Layout) {
@@ -495,6 +571,21 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         dismiss(handoff: { [runtime] in runtime.openSettings() })
     }
 
+    fileprivate func handleSettingsKeyEquivalent(_ event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return false }
+        let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        let chord = runtime.settings.settingsHotkey
+        guard chord.matches(keyCode: event.keyCode, carbonModifiers: modifiers) else { return false }
+        if ShortcutVoiceOverPolicy.shouldPause(
+            chord: chord,
+            voiceOverEnabled: NSWorkspace.shared.isVoiceOverEnabled
+        ) {
+            return false
+        }
+        openSettings()
+        return true
+    }
+
     @objc
     private func quit() {
         dismiss(handoff: { NSApp.terminate(nil) })
@@ -507,6 +598,13 @@ private final class ConsolePanel: NSPanel {
 
     override func cancelOperation(_ sender: Any?) {
         (delegate as? MenuBarConsoleController)?.close()
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if (delegate as? MenuBarConsoleController)?.handleSettingsKeyEquivalent(event) == true {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {

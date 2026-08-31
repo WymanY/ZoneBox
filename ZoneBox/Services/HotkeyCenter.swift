@@ -331,8 +331,6 @@ final class HotkeyCenter {
             runtime.engine.handleQuickSnapper(.invoke)
         case ShortcutCatalog.organizeHotkeyID:
             runtime.organizeWindowsFromHotkey()
-        case ShortcutCatalog.settingsHotkeyID:
-            runtime.openSettings()
         case 1...9:
             if runtime.engine.isQuickSnapperShowing {
                 runtime.engine.handleQuickSnapper(.digit(Int(id)))
