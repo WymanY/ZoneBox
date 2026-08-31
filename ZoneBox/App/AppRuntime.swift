@@ -898,6 +898,13 @@ final class AppRuntime {
 
     func persistSettings() {
         try? settingsStore.save(settings)
+        overlay.settings = settings
+        overlay.primaryFlipHeight = displays.primaryFlipHeight
+        if overlay.isVisible {
+            overlay.refreshVisible()
+        }
+        editor?.applySettings(settings)
+        settingsWindow?.refreshPreview()
     }
 
     func setHotkeyRecording(_ recording: Bool) {

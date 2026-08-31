@@ -280,7 +280,10 @@ final class MenuBarController: NSObject {
             item.representedObject = layout.id.uuidString
             item.state = layout.id == current ? .on : .off
             if !LayoutTemplates.thumbnailGeometry(for: layout).isEmpty {
-                item.image = LayoutThumbnailRenderer.menuImage(for: layout)
+                item.image = LayoutThumbnailRenderer.menuImage(
+                    for: layout,
+                    gutterPoints: CGFloat(runtime.settings.gutterPoints)
+                )
             }
             menu.addItem(item)
         }

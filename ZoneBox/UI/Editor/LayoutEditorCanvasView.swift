@@ -27,6 +27,12 @@ final class LayoutEditorCanvasView: NSView {
     var onInteractionChange: ((Bool) -> Void)?
     var onSelectionChange: (() -> Void)?
     var lockAspect = false
+    var gutterPoints: CGFloat = 0 {
+        didSet { needsDisplay = true }
+    }
+    var showZoneNumbers = true {
+        didSet { needsDisplay = true }
+    }
     /// Floating editor chrome sits above the canvas but is click-through.
     /// Pointers over that chrome, or a zone's delete control, should not
     /// show a grid split preview.
@@ -174,8 +180,9 @@ final class LayoutEditorCanvasView: NSView {
         bounds.fill()
 
         let zones = layout.zones.sorted(by: { $0.number < $1.number })
+        let displayedRects = gutteredCanvasRects()
         for zone in zones {
-            let rect = viewRect(for: canvasRect(of: zone))
+            let rect = viewRect(for: displayedRects[zone.id] ?? canvasRect(of: zone))
             guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
             let selected = zone.id == selectedID
             let body = rect.insetBy(dx: 3, dy: 3)
@@ -186,29 +193,34 @@ final class LayoutEditorCanvasView: NSView {
             path.lineWidth = selected ? 3 : 1.5
             path.stroke()
 
-            let label = "\(zone.number)" as NSString
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 36, weight: .semibold),
-                .foregroundColor: NSColor.white,
-            ]
-            let size = label.size(withAttributes: attrs)
-            label.draw(
-                at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2),
-                withAttributes: attrs
-            )
+            if showZoneNumbers {
+                let label = "\(zone.number)" as NSString
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 36, weight: .semibold),
+                    .foregroundColor: NSColor.white,
+                ]
+                let numberSize = label.size(withAttributes: attrs)
+                label.draw(
+                    at: NSPoint(x: rect.midX - numberSize.width / 2, y: rect.midY - numberSize.height / 2),
+                    withAttributes: attrs
+                )
+            }
 
-            let pixels = ZonePixelMetrics.pixelSize(of: canvasRect(of: zone), workAreaAX: workAreaAX)
+            let pixels = ZonePixelMetrics.pixelSize(
+                of: displayedRects[zone.id] ?? canvasRect(of: zone),
+                workAreaAX: workAreaAX
+            )
             let sizeLabel = "\(pixels.width) × \(pixels.height)" as NSString
             let sizeAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: selected ? 13 : 11, weight: .medium),
                 .foregroundColor: NSColor.white.withAlphaComponent(selected ? 0.95 : 0.78),
             ]
             let sizeText = sizeLabel.size(withAttributes: sizeAttrs)
-            if sizeText.width + 16 < rect.width, sizeText.height + size.height + 8 < rect.height {
+            if sizeText.width + 16 < rect.width, sizeText.height + 40 < rect.height {
                 sizeLabel.draw(
                     at: NSPoint(
                         x: rect.midX - sizeText.width / 2,
-                        y: rect.midY - size.height / 2 - sizeText.height - 4
+                        y: rect.midY - sizeText.height / 2 - 20
                     ),
                     withAttributes: sizeAttrs
                 )
@@ -226,7 +238,7 @@ final class LayoutEditorCanvasView: NSView {
 
         let canDeleteGrid = layout.kind != .grid || layout.zones.count > 1
         for zone in zones {
-            let rect = viewRect(for: canvasRect(of: zone))
+            let rect = viewRect(for: displayedRects[zone.id] ?? canvasRect(of: zone))
             guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
             guard layout.kind != .grid else { continue }
             guard canDeleteGrid else { continue }
@@ -607,6 +619,21 @@ final class LayoutEditorCanvasView: NSView {
         return NormalizedRect(x: 0.1, y: 0.1, width: 0.3, height: 0.3)
     }
 
+    private func gutteredCanvasRects() -> [UUID: NormalizedRect] {
+        let base = Dictionary(uniqueKeysWithValues: layout.zones.map { ($0.id, canvasRect(of: $0)) })
+        guard gutterPoints > 0,
+              let resolved = try? resolveLayout(layout, workAreaAX: workAreaAX, gutter: gutterPoints)
+        else {
+            return base
+        }
+
+        var result = base
+        for zone in resolved {
+            result[zone.zoneID] = NormalizedRect.normalize(zone.frameAX, in: workAreaAX)
+        }
+        return result
+    }
+
     private func hitZone(at point: CGPoint) -> Zone? {
         for zone in layout.zones.reversed() {
             if viewRect(for: canvasRect(of: zone)).contains(point) {
@@ -785,8 +812,9 @@ final class LayoutEditorCanvasView: NSView {
             height: max(abs(point.y - start.y), 1)
         )
         var ids = Set<UUID>()
+        let displayed = gutteredCanvasRects()
         for zone in layout.zones {
-            let rect = viewRect(for: canvasRect(of: zone))
+            let rect = viewRect(for: displayed[zone.id] ?? canvasRect(of: zone))
             if rect.intersects(box) {
                 ids.insert(zone.id)
             }
@@ -859,30 +887,79 @@ final class LayoutEditorCanvasView: NSView {
 
     private func gridEdge(for hit: GridLineHit) -> EdgeInteraction? {
         guard let spec = layout.grid else { return nil }
-        let w = bounds.width
-        let h = bounds.height
+        let displayed = gutteredCanvasRects()
+        var lo = CGFloat.greatestFiniteMagnitude
+        var hi = -CGFloat.greatestFiniteMagnitude
+
+        func accumulateOverlap(_ a: CGRect, _ b: CGRect, vertical: Bool) {
+            guard !a.isNull, !b.isNull else { return }
+            if vertical {
+                let spanLo = max(a.minY, b.minY)
+                let spanHi = min(a.maxY, b.maxY)
+                guard spanHi > spanLo else { return }
+                lo = min(lo, spanLo)
+                hi = max(hi, spanHi)
+            } else {
+                let spanLo = max(a.minX, b.minX)
+                let spanHi = min(a.maxX, b.maxX)
+                guard spanHi > spanLo else { return }
+                lo = min(lo, spanLo)
+                hi = max(hi, spanHi)
+            }
+        }
+
         switch hit.axis {
         case .vertical:
+            guard hit.afterIndex >= 0, hit.afterIndex < spec.columns - 1 else { return nil }
             let xFrac = Double(spec.columnWeights.prefix(hit.afterIndex + 1).reduce(0, +)) / 10_000
-            let x = CGFloat(xFrac) * w
+            let x = CGFloat(xFrac) * bounds.width
+            for r in 0..<spec.rows {
+                let leftIdx = spec.cellMap[r][hit.afterIndex]
+                let rightIdx = spec.cellMap[r][hit.afterIndex + 1]
+                guard leftIdx != rightIdx,
+                      layout.zones.indices.contains(leftIdx),
+                      layout.zones.indices.contains(rightIdx)
+                else { continue }
+                accumulateOverlap(
+                    innerPaneRect(for: layout.zones[leftIdx], displayed: displayed),
+                    innerPaneRect(for: layout.zones[rightIdx], displayed: displayed),
+                    vertical: true
+                )
+            }
+            guard lo < hi else { return nil }
             return EdgeInteraction(
                 axis: .resizeWidth,
-                grabber: CGPoint(x: x, y: h / 2),
-                seamStart: CGPoint(x: x, y: 0),
-                seamEnd: CGPoint(x: x, y: h),
+                grabber: CGPoint(x: x, y: (lo + hi) / 2),
+                seamStart: CGPoint(x: x, y: lo),
+                seamEnd: CGPoint(x: x, y: hi),
                 primaryID: selectedID ?? layout.zones.first?.id ?? UUID(),
                 primaryHandle: .e,
                 neighborID: nil,
                 neighborHandle: nil
             )
         case .horizontal:
+            guard hit.afterIndex >= 0, hit.afterIndex < spec.rows - 1 else { return nil }
             let yFrac = Double(spec.rowWeights.prefix(hit.afterIndex + 1).reduce(0, +)) / 10_000
-            let y = CGFloat(1 - yFrac) * h
+            let y = CGFloat(1 - yFrac) * bounds.height
+            for c in 0..<spec.columns {
+                let topIdx = spec.cellMap[hit.afterIndex][c]
+                let bottomIdx = spec.cellMap[hit.afterIndex + 1][c]
+                guard topIdx != bottomIdx,
+                      layout.zones.indices.contains(topIdx),
+                      layout.zones.indices.contains(bottomIdx)
+                else { continue }
+                accumulateOverlap(
+                    innerPaneRect(for: layout.zones[topIdx], displayed: displayed),
+                    innerPaneRect(for: layout.zones[bottomIdx], displayed: displayed),
+                    vertical: false
+                )
+            }
+            guard lo < hi else { return nil }
             return EdgeInteraction(
                 axis: .resizeHeight,
-                grabber: CGPoint(x: w / 2, y: y),
-                seamStart: CGPoint(x: 0, y: y),
-                seamEnd: CGPoint(x: w, y: y),
+                grabber: CGPoint(x: (lo + hi) / 2, y: y),
+                seamStart: CGPoint(x: lo, y: y),
+                seamEnd: CGPoint(x: hi, y: y),
                 primaryID: selectedID ?? layout.zones.first?.id ?? UUID(),
                 primaryHandle: .s,
                 neighborID: nil,
@@ -891,33 +968,50 @@ final class LayoutEditorCanvasView: NSView {
         }
     }
 
+    /// Keep split chrome inside the filled pane, inside the white stroke.
+    private func innerPaneRect(for zone: Zone, displayed: [UUID: NormalizedRect]? = nil) -> CGRect {
+        let displayed = displayed ?? gutteredCanvasRects()
+        let rect = viewRect(for: displayed[zone.id] ?? canvasRect(of: zone))
+        guard !rect.isNull, rect.width > 1, rect.height > 1 else { return .null }
+        let stroke: CGFloat = zone.id == selectedID ? 3 : 1.5
+        return rect.insetBy(dx: 3 + stroke / 2 + 0.5, dy: 3 + stroke / 2 + 0.5)
+    }
+
     private func drawGridSplitPreview() {
         guard let preview = hoverSplit, drag == nil else { return }
         guard let zone = layout.zones.first(where: { $0.id == preview.zoneID }) else { return }
-        let cell = viewRect(for: canvasRect(of: zone))
-        guard !cell.isNull, cell.width > 1, cell.height > 1 else { return }
+        let inner = innerPaneRect(for: zone)
+        guard !inner.isNull, inner.width > 1, inner.height > 1 else { return }
+
+        NSGraphicsContext.saveGraphicsState()
+        let clipRadius = max(CGFloat(0), CGFloat(8 - 5))
+        NSBezierPath(roundedRect: inner, xRadius: clipRadius, yRadius: clipRadius).addClip()
+
         NSColor.white.withAlphaComponent(0.7).setStroke()
         let path = NSBezierPath()
         path.lineWidth = 1.5
         path.setLineDash([5, 4], count: 2, phase: 0)
         switch preview.axis {
         case .vertical:
-            let x = min(max(CGFloat(preview.x) * bounds.width, cell.minX), cell.maxX)
-            path.move(to: CGPoint(x: x, y: cell.minY))
-            path.line(to: CGPoint(x: x, y: cell.maxY))
+            let x = min(max(CGFloat(preview.x) * bounds.width, inner.minX), inner.maxX)
+            path.move(to: CGPoint(x: x, y: inner.minY))
+            path.line(to: CGPoint(x: x, y: inner.maxY))
         case .horizontal:
-            let y = min(max(CGFloat(1 - preview.y) * bounds.height, cell.minY), cell.maxY)
-            path.move(to: CGPoint(x: cell.minX, y: y))
-            path.line(to: CGPoint(x: cell.maxX, y: y))
+            let y = min(max(CGFloat(1 - preview.y) * bounds.height, inner.minY), inner.maxY)
+            path.move(to: CGPoint(x: inner.minX, y: y))
+            path.line(to: CGPoint(x: inner.maxX, y: y))
         }
         path.stroke()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawGridMergeHighlights() {
         guard case .gridMerge(let start, _) = drag else { return }
         let ids = rectangularMergeIDs() ?? mergeIDs
         for zone in layout.zones where ids.contains(zone.id) {
-            let rect = viewRect(for: canvasRect(of: zone)).insetBy(dx: 6, dy: 6)
+            let displayed = gutteredCanvasRects()
+            let rect = innerPaneRect(for: zone, displayed: displayed)
+            guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
             NSColor.systemYellow.withAlphaComponent(0.22).setFill()
             NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8).fill()
         }

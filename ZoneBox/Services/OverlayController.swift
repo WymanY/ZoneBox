@@ -7,8 +7,12 @@ final class OverlayController {
     private var views: [UUID: ZoneOverlayView] = [:]
     private var keySink: NSWindow?
     private var visibleDisplayID: UUID?
+    private var visibleZones: [ResolvedZone] = []
+    private var visibleHighlight: SnapTarget = .none
+    private var visibleCaptureKeys = false
     var settings: AppSettings = .default
     var primaryFlipHeight: CGFloat = 0
+    var isVisible: Bool { visibleDisplayID != nil }
 
     func rebuild(workAreas: [WorkArea], screens: [NSScreen]) {
         hideAll()
@@ -33,12 +37,11 @@ final class OverlayController {
         displayID: UUID,
         zones: [ResolvedZone],
         highlight: SnapTarget,
-        forceNumbers: Bool = false,
         captureKeys: Bool = false
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
-        let showNumbers = forceNumbers || settings.showZoneNumbers
+        let showNumbers = settings.showZoneNumbers
         var needsDisplay = false
         if view.zones != zones {
             view.zones = zones
@@ -81,12 +84,28 @@ final class OverlayController {
         } else {
             releaseKeys()
         }
+
+        visibleDisplayID = displayID
+        visibleZones = zones
+        visibleHighlight = highlight
+        visibleCaptureKeys = captureKeys
     }
 
     func highlight(_ target: SnapTarget) {
         guard let visibleDisplayID, let view = views[visibleDisplayID] else { return }
         guard applyHighlight(view, target) else { return }
         view.needsDisplay = true
+        visibleHighlight = target
+    }
+
+    func refreshVisible(zones: [ResolvedZone]? = nil) {
+        guard let visibleDisplayID else { return }
+        show(
+            displayID: visibleDisplayID,
+            zones: zones ?? visibleZones,
+            highlight: visibleHighlight,
+            captureKeys: visibleCaptureKeys
+        )
     }
 
     @discardableResult
@@ -121,6 +140,9 @@ final class OverlayController {
                 panel.orderOut(nil)
             }
         }
+        visibleZones = []
+        visibleHighlight = .none
+        visibleCaptureKeys = false
         releaseKeys()
     }
 
