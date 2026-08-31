@@ -266,7 +266,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 customIcon: PinIconArtwork.image(state: .pin, size: 17),
                 titleKey: .settingsHoverPin,
                 detailKey: .settingsHoverPinDetail,
-                trailing: hoverPin
+                trailing: hoverPin,
+                badgeKey: .settingsBeta
             ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
         ])
@@ -341,7 +342,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         titleKey: L10nKey,
         detailKey: L10nKey?,
         trailing: NSView,
-        footer: NSView? = nil
+        footer: NSView? = nil,
+        badgeKey: L10nKey? = nil
     ) -> NSView {
         let icon = SettingsRowIconView(
             image: customIcon ?? NSImage(
@@ -358,10 +360,28 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         title.setContentHuggingPriority(.defaultLow, for: .horizontal)
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        let titleView: NSView
+        if let badgeKey {
+            let badge = SettingsBetaBadgeView(text: L10n.text(badgeKey))
+            localizedLabels.append((badge.label, badgeKey))
+            let titleRow = NSStackView(views: [title, badge, NSView()])
+            titleRow.orientation = .horizontal
+            titleRow.alignment = .centerY
+            titleRow.spacing = 6
+            titleRow.translatesAutoresizingMaskIntoConstraints = false
+            titleRow.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            titleRow.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            title.setContentHuggingPriority(.required, for: .horizontal)
+            title.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+            titleView = titleRow
+        } else {
+            titleView = title
+        }
+
         let detail: NSTextField?
         if let detailKey {
             let label = localizedWrappingLabel(detailKey, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-            label.maximumNumberOfLines = 2
+            label.maximumNumberOfLines = badgeKey == nil ? 2 : 3
             label.alignment = .left
             detail = label
         } else {
@@ -370,7 +390,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         return SettingsPreferenceRowView(
             icon: icon,
-            title: title,
+            title: titleView,
             detail: detail,
             accessory: trailing,
             footer: footer
@@ -1107,7 +1127,7 @@ private enum SettingsMetrics {
 }
 
 private final class SettingsPreferenceRowView: NSView {
-    init(icon: NSView, title: NSTextField, detail: NSTextField?, accessory: NSView?, footer: NSView? = nil) {
+    init(icon: NSView, title: NSView, detail: NSTextField?, accessory: NSView?, footer: NSView? = nil) {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -1128,7 +1148,6 @@ private final class SettingsPreferenceRowView: NSView {
         labels.translatesAutoresizingMaskIntoConstraints = false
         labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
         labels.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        title.alignment = .left
         title.setContentHuggingPriority(.defaultLow, for: .horizontal)
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         labels.addArrangedSubview(title)
@@ -1153,13 +1172,12 @@ private final class SettingsPreferenceRowView: NSView {
             labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: SettingsMetrics.iconTitleGap),
             labels.topAnchor.constraint(equalTo: topAnchor, constant: 11),
             labels.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11),
-            title.widthAnchor.constraint(equalTo: labels.widthAnchor),
         ]
         if let accessory {
             constraints.append(contentsOf: [
                 labels.trailingAnchor.constraint(equalTo: accessory.leadingAnchor, constant: -12),
                 accessory.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -SettingsMetrics.rowInset),
-                accessory.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+                accessory.centerYAnchor.constraint(equalTo: title.centerYAnchor, constant: 1),
             ])
         } else {
             constraints.append(labels.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -SettingsMetrics.rowInset))
@@ -1272,6 +1290,53 @@ private final class SettingsRowIconView: NSView {
             layer?.backgroundColor = tint.withAlphaComponent(0.12).cgColor
             layer?.borderColor = tint.withAlphaComponent(0.08).cgColor
             layer?.borderWidth = 0.5
+        }
+    }
+}
+
+private final class SettingsBetaBadgeView: NSView {
+    let label: NSTextField
+
+    init(text: String) {
+        label = NSTextField(labelWithString: text)
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = 4
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+
+        label.font = .systemFont(ofSize: 9, weight: .semibold)
+        label.textColor = .white
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1),
+            heightAnchor.constraint(equalToConstant: 15),
+        ])
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
+        updateColors()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.systemOrange.cgColor
         }
     }
 }

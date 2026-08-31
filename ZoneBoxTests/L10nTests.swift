@@ -101,6 +101,16 @@ final class L10nTests: XCTestCase {
             "Show a pin button when hovering a window title bar"
         )
         XCTAssertEqual(L10n.text(.settingsHoverPin, language: .chineseSimplified), "悬停窗口标题栏时显示置顶按钮")
+        XCTAssertEqual(L10n.text(.settingsBeta, language: .english), "Beta")
+        XCTAssertEqual(L10n.text(.settingsBeta, language: .chineseSimplified), "Beta")
+        XCTAssertEqual(
+            L10n.text(.settingsHoverPinDetail, language: .english),
+            "This feature is still unstable. Pinned windows use a local live mirror and require Screen Recording permission."
+        )
+        XCTAssertEqual(
+            L10n.text(.settingsHoverPinDetail, language: .chineseSimplified),
+            "这个功能还不稳定。置顶窗口使用本机实时镜像，并需要录屏权限。"
+        )
     }
 
     func testShortcutCustomizationCopy() {

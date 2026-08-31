@@ -97,6 +97,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsOpenAccess
     case settingsLaunchAtLogin
     case settingsHoverPin
+    case settingsBeta
     case settingsLanguage
     case settingsLanguageSystem
     case settingsLanguageEnglish
@@ -442,6 +443,7 @@ public enum L10n {
         .settingsOpenAccess: "Open Accessibility Settings",
         .settingsLaunchAtLogin: "Launch at login",
         .settingsHoverPin: "Show a pin button when hovering a window title bar",
+        .settingsBeta: "Beta",
         .settingsLanguage: "Language",
         .settingsLanguageSystem: "Follow System",
         .settingsLanguageEnglish: "English",
@@ -456,7 +458,7 @@ public enum L10n {
         .settingsKeyboardSubtitle: "Record the shortcuts you use to move between zones.",
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
-        .settingsHoverPinDetail: "Pinned windows use a local live mirror and require Screen Recording permission.",
+        .settingsHoverPinDetail: "This feature is still unstable. Pinned windows use a local live mirror and require Screen Recording permission.",
         .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
         .settingsRightClickDetail: "Use the secondary button without changing your drag.",
         .settingsShakeToSnapDetail: "Reveal zones after a short left-right motion.",
@@ -673,6 +675,7 @@ public enum L10n {
         .settingsOpenAccess: "打开辅助功能设置",
         .settingsLaunchAtLogin: "登录时启动",
         .settingsHoverPin: "悬停窗口标题栏时显示置顶按钮",
+        .settingsBeta: "Beta",
         .settingsLanguage: "语言",
         .settingsLanguageSystem: "跟随系统",
         .settingsLanguageEnglish: "English",
@@ -687,7 +690,7 @@ public enum L10n {
         .settingsKeyboardSubtitle: "录制用于移动、切换和恢复窗口的快捷键。",
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
-        .settingsHoverPinDetail: "置顶窗口使用本机实时镜像，并需要录屏权限。",
+        .settingsHoverPinDetail: "这个功能还不稳定。置顶窗口使用本机实时镜像，并需要录屏权限。",
         .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",
         .settingsRightClickDetail: "拖动时按下鼠标右键即可显示分区。",
         .settingsShakeToSnapDetail: "短距离左右晃动标题栏即可显示分区。",
