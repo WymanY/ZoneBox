@@ -337,6 +337,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             mode: .featured,
             selected: featured.id == currentID,
             canDelete: layouts.count > 1,
+            gutterPoints: CGFloat(runtime.settings.gutterPoints),
+            showNumbers: runtime.settings.showZoneNumbers,
             onSelect: { [weak self] in self?.select(featured) },
             onEdit: { [weak self] in self?.edit(featured) },
             onDelete: { [weak self] in self?.confirmAndDelete(featured) }
@@ -352,6 +354,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
                 mode: .compact,
                 selected: false,
                 canDelete: layouts.count > 1,
+                gutterPoints: CGFloat(runtime.settings.gutterPoints),
+                showNumbers: runtime.settings.showZoneNumbers,
                 onSelect: { [weak self] in self?.select(layout) },
                 onEdit: { [weak self] in self?.edit(layout) },
                 onDelete: { [weak self] in self?.confirmAndDelete(layout) }
@@ -670,6 +674,8 @@ private final class LayoutCardView: NSView {
     private let onDelete: () -> Void
     private let title: String
     private let thumbnail: NSImage
+    private let gutterPoints: CGFloat
+    private let showNumbers: Bool
     private var hovering = false {
         didSet {
             guard oldValue != hovering else { return }
@@ -686,6 +692,8 @@ private final class LayoutCardView: NSView {
         mode: Mode,
         selected: Bool,
         canDelete: Bool,
+        gutterPoints: CGFloat,
+        showNumbers: Bool,
         onSelect: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
@@ -697,6 +705,8 @@ private final class LayoutCardView: NSView {
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.title = L10n.layoutDisplayName(layout.name)
+        self.gutterPoints = gutterPoints
+        self.showNumbers = showNumbers
         let thumbnailSize = mode == .featured
             ? Metrics.featuredThumbnailSize
             : Metrics.compactThumbnailSize
@@ -710,7 +720,9 @@ private final class LayoutCardView: NSView {
             for: layout,
             size: thumbnailSize,
             fill: fill,
-            stroke: stroke
+            stroke: stroke,
+            gutterPoints: gutterPoints,
+            showNumbers: showNumbers
         )
         let size = mode == .featured
             ? NSSize(width: Metrics.contentWidth, height: Metrics.featuredHeight)

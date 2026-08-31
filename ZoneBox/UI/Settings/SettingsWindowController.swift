@@ -14,6 +14,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var previewTitle: NSTextField?
     private var previewDescription: NSTextField?
     private var previewImageView: NSImageView?
+    private var overlayPreviewView: SettingsOverlayPreviewView?
     private var accessStatusIcon: NSImageView?
     private var accessStatusLabel: NSTextField?
     private var accessButton: NSButton?
@@ -567,6 +568,26 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         image.translatesAutoresizingMaskIntoConstraints = false
         previewImageView = image
 
+        let overlayPreview = SettingsOverlayPreviewView()
+        overlayPreview.translatesAutoresizingMaskIntoConstraints = false
+        overlayPreview.isHidden = true
+        overlayPreviewView = overlayPreview
+
+        let previewHost = NSView()
+        previewHost.translatesAutoresizingMaskIntoConstraints = false
+        previewHost.addSubview(image)
+        previewHost.addSubview(overlayPreview)
+        NSLayoutConstraint.activate([
+            image.topAnchor.constraint(equalTo: previewHost.topAnchor),
+            image.leadingAnchor.constraint(equalTo: previewHost.leadingAnchor),
+            image.trailingAnchor.constraint(equalTo: previewHost.trailingAnchor),
+            image.bottomAnchor.constraint(equalTo: previewHost.bottomAnchor),
+            overlayPreview.topAnchor.constraint(equalTo: previewHost.topAnchor),
+            overlayPreview.leadingAnchor.constraint(equalTo: previewHost.leadingAnchor),
+            overlayPreview.trailingAnchor.constraint(equalTo: previewHost.trailingAnchor),
+            overlayPreview.bottomAnchor.constraint(equalTo: previewHost.bottomAnchor),
+        ])
+
         let description = NSTextField(wrappingLabelWithString: "")
         description.font = .systemFont(ofSize: 12)
         description.textColor = .secondaryLabelColor
@@ -604,7 +625,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         separator.translatesAutoresizingMaskIntoConstraints = false
 
         panel.addSubview(title)
-        panel.addSubview(image)
+        panel.addSubview(previewHost)
         panel.addSubview(description)
         panel.addSubview(separator)
         panel.addSubview(statusRow)
@@ -612,11 +633,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             title.topAnchor.constraint(equalTo: panel.topAnchor, constant: 20),
             title.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 20),
             title.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -20),
-            image.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
-            image.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
-            image.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
-            image.heightAnchor.constraint(equalTo: image.widthAnchor, multiplier: 0.72),
-            description.topAnchor.constraint(equalTo: image.bottomAnchor, constant: 10),
+            previewHost.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+            previewHost.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+            previewHost.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+            previewHost.heightAnchor.constraint(equalTo: previewHost.widthAnchor, multiplier: 0.72),
+            description.topAnchor.constraint(equalTo: previewHost.bottomAnchor, constant: 10),
             description.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 18),
             description.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -18),
             description.bottomAnchor.constraint(equalTo: separator.topAnchor, constant: -14),
@@ -727,7 +748,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         previewTitle?.stringValue = L10n.text(selectedCategory.previewTitleKey)
         previewDescription?.stringValue = L10n.text(selectedCategory.previewDescriptionKey)
         guard let imageView = previewImageView else { return }
-        if selectedCategory == .snapping, let image = NSImage(named: "SnapPreview") {
+        let overlayPreview = overlayPreviewView
+
+        imageView.isHidden = selectedCategory == .overlay
+        overlayPreview?.isHidden = selectedCategory != .overlay
+
+        if selectedCategory == .overlay {
+            overlayPreview?.showNumbers = runtime.settings.showZoneNumbers
+            overlayPreview?.gutterPoints = runtime.settings.gutterPoints
+        } else if selectedCategory == .snapping, let image = NSImage(named: "SnapPreview") {
             imageView.image = image
             imageView.contentTintColor = nil
         } else {
@@ -740,6 +769,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             imageView.contentTintColor = selectedCategory.tint
         }
         imageView.setAccessibilityLabel(L10n.text(selectedCategory.previewTitleKey))
+    }
+
+    func refreshPreview() {
+        updatePreview()
     }
 
     func refreshAccessStatus() {
@@ -1117,6 +1150,65 @@ private final class SettingsPreferenceRowView: NSView {
 }
 
 private final class SettingsFlippedView: NSView { override var isFlipped: Bool { true } }
+
+    private final class SettingsOverlayPreviewView: NSView {
+        var showNumbers = true {
+            didSet { needsDisplay = true }
+        }
+
+        var gutterPoints = 16 {
+            didSet { needsDisplay = true }
+        }
+
+    override var isFlipped: Bool { true }
+
+        override func draw(_ dirtyRect: NSRect) {
+            super.draw(dirtyRect)
+            guard !bounds.isEmpty else { return }
+
+            let outer = bounds.insetBy(dx: 18, dy: 18)
+            let gap = CGFloat(gutterPoints)
+            let tileWidth = max(0, (outer.width - gap) / 2)
+            let tileHeight = max(0, (outer.height - gap) / 2)
+            guard tileWidth > 0, tileHeight > 0 else { return }
+
+            let tileColor = NSColor.systemTeal
+        let borderColor = NSColor.white.withAlphaComponent(0.65)
+        let tiles = [
+            CGRect(x: outer.minX, y: outer.minY, width: tileWidth, height: tileHeight),
+            CGRect(x: outer.minX + tileWidth + gap, y: outer.minY, width: tileWidth, height: tileHeight),
+            CGRect(x: outer.minX, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
+            CGRect(x: outer.minX + tileWidth + gap, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
+        ]
+
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            for (index, rect) in tiles.enumerated() {
+                let rounded = NSBezierPath(roundedRect: rect, xRadius: 18, yRadius: 18)
+                tileColor.withAlphaComponent(0.96).setFill()
+                rounded.fill()
+                borderColor.setStroke()
+                rounded.lineWidth = 1.5
+                rounded.stroke()
+
+                guard showNumbers else { continue }
+                let label = "\(index + 1)" as NSString
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: min(rect.width, rect.height) * 0.32, weight: .semibold),
+                    .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+                ]
+                let size = label.size(withAttributes: attrs)
+                label.draw(
+                    at: CGPoint(
+                        x: rect.midX - size.width / 2,
+                        y: rect.midY - size.height / 2
+                    ),
+                    withAttributes: attrs
+                )
+            }
+
+        }
+    }
+}
 
 private final class SettingsRowIconView: NSView {
     private let tint: NSColor

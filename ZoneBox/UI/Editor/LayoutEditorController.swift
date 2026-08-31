@@ -79,6 +79,8 @@ final class LayoutEditorController: NSObject {
         selectedSavedLayout = savedToolbarLayout != nil
 
         let canvas = LayoutEditorCanvasView(layout: draft, workAreaAX: workAX, primaryFlipHeight: flip)
+        canvas.gutterPoints = CGFloat(runtime.settings.gutterPoints)
+        canvas.showZoneNumbers = runtime.settings.showZoneNumbers
         canvas.selectFirstZone()
         canvas.onChange = { [weak self] layout in self?.finishDraft(layout) }
         canvas.onPreview = { [weak self] layout in self?.previewDraft(layout) }
@@ -127,6 +129,12 @@ final class LayoutEditorController: NSObject {
     func activate() {
         guard let panel, let canvas else { return }
         makeEditorKey(panel: panel, canvas: canvas)
+    }
+
+    func applySettings(_ settings: AppSettings) {
+        canvas?.gutterPoints = CGFloat(settings.gutterPoints)
+        canvas?.showZoneNumbers = settings.showZoneNumbers
+        refreshChipThumbnails(gutterPoints: CGFloat(settings.gutterPoints))
     }
 
     func owns(_ window: NSWindow) -> Bool {
@@ -327,6 +335,12 @@ final class LayoutEditorController: NSObject {
 
     private func refreshPresetSelection() {
         rebuildTemplateMenu()
+    }
+
+    private func refreshChipThumbnails(gutterPoints: CGFloat) {
+        for button in [saveButton, saveCopyButton, cancelButton, deleteButton] {
+            button?.gutterPoints = gutterPoints
+        }
     }
 
     private func makeMetricsRow() -> NSView {
@@ -1238,6 +1252,12 @@ private final class EditorChipButton: NSButton {
 
     private var usesThumbnail = false
     private var thumbnailLayout: Layout?
+    var gutterPoints: CGFloat = 0 {
+        didSet {
+            guard usesThumbnail else { return }
+            applyThumbnail(selected: layer?.backgroundColor == NSColor.white.withAlphaComponent(0.92).cgColor)
+        }
+    }
 
     init(title: String, symbol: String?, target: AnyObject, action: Selector, kind: Kind) {
         super.init(frame: .zero)
@@ -1375,7 +1395,8 @@ private final class EditorChipButton: NSButton {
             for: thumbnailLayout,
             size: NSSize(width: 22, height: 14),
             fill: fill,
-            stroke: stroke
+            stroke: stroke,
+            gutterPoints: gutterPoints
         )
         contentTintColor = nil
     }

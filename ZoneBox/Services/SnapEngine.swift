@@ -179,7 +179,6 @@ final class SnapEngine {
                     displayID: area.display.id,
                     zones: zones,
                     highlight: .none,
-                    forceNumbers: true,
                     captureKeys: true
                 )
             case .hideOverlay:
@@ -376,11 +375,20 @@ final class SnapEngine {
             runtime.menuBar?.closeConsole()
             runtime.overlay.settings = runtime.settings
             runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
+            let zones: [ResolvedZone]
+            if let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID }) {
+                let resolved = runtime.resolvedZones(for: area)
+                zones = resolved.isEmpty ? lastZones : resolved
+                if !resolved.isEmpty {
+                    lastZones = resolved
+                }
+            } else {
+                zones = lastZones
+            }
             runtime.overlay.show(
                 displayID: overlayDisplayID,
-                zones: lastZones,
-                highlight: overlayHighlight ?? .none,
-                forceNumbers: true
+                zones: zones,
+                highlight: overlayHighlight ?? SnapTarget.none
             )
         } else if let overlayHighlight {
             runtime.overlay.highlight(overlayHighlight)
