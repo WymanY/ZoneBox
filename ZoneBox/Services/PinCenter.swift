@@ -436,7 +436,7 @@ final class PinCenter {
             pinOrder: records.map(\.identity)
         )
 
-        retireClosedWindows(plan.gone, now: now)
+        retireClosedWindows(plan, sampledOffScreen: offScreenIdentities != nil, now: now)
         guard !records.isEmpty else { return }
 
         let visible = Set(plan.visible)
@@ -481,17 +481,21 @@ final class PinCenter {
         }
     }
 
-    private func retireClosedWindows(_ gone: [WindowIdentity], now: Date) {
+    private func retireClosedWindows(_ plan: PinPlan, sampledOffScreen: Bool, now: Date) {
         var expired: [WindowIdentity] = []
         for index in records.indices {
-            guard gone.contains(records[index].identity) else {
+            let identity = records[index].identity
+            switch PinRetirement.status(for: identity, plan: plan, sampledOffScreen: sampledOffScreen) {
+            case .present:
                 records[index].goneSince = nil
-                continue
-            }
-            let since = records[index].goneSince ?? now
-            records[index].goneSince = since
-            if now.timeIntervalSince(since) >= Watchdog.goneGrace {
-                expired.append(records[index].identity)
+            case .unknown:
+                break
+            case .gone:
+                let since = records[index].goneSince ?? now
+                records[index].goneSince = since
+                if now.timeIntervalSince(since) >= Watchdog.goneGrace {
+                    expired.append(identity)
+                }
             }
         }
         guard !expired.isEmpty else { return }

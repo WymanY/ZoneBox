@@ -69,6 +69,42 @@ final class PinPlannerTests: XCTestCase {
         XCTAssertEqual(plan.gone, [])
     }
 
+    func testRetirementKeepsGoneTimestampAcrossUnsampledTicks() {
+        let sampledGone = PinPlanner.plan(
+            frontToBack: [snapshot(pinA)],
+            allWindowIdentities: [pinA],
+            pinOrder: [pinA, pinB]
+        )
+        XCTAssertEqual(
+            PinRetirement.status(for: pinB, plan: sampledGone, sampledOffScreen: true),
+            .gone
+        )
+
+        let unsampled = PinPlanner.plan(
+            frontToBack: [snapshot(pinA)],
+            allWindowIdentities: nil,
+            pinOrder: [pinA, pinB]
+        )
+        XCTAssertEqual(
+            PinRetirement.status(for: pinB, plan: unsampled, sampledOffScreen: false),
+            .unknown
+        )
+        XCTAssertEqual(
+            PinRetirement.status(for: pinA, plan: unsampled, sampledOffScreen: false),
+            .present
+        )
+
+        let sampledDormant = PinPlanner.plan(
+            frontToBack: [snapshot(pinA)],
+            allWindowIdentities: [pinA, pinB],
+            pinOrder: [pinA, pinB]
+        )
+        XCTAssertEqual(
+            PinRetirement.status(for: pinB, plan: sampledDormant, sampledOffScreen: true),
+            .present
+        )
+    }
+
     func testWindowIdentityIgnoresBundleMetadataForEquality() {
         let withoutBundle = WindowIdentity(pid: pinA.pid, windowNumber: pinA.windowNumber)
         XCTAssertEqual(pinA, withoutBundle)

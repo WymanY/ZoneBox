@@ -32,7 +32,7 @@ final class PinMirrorPanel: NSPanel {
         animationBehavior = .none
         sharingType = .none
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
-        collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         contentView = mirrorView
         orderOut(nil)
     }

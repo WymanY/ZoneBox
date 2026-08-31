@@ -73,3 +73,25 @@ public enum PinPlanner {
         )
     }
 }
+
+public enum PinRetirement {
+    public enum Status: Equatable, Sendable {
+        case present
+        case unknown
+        case gone
+    }
+
+    /// Classifies one watchdog tick for a currently pinned identity.
+    /// Unsampled off-screen scans must stay `.unknown` so a previous `.gone`
+    /// timestamp is not cleared before the retirement grace period elapses.
+    public static func status(
+        for identity: WindowIdentity,
+        plan: PinPlan,
+        sampledOffScreen: Bool
+    ) -> Status {
+        if plan.visible.contains(identity) { return .present }
+        if sampledOffScreen, plan.dormant.contains(identity) { return .present }
+        if sampledOffScreen, plan.gone.contains(identity) { return .gone }
+        return .unknown
+    }
+}

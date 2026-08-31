@@ -71,7 +71,7 @@ final class PinButtonPanel: NSPanel {
         hidesOnDeactivate = false
         isFloatingPanel = true
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
-        collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
 
         effectView.wantsLayer = true
         effectView.layer?.cornerRadius = size / 2
