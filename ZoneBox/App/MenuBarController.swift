@@ -2,7 +2,7 @@ import AppKit
 import ZoneBoxCore
 
 @MainActor
-final class MenuBarController: NSObject {
+final class MenuBarController: NSObject, NSMenuDelegate {
     private unowned let runtime: AppRuntime
     private var statusItem: NSStatusItem?
     private var console: MenuBarConsoleController?
@@ -115,6 +115,21 @@ final class MenuBarController: NSObject {
         return flags.isEmpty ? nil : flags
     }
 
+    private func applySettingsMenuShortcut(to item: NSMenuItem) {
+        let chord = runtime.settings.settingsHotkey
+        if ShortcutVoiceOverPolicy.shouldPause(
+            chord: chord,
+            voiceOverEnabled: NSWorkspace.shared.isVoiceOverEnabled
+        ) {
+            item.keyEquivalent = ""
+            return
+        }
+        item.keyEquivalent = Self.menuKeyEquivalent(for: chord) ?? ""
+        if let mask = Self.menuModifierMask(for: chord) {
+            item.keyEquivalentModifierMask = mask
+        }
+    }
+
     @objc
     private func statusItemClicked(_ sender: Any?) {
         guard let item = statusItem, let button = item.button else { return }
@@ -146,17 +161,8 @@ final class MenuBarController: NSObject {
         let settings = NSMenuItem(
             title: L10n.text(.menuSettings),
             action: #selector(openSettings(_:)),
-            keyEquivalent: Self.menuKeyEquivalent(for: runtime.settings.settingsHotkey) ?? ""
+            keyEquivalent: ""
         )
-        let settingsPaused = ShortcutVoiceOverPolicy.shouldPause(
-            chord: runtime.settings.settingsHotkey,
-            voiceOverEnabled: voiceOver
-        )
-        if settingsPaused {
-            settings.keyEquivalent = ""
-        } else if let mask = Self.menuModifierMask(for: runtime.settings.settingsHotkey) {
-            settings.keyEquivalentModifierMask = mask
-        }
         settings.target = self
         appMenu.addItem(settings)
 
@@ -196,6 +202,7 @@ final class MenuBarController: NSObject {
 
     private func makeMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = self
 
         if runtime.trust.showsMenuBarWarning() {
             let enable = NSMenuItem(
@@ -310,6 +317,24 @@ final class MenuBarController: NSObject {
             menu.addItem(delete)
         }
         return menu
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        applySettingsShortcut(in: menu, enabled: true)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        applySettingsShortcut(in: menu, enabled: false)
+    }
+
+    private func applySettingsShortcut(in menu: NSMenu, enabled: Bool) {
+        for item in menu.items where item.action == #selector(openSettings(_:)) {
+            if enabled {
+                applySettingsMenuShortcut(to: item)
+            } else {
+                item.keyEquivalent = ""
+            }
+        }
     }
 
     private func makeLanguageMenu() -> NSMenu {

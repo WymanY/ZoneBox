@@ -268,7 +268,7 @@ public enum ShortcutCatalog {
     }
 
     /// IDs that must fire even when Accessibility is not granted.
-    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID, settingsHotkeyID]
+    public static let trustExemptIDs: Set<UInt32> = [editorHotkeyID, shortcutsPanelHotkeyID, organizeHotkeyID]
 
     public static func items(from settings: AppSettings) -> [ShortcutSpec] {
         var items: [ShortcutSpec] = [
@@ -345,9 +345,8 @@ public enum ShortcutCatalog {
         items.append(
             ShortcutSpec(
                 id: "openSettings",
-                surface: .global,
+                surface: .application,
                 titleKey: .shortcutSettings,
-                hotkeyID: settingsHotkeyID,
                 binding: .chord(settings.settingsHotkey)
             )
         )

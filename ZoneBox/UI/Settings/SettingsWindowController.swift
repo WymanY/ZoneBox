@@ -56,7 +56,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         applyPresentation()
         refreshAccessStatus()
         window?.makeKeyAndOrderFront(nil)
-        window?.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -67,8 +66,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func applyPresentation(to window: NSWindow) {
         window.hidesOnDeactivate = false
-        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.statusWindow)) + 1)
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        window.level = .normal
+        window.collectionBehavior = [.managed, .fullScreenAuxiliary]
     }
 
     func close() { window?.close() }
