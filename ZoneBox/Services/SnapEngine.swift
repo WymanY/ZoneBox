@@ -268,10 +268,7 @@ final class SnapEngine {
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
         let applied = await snap((window, frameAX, area), to: zone)
-        guard applied != nil,
-              let layoutID,
-              layoutID != runtime.document.layout(for: area.display.id)?.id
-        else { return }
+        guard applied != nil, let layoutID else { return }
         pendingLayoutAssignment = PendingLayoutAssignment(
             layoutID: layoutID,
             pointAppKit: CoordinateConverter.appKitPoint(
@@ -402,6 +399,7 @@ final class SnapEngine {
         var overlayDisplayID: UUID?
         var overlayHighlight: SnapTarget?
         var hideOverlay = false
+        var pendingAssignmentForApply: PendingLayoutAssignment?
         for effect in effects {
             switch effect {
             case .none:
@@ -421,7 +419,8 @@ final class SnapEngine {
                 hideOverlay = false
             case .applyFrame(let identity, let rect):
                 let captured = runtime.pendingWindow
-                let pending = pendingLayoutAssignment
+                let pending = pendingAssignmentForApply
+                pendingAssignmentForApply = nil
                 Task { @MainActor in
                     let window = captured?.identity == identity
                         ? captured
@@ -431,11 +430,16 @@ final class SnapEngine {
                     } else {
                         false
                     }
-                    if SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: applied) {
-                        self.pendingLayoutAssignment = pending
-                        self.commitPendingLayoutAssignmentIfNeeded()
-                    } else if pending != nil {
-                        self.pendingLayoutAssignment = nil
+                    if let layoutID = SnapLayoutAssignmentPolicy.assignmentToCommit(
+                        capturedForThisWrite: pending?.layoutID,
+                        frameApplied: applied
+                    ) {
+                        self.commit(
+                            pending ?? PendingLayoutAssignment(
+                                layoutID: layoutID,
+                                pointAppKit: NSEvent.mouseLocation
+                            )
+                        )
                     }
                 }
             case .recordUnsnap(let record):
@@ -446,10 +450,12 @@ final class SnapEngine {
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
             case .assignLayout(let layoutID):
-                pendingLayoutAssignment = PendingLayoutAssignment(
+                let pending = PendingLayoutAssignment(
                     layoutID: layoutID,
                     pointAppKit: NSEvent.mouseLocation
                 )
+                pendingLayoutAssignment = pending
+                pendingAssignmentForApply = pending
                 sessionLayoutID = layoutID
             case .clearLockedTarget:
                 lockedTarget = nil
@@ -503,6 +509,11 @@ final class SnapEngine {
 
     private func commitPendingLayoutAssignmentIfNeeded() {
         guard let pending = pendingLayoutAssignment else { return }
+        pendingLayoutAssignment = nil
+        commit(pending)
+    }
+
+    private func commit(_ pending: PendingLayoutAssignment) {
         pendingLayoutAssignment = nil
         let area = runtime.displays.area(containingAppKit: pending.pointAppKit)
             ?? runtime.displays.workAreas.first

@@ -234,4 +234,14 @@ public enum SnapLayoutAssignmentPolicy {
     public static func shouldPersist(afterFrameApplied succeeded: Bool) -> Bool {
         succeeded
     }
+
+    /// An AX frame write may only commit the assignment captured for that write.
+    /// A later, unrelated `.applyFrame` must not inherit a previous pending value.
+    public static func assignmentToCommit(
+        capturedForThisWrite: Layout.ID?,
+        frameApplied: Bool
+    ) -> Layout.ID? {
+        guard frameApplied else { return nil }
+        return capturedForThisWrite
+    }
 }

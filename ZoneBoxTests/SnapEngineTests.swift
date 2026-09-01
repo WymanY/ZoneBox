@@ -355,6 +355,13 @@ final class SnapEngineTests: XCTestCase {
     func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {
         XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: true))
         XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: false))
+        let layoutID = UUID()
+        XCTAssertEqual(
+            SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: layoutID, frameApplied: true),
+            layoutID
+        )
+        XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: layoutID, frameApplied: false))
+        XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: nil, frameApplied: true))
     }
 
     func testLeavingStripFollowsLiveCandidateLayout() {
