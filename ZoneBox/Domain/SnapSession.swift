@@ -178,3 +178,30 @@ public struct SnapReducerOutput: Equatable, Sendable {
         self.effects = effects
     }
 }
+
+public enum SnapLayoutSession {
+    /// Crossing a display always adopts that display's assigned layout so an
+    /// armed drag cannot keep resolving the previous screen's zones.
+    public static func sessionLayoutID(
+        previousDisplayID: DisplayIdentity.ID?,
+        currentDisplayID: DisplayIdentity.ID?,
+        assignedLayoutID: Layout.ID?,
+        currentSessionLayoutID: Layout.ID?
+    ) -> (layoutID: Layout.ID?, crossedDisplay: Bool) {
+        guard let currentDisplayID else {
+            return (currentSessionLayoutID, false)
+        }
+        if previousDisplayID != currentDisplayID {
+            return (assignedLayoutID, true)
+        }
+        return (currentSessionLayoutID, false)
+    }
+}
+
+public enum SnapLayoutAssignmentPolicy {
+    /// Persist a cross-layout assignment only after the snapped frame is known
+    /// to have been applied. A failed AX write must leave settings unchanged.
+    public static func shouldPersist(afterFrameApplied succeeded: Bool) -> Bool {
+        succeeded
+    }
+}

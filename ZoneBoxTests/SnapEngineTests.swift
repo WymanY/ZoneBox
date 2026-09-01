@@ -316,6 +316,35 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertFalse(out.effects.contains { if case .assignLayout = $0 { return true }; return false })
     }
 
+    func testCrossingDisplaysAdoptsTheDestinationAssignedLayout() {
+        let displayA = UUID()
+        let displayB = UUID()
+        let layoutA = UUID()
+        let layoutB = UUID()
+        let kept = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayA,
+            assignedLayoutID: layoutA,
+            currentSessionLayoutID: layoutA
+        )
+        XCTAssertEqual(kept.layoutID, layoutA)
+        XCTAssertFalse(kept.crossedDisplay)
+
+        let crossed = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayB,
+            assignedLayoutID: layoutB,
+            currentSessionLayoutID: layoutA
+        )
+        XCTAssertEqual(crossed.layoutID, layoutB)
+        XCTAssertTrue(crossed.crossedDisplay)
+    }
+
+    func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {
+        XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: true))
+        XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: false))
+    }
+
     func testOverlayDigitAppliesMatchingZone() {
         let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
         let zone3 = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 800, y: 0, width: 400, height: 800))

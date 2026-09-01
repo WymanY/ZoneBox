@@ -25,6 +25,7 @@ final class SnapEngine {
     private var lastStrip: LayoutStripGeometry?
     private var lastPresentation = OverlayPresentation.empty
     private var quickSnapperLayoutID: Layout.ID?
+    private var pendingLayoutAssignment: PendingLayoutAssignment?
 
     unowned var runtime: AppRuntime!
 
@@ -245,7 +246,7 @@ final class SnapEngine {
             guard let target = await runtime.focusedWindowTarget() else { return }
             let zones = runtime.resolvedZones(for: target.area)
             guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
-            await snap(target, to: zone)
+            _ = await snap(target, to: zone)
         }
     }
 
@@ -266,13 +267,19 @@ final class SnapEngine {
         else { return }
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
-        await snap((window, frameAX, area), to: zone)
-        if let layoutID, layoutID != runtime.document.layout(for: area.display.id)?.id {
-            runtime.document.assign(layoutID: layoutID, to: area.display.id)
-            runtime.markLayoutUsed(layoutID)
-            runtime.persist()
-            runtime.menuBar?.reloadMenu()
-        }
+        let applied = await snap((window, frameAX, area), to: zone)
+        guard applied != nil,
+              let layoutID,
+              layoutID != runtime.document.layout(for: area.display.id)?.id
+        else { return }
+        pendingLayoutAssignment = PendingLayoutAssignment(
+            layoutID: layoutID,
+            pointAppKit: CoordinateConverter.appKitPoint(
+                fromAX: CGPoint(x: zone.frameAX.midX, y: zone.frameAX.midY),
+                primaryFlipHeight: runtime.displays.primaryFlipHeight
+            )
+        )
+        commitPendingLayoutAssignmentIfNeeded()
     }
 
     func snapAdjacent(delta: Int) {
@@ -287,7 +294,7 @@ final class SnapEngine {
             )
             let index = zones.firstIndex(where: { $0.zoneID == current }) ?? 0
             let next = zones[(index + delta + zones.count) % zones.count]
-            await snap(target, to: next)
+            _ = await snap(target, to: next)
         }
     }
 
@@ -335,8 +342,8 @@ final class SnapEngine {
     private func snap(
         _ target: (window: AXWindow, frameAX: CGRect, area: WorkArea),
         to zone: ResolvedZone
-    ) async {
-        guard runtime.displays.isActive(displayID: target.area.display.id) else { return }
+    ) async -> CGRect? {
+        guard runtime.displays.isActive(displayID: target.area.display.id) else { return nil }
         if let applied = await runtime.ax.setFrame(zone.frameAX, of: target.window) {
             runtime.catalog.record(
                 UnsnapRecord(
@@ -347,7 +354,9 @@ final class SnapEngine {
                 ),
                 displayID: target.area.display.id
             )
+            return applied
         }
+        return nil
     }
 
     func unsnapFocused() {
@@ -372,6 +381,7 @@ final class SnapEngine {
             handleQuickSnapper(.dismiss)
         }
         resetLayoutSession()
+        pendingLayoutAssignment = nil
         runtime.pendingWindow = nil
         runtime.pendingIdentity = nil
         runtime.pendingFrame = nil
@@ -411,11 +421,21 @@ final class SnapEngine {
                 hideOverlay = false
             case .applyFrame(let identity, let rect):
                 let captured = runtime.pendingWindow
+                let pending = pendingLayoutAssignment
                 Task { @MainActor in
-                    if let window = captured, window.identity == identity {
-                        _ = await runtime.ax.setFrame(rect, of: window)
-                    } else if let window = await runtime.ax.window(matching: identity) {
-                        _ = await runtime.ax.setFrame(rect, of: window)
+                    let window = captured?.identity == identity
+                        ? captured
+                        : await runtime.ax.window(matching: identity)
+                    let applied = if let window {
+                        await runtime.ax.setFrame(rect, of: window) != nil
+                    } else {
+                        false
+                    }
+                    if SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: applied) {
+                        self.pendingLayoutAssignment = pending
+                        self.commitPendingLayoutAssignmentIfNeeded()
+                    } else if pending != nil {
+                        self.pendingLayoutAssignment = nil
                     }
                 }
             case .recordUnsnap(let record):
@@ -426,14 +446,11 @@ final class SnapEngine {
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
             case .assignLayout(let layoutID):
-                if let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-                    ?? runtime.displays.workAreas.first {
-                    runtime.document.assign(layoutID: layoutID, to: area.display.id)
-                    runtime.markLayoutUsed(layoutID)
-                    runtime.persist()
-                    runtime.menuBar?.reloadMenu()
-                    sessionLayoutID = layoutID
-                }
+                pendingLayoutAssignment = PendingLayoutAssignment(
+                    layoutID: layoutID,
+                    pointAppKit: NSEvent.mouseLocation
+                )
+                sessionLayoutID = layoutID
             case .clearLockedTarget:
                 lockedTarget = nil
             case .selectCandidate(let index):
@@ -479,6 +496,24 @@ final class SnapEngine {
         quickSnapperLayoutID = nil
     }
 
+    private struct PendingLayoutAssignment {
+        var layoutID: Layout.ID
+        var pointAppKit: CGPoint
+    }
+
+    private func commitPendingLayoutAssignmentIfNeeded() {
+        guard let pending = pendingLayoutAssignment else { return }
+        pendingLayoutAssignment = nil
+        let area = runtime.displays.area(containingAppKit: pending.pointAppKit)
+            ?? runtime.displays.workAreas.first
+        guard let area else { return }
+        runtime.document.assign(layoutID: pending.layoutID, to: area.display.id)
+        runtime.markLayoutUsed(pending.layoutID)
+        runtime.persist()
+        runtime.menuBar?.reloadMenu()
+        sessionLayoutID = pending.layoutID
+    }
+
     private struct SessionContext {
         var layoutID: Layout.ID?
         var assignedLayoutID: Layout.ID?
@@ -492,14 +527,19 @@ final class SnapEngine {
 
     private func sessionContext(at pointAppKit: CGPoint, area: WorkArea?) -> SessionContext {
         let assignedID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
-        var crossedDisplay = false
-        if let area, lastCursorDisplayID != area.display.id {
+        let session = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: lastCursorDisplayID,
+            currentDisplayID: area?.display.id,
+            assignedLayoutID: assignedID,
+            currentSessionLayoutID: sessionLayoutID
+        )
+        let crossedDisplay = session.crossedDisplay
+        if crossedDisplay {
             candidateIndex = 0
-            lastCursorDisplayID = area.display.id
-            crossedDisplay = true
-            if sessionLayoutID == nil {
-                sessionLayoutID = assignedID
-            }
+            lastCursorDisplayID = area?.display.id
+            sessionLayoutID = session.layoutID
+        } else if lastCursorDisplayID == nil {
+            lastCursorDisplayID = area?.display.id
         }
 
         let layouts = runtime.allResolvedLayouts(for: area)
