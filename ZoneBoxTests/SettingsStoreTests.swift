@@ -47,4 +47,18 @@ final class SettingsStoreTests: XCTestCase {
         )
         XCTAssertTrue(legacy.showLayoutStrip)
     }
+
+    func testPreviewLayoutOnSelectDefaultsOnForLegacyJSON() throws {
+        XCTAssertTrue(AppSettings.default.previewLayoutOnSelect)
+        var settings = AppSettings.default
+        settings.previewLayoutOnSelect = false
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(AppSettings.self, from: data).previewLayoutOnSelect)
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertTrue(legacy.previewLayoutOnSelect)
+    }
 }

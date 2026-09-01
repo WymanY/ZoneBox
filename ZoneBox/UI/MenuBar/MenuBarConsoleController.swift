@@ -511,7 +511,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func select(_ layout: Layout) {
         runtime.selectLayout(layout)
-        reload()
+        if runtime.settings.previewLayoutOnSelect {
+            close()
+        } else {
+            reload()
+        }
     }
 
     @objc

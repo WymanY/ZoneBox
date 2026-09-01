@@ -45,6 +45,15 @@ final class SnapEngine {
         phase != .idle || isQuickSnapperShowing
     }
 
+    var isSnapGestureActive: Bool {
+        switch phase {
+        case .idle:
+            false
+        default:
+            true
+        }
+    }
+
     func handleMouse(_ event: SnapMouseEvent) {
         if event.kind == .leftDown, isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
@@ -149,6 +158,7 @@ final class SnapEngine {
             runtime.pendingFrame = nil
             runtime.pendingStartedOnMoveChrome = false
             startedOnMoveChrome = false
+            runtime.noteSnapSessionBecameIdle()
         }
     }
 
@@ -255,7 +265,7 @@ final class SnapEngine {
                     captureKeys: true
                 )
             case .hideOverlay:
-                runtime.overlay.hideAll()
+                runtime.overlay.hideSessionOverlay()
                 runtime.noteQuickSnapperUI(showing: false)
             case .snap(let identity, let number):
                 await snap(identity, to: number, layoutID: output.selectedLayoutID)
@@ -391,7 +401,7 @@ final class SnapEngine {
 
     func cancelSession() {
         phase = .idle
-        runtime.overlay.hideAll()
+        runtime.overlay.hideSessionOverlay()
         activeWindow = nil
         pointerTrace = []
         stickyArm = false
@@ -492,7 +502,7 @@ final class SnapEngine {
             }
         }
         if hideOverlay {
-            runtime.overlay.hideAll()
+            runtime.overlay.hideSessionOverlay()
             return
         }
         if let overlayDisplayID {

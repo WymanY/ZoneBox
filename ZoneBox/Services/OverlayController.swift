@@ -13,6 +13,7 @@ final class OverlayController {
     var settings: AppSettings = .default
     var primaryFlipHeight: CGFloat = 0
     var isVisible: Bool { visibleDisplayID != nil }
+    private(set) var isPreviewVisible = false
 
     func rebuild(workAreas: [WorkArea], screens: [NSScreen]) {
         hideAll()
@@ -39,6 +40,38 @@ final class OverlayController {
         highlight: SnapTarget,
         captureKeys: Bool = false,
         presentation: OverlayPresentation = .empty
+    ) {
+        present(
+            displayID: displayID,
+            zones: zones,
+            highlight: highlight,
+            captureKeys: captureKeys,
+            presentation: presentation,
+            isPreview: false
+        )
+    }
+
+    func showPreview(
+        displayID: UUID,
+        zones: [ResolvedZone],
+        presentation: OverlayPresentation
+    ) {
+        present(
+            displayID: displayID,
+            zones: zones,
+            highlight: .none,
+            presentation: presentation,
+            isPreview: true
+        )
+    }
+
+    private func present(
+        displayID: UUID,
+        zones: [ResolvedZone],
+        highlight: SnapTarget,
+        captureKeys: Bool = false,
+        presentation: OverlayPresentation = .empty,
+        isPreview: Bool
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
@@ -81,8 +114,10 @@ final class OverlayController {
             panel.orderFrontRegardless()
             needsDisplay = true
         }
+        panel.orderFrontRegardless()
         if needsDisplay {
             view.needsDisplay = true
+            view.displayIfNeeded()
         }
         if captureKeys {
             grabKeys()
@@ -94,6 +129,7 @@ final class OverlayController {
         visibleZones = zones
         visibleHighlight = highlight
         visibleCaptureKeys = captureKeys
+        isPreviewVisible = isPreview
     }
 
     func highlight(_ target: SnapTarget) {
@@ -138,6 +174,7 @@ final class OverlayController {
     }
 
     func hideAll() {
+        isPreviewVisible = false
         if let visibleDisplayID {
             panels[visibleDisplayID]?.orderOut(nil)
             self.visibleDisplayID = nil
@@ -153,6 +190,11 @@ final class OverlayController {
             view.presentation = .empty
         }
         releaseKeys()
+    }
+
+    func hideSessionOverlay() {
+        guard !isPreviewVisible else { return }
+        hideAll()
     }
 
     private func grabKeys() {

@@ -28,7 +28,7 @@ final class ZoneOverlayView: NSView {
             let rect = CoordinateConverter.appKitRect(fromAX: zone.frameAX, primaryFlipHeight: primaryFlipHeight)
             let local = convertFromScreen(rect)
             let highlighted = displayedHighlightFrame == nil && zone.zoneID == highlightID
-            let fill = fillColor.withAlphaComponent(highlighted ? activeOpacity : inactiveOpacity)
+            let fill = fillColor.withAlphaComponent(highlighted ? previewActiveOpacity : previewInactiveOpacity)
             fill.setFill()
             let path = NSBezierPath(roundedRect: local.insetBy(dx: 2, dy: 2), xRadius: 10, yRadius: 10)
             path.fill()
@@ -58,6 +58,7 @@ final class ZoneOverlayView: NSView {
         drawCandidateOutlines()
         drawCandidateLabel()
         drawStrip()
+        drawLayoutName()
     }
 
     private func drawCandidateOutlines() {
@@ -171,10 +172,45 @@ final class ZoneOverlayView: NSView {
         }
     }
 
+    private func drawLayoutName() {
+        guard let name = presentation.layoutName, !name.isEmpty else { return }
+        let text = name as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 22, weight: .semibold),
+            .foregroundColor: NSColor.white,
+        ]
+        let size = text.size(withAttributes: attrs)
+        let pad = NSSize(width: 18, height: 10)
+        let bubble = CGRect(
+            x: ((bounds.width - size.width) / 2 - pad.width).rounded(),
+            y: (bounds.midY - (size.height + pad.height * 2) / 2).rounded(),
+            width: size.width + pad.width * 2,
+            height: size.height + pad.height * 2
+        )
+        NSColor.black.withAlphaComponent(0.82).setFill()
+        NSBezierPath(roundedRect: bubble, xRadius: 14, yRadius: 14).fill()
+        NSColor.white.withAlphaComponent(0.28).setStroke()
+        let stroke = NSBezierPath(roundedRect: bubble, xRadius: 14, yRadius: 14)
+        stroke.lineWidth = 1.2
+        stroke.stroke()
+        text.draw(
+            at: NSPoint(x: bubble.minX + pad.width, y: bubble.minY + pad.height),
+            withAttributes: attrs
+        )
+    }
+
     private func convertFromScreen(_ screenRect: CGRect) -> CGRect {
         guard let window else { return screenRect }
         let windowRect = window.convertFromScreen(screenRect)
         return convert(windowRect, from: nil)
+    }
+
+    private var previewInactiveOpacity: CGFloat {
+        presentation.layoutName == nil ? inactiveOpacity : max(inactiveOpacity, 0.34)
+    }
+
+    private var previewActiveOpacity: CGFloat {
+        presentation.layoutName == nil ? activeOpacity : max(activeOpacity, 0.52)
     }
 
     private func currentHighlightFrameAX() -> CGRect? {
