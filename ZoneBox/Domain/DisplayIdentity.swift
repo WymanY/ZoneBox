@@ -130,9 +130,9 @@ public struct StoreDocument: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
-        layouts = try container.decodeIfPresent([Layout].self, forKey: .layouts) ?? LayoutTemplates.all()
-        displays = try container.decodeIfPresent([DisplayIdentity].self, forKey: .displays) ?? []
-        assignments = try container.decodeIfPresent([LayoutAssignment].self, forKey: .assignments) ?? []
+        layouts = try container.decode([Layout].self, forKey: .layouts)
+        displays = try container.decode([DisplayIdentity].self, forKey: .displays)
+        assignments = try container.decode([LayoutAssignment].self, forKey: .assignments)
         recentLayoutIDs = try container.decodeIfPresent([Layout.ID].self, forKey: .recentLayoutIDs) ?? []
         pruneRecentLayoutIDs()
     }

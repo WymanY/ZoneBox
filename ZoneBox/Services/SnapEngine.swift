@@ -577,7 +577,8 @@ final class SnapEngine {
             sessionLayoutID = SnapLayoutSession.layoutIDAfterCandidateReset(
                 candidates: candidates,
                 candidateIndex: 0,
-                currentSessionLayoutID: sessionLayoutID
+                currentSessionLayoutID: sessionLayoutID,
+                lockedTarget: lockedTarget
             )
         }
 
@@ -617,7 +618,8 @@ final class SnapEngine {
             candidates: candidates,
             candidateIndex: candidateIndex,
             currentSessionLayoutID: sessionLayoutID,
-            assignedLayoutID: assignedID
+            assignedLayoutID: assignedID,
+            lockedTarget: lockedTarget
         )
 
         let layoutID = sessionLayoutID ?? assignedID

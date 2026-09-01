@@ -420,6 +420,27 @@ final class SnapEngineTests: XCTestCase {
             ),
             third.id
         )
+        let locked = SnapTarget.zone(zoneB)
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                lockedTarget: locked
+            ),
+            third.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: nil,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id,
+                lockedTarget: locked
+            ),
+            third.id
+        )
     }
 
     func testOverlayDigitAppliesMatchingZone() {

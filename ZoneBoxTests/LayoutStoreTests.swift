@@ -36,10 +36,12 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(decoded.recentLayoutIDs, [])
         XCTAssertEqual(decoded.layouts, [])
 
-        let missingField = Data("{\"schemaVersion\":1}".utf8)
-        let legacy = try JSONDecoder().decode(StoreDocument.self, from: missingField)
-        XCTAssertEqual(legacy.recentLayoutIDs, [])
-        XCTAssertEqual(legacy.layouts.map(\.name), LayoutTemplates.all().map(\.name))
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                StoreDocument.self,
+                from: Data("{\"schemaVersion\":1}".utf8)
+            )
+        )
 
         var document = StoreDocument()
         let first = document.layouts[0].id

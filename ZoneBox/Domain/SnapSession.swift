@@ -211,6 +211,21 @@ public enum SnapLayoutSession {
         return currentSessionLayoutID
     }
 
+    /// A digit lock pins both the zone and its layout until the lock is cleared.
+    public static func layoutIDAfterCandidateReset(
+        candidates: [ZoneCandidate],
+        candidateIndex: Int,
+        currentSessionLayoutID: Layout.ID?,
+        lockedTarget: SnapTarget?
+    ) -> Layout.ID? {
+        if lockedTarget != nil { return currentSessionLayoutID }
+        return layoutIDAfterCandidateReset(
+            candidates: candidates,
+            candidateIndex: candidateIndex,
+            currentSessionLayoutID: currentSessionLayoutID
+        )
+    }
+
     /// After leaving a strip mini-zone, follow the live candidate rather than
     /// keeping the strip's layout. Index 0 is the assigned-layout hit.
     public static func sessionLayoutIDForPointer(
@@ -225,6 +240,24 @@ public enum SnapLayoutSession {
             return candidates[candidateIndex].layoutID
         }
         return currentSessionLayoutID ?? assignedLayoutID
+    }
+
+    public static func sessionLayoutIDForPointer(
+        forcedLayoutID: Layout.ID?,
+        candidates: [ZoneCandidate],
+        candidateIndex: Int,
+        currentSessionLayoutID: Layout.ID?,
+        assignedLayoutID: Layout.ID?,
+        lockedTarget: SnapTarget?
+    ) -> Layout.ID? {
+        if lockedTarget != nil { return currentSessionLayoutID }
+        return sessionLayoutIDForPointer(
+            forcedLayoutID: forcedLayoutID,
+            candidates: candidates,
+            candidateIndex: candidateIndex,
+            currentSessionLayoutID: currentSessionLayoutID,
+            assignedLayoutID: assignedLayoutID
+        )
     }
 }
 
