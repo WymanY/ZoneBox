@@ -264,7 +264,11 @@ final class SnapEngineTests: XCTestCase {
         input.downFrameAX = frame
         let out = SnapSessionReducer.reduce(input)
         XCTAssertTrue(out.effects.contains(.applyFrame(window, zone.frameAX)))
-        XCTAssertFalse(out.effects.contains { if case .assignLayout = $0 { return true }; return false })
+        XCTAssertTrue(out.effects.contains(.assignLayout(assigned.id)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(assigned.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, zone.frameAX)))
+        )
     }
 
     func testEscapeDoesNotAssignLayout() {
@@ -351,6 +355,37 @@ final class SnapEngineTests: XCTestCase {
     func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {
         XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: true))
         XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: false))
+    }
+
+    func testLeavingStripFollowsLiveCandidateLayout() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        let candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: third.id,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id
+            ),
+            third.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: nil,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id
+            ),
+            assigned.id
+        )
     }
 
     func testLeavingACycledCandidateResetsSessionLayoutToAssignedHit() {

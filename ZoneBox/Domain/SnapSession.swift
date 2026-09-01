@@ -210,6 +210,22 @@ public enum SnapLayoutSession {
         }
         return currentSessionLayoutID
     }
+
+    /// After leaving a strip mini-zone, follow the live candidate rather than
+    /// keeping the strip's layout. Index 0 is the assigned-layout hit.
+    public static func sessionLayoutIDForPointer(
+        forcedLayoutID: Layout.ID?,
+        candidates: [ZoneCandidate],
+        candidateIndex: Int,
+        currentSessionLayoutID: Layout.ID?,
+        assignedLayoutID: Layout.ID?
+    ) -> Layout.ID? {
+        if let forcedLayoutID { return forcedLayoutID }
+        if candidates.indices.contains(candidateIndex) {
+            return candidates[candidateIndex].layoutID
+        }
+        return currentSessionLayoutID ?? assignedLayoutID
+    }
 }
 
 public enum SnapLayoutAssignmentPolicy {

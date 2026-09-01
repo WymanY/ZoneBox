@@ -22,7 +22,8 @@ public enum ZoneCandidateResolver {
         layouts: [(layout: Layout, zones: [ResolvedZone])],
         pointAX: CGPoint,
         assignedLayoutID: Layout.ID?,
-        recentLayoutIDs: [Layout.ID]
+        recentLayoutIDs: [Layout.ID],
+        overlapPolicy: OverlapPolicy = .smallestArea
     ) -> [ZoneCandidate] {
         var hits: [ZoneCandidate] = []
         for item in layouts {
@@ -48,7 +49,16 @@ public enum ZoneCandidateResolver {
         let mruRank: [Layout.ID: Int] = Dictionary(
             uniqueKeysWithValues: recentLayoutIDs.enumerated().map { ($0.element, $0.offset) }
         )
+        let preferredAssignedID = preferredAssignedZoneID(
+            in: unique,
+            assignedLayoutID: assignedLayoutID,
+            pointAX: pointAX,
+            overlapPolicy: overlapPolicy
+        )
         return unique.sorted { lhs, rhs in
+            let lhsPreferred = lhs.layoutID == assignedLayoutID && lhs.zone.zoneID == preferredAssignedID
+            let rhsPreferred = rhs.layoutID == assignedLayoutID && rhs.zone.zoneID == preferredAssignedID
+            if lhsPreferred != rhsPreferred { return lhsPreferred }
             let lhsAssigned = lhs.layoutID == assignedLayoutID
             let rhsAssigned = rhs.layoutID == assignedLayoutID
             if lhsAssigned != rhsAssigned { return lhsAssigned }
@@ -61,6 +71,19 @@ public enum ZoneCandidateResolver {
             if lhs.layoutName != rhs.layoutName { return lhs.layoutName < rhs.layoutName }
             return lhs.zone.number < rhs.zone.number
         }
+    }
+
+    private static func preferredAssignedZoneID(
+        in candidates: [ZoneCandidate],
+        assignedLayoutID: Layout.ID?,
+        pointAX: CGPoint,
+        overlapPolicy: OverlapPolicy
+    ) -> UUID? {
+        let assignedZones = candidates.filter { $0.layoutID == assignedLayoutID }.map(\.zone)
+        guard case .zone(let zone) = HitTester(policy: overlapPolicy).target(at: pointAX, zones: assignedZones) else {
+            return assignedZones.first?.zoneID
+        }
+        return zone.zoneID
     }
 
     public static func wrappingIndex(current: Int, delta: Int, count: Int) -> Int {

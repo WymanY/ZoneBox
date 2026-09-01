@@ -47,4 +47,31 @@ final class ZoneCandidateResolverTests: XCTestCase {
         XCTAssertEqual(ZoneCandidateResolver.wrappingIndex(current: 1, delta: 0, count: 3), 1)
         XCTAssertEqual(ZoneCandidateResolver.wrappingIndex(current: 0, delta: 1, count: 0), 0)
     }
+
+    func testAssignedOverlapUsesConfiguredPolicyForCandidateZero() {
+        let assigned = Layout(name: "Assigned", kind: .canvas, zones: [])
+        let small = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 200))
+        let large = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 0, y: 0, width: 800, height: 800))
+        let point = CGPoint(x: 50, y: 50)
+        let layouts = [(assigned, [small, large])]
+
+        let smallest = ZoneCandidateResolver.resolve(
+            layouts: layouts,
+            pointAX: point,
+            assignedLayoutID: assigned.id,
+            recentLayoutIDs: [],
+            overlapPolicy: .smallestArea
+        )
+        XCTAssertEqual(smallest.first?.zone.zoneID, small.zoneID)
+
+        let largest = ZoneCandidateResolver.resolve(
+            layouts: layouts,
+            pointAX: point,
+            assignedLayoutID: assigned.id,
+            recentLayoutIDs: [],
+            overlapPolicy: .largestArea
+        )
+        XCTAssertEqual(largest.first?.zone.zoneID, large.zoneID)
+    }
+
 }

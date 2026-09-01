@@ -551,7 +551,8 @@ final class SnapEngine {
             layouts: layouts,
             pointAX: pointAX,
             assignedLayoutID: assignedID,
-            recentLayoutIDs: runtime.document.recentLayoutIDs
+            recentLayoutIDs: runtime.document.recentLayoutIDs,
+            overlapPolicy: runtime.settings.overlapPolicy
         )
         if !crossedDisplay,
            let previous = lastCandidates.indices.contains(candidateIndex) ? lastCandidates[candidateIndex] : nil,
@@ -600,11 +601,13 @@ final class SnapEngine {
             }
         }
 
-        if forcedTarget == nil, candidateIndex != 0, candidates.indices.contains(candidateIndex) {
-            sessionLayoutID = candidates[candidateIndex].layoutID
-        } else if sessionLayoutID == nil {
-            sessionLayoutID = assignedID
-        }
+        sessionLayoutID = SnapLayoutSession.sessionLayoutIDForPointer(
+            forcedLayoutID: forcedTarget == nil ? nil : sessionLayoutID,
+            candidates: candidates,
+            candidateIndex: candidateIndex,
+            currentSessionLayoutID: sessionLayoutID,
+            assignedLayoutID: assignedID
+        )
 
         let layoutID = sessionLayoutID ?? assignedID
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
