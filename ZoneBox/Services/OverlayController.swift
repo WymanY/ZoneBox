@@ -37,7 +37,8 @@ final class OverlayController {
         displayID: UUID,
         zones: [ResolvedZone],
         highlight: SnapTarget,
-        captureKeys: Bool = false
+        captureKeys: Bool = false,
+        presentation: OverlayPresentation = .empty
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
@@ -61,6 +62,10 @@ final class OverlayController {
         }
         if view.primaryFlipHeight != primaryFlipHeight {
             view.primaryFlipHeight = primaryFlipHeight
+            needsDisplay = true
+        }
+        if view.presentation != presentation {
+            view.presentation = presentation
             needsDisplay = true
         }
         if applyHighlight(view, highlight) {
@@ -104,7 +109,8 @@ final class OverlayController {
             displayID: visibleDisplayID,
             zones: zones ?? visibleZones,
             highlight: visibleHighlight,
-            captureKeys: visibleCaptureKeys
+            captureKeys: visibleCaptureKeys,
+            presentation: views[visibleDisplayID]?.presentation ?? .empty
         )
     }
 
@@ -143,6 +149,9 @@ final class OverlayController {
         visibleZones = []
         visibleHighlight = .none
         visibleCaptureKeys = false
+        for view in views.values {
+            view.presentation = .empty
+        }
         releaseKeys()
     }
 

@@ -18,6 +18,13 @@ final class SnapEngine {
     /// Overlay digit 1...9; hover must not replace it until mouse-up.
     private var lockedTarget: SnapTarget?
     private var startedOnMoveChrome = false
+    private var candidateIndex = 0
+    private var sessionLayoutID: Layout.ID?
+    private var lastCursorDisplayID: DisplayIdentity.ID?
+    private var lastCandidates: [ZoneCandidate] = []
+    private var lastStrip: LayoutStripGeometry?
+    private var lastPresentation = OverlayPresentation.empty
+    private var quickSnapperLayoutID: Layout.ID?
 
     unowned var runtime: AppRuntime!
 
@@ -40,8 +47,6 @@ final class SnapEngine {
             handleQuickSnapper(.dismiss)
         }
         let cursorArea = runtime.displays.area(containingAppKit: event.locationAppKit)
-        let zones = runtime.resolvedZones(for: cursorArea)
-        lastZones = zones
         let window = activeWindow ?? runtime.pendingWindow?.identity ?? runtime.pendingIdentity
         if event.kind == .leftDown {
             pointerTrace = [event.locationAppKit]
@@ -49,13 +54,23 @@ final class SnapEngine {
             armOrigin = nil
             lockedTarget = nil
             startedOnMoveChrome = runtime.pendingStartedOnMoveChrome
+            candidateIndex = 0
+            sessionLayoutID = nil
+            lastCursorDisplayID = nil
+            lastCandidates = []
+            lastStrip = nil
         } else if event.kind == .leftDragged {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
                 pointerTrace.removeFirst(pointerTrace.count - 64)
             }
         }
-        let grid = runtime.gridCoverage(for: cursorArea)
+        let session = sessionContext(at: event.locationAppKit, area: cursorArea)
+        lastZones = session.zones
+        lastCandidates = session.candidates
+        lastStrip = session.strip
+        lastPresentation = session.presentation
+        let grid = runtime.gridCoverage(for: cursorArea, layoutOverride: session.layoutID)
         let input = SnapReducerInput(
             phase: phase,
             event: event,
@@ -65,7 +80,7 @@ final class SnapEngine {
             downFrameAX: downFrame,
             currentFrameAX: runtime.pendingFrame,
             downLocationAppKit: downLocation,
-            resolvedZones: zones,
+            resolvedZones: session.zones,
             unsnapRecord: window.flatMap { runtime.catalog.record(for: $0) },
             trusted: runtime.trust.isTrusted(),
             snapEnabled: true,
@@ -85,7 +100,13 @@ final class SnapEngine {
             magneticResizeEnabled: runtime.settings.magneticResizeEnabled,
             magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints),
             lockedTarget: lockedTarget,
-            startedOnMoveChrome: startedOnMoveChrome
+            startedOnMoveChrome: startedOnMoveChrome,
+            candidates: session.candidates,
+            candidateIndex: candidateIndex,
+            assignedLayoutID: session.assignedLayoutID,
+            sessionLayoutID: session.layoutID,
+            pointerInLayoutStrip: session.pointerInStrip,
+            forcedTarget: session.forcedTarget
         )
         if event.kind == .leftDown {
             downLocation = event.locationAppKit
@@ -115,6 +136,7 @@ final class SnapEngine {
             stickyArm = false
             armOrigin = nil
             lockedTarget = nil
+            resetLayoutSession()
             runtime.pendingWindow = nil
             runtime.pendingIdentity = nil
             runtime.pendingFrame = nil
@@ -127,6 +149,16 @@ final class SnapEngine {
         handleMouse(
             SnapMouseEvent(
                 kind: .digit(number),
+                locationAppKit: NSEvent.mouseLocation,
+                modifiers: []
+            )
+        )
+    }
+
+    func handleCycleCandidate(_ delta: Int) {
+        handleMouse(
+            SnapMouseEvent(
+                kind: .cycleCandidate(delta),
                 locationAppKit: NSEvent.mouseLocation,
                 modifiers: []
             )
@@ -155,7 +187,15 @@ final class SnapEngine {
         }
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
             ?? runtime.displays.workAreas.first
-        let zones = runtime.resolvedZones(for: area)
+        if case .invoke = event {
+            quickSnapperLayoutID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
+        }
+        let layouts = runtime.allResolvedLayouts(for: area)
+        let layoutIDs = layouts.map(\.layout.id)
+        if let selected = quickSnapperLayoutID, !layoutIDs.contains(selected) {
+            quickSnapperLayoutID = layoutIDs.first
+        }
+        let zones = runtime.resolvedZones(for: area, layoutOverride: quickSnapperLayoutID)
         lastZones = zones
         let input = QuickSnapperInput(
             phase: quickSnapperPhase,
@@ -165,12 +205,16 @@ final class SnapEngine {
             snapEnabled: true,
             isEditorOpen: runtime.isEditorOpen,
             enabled: runtime.settings.quickSnapperEnabled,
-            focusedWindow: invokeFocus
+            focusedWindow: invokeFocus,
+            layoutIDs: layoutIDs,
+            selectedLayoutID: quickSnapperLayoutID ?? layoutIDs.first
         )
         let output = QuickSnapperReducer.reduce(input)
         quickSnapperPhase = output.phase
+        quickSnapperLayoutID = output.selectedLayoutID
         if case .hidden = output.phase {
             quickSnapperPending = false
+            quickSnapperLayoutID = nil
         }
         for effect in output.effects {
             switch effect {
@@ -179,9 +223,10 @@ final class SnapEngine {
                 runtime.noteQuickSnapperUI(showing: true)
                 runtime.overlay.settings = runtime.settings
                 runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
+                let overlayZones = runtime.resolvedZones(for: area, layoutOverride: output.selectedLayoutID)
                 runtime.overlay.show(
                     displayID: area.display.id,
-                    zones: zones,
+                    zones: overlayZones,
                     highlight: .none,
                     captureKeys: true
                 )
@@ -189,7 +234,7 @@ final class SnapEngine {
                 runtime.overlay.hideAll()
                 runtime.noteQuickSnapperUI(showing: false)
             case .snap(let identity, let number):
-                await snap(identity, to: number)
+                await snap(identity, to: number, layoutID: output.selectedLayoutID)
             }
         }
     }
@@ -205,6 +250,10 @@ final class SnapEngine {
     }
 
     private func snap(_ identity: WindowIdentity, to zoneNumber: Int) async {
+        await snap(identity, to: zoneNumber, layoutID: nil)
+    }
+
+    private func snap(_ identity: WindowIdentity, to zoneNumber: Int, layoutID: Layout.ID?) async {
         guard runtime.trust.isTrusted() else { return }
         guard let window = await runtime.ax.window(matching: identity),
               let frameAX = await runtime.ax.frame(of: window),
@@ -215,9 +264,15 @@ final class SnapEngine {
               ),
               runtime.displays.isActive(displayID: area.display.id)
         else { return }
-        let zones = runtime.resolvedZones(for: area)
+        let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
         await snap((window, frameAX, area), to: zone)
+        if let layoutID, layoutID != runtime.document.layout(for: area.display.id)?.id {
+            runtime.document.assign(layoutID: layoutID, to: area.display.id)
+            runtime.markLayoutUsed(layoutID)
+            runtime.persist()
+            runtime.menuBar?.reloadMenu()
+        }
     }
 
     func snapAdjacent(delta: Int) {
@@ -316,6 +371,7 @@ final class SnapEngine {
         if isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
         }
+        resetLayoutSession()
         runtime.pendingWindow = nil
         runtime.pendingIdentity = nil
         runtime.pendingFrame = nil
@@ -343,7 +399,7 @@ final class SnapEngine {
             case .showOverlay(let id):
                 overlayDisplayID = id
                 if overlayHighlight == nil {
-                    overlayHighlight = .none
+                    overlayHighlight = SnapTarget.none
                 }
                 hideOverlay = false
             case .hideOverlay, .cancel:
@@ -369,6 +425,22 @@ final class SnapEngine {
                     primaryFlipHeight: runtime.displays.primaryFlipHeight
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
+            case .assignLayout(let layoutID):
+                if let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+                    ?? runtime.displays.workAreas.first {
+                    runtime.document.assign(layoutID: layoutID, to: area.display.id)
+                    runtime.markLayoutUsed(layoutID)
+                    runtime.persist()
+                    runtime.menuBar?.reloadMenu()
+                    sessionLayoutID = layoutID
+                }
+            case .clearLockedTarget:
+                lockedTarget = nil
+            case .selectCandidate(let index):
+                candidateIndex = index
+                if lastCandidates.indices.contains(index) {
+                    sessionLayoutID = lastCandidates[index].layoutID
+                }
             }
         }
         if hideOverlay {
@@ -379,23 +451,154 @@ final class SnapEngine {
             runtime.menuBar?.closeConsole()
             runtime.overlay.settings = runtime.settings
             runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
-            let zones: [ResolvedZone]
-            if let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID }) {
-                let resolved = runtime.resolvedZones(for: area)
-                zones = resolved.isEmpty ? lastZones : resolved
-                if !resolved.isEmpty {
-                    lastZones = resolved
-                }
-            } else {
-                zones = lastZones
-            }
+            let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID })
+            let session = sessionContext(at: NSEvent.mouseLocation, area: area)
+            lastZones = session.zones.isEmpty ? lastZones : session.zones
+            lastCandidates = session.candidates
+            lastStrip = session.strip
+            lastPresentation = session.presentation
+            let zones = lastZones
             runtime.overlay.show(
                 displayID: overlayDisplayID,
                 zones: zones,
-                highlight: overlayHighlight ?? SnapTarget.none
+                highlight: overlayHighlight ?? SnapTarget.none,
+                presentation: lastPresentation
             )
         } else if let overlayHighlight {
             runtime.overlay.highlight(overlayHighlight)
         }
+    }
+
+    private func resetLayoutSession() {
+        candidateIndex = 0
+        sessionLayoutID = nil
+        lastCursorDisplayID = nil
+        lastCandidates = []
+        lastStrip = nil
+        lastPresentation = .empty
+        quickSnapperLayoutID = nil
+    }
+
+    private struct SessionContext {
+        var layoutID: Layout.ID?
+        var assignedLayoutID: Layout.ID?
+        var zones: [ResolvedZone]
+        var candidates: [ZoneCandidate]
+        var strip: LayoutStripGeometry?
+        var pointerInStrip: Bool
+        var forcedTarget: SnapTarget?
+        var presentation: OverlayPresentation
+    }
+
+    private func sessionContext(at pointAppKit: CGPoint, area: WorkArea?) -> SessionContext {
+        let assignedID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
+        var crossedDisplay = false
+        if let area, lastCursorDisplayID != area.display.id {
+            candidateIndex = 0
+            lastCursorDisplayID = area.display.id
+            crossedDisplay = true
+            if sessionLayoutID == nil {
+                sessionLayoutID = assignedID
+            }
+        }
+
+        let layouts = runtime.allResolvedLayouts(for: area)
+        let pointAX = CoordinateConverter.axPoint(
+            fromAppKit: pointAppKit,
+            primaryFlipHeight: runtime.displays.primaryFlipHeight
+        )
+        let candidates = ZoneCandidateResolver.resolve(
+            layouts: layouts,
+            pointAX: pointAX,
+            assignedLayoutID: assignedID,
+            recentLayoutIDs: runtime.document.recentLayoutIDs
+        )
+        if !crossedDisplay,
+           let previous = lastCandidates.indices.contains(candidateIndex) ? lastCandidates[candidateIndex] : nil,
+           let match = candidates.firstIndex(where: {
+               $0.layoutID == previous.layoutID
+                   && ZoneCandidateResolver.approximatelyEqual($0.zone.frameAX, previous.zone.frameAX)
+           }) {
+            candidateIndex = match
+        } else {
+            candidateIndex = 0
+        }
+
+        var strip: LayoutStripGeometry?
+        var pointerInStrip = false
+        var forcedTarget: SnapTarget?
+        var highlightedLayoutID: Layout.ID?
+        var highlightedZoneNumber: Int?
+        if runtime.settings.showLayoutStrip, let area, isArmed(phase) {
+            let workAX = CoordinateConverter.axRect(
+                fromAppKit: area.visibleFrameAppKit,
+                primaryFlipHeight: runtime.displays.primaryFlipHeight
+            )
+            strip = LayoutStripGeometry.make(
+                workAreaAppKit: area.visibleFrameAppKit,
+                layouts: layouts,
+                assignedLayoutID: assignedID,
+                workAreaAX: workAX
+            )
+            if let strip, strip.contains(pointAppKit) {
+                pointerInStrip = true
+                if let hit = strip.hitZone(at: pointAppKit),
+                   let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
+                   let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
+                    forcedTarget = .zone(zone)
+                    highlightedLayoutID = hit.layoutID
+                    highlightedZoneNumber = hit.zoneNumber
+                    sessionLayoutID = hit.layoutID
+                } else {
+                    highlightedLayoutID = strip.hitCard(at: pointAppKit)
+                }
+            }
+        }
+
+        if forcedTarget == nil, candidateIndex != 0, candidates.indices.contains(candidateIndex) {
+            sessionLayoutID = candidates[candidateIndex].layoutID
+        } else if sessionLayoutID == nil {
+            sessionLayoutID = assignedID
+        }
+
+        let layoutID = sessionLayoutID ?? assignedID
+        let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
+        var outlines: [CGRect] = []
+        var label: OverlayCandidateLabel?
+        if let candidate = candidates.indices.contains(candidateIndex) ? candidates[candidateIndex] : nil {
+            outlines = candidates.compactMap { item in
+                item.zone.zoneID == candidate.zone.zoneID ? nil : item.zone.frameAX
+            }
+            if candidates.count > 1 {
+                label = OverlayCandidateLabel(
+                    text: "\(L10n.layoutDisplayName(candidate.layoutName)) · \(candidateIndex + 1)/\(candidates.count)",
+                    anchorAX: candidate.zone.frameAX
+                )
+            }
+        }
+        let stripModel: OverlayStripRenderModel?
+        if let strip, runtime.settings.showLayoutStrip {
+            stripModel = OverlayStripRenderModel(
+                geometry: strip,
+                highlightedLayoutID: highlightedLayoutID ?? layoutID,
+                highlightedZoneNumber: highlightedZoneNumber
+            )
+        } else {
+            stripModel = nil
+        }
+        return SessionContext(
+            layoutID: layoutID,
+            assignedLayoutID: assignedID,
+            zones: zones,
+            candidates: candidates,
+            strip: strip,
+            pointerInStrip: pointerInStrip,
+            forcedTarget: forcedTarget,
+            presentation: OverlayPresentation(
+                candidateOutlinesAX: outlines,
+                candidateLabel: label,
+                strip: stripModel
+            )
+        )
     }
 }

@@ -140,4 +140,23 @@ final class QuickSnapperTests: XCTestCase {
         XCTAssertEqual(QuickSnapperReducer.zoneNumber(forKeyCode: 25), 9)
         XCTAssertNil(QuickSnapperReducer.zoneNumber(forKeyCode: 29))
     }
+
+    func testCycleLayoutSelectsNextLayoutWithoutSnapping() {
+        let first = UUID()
+        let second = UUID()
+        let out = QuickSnapperReducer.reduce(
+            QuickSnapperInput(
+                phase: .showing(target: terminal),
+                event: .cycleLayout(1),
+                zoneNumbers: [1, 2],
+                focusedWindow: zoneBox,
+                layoutIDs: [first, second],
+                selectedLayoutID: first
+            )
+        )
+        XCTAssertEqual(out.phase, .showing(target: terminal))
+        XCTAssertEqual(out.selectedLayoutID, second)
+        XCTAssertEqual(out.effects, [.showOverlay])
+        XCTAssertFalse(out.effects.contains { if case .snap = $0 { return true }; return false })
+    }
 }

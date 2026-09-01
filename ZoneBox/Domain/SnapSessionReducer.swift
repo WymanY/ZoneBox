@@ -25,6 +25,8 @@ public enum SnapSessionReducer {
             return reduceFlags(input)
         case .digit(let number):
             return reduceDigit(input, number: number)
+        case .cycleCandidate(let delta):
+            return reduceCycleCandidate(input, delta: delta)
         }
     }
 
@@ -86,7 +88,9 @@ public enum SnapSessionReducer {
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
         case .armed, .highlighting:
             let target: SnapTarget
-            if let locked = lockedTarget(input) {
+            if input.forcedTarget != nil || input.pointerInLayoutStrip {
+                target = currentTarget(input)
+            } else if let locked = lockedTarget(input) {
                 target = locked
             } else if case .highlighting(_, let highlighted) = input.phase, highlighted.frameAX != nil {
                 target = highlighted
@@ -109,6 +113,10 @@ public enum SnapSessionReducer {
                     ),
                     at: 0
                 )
+            }
+            if let layoutID = layoutID(for: target, input: input),
+               layoutID != input.assignedLayoutID {
+                effects.append(.assignLayout(layoutID))
             }
             return SnapReducerOutput(phase: .idle, effects: effects)
         }
@@ -197,6 +205,12 @@ public enum SnapSessionReducer {
     }
 
     private static func currentTarget(_ input: SnapReducerInput) -> SnapTarget {
+        if let forced = input.forcedTarget {
+            return forced
+        }
+        if input.pointerInLayoutStrip {
+            return .none
+        }
         if let locked = lockedTarget(input) {
             return locked
         }
@@ -204,6 +218,13 @@ public enum SnapSessionReducer {
             fromAppKit: input.event.locationAppKit,
             primaryFlipHeight: input.primaryFlipHeight
         )
+        if input.event.modifiers.contains(.control),
+           let gridTarget = gridTarget(input, currentAX: point) {
+            return gridTarget
+        }
+        if input.candidateIndex != 0, let candidate = selectedCandidate(input) {
+            return .zone(candidate.zone)
+        }
         if let gridTarget = gridTarget(input, currentAX: point) {
             return gridTarget
         }
@@ -309,6 +330,54 @@ public enum SnapSessionReducer {
         default:
             return SnapReducerOutput(phase: input.phase, effects: [])
         }
+    }
+
+    private static func reduceCycleCandidate(_ input: SnapReducerInput, delta: Int) -> SnapReducerOutput {
+        switch input.phase {
+        case .armed, .highlighting:
+            break
+        default:
+            return SnapReducerOutput(phase: input.phase, effects: [])
+        }
+        guard let window = currentWindow(input.phase), !input.candidates.isEmpty else {
+            return SnapReducerOutput(phase: input.phase, effects: [])
+        }
+        let nextIndex = ZoneCandidateResolver.wrappingIndex(
+            current: input.candidateIndex,
+            delta: delta,
+            count: input.candidates.count
+        )
+        let candidate = input.candidates[nextIndex]
+        let target = SnapTarget.zone(candidate.zone)
+        var effects: [SnapEffect] = [.selectCandidate(nextIndex), .clearLockedTarget]
+        if let displayID = cursorDisplayID(input) {
+            effects.append(.showOverlay(displayID: displayID))
+        }
+        effects.append(.highlight(target))
+        return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
+    }
+
+    private static func selectedCandidate(_ input: SnapReducerInput) -> ZoneCandidate? {
+        guard input.candidates.indices.contains(input.candidateIndex) else { return nil }
+        return input.candidates[input.candidateIndex]
+    }
+
+    private static func layoutID(for target: SnapTarget, input: SnapReducerInput) -> Layout.ID? {
+        if let forced = input.forcedTarget, forced == target {
+            return input.sessionLayoutID
+        }
+        if case .zone(let zone) = target {
+            if let candidate = input.candidates.first(where: { $0.zone.zoneID == zone.zoneID }) {
+                return candidate.layoutID
+            }
+            if input.resolvedZones.contains(where: { $0.zoneID == zone.zoneID }) {
+                return input.sessionLayoutID ?? input.assignedLayoutID
+            }
+        }
+        if case .span = target {
+            return input.sessionLayoutID ?? input.assignedLayoutID
+        }
+        return input.sessionLayoutID ?? input.assignedLayoutID
     }
 
     private static func lockedTarget(_ input: SnapReducerInput) -> SnapTarget? {

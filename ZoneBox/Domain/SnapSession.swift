@@ -40,6 +40,9 @@ public enum SnapEffect: Equatable, Sendable {
     case applyFrame(WindowIdentity, CGRect)
     case recordUnsnap(UnsnapRecord)
     case cancel
+    case assignLayout(Layout.ID)
+    case clearLockedTarget
+    case selectCandidate(Int)
 }
 
 public struct SnapReducerInput: Equatable, Sendable {
@@ -78,6 +81,19 @@ public struct SnapReducerInput: Equatable, Sendable {
     /// Content-area drags must not arm the zone overlay.
     public var startedOnMoveChrome: Bool
 
+    /// Cross-layout zone candidates under the pointer, assigned layout first.
+    public var candidates: [ZoneCandidate]
+    /// Index into `candidates` chosen by scroll/Tab. Engine-owned, like `lockedTarget`.
+    public var candidateIndex: Int
+    /// Layout currently assigned to the cursor display, if any.
+    public var assignedLayoutID: Layout.ID?
+    /// Layout belonging to the highlighted candidate or strip target.
+    public var sessionLayoutID: Layout.ID?
+    /// True while the pointer is inside the layout strip. Zones under the strip do not win.
+    public var pointerInLayoutStrip: Bool
+    /// Mini-zone under the pointer, already mapped to a real `ResolvedZone`.
+    public var forcedTarget: SnapTarget?
+
     public init(
         phase: SnapSessionPhase,
         event: SnapMouseEvent,
@@ -107,7 +123,13 @@ public struct SnapReducerInput: Equatable, Sendable {
         magneticResizeEnabled: Bool = true,
         magneticThreshold: CGFloat = MagneticResize.defaultThreshold,
         lockedTarget: SnapTarget? = nil,
-        startedOnMoveChrome: Bool = true
+        startedOnMoveChrome: Bool = true,
+        candidates: [ZoneCandidate] = [],
+        candidateIndex: Int = 0,
+        assignedLayoutID: Layout.ID? = nil,
+        sessionLayoutID: Layout.ID? = nil,
+        pointerInLayoutStrip: Bool = false,
+        forcedTarget: SnapTarget? = nil
     ) {
         self.phase = phase
         self.event = event
@@ -138,6 +160,12 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.magneticThreshold = magneticThreshold
         self.lockedTarget = lockedTarget
         self.startedOnMoveChrome = startedOnMoveChrome
+        self.candidates = candidates
+        self.candidateIndex = candidateIndex
+        self.assignedLayoutID = assignedLayoutID
+        self.sessionLayoutID = sessionLayoutID
+        self.pointerInLayoutStrip = pointerInLayoutStrip
+        self.forcedTarget = forcedTarget
     }
 }
 

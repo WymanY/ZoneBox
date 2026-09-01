@@ -101,17 +101,49 @@ public struct StoreDocument: Codable, Equatable, Sendable {
     public var layouts: [Layout]
     public var displays: [DisplayIdentity]
     public var assignments: [LayoutAssignment]
+    /// Most-recently-used layout IDs, newest first. Missing from legacy store.json.
+    public var recentLayoutIDs: [Layout.ID]
 
     public init(
         schemaVersion: Int = 1,
         layouts: [Layout] = LayoutTemplates.all(),
         displays: [DisplayIdentity] = [],
-        assignments: [LayoutAssignment] = []
+        assignments: [LayoutAssignment] = [],
+        recentLayoutIDs: [Layout.ID] = []
     ) {
         self.schemaVersion = schemaVersion
         self.layouts = layouts
         self.displays = displays
         self.assignments = assignments
+        self.recentLayoutIDs = recentLayoutIDs
+        pruneRecentLayoutIDs()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case layouts
+        case displays
+        case assignments
+        case recentLayoutIDs
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        layouts = try container.decodeIfPresent([Layout].self, forKey: .layouts) ?? LayoutTemplates.all()
+        displays = try container.decodeIfPresent([DisplayIdentity].self, forKey: .displays) ?? []
+        assignments = try container.decodeIfPresent([LayoutAssignment].self, forKey: .assignments) ?? []
+        recentLayoutIDs = try container.decodeIfPresent([Layout.ID].self, forKey: .recentLayoutIDs) ?? []
+        pruneRecentLayoutIDs()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(layouts, forKey: .layouts)
+        try container.encode(displays, forKey: .displays)
+        try container.encode(assignments, forKey: .assignments)
+        try container.encode(recentLayoutIDs, forKey: .recentLayoutIDs)
     }
 
     public func layout(for displayID: DisplayIdentity.ID) -> Layout? {
@@ -120,6 +152,35 @@ public struct StoreDocument: Codable, Equatable, Sendable {
             return layout
         }
         return layouts.first
+    }
+
+    public static let recentLayoutLimit = 20
+
+    /// Newest-first MRU, with the assigned layout forced to the front when present.
+    public func orderedLayouts(assignedID: Layout.ID?) -> [Layout] {
+        var ordered: [Layout] = []
+        if let assignedID, let assigned = layouts.first(where: { $0.id == assignedID }) {
+            ordered.append(assigned)
+        }
+        for id in recentLayoutIDs {
+            guard !ordered.contains(where: { $0.id == id }),
+                  let layout = layouts.first(where: { $0.id == id })
+            else { continue }
+            ordered.append(layout)
+        }
+        for layout in layouts where !ordered.contains(where: { $0.id == layout.id }) {
+            ordered.append(layout)
+        }
+        return ordered
+    }
+
+    public mutating func markLayoutUsed(_ id: Layout.ID) {
+        guard layouts.contains(where: { $0.id == id }) else { return }
+        recentLayoutIDs.removeAll { $0 == id }
+        recentLayoutIDs.insert(id, at: 0)
+        if recentLayoutIDs.count > Self.recentLayoutLimit {
+            recentLayoutIDs.removeLast(recentLayoutIDs.count - Self.recentLayoutLimit)
+        }
     }
 
     public mutating func assign(layoutID: Layout.ID, to displayID: DisplayIdentity.ID) {
@@ -149,6 +210,17 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         for assignmentIndex in assignments.indices where assignments[assignmentIndex].layoutID == id {
             assignments[assignmentIndex].layoutID = fallbackID
         }
+        recentLayoutIDs.removeAll { $0 == id }
         return true
+    }
+
+    private mutating func pruneRecentLayoutIDs() {
+        let known = Set(layouts.map(\.id))
+        var seen = Set<Layout.ID>()
+        recentLayoutIDs.removeAll { id in
+            if !known.contains(id) || seen.contains(id) { return true }
+            seen.insert(id)
+            return false
+        }
     }
 }

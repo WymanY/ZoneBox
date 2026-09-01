@@ -429,6 +429,18 @@ public enum ShortcutCatalog {
                 binding: .gesture(.shortcutGestureOverlayDigit)
             ),
             ShortcutSpec(
+                id: "cycleCandidate",
+                surface: .snap,
+                titleKey: .shortcutSnapCycleCandidate,
+                binding: .gesture(.shortcutGestureCycleCandidate)
+            ),
+            ShortcutSpec(
+                id: "layoutStrip",
+                surface: .snap,
+                titleKey: .shortcutSnapLayoutStrip,
+                binding: .gesture(.shortcutGestureLayoutStrip)
+            ),
+            ShortcutSpec(
                 id: "rightClickDrag",
                 surface: .snap,
                 titleKey: .shortcutSnapRightClick,

@@ -14,11 +14,12 @@ final class DragMonitor {
     private var sampleTimer: Timer?
     private var lastSample: CGPoint?
     private var capturedRef: WindowRef?
+    private var scrollAccumulator: CGFloat = 0
 
     func start() {
         stop()
         let kinds: NSEvent.EventTypeMask = [
-            .leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown, .flagsChanged, .mouseMoved,
+            .leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown, .flagsChanged, .mouseMoved, .scrollWheel,
         ]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: kinds, handler: { [weak self] event in
             self?.handle(event)
@@ -62,6 +63,11 @@ final class DragMonitor {
             let modifiers = Self.modifiers(flags: event.modifierFlags)
             ensureHold(at: location, modifiers: modifiers)
             ingestDrag(at: location, modifiers: modifiers)
+            return
+        }
+
+        if event.type == .scrollWheel {
+            handleScroll(event)
             return
         }
 
@@ -150,7 +156,24 @@ final class DragMonitor {
         holdGeneration += 1
         bufferedDrags.removeAll()
         dragSessionReady = false
+        scrollAccumulator = 0
         runtime.engine.handleMouse(mouse)
+    }
+
+    private func handleScroll(_ event: NSEvent) {
+        guard runtime.engine.isOverlayArmed else {
+            scrollAccumulator = 0
+            return
+        }
+        scrollAccumulator += event.scrollingDeltaY
+        let threshold: CGFloat = 10
+        if scrollAccumulator >= threshold {
+            runtime.engine.handleCycleCandidate(-1)
+            scrollAccumulator = 0
+        } else if scrollAccumulator <= -threshold {
+            runtime.engine.handleCycleCandidate(1)
+            scrollAccumulator = 0
+        }
     }
 
     /// Foreign title-bar tracking can starve any of the global mouse events.
