@@ -31,16 +31,24 @@ public struct OverlayPresentation: Equatable, Sendable {
     public var candidateOutlinesAX: [CGRect]
     public var candidateLabel: OverlayCandidateLabel?
     public var strip: OverlayStripRenderModel?
+    public var layoutName: String?
 
-    public static let empty = OverlayPresentation(candidateOutlinesAX: [], candidateLabel: nil, strip: nil)
+    public static let empty = OverlayPresentation(
+        candidateOutlinesAX: [],
+        candidateLabel: nil,
+        strip: nil,
+        layoutName: nil
+    )
 
     public init(
         candidateOutlinesAX: [CGRect] = [],
         candidateLabel: OverlayCandidateLabel? = nil,
-        strip: OverlayStripRenderModel? = nil
+        strip: OverlayStripRenderModel? = nil,
+        layoutName: String? = nil
     ) {
         self.candidateOutlinesAX = candidateOutlinesAX
         self.candidateLabel = candidateLabel
         self.strip = strip
+        self.layoutName = layoutName
     }
 }

@@ -18,8 +18,8 @@ final class OverlayPanel: NSPanel {
         becomesKeyOnlyIfNeeded = false
         hidesOnDeactivate = false
         isFloatingPanel = true
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.draggingWindow)) + 1)
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary, .transient]
+        level = .screenSaver
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         setFrame(screen.frame, display: false)
         orderOut(nil)
     }

@@ -35,6 +35,7 @@ final class AppRuntime {
     private var shortcutPanel: ShortcutPanelController?
     private var quickSnapperUIActive = false
     private var previewHideWorkItem: DispatchWorkItem?
+    private var pendingLayoutPreview: PendingLayoutPreview?
     private(set) var isOrganizingWindows = false
     private var organizeBehaviorCache: [WindowIdentity: WindowOrganizeWindowBehavior] = [:]
     private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
@@ -318,13 +319,17 @@ final class AppRuntime {
     }
 
     func selectLayout(_ layout: Layout) {
-        if let area = displays.area(containingAppKit: NSEvent.mouseLocation),
-           displays.isActive(displayID: area.display.id) {
-            document.assign(layoutID: layout.id, to: area.display.id)
-            document.markLayoutUsed(layout.id)
-            persist()
-            menuBar?.reloadMenu()
+        let area = displays.area(containingAppKit: NSEvent.mouseLocation)
+            ?? displays.workAreas.first
+        guard let area, displays.isActive(displayID: area.display.id) else {
+            Log.overlay.error("Layout preview skipped because no active display was available")
+            return
         }
+        document.assign(layoutID: layout.id, to: area.display.id)
+        document.markLayoutUsed(layout.id)
+        persist()
+        menuBar?.reloadMenu()
+        previewAssignedLayoutIfNeeded(layout, on: area)
     }
 
     @discardableResult
@@ -450,25 +455,29 @@ final class AppRuntime {
     }
 
     func previewZones() {
-        previewHideWorkItem?.cancel()
-        previewHideWorkItem = nil
         guard let area = displays.area(containingAppKit: NSEvent.mouseLocation),
               let layout = document.layout(for: area.display.id)
         else { return }
-        let workAX = CoordinateConverter.axRect(
-            fromAppKit: area.visibleFrameAppKit,
-            primaryFlipHeight: displays.primaryFlipHeight
-        )
-        let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
-        overlay.settings = settings
-        overlay.primaryFlipHeight = displays.primaryFlipHeight
-        overlay.show(displayID: area.display.id, zones: zones, highlight: .none)
-        let work = DispatchWorkItem { [weak self] in
-            self?.overlay.hideAll()
-            self?.previewHideWorkItem = nil
+        flashZones(area: area, layout: layout, duration: 1.6)
+    }
+
+    private func previewAssignedLayoutIfNeeded(_ layout: Layout, on area: WorkArea) {
+        guard settings.previewLayoutOnSelect else { return }
+        pendingLayoutPreview = PendingLayoutPreview(layout: layout, area: area)
+        if engine.isSnapGestureActive {
+            return
         }
-        previewHideWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+        presentPendingLayoutPreview()
+    }
+
+    func noteSnapSessionBecameIdle() {
+        presentPendingLayoutPreview()
+    }
+
+    private func presentPendingLayoutPreview() {
+        guard let pending = pendingLayoutPreview else { return }
+        pendingLayoutPreview = nil
+        flashZones(area: pending.area, layout: pending.layout, duration: 0.5, showName: true)
     }
 
     private func organizeWindows(on area: WorkArea?) async {
@@ -828,7 +837,8 @@ final class AppRuntime {
         area: WorkArea,
         layout: Layout,
         duration: TimeInterval,
-        workAreaAX: CGRect? = nil
+        workAreaAX: CGRect? = nil,
+        showName: Bool = false
     ) {
         previewHideWorkItem?.cancel()
         previewHideWorkItem = nil
@@ -839,13 +849,45 @@ final class AppRuntime {
         let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
-        overlay.show(displayID: area.display.id, zones: zones, highlight: .none)
-        let work = DispatchWorkItem { [weak self] in
-            self?.overlay.hideAll()
-            self?.previewHideWorkItem = nil
+        let presentation = OverlayPresentation(
+            layoutName: showName ? L10n.layoutDisplayName(layout.name) : nil
+        )
+        let displayID = area.display.id
+        let present: () -> Void = { [weak self] in
+            guard let self else { return }
+            if showName {
+                self.overlay.showPreview(
+                    displayID: displayID,
+                    zones: zones,
+                    presentation: presentation
+                )
+            } else {
+                self.overlay.show(
+                    displayID: displayID,
+                    zones: zones,
+                    highlight: .none,
+                    presentation: presentation
+                )
+            }
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                if showName {
+                    if self.overlay.isPreviewVisible {
+                        self.overlay.hideAll()
+                    }
+                } else if !self.engine.isSessionActive {
+                    self.overlay.hideAll()
+                }
+                self.previewHideWorkItem = nil
+            }
+            self.previewHideWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
         }
-        previewHideWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
+        if showName {
+            DispatchQueue.main.async { present() }
+        } else {
+            present()
+        }
     }
 
     func openAccessibility() {
@@ -933,6 +975,18 @@ final class AppRuntime {
     func setShowLayoutStrip(_ enabled: Bool) {
         settings.showLayoutStrip = enabled
         persistSettings()
+    }
+
+    func setPreviewLayoutOnSelect(_ enabled: Bool) {
+        settings.previewLayoutOnSelect = enabled
+        persistSettings()
+        if !enabled {
+            previewHideWorkItem?.cancel()
+            previewHideWorkItem = nil
+            if !engine.isSessionActive {
+                overlay.hideAll()
+            }
+        }
     }
 
     func invalidateResolvedLayoutCache() {
@@ -1076,4 +1130,9 @@ private struct ResolvedLayoutCacheKey: Hashable {
     var width: Int
     var height: Int
     var updatedAt: TimeInterval
+}
+
+private struct PendingLayoutPreview {
+    var layout: Layout
+    var area: WorkArea
 }

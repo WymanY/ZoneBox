@@ -124,6 +124,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsGutterDetail
     case settingsShowLayoutStrip
     case settingsShowLayoutStripDetail
+    case settingsPreviewLayoutOnSelect
+    case settingsPreviewLayoutOnSelectDetail
     case settingsSnappingTriggersSection
     case settingsSnappingBehaviorSection
     case settingsGeneralPreviewTitle
@@ -475,6 +477,8 @@ public enum L10n {
         .settingsGutterDetail: "Set the breathing room between neighboring zones.",
         .settingsShowLayoutStrip: "Show layout strip while dragging",
         .settingsShowLayoutStripDetail: "Drop a window onto a mini zone to switch layouts in one step.",
+        .settingsPreviewLayoutOnSelect: "Preview layout after selecting",
+        .settingsPreviewLayoutOnSelectDetail: "Close the picker and briefly show the assigned layout on screen.",
         .settingsSnappingTriggersSection: "Snap triggers",
         .settingsSnappingBehaviorSection: "Window behavior",
         .settingsGeneralPreviewTitle: "General overview",
@@ -713,6 +717,8 @@ public enum L10n {
         .settingsGutterDetail: "设置相邻分区之间的留白。",
         .settingsShowLayoutStrip: "拖拽时显示布局条",
         .settingsShowLayoutStripDetail: "把窗口拖到缩略格上松手，即可一步换布局并贴入。",
+        .settingsPreviewLayoutOnSelect: "选择布局后预览分区",
+        .settingsPreviewLayoutOnSelectDetail: "收起选择面板，并在屏幕上短暂显示当前布局。",
         .settingsSnappingTriggersSection: "吸附触发方式",
         .settingsSnappingBehaviorSection: "窗口行为",
         .settingsGeneralPreviewTitle: "通用概览",
