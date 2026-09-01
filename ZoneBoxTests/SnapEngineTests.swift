@@ -372,6 +372,8 @@ final class SnapEngineTests: XCTestCase {
         )
         XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: layoutID, frameApplied: false))
         XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: nil, frameApplied: true))
+        XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldUpdateSession(completionGeneration: 3, currentGeneration: 3))
+        XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldUpdateSession(completionGeneration: 2, currentGeneration: 3))
     }
 
     func testLeavingStripFollowsLiveCandidateLayout() {

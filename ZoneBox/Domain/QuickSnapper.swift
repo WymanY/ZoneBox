@@ -143,4 +143,13 @@ public enum QuickSnapperReducer {
         guard let index = AppSettings.zoneKeyCodes.firstIndex(of: keyCode) else { return nil }
         return index + 1
     }
+
+    /// HUD and digit snaps must use the captured target window's display, not
+    /// whatever screen currently holds the pointer.
+    public static func displayArea(
+        pointerArea: WorkArea?,
+        targetWindowArea: WorkArea?
+    ) -> WorkArea? {
+        targetWindowArea ?? pointerArea
+    }
 }

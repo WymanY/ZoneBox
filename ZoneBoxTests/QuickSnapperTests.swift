@@ -159,4 +159,28 @@ final class QuickSnapperTests: XCTestCase {
         XCTAssertEqual(out.effects, [.showOverlay])
         XCTAssertFalse(out.effects.contains { if case .snap = $0 { return true }; return false })
     }
+
+    func testDisplayAreaPrefersTargetWindowOverPointer() {
+        let pointer = WorkArea(
+            display: DisplayIdentity(localizedName: "Pointer", visibleWidth: 100, visibleHeight: 100, backingScale: 1),
+            frameAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
+            visibleFrameAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
+            backingScale: 1
+        )
+        let target = WorkArea(
+            display: DisplayIdentity(localizedName: "Target", visibleWidth: 200, visibleHeight: 200, backingScale: 1),
+            frameAppKit: CGRect(x: 200, y: 0, width: 200, height: 200),
+            visibleFrameAppKit: CGRect(x: 200, y: 0, width: 200, height: 200),
+            backingScale: 1
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.displayArea(pointerArea: pointer, targetWindowArea: target)?.display.localizedName,
+            "Target"
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.displayArea(pointerArea: pointer, targetWindowArea: nil)?.display.localizedName,
+            "Pointer"
+        )
+    }
+
 }

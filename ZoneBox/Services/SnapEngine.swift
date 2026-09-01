@@ -26,6 +26,7 @@ final class SnapEngine {
     private var lastPresentation = OverlayPresentation.empty
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
+    private var layoutAssignmentGeneration = 0
 
     unowned var runtime: AppRuntime!
 
@@ -60,6 +61,7 @@ final class SnapEngine {
             lastCursorDisplayID = nil
             lastCandidates = []
             lastStrip = nil
+            layoutAssignmentGeneration += 1
         } else if event.kind == .leftDragged {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
@@ -186,8 +188,18 @@ final class SnapEngine {
         } else {
             invokeFocus = nil
         }
-        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+        var area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
             ?? runtime.displays.workAreas.first
+        if case .invoke = event, let invokeFocus,
+           let window = await runtime.ax.window(matching: invokeFocus),
+           let frameAX = await runtime.ax.frame(of: window),
+           let windowArea = DisplayTargetResolver.workArea(
+               containingWindowFrameAX: frameAX,
+               from: runtime.displays.workAreas,
+               primaryFlipHeight: runtime.displays.primaryFlipHeight
+           ) {
+            area = QuickSnapperReducer.displayArea(pointerArea: area, targetWindowArea: windowArea)
+        }
         if case .invoke = event {
             quickSnapperLayoutID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
         }
@@ -421,6 +433,7 @@ final class SnapEngine {
                 let captured = runtime.pendingWindow
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
+                let generation = layoutAssignmentGeneration
                 Task { @MainActor in
                     let window = captured?.identity == identity
                         ? captured
@@ -438,7 +451,8 @@ final class SnapEngine {
                             pending ?? PendingLayoutAssignment(
                                 layoutID: layoutID,
                                 pointAppKit: NSEvent.mouseLocation
-                            )
+                            ),
+                            generation: generation
                         )
                     }
                 }
@@ -500,6 +514,7 @@ final class SnapEngine {
         lastStrip = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
+        layoutAssignmentGeneration += 1
     }
 
     private struct PendingLayoutAssignment {
@@ -510,10 +525,14 @@ final class SnapEngine {
     private func commitPendingLayoutAssignmentIfNeeded() {
         guard let pending = pendingLayoutAssignment else { return }
         pendingLayoutAssignment = nil
-        commit(pending)
+        commit(pending, generation: layoutAssignmentGeneration)
     }
 
-    private func commit(_ pending: PendingLayoutAssignment) {
+    private func commit(_ pending: PendingLayoutAssignment, generation: Int) {
+        guard SnapLayoutAssignmentPolicy.shouldUpdateSession(
+            completionGeneration: generation,
+            currentGeneration: layoutAssignmentGeneration
+        ) else { return }
         pendingLayoutAssignment = nil
         let area = runtime.displays.area(containingAppKit: pending.pointAppKit)
             ?? runtime.displays.workAreas.first

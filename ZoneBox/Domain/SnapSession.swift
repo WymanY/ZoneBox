@@ -298,4 +298,12 @@ public enum SnapLayoutAssignmentPolicy {
         guard frameApplied else { return nil }
         return capturedForThisWrite
     }
+
+    /// A delayed AX completion must not mutate a newer drag session.
+    public static func shouldUpdateSession(
+        completionGeneration: Int,
+        currentGeneration: Int
+    ) -> Bool {
+        completionGeneration == currentGeneration
+    }
 }
