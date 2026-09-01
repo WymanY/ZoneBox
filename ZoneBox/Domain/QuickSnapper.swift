@@ -152,4 +152,14 @@ public enum QuickSnapperReducer {
     ) -> WorkArea? {
         targetWindowArea ?? pointerArea
     }
+
+    /// Later Tab/digit events must keep using the invoke-time target display.
+    public static func sessionArea(
+        event: QuickSnapperEvent,
+        pointerArea: WorkArea?,
+        rememberedArea: WorkArea?
+    ) -> WorkArea? {
+        if case .invoke = event { return pointerArea }
+        return rememberedArea ?? pointerArea
+    }
 }

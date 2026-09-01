@@ -27,6 +27,7 @@ final class SnapEngine {
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
     private var layoutAssignmentGeneration = 0
+    private var quickSnapperArea: WorkArea?
 
     unowned var runtime: AppRuntime!
 
@@ -61,7 +62,10 @@ final class SnapEngine {
             lastCursorDisplayID = nil
             lastCandidates = []
             lastStrip = nil
-            layoutAssignmentGeneration += 1
+            layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
+                current: layoutAssignmentGeneration,
+                startingNewDrag: true
+            )
         } else if event.kind == .leftDragged {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
@@ -200,8 +204,14 @@ final class SnapEngine {
            ) {
             area = QuickSnapperReducer.displayArea(pointerArea: area, targetWindowArea: windowArea)
         }
+        area = QuickSnapperReducer.sessionArea(
+            event: event,
+            pointerArea: area,
+            rememberedArea: quickSnapperArea
+        )
         if case .invoke = event {
             quickSnapperLayoutID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
+            quickSnapperArea = area
         }
         let layouts = runtime.allResolvedLayouts(for: area)
         let layoutIDs = layouts.map(\.layout.id)
@@ -228,6 +238,7 @@ final class SnapEngine {
         if case .hidden = output.phase {
             quickSnapperPending = false
             quickSnapperLayoutID = nil
+            quickSnapperArea = nil
         }
         for effect in output.effects {
             switch effect {
@@ -514,7 +525,6 @@ final class SnapEngine {
         lastStrip = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
-        layoutAssignmentGeneration += 1
     }
 
     private struct PendingLayoutAssignment {

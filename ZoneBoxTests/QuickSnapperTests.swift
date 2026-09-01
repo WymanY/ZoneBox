@@ -181,6 +181,14 @@ final class QuickSnapperTests: XCTestCase {
             QuickSnapperReducer.displayArea(pointerArea: pointer, targetWindowArea: nil)?.display.localizedName,
             "Pointer"
         )
+        XCTAssertEqual(
+            QuickSnapperReducer.sessionArea(event: .invoke, pointerArea: target, rememberedArea: pointer)?.display.localizedName,
+            "Target"
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.sessionArea(event: .cycleLayout(1), pointerArea: pointer, rememberedArea: target)?.display.localizedName,
+            "Target"
+        )
     }
 
 }

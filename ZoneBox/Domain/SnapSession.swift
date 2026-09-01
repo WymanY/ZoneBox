@@ -306,4 +306,13 @@ public enum SnapLayoutAssignmentPolicy {
     ) -> Bool {
         completionGeneration == currentGeneration
     }
+
+    /// Normal post-drop cleanup must keep the drop's generation so its AX write
+    /// can still persist the assignment. Only a newer drag or cancel bumps it.
+    public static func generationAfterSessionReset(
+        current: Int,
+        startingNewDrag: Bool
+    ) -> Int {
+        startingNewDrag ? current + 1 : current
+    }
 }
