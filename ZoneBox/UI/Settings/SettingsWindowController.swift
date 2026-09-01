@@ -265,8 +265,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 customIcon: PinIconArtwork.image(state: .pin, size: 17),
                 titleKey: .settingsHoverPin,
                 detailKey: .settingsHoverPinDetail,
-                trailing: hoverPin,
-                badgeKey: .settingsBeta
+                trailing: hoverPin
             ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
         ])

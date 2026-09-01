@@ -13,8 +13,8 @@ public struct PinWindowSnapshot: Equatable, Sendable {
 }
 
 public struct PinPlan: Equatable, Sendable {
-    /// Visible pins in oldest-to-newest order. Ordering mirror panels in this
-    /// sequence leaves the most recently pinned window in front.
+    /// Visible pins in oldest-to-newest order. Newer pins keep their
+    /// WindowServer stacking among themselves.
     public var visible: [WindowIdentity]
     public var dormant: [WindowIdentity]
     public var gone: [WindowIdentity]
@@ -44,9 +44,9 @@ public enum PinPlanner {
         allWindowIdentities: Set<WindowIdentity>?,
         pinOrder: [WindowIdentity]
     ) -> PinPlan {
-        let layerZero = frontToBack.filter { $0.layer == 0 }
+        let eligible = frontToBack.filter { $0.layer == 0 }
         let snapshotByIdentity = Dictionary(
-            uniqueKeysWithValues: layerZero.map { ($0.identity, $0) }
+            uniqueKeysWithValues: eligible.map { ($0.identity, $0) }
         )
 
         var dormant: [WindowIdentity] = []

@@ -219,7 +219,6 @@ private final class PinMirrorOutput: NSObject, SCStreamOutput, SCStreamDelegate,
         lock.lock()
         isPaused = true
         lock.unlock()
-        renderer.flush()
     }
 
     func resume() {
