@@ -350,6 +350,16 @@ final class SnapEngineTests: XCTestCase {
         )
         XCTAssertEqual(crossed.layoutID, layoutB)
         XCTAssertTrue(crossed.crossedDisplay)
+
+        let locked = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayB,
+            assignedLayoutID: layoutB,
+            currentSessionLayoutID: layoutA,
+            lockedTarget: .zone(ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 10, height: 10)))
+        )
+        XCTAssertEqual(locked.layoutID, layoutA)
+        XCTAssertTrue(locked.crossedDisplay)
     }
 
     func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {

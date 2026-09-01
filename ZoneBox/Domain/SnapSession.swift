@@ -197,6 +197,27 @@ public enum SnapLayoutSession {
         return (currentSessionLayoutID, false)
     }
 
+    /// Crossing a display adopts that screen's assigned layout unless a digit
+    /// lock is holding the previous session layout in place.
+    public static func sessionLayoutID(
+        previousDisplayID: DisplayIdentity.ID?,
+        currentDisplayID: DisplayIdentity.ID?,
+        assignedLayoutID: Layout.ID?,
+        currentSessionLayoutID: Layout.ID?,
+        lockedTarget: SnapTarget?
+    ) -> (layoutID: Layout.ID?, crossedDisplay: Bool) {
+        let crossed = sessionLayoutID(
+            previousDisplayID: previousDisplayID,
+            currentDisplayID: currentDisplayID,
+            assignedLayoutID: assignedLayoutID,
+            currentSessionLayoutID: currentSessionLayoutID
+        )
+        if crossed.crossedDisplay, lockedTarget != nil {
+            return (currentSessionLayoutID, true)
+        }
+        return crossed
+    }
+
     /// When the pointer leaves the previously cycled candidate, index 0 is the
     /// assigned-layout hit. Keep `sessionLayoutID` on that candidate so overlay
     /// zones and labels do not describe different layouts.

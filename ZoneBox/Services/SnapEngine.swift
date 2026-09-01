@@ -542,7 +542,8 @@ final class SnapEngine {
             previousDisplayID: lastCursorDisplayID,
             currentDisplayID: area?.display.id,
             assignedLayoutID: assignedID,
-            currentSessionLayoutID: sessionLayoutID
+            currentSessionLayoutID: sessionLayoutID,
+            lockedTarget: lockedTarget
         )
         let crossedDisplay = session.crossedDisplay
         if crossedDisplay {
