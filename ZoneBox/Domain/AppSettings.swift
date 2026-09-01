@@ -33,6 +33,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     public var hoverPinEnabled: Bool
     public var uiLanguage: AppLanguagePreference
+    public var showLayoutStrip: Bool
     public var editorHotkey: KeyChord
     public var shortcutsPanelHotkey: KeyChord
     public var quickSnapperHotkey: KeyChord
@@ -84,6 +85,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLogin: false,
         hoverPinEnabled: true,
         uiLanguage: .system,
+        showLayoutStrip: true,
         editorHotkey: KeyChord(keyCode: 6, carbonModifiers: controlOption),
         shortcutsPanelHotkey: KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: controlOption),
         quickSnapperHotkey: KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: controlOption),
@@ -131,6 +133,7 @@ extension AppSettings {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
         hoverPinEnabled = try c.decodeIfPresent(Bool.self, forKey: .hoverPinEnabled) ?? defaults.hoverPinEnabled
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
+        showLayoutStrip = try c.decodeIfPresent(Bool.self, forKey: .showLayoutStrip) ?? defaults.showLayoutStrip
         editorHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .editorHotkey) ?? defaults.editorHotkey
         shortcutsPanelHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .shortcutsPanelHotkey)
             ?? KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: editorHotkey.carbonModifiers)

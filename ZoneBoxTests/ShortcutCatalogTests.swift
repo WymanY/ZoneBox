@@ -151,6 +151,21 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(L10n.text(key, language: .english), "1–9")
     }
 
+    func testCycleCandidateShortcutIsASnapGesture() throws {
+        let item = try XCTUnwrap(
+            ShortcutCatalog.items(from: .default).first(where: { $0.id == "cycleCandidate" })
+        )
+        XCTAssertEqual(item.surface, .snap)
+        XCTAssertEqual(
+            item.title(language: .english),
+            "Cycle zones under the pointer while the overlay is showing"
+        )
+        guard case .gesture(let key) = item.binding else {
+            return XCTFail("cycleCandidate must be a snap gesture")
+        }
+        XCTAssertEqual(L10n.text(key, language: .english), "Scroll or ⇥")
+    }
+
     func testEscapePrefersKeyShortcutsPanelOverEditor() {
         XCTAssertEqual(
             ShortcutRouteContext.escapeAction(

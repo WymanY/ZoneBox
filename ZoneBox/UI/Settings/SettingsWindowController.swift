@@ -33,6 +33,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var magneticSwitch: NSSwitch?
     private var numbersSwitch: NSSwitch?
     private var restoreSwitch: NSSwitch?
+    private var layoutStripSwitch: NSSwitch?
     private var gutterLabel: NSTextField?
     private var gutterSlider: NSSlider?
     private var hotkeysLabel: NSTextField?
@@ -308,8 +309,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private func makeOverlayGroup() -> NSView {
         let numbers = settingSwitch(titleKey: .settingsShowNumbers, on: runtime.settings.showZoneNumbers, action: #selector(toggleNumbers(_:)))
         numbersSwitch = numbers
+        let strip = settingSwitch(titleKey: .settingsShowLayoutStrip, on: runtime.settings.showLayoutStrip, action: #selector(toggleLayoutStrip(_:)))
+        layoutStripSwitch = strip
         return makeGroupedRows([
             makeSettingRow(symbol: "number.square.fill", titleKey: .settingsShowNumbers, detailKey: .settingsShowNumbersDetail, trailing: numbers),
+            makeSettingRow(symbol: "rectangle.split.3x1", titleKey: .settingsShowLayoutStrip, detailKey: .settingsShowLayoutStripDetail, trailing: strip),
             makeGutterControls(),
         ])
     }
@@ -839,6 +843,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         restoreSwitch?.setAccessibilityLabel(L10n.text(.settingsRestoreSize))
         quickSnapperSwitch?.setAccessibilityLabel(L10n.text(.settingsQuickSnapper))
         numbersSwitch?.setAccessibilityLabel(L10n.text(.settingsShowNumbers))
+        layoutStripSwitch?.setAccessibilityLabel(L10n.text(.settingsShowLayoutStrip))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
@@ -894,6 +899,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     @objc private func toggleQuickSnapper(_ sender: NSSwitch) { runtime.settings.quickSnapperEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleMagnetic(_ sender: NSSwitch) { runtime.settings.magneticResizeEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleNumbers(_ sender: NSSwitch) { runtime.settings.showZoneNumbers = sender.state == .on; runtime.persistSettings() }
+    @objc private func toggleLayoutStrip(_ sender: NSSwitch) { runtime.setShowLayoutStrip(sender.state == .on) }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleHoverPin(_ sender: NSSwitch) { runtime.setHoverPinEnabled(sender.state == .on) }
     @objc private func openAccess() { runtime.openAccessibility() }

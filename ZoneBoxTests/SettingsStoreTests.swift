@@ -33,4 +33,18 @@ final class SettingsStoreTests: XCTestCase {
         )
         XCTAssertTrue(legacy.hoverPinEnabled)
     }
+
+    func testLayoutStripSettingDefaultsOnForLegacyJSON() throws {
+        XCTAssertTrue(AppSettings.default.showLayoutStrip)
+        var settings = AppSettings.default
+        settings.showLayoutStrip = false
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(AppSettings.self, from: data).showLayoutStrip)
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertTrue(legacy.showLayoutStrip)
+    }
 }

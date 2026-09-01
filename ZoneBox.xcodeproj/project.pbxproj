@@ -22,6 +22,7 @@
 		20720D2F728CA9DF1F78256A /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6BF84ADFCB22ABA296D8C83 /* SettingsStore.swift */; };
 		229D696FBD31A1FF4ACB96D9 /* PinCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48EDE7E34255F34CB5EE8A16 /* PinCenter.swift */; };
 		2393021694C7E68CCE12916D /* L10nTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8EA118D2D34A6EEC039DF15 /* L10nTests.swift */; };
+		24D04804A43B87F22D593CE7 /* LayoutStripGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05872BF00DA80B297166F65 /* LayoutStripGeometry.swift */; };
 		27BF1033F4022038BB6FEBF0 /* LayoutTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */; };
 		28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */; };
 		296F259F88E45597E8CC3595 /* PinButtonPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD7D23302AA5B84B8A0413E1 /* PinButtonPanel.swift */; };
@@ -37,6 +38,7 @@
 		40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ED48EADD1D174472389480 /* ScaffoldTests.swift */; };
 		427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */; };
 		4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */; };
+		4486D67D1C15BF0826156B7F /* ZoneCandidateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */; };
 		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
 		4AB77606F6D8AC3F650AC143 /* ZonePixelMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6347EA9F47DCC7BE5E1E7CE1 /* ZonePixelMetrics.swift */; };
@@ -55,6 +57,7 @@
 		74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */; };
 		76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */; };
 		775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */; };
+		7B2D001699C111D82410A278 /* ZoneCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */; };
 		7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */; };
 		7D146F5B0C3E6D474F17D1DA /* GutterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE004EFD8BDD601307B109C /* GutterTests.swift */; };
 		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
@@ -76,6 +79,7 @@
 		AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16192ECC49D6E451A8936A8 /* RectMath.swift */; };
 		AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96966B883ED6C884EED18A /* Zone.swift */; };
 		B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */; };
+		B3B9020249D943938E392F45 /* LayoutStripGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F3783F6B2A2618E6285C4C /* LayoutStripGeometryTests.swift */; };
 		B6817E52B732824BD2DE1965 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */; };
 		B694A66A3ED1B31554995933 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643D257C1C1C278B39EA9176 /* MenuBarController.swift */; };
 		B6FA120D8CE69966EAE6796C /* ScreenRecordingAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625BA92949DBCF1FF27043A7 /* ScreenRecordingAccess.swift */; };
@@ -87,6 +91,7 @@
 		C4468985A7D42FCA94C8EF75 /* WindowMoveChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */; };
 		C5C75A6F7AAB652A75CF4527 /* HitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2450A6958359F65AFC611957 /* HitTester.swift */; };
 		C6347820CB7380152FEE57FA /* QuickSnapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */; };
+		C6BDDB6052E2A9E8B27F2AED /* OverlayPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A75ACF816E0C5D9D75FC2C /* OverlayPresentation.swift */; };
 		C7A614B558880E522A4EFAFE /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB08C54E77DFC28D032D8B18 /* OverlayController.swift */; };
 		C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C17F30BC95D5A464046FA95 /* LayoutKind.swift */; };
 		C8BCD13896E368024E2C54DC /* PinBadgeSlot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FAF9BE34BF0E1D8F4C89D7 /* PinBadgeSlot.swift */; };
@@ -145,6 +150,7 @@
 		3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalog.swift; sourceTree = "<group>"; };
 		3EB874161D6F9CA3F4DC63D1 /* GridResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridResolver.swift; sourceTree = "<group>"; };
 		3F9962C23C66C523F135A92A /* PinPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinPlannerTests.swift; sourceTree = "<group>"; };
+		40A75ACF816E0C5D9D75FC2C /* OverlayPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPresentation.swift; sourceTree = "<group>"; };
 		417A2EC9036C59A559CA8C33 /* MagneticResizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagneticResizeTests.swift; sourceTree = "<group>"; };
 		4236C43CC31EA103E8850694 /* Logging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logging.swift; sourceTree = "<group>"; };
 		446A73B628D4176872A8FC46 /* SnapSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSession.swift; sourceTree = "<group>"; };
@@ -184,8 +190,10 @@
 		9A2957655E620023F8101FFC /* WindowIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIdentity.swift; sourceTree = "<group>"; };
 		9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBinding.swift; sourceTree = "<group>"; };
 		9C17F30BC95D5A464046FA95 /* LayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutKind.swift; sourceTree = "<group>"; };
+		9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneCandidates.swift; sourceTree = "<group>"; };
 		A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSnapperTests.swift; sourceTree = "<group>"; };
 		A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplitTests.swift; sourceTree = "<group>"; };
+		A2F3783F6B2A2618E6285C4C /* LayoutStripGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStripGeometryTests.swift; sourceTree = "<group>"; };
 		A4ED48EADD1D174472389480 /* ScaffoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaffoldTests.swift; sourceTree = "<group>"; };
 		A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngineTests.swift; sourceTree = "<group>"; };
 		A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSessionReducer.swift; sourceTree = "<group>"; };
@@ -195,12 +203,14 @@
 		AD7D23302AA5B84B8A0413E1 /* PinButtonPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinButtonPanel.swift; sourceTree = "<group>"; };
 		AF21D7874A246CBEA1AEE0C6 /* GridCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCoverageTests.swift; sourceTree = "<group>"; };
 		AF32320082E685F5BED369E0 /* UISession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UISession.swift; sourceTree = "<group>"; };
+		B05872BF00DA80B297166F65 /* LayoutStripGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStripGeometry.swift; sourceTree = "<group>"; };
 		B16192ECC49D6E451A8936A8 /* RectMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RectMath.swift; sourceTree = "<group>"; };
 		B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoomTests.swift; sourceTree = "<group>"; };
 		B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapTarget.swift; sourceTree = "<group>"; };
 		B7FE0911F56CC8CD3AA4FDBA /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		B9EAE7A248496492835F307F /* GridCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCoverage.swift; sourceTree = "<group>"; };
 		BA9D165C2B155D2E12A803AB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneCandidateResolverTests.swift; sourceTree = "<group>"; };
 		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChrome.swift; sourceTree = "<group>"; };
@@ -292,7 +302,9 @@
 				D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */,
 				E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */,
 				9C17F30BC95D5A464046FA95 /* LayoutKind.swift */,
+				B05872BF00DA80B297166F65 /* LayoutStripGeometry.swift */,
 				5DB7C3E5ED2E53EC9FE3091A /* LayoutTemplates.swift */,
+				40A75ACF816E0C5D9D75FC2C /* OverlayPresentation.swift */,
 				EDC74C1E359F8A0851AB0402 /* PinPlan.swift */,
 				8D39E9BE7A08C15E0BA42702 /* QuickSnapper.swift */,
 				E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */,
@@ -305,6 +317,7 @@
 				9A2957655E620023F8101FFC /* WindowIdentity.swift */,
 				ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */,
 				DD96966B883ED6C884EED18A /* Zone.swift */,
+				9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -436,6 +449,7 @@
 				F8EA118D2D34A6EEC039DF15 /* L10nTests.swift */,
 				22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */,
 				3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */,
+				A2F3783F6B2A2618E6285C4C /* LayoutStripGeometryTests.swift */,
 				417A2EC9036C59A559CA8C33 /* MagneticResizeTests.swift */,
 				CDA194CF90613C4665568EB3 /* PinBadgeSlotTests.swift */,
 				3F9962C23C66C523F135A92A /* PinPlannerTests.swift */,
@@ -447,6 +461,7 @@
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
 				769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */,
 				059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */,
+				BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */,
 				10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */,
 				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
 				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
@@ -687,11 +702,13 @@
 				F183E2D932109FB15D2E8C90 /* LayoutEditTransaction.swift in Sources */,
 				C8ADDEE70F80068B2A48A36A /* LayoutKind.swift in Sources */,
 				16A9CFD82CAD960109B04F29 /* LayoutStore.swift in Sources */,
+				24D04804A43B87F22D593CE7 /* LayoutStripGeometry.swift in Sources */,
 				27BF1033F4022038BB6FEBF0 /* LayoutTemplates.swift in Sources */,
 				F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */,
 				AC9C34790F1F5E1622F2C420 /* MagneticResize.swift in Sources */,
 				BA64C227E2A8884F6F5B59D9 /* NormalizedRect.swift in Sources */,
 				28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */,
+				C6BDDB6052E2A9E8B27F2AED /* OverlayPresentation.swift in Sources */,
 				C8BCD13896E368024E2C54DC /* PinBadgeSlot.swift in Sources */,
 				E21124C69785B729BCA9A54C /* PinPlan.swift in Sources */,
 				376D2AF3FCFB5029B912A046 /* QuickSnapper.swift in Sources */,
@@ -709,6 +726,7 @@
 				4CC68B6A2EF49FB06FE2D6E1 /* WindowOrganize.swift in Sources */,
 				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
 				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,
+				7B2D001699C111D82410A278 /* ZoneCandidates.swift in Sources */,
 				4AB77606F6D8AC3F650AC143 /* ZonePixelMetrics.swift in Sources */,
 				995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */,
 				BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */,
@@ -727,6 +745,7 @@
 				2393021694C7E68CCE12916D /* L10nTests.swift in Sources */,
 				427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */,
 				37831386B77A4CE396496CF0 /* LayoutStoreTests.swift in Sources */,
+				B3B9020249D943938E392F45 /* LayoutStripGeometryTests.swift in Sources */,
 				E78BF40426FF7526FEA2C369 /* MagneticResizeTests.swift in Sources */,
 				3404124FE47711426FE97D17 /* PinBadgeSlotTests.swift in Sources */,
 				3BD5E7D6FEFA6AEFCBC42FF9 /* PinPlannerTests.swift in Sources */,
@@ -738,6 +757,7 @@
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
 				68AAC6FA693112B8729E97B3 /* WindowMoveChromeTests.swift in Sources */,
 				0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */,
+				4486D67D1C15BF0826156B7F /* ZoneCandidateResolverTests.swift in Sources */,
 				000A7ABBCA4988EA1D84C8DF /* ZonePixelMetricsTests.swift in Sources */,
 				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
 				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,

@@ -38,6 +38,7 @@ final class AppRuntime {
     private(set) var isOrganizingWindows = false
     private var organizeBehaviorCache: [WindowIdentity: WindowOrganizeWindowBehavior] = [:]
     private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
+    private var resolvedLayoutCache: [ResolvedLayoutCacheKey: [ResolvedZone]] = [:]
 
     init() {
         ax = AccessibilityClientLive(
@@ -310,6 +311,7 @@ final class AppRuntime {
     func saveLayout(_ layout: Layout, to displayID: DisplayIdentity.ID) -> Bool {
         guard displays.isActive(displayID: displayID) else { return false }
         document.upsertAndAssign(layout, to: displayID)
+        document.markLayoutUsed(layout.id)
         persist()
         menuBar?.reloadMenu()
         return true
@@ -319,6 +321,7 @@ final class AppRuntime {
         if let area = displays.area(containingAppKit: NSEvent.mouseLocation),
            displays.isActive(displayID: area.display.id) {
             document.assign(layoutID: layout.id, to: area.display.id)
+            document.markLayoutUsed(layout.id)
             persist()
             menuBar?.reloadMenu()
         }
@@ -882,19 +885,28 @@ final class AppRuntime {
     }
 
     func resolvedZones(for area: WorkArea?) -> [ResolvedZone] {
-        guard let area else { return [] }
-        guard let layout = document.layout(for: area.display.id) else { return [] }
-        let workAX = CoordinateConverter.axRect(
-            fromAppKit: area.visibleFrameAppKit,
-            primaryFlipHeight: displays.primaryFlipHeight
-        )
-        return (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
+        resolvedZones(for: area, layoutOverride: nil)
     }
 
     func gridCoverage(for area: WorkArea?) -> (cells: [GridCell], gutter: CGFloat, workAreaAX: CGRect) {
+        gridCoverage(for: area, layoutOverride: nil)
+    }
+
+    func resolvedZones(for area: WorkArea?, layoutOverride: Layout.ID?) -> [ResolvedZone] {
+        guard let area, let layout = layout(for: area, override: layoutOverride) else { return [] }
+        return cachedResolvedZones(layout: layout, area: area)
+    }
+
+    func gridCoverage(
+        for area: WorkArea?,
+        layoutOverride: Layout.ID?
+    ) -> (cells: [GridCell], gutter: CGFloat, workAreaAX: CGRect) {
         let gutter = CGFloat(settings.gutterPoints)
         guard let area else { return ([], gutter, .null) }
-        guard let layout = document.layout(for: area.display.id), layout.kind == .grid, let spec = layout.grid else {
+        guard let layout = layout(for: area, override: layoutOverride),
+              layout.kind == .grid,
+              let spec = layout.grid
+        else {
             return ([], gutter, .null)
         }
         let workAX = CoordinateConverter.axRect(
@@ -904,7 +916,59 @@ final class AppRuntime {
         return (GridCoverage.cells(spec: spec, workAreaAX: workAX), gutter, workAX)
     }
 
+    func allResolvedLayouts(for area: WorkArea?) -> [(layout: Layout, zones: [ResolvedZone])] {
+        guard let area else { return [] }
+        let assignedID = document.layout(for: area.display.id)?.id
+        return document.orderedLayouts(assignedID: assignedID).compactMap { layout in
+            let zones = cachedResolvedZones(layout: layout, area: area)
+            guard !zones.isEmpty else { return nil }
+            return (layout, zones)
+        }
+    }
+
+    func markLayoutUsed(_ id: Layout.ID) {
+        document.markLayoutUsed(id)
+    }
+
+    func setShowLayoutStrip(_ enabled: Bool) {
+        settings.showLayoutStrip = enabled
+        persistSettings()
+    }
+
+    func invalidateResolvedLayoutCache() {
+        resolvedLayoutCache.removeAll()
+    }
+
+    private func layout(for area: WorkArea, override: Layout.ID?) -> Layout? {
+        if let override {
+            return document.layouts.first(where: { $0.id == override })
+        }
+        return document.layout(for: area.display.id)
+    }
+
+    private func cachedResolvedZones(layout: Layout, area: WorkArea) -> [ResolvedZone] {
+        let workAX = CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: displays.primaryFlipHeight
+        )
+        let key = ResolvedLayoutCacheKey(
+            layoutID: layout.id,
+            displayID: area.display.id,
+            gutter: settings.gutterPoints,
+            width: Int(workAX.width.rounded()),
+            height: Int(workAX.height.rounded()),
+            updatedAt: layout.updatedAt.timeIntervalSinceReferenceDate
+        )
+        if let cached = resolvedLayoutCache[key] {
+            return cached
+        }
+        let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
+        resolvedLayoutCache[key] = zones
+        return zones
+    }
+
     func persist() {
+        invalidateResolvedLayoutCache()
         try? layoutStore.save(document)
         persistSettings()
     }
@@ -976,6 +1040,7 @@ final class AppRuntime {
             Task { @MainActor in
                 runtime.displays.refresh(document: &runtime.document)
                 runtime.overlay.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
+                runtime.invalidateResolvedLayoutCache()
                 runtime.persist()
             }
         }
@@ -1002,4 +1067,13 @@ final class AppRuntime {
             Task { @MainActor in runtime.hideAllOverlays() }
         }
     }
+}
+
+private struct ResolvedLayoutCacheKey: Hashable {
+    var layoutID: Layout.ID
+    var displayID: DisplayIdentity.ID
+    var gutter: Int
+    var width: Int
+    var height: Int
+    var updatedAt: TimeInterval
 }

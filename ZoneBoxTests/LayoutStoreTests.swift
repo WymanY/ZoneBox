@@ -27,4 +27,41 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(zones.count, 3)
         XCTAssertEqual(zones.map(\.number), [1, 2, 3])
     }
+
+    func testLegacyStoreJSONDecodesWithoutRecentLayoutIDs() throws {
+        let json = """
+        {"schemaVersion":1,"layouts":[],"displays":[],"assignments":[]}
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(StoreDocument.self, from: json)
+        XCTAssertEqual(decoded.recentLayoutIDs, [])
+        XCTAssertEqual(decoded.layouts, [])
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                StoreDocument.self,
+                from: Data("{\"schemaVersion\":1}".utf8)
+            )
+        )
+
+        var document = StoreDocument()
+        let first = document.layouts[0].id
+        document.markLayoutUsed(first)
+        let encoded = try JSONEncoder().encode(document)
+        XCTAssertTrue(String(data: encoded, encoding: .utf8)?.contains("recentLayoutIDs") == true)
+        let roundTrip = try JSONDecoder().decode(StoreDocument.self, from: encoded)
+        XCTAssertEqual(roundTrip.recentLayoutIDs, [first])
+    }
+
+    func testMarkLayoutUsedDedupesAndDeleteCleansMRU() {
+        var document = StoreDocument(layouts: LayoutTemplates.all())
+        let first = document.layouts[0].id
+        let second = document.layouts[1].id
+        document.markLayoutUsed(first)
+        document.markLayoutUsed(second)
+        document.markLayoutUsed(first)
+        XCTAssertEqual(document.recentLayoutIDs.first, first)
+        XCTAssertEqual(document.recentLayoutIDs.filter { $0 == first }.count, 1)
+        XCTAssertTrue(document.deleteLayout(id: first))
+        XCTAssertFalse(document.recentLayoutIDs.contains(first))
+    }
 }

@@ -140,4 +140,55 @@ final class QuickSnapperTests: XCTestCase {
         XCTAssertEqual(QuickSnapperReducer.zoneNumber(forKeyCode: 25), 9)
         XCTAssertNil(QuickSnapperReducer.zoneNumber(forKeyCode: 29))
     }
+
+    func testCycleLayoutSelectsNextLayoutWithoutSnapping() {
+        let first = UUID()
+        let second = UUID()
+        let out = QuickSnapperReducer.reduce(
+            QuickSnapperInput(
+                phase: .showing(target: terminal),
+                event: .cycleLayout(1),
+                zoneNumbers: [1, 2],
+                focusedWindow: zoneBox,
+                layoutIDs: [first, second],
+                selectedLayoutID: first
+            )
+        )
+        XCTAssertEqual(out.phase, .showing(target: terminal))
+        XCTAssertEqual(out.selectedLayoutID, second)
+        XCTAssertEqual(out.effects, [.showOverlay])
+        XCTAssertFalse(out.effects.contains { if case .snap = $0 { return true }; return false })
+    }
+
+    func testDisplayAreaPrefersTargetWindowOverPointer() {
+        let pointer = WorkArea(
+            display: DisplayIdentity(localizedName: "Pointer", visibleWidth: 100, visibleHeight: 100, backingScale: 1),
+            frameAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
+            visibleFrameAppKit: CGRect(x: 0, y: 0, width: 100, height: 100),
+            backingScale: 1
+        )
+        let target = WorkArea(
+            display: DisplayIdentity(localizedName: "Target", visibleWidth: 200, visibleHeight: 200, backingScale: 1),
+            frameAppKit: CGRect(x: 200, y: 0, width: 200, height: 200),
+            visibleFrameAppKit: CGRect(x: 200, y: 0, width: 200, height: 200),
+            backingScale: 1
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.displayArea(pointerArea: pointer, targetWindowArea: target)?.display.localizedName,
+            "Target"
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.displayArea(pointerArea: pointer, targetWindowArea: nil)?.display.localizedName,
+            "Pointer"
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.sessionArea(event: .invoke, pointerArea: target, rememberedArea: pointer)?.display.localizedName,
+            "Target"
+        )
+        XCTAssertEqual(
+            QuickSnapperReducer.sessionArea(event: .cycleLayout(1), pointerArea: pointer, rememberedArea: target)?.display.localizedName,
+            "Target"
+        )
+    }
+
 }

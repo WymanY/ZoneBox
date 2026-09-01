@@ -194,6 +194,269 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains(.cancel))
     }
 
+    func testCycleCandidateHighlightsNextZoneAndClearsLock() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zoneA)), kind: .cycleCandidate(1))
+        input.resolvedZones = [zoneA]
+        input.candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        input.candidateIndex = 0
+        input.assignedLayoutID = assigned.id
+        input.sessionLayoutID = assigned.id
+        input.lockedTarget = .zone(zoneA)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zoneB)))
+        XCTAssertTrue(out.effects.contains(.selectCandidate(1)))
+        XCTAssertTrue(out.effects.contains(.clearLockedTarget))
+        XCTAssertTrue(out.effects.contains(.highlight(.zone(zoneB))))
+    }
+
+    func testCycleCandidateIgnoredWhileIdleOrResizing() {
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        let candidate = ZoneCandidate(layoutID: UUID(), layoutName: "A", zone: zone)
+        var idle = base(phase: .idle, kind: .cycleCandidate(1))
+        idle.candidates = [candidate]
+        XCTAssertEqual(SnapSessionReducer.reduce(idle).effects, [])
+
+        var resizing = base(phase: .resizing, kind: .cycleCandidate(1))
+        resizing.candidates = [candidate]
+        XCTAssertEqual(SnapSessionReducer.reduce(resizing).phase, .resizing)
+        XCTAssertEqual(SnapSessionReducer.reduce(resizing).effects, [])
+    }
+
+    func testCrossLayoutDropAssignsLayout() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zoneB)), kind: .leftUp)
+        input.resolvedZones = [zoneB]
+        input.candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        input.candidateIndex = 1
+        input.assignedLayoutID = assigned.id
+        input.sessionLayoutID = third.id
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zoneB.frameAX)))
+        XCTAssertTrue(out.effects.contains(.assignLayout(third.id)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(third.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, zoneB.frameAX)))
+        )
+    }
+
+    func testSameLayoutDropDoesNotAssign() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 16, y: 16, width: 668, height: 768))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .leftUp)
+        input.resolvedZones = [zone]
+        input.candidates = [ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zone)]
+        input.assignedLayoutID = assigned.id
+        input.sessionLayoutID = assigned.id
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone.frameAX)))
+        XCTAssertTrue(out.effects.contains(.assignLayout(assigned.id)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(assigned.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, zone.frameAX)))
+        )
+    }
+
+    func testEscapeDoesNotAssignLayout() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        var input = armedReadyInput(phase: .armed(window), kind: .escape)
+        input.assignedLayoutID = assigned.id
+        input.sessionLayoutID = third.id
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.cancel))
+        XCTAssertFalse(out.effects.contains { if case .assignLayout = $0 { return true }; return false })
+    }
+
+    func testOverlayDigitUsesSessionLayoutZones() {
+        let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 800))
+        let zone3 = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 400, y: 0, width: 200, height: 800))
+        var input = overlayDigitInput(phase: .highlighting(window, .zone(zone1)), number: 3)
+        input.resolvedZones = [zone1, zone3]
+        input.sessionLayoutID = UUID()
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(zone3)))
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone3.frameAX)))
+    }
+
+    func testLayoutStripHitBeatsLockedDigitOnDrop() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let locked = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let stripZone = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(locked)), kind: .leftUp)
+        input.lockedTarget = .zone(locked)
+        input.forcedTarget = .zone(stripZone)
+        input.pointerInLayoutStrip = true
+        input.sessionLayoutID = third.id
+        input.assignedLayoutID = assigned.id
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, stripZone.frameAX)))
+        XCTAssertTrue(out.effects.contains(.assignLayout(third.id)))
+        XCTAssertFalse(out.effects.contains(.applyFrame(window, locked.frameAX)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(third.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, stripZone.frameAX)))
+        )
+    }
+
+    func testLayoutStripMissDoesNotSnap() {
+        let locked = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(locked)), kind: .leftUp)
+        input.pointerInLayoutStrip = true
+        input.forcedTarget = nil
+        input.downFrameAX = frame
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains { if case .assignLayout = $0 { return true }; return false })
+    }
+
+    func testCrossingDisplaysAdoptsTheDestinationAssignedLayout() {
+        let displayA = UUID()
+        let displayB = UUID()
+        let layoutA = UUID()
+        let layoutB = UUID()
+        let kept = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayA,
+            assignedLayoutID: layoutA,
+            currentSessionLayoutID: layoutA
+        )
+        XCTAssertEqual(kept.layoutID, layoutA)
+        XCTAssertFalse(kept.crossedDisplay)
+
+        let crossed = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayB,
+            assignedLayoutID: layoutB,
+            currentSessionLayoutID: layoutA
+        )
+        XCTAssertEqual(crossed.layoutID, layoutB)
+        XCTAssertTrue(crossed.crossedDisplay)
+
+        let locked = SnapLayoutSession.sessionLayoutID(
+            previousDisplayID: displayA,
+            currentDisplayID: displayB,
+            assignedLayoutID: layoutB,
+            currentSessionLayoutID: layoutA,
+            lockedTarget: .zone(ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 10, height: 10)))
+        )
+        XCTAssertEqual(locked.layoutID, layoutA)
+        XCTAssertTrue(locked.crossedDisplay)
+    }
+
+    func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {
+        XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: true))
+        XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: false))
+        let layoutID = UUID()
+        XCTAssertEqual(
+            SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: layoutID, frameApplied: true),
+            layoutID
+        )
+        XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: layoutID, frameApplied: false))
+        XCTAssertNil(SnapLayoutAssignmentPolicy.assignmentToCommit(capturedForThisWrite: nil, frameApplied: true))
+        XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldUpdateSession(completionGeneration: 3, currentGeneration: 3))
+        XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldUpdateSession(completionGeneration: 2, currentGeneration: 3))
+        XCTAssertEqual(SnapLayoutAssignmentPolicy.generationAfterSessionReset(current: 4, startingNewDrag: false), 4)
+        XCTAssertEqual(SnapLayoutAssignmentPolicy.generationAfterSessionReset(current: 4, startingNewDrag: true), 5)
+    }
+
+    func testLeavingStripFollowsLiveCandidateLayout() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        let candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: third.id,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id
+            ),
+            third.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: nil,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id
+            ),
+            assigned.id
+        )
+    }
+
+    func testLeavingACycledCandidateResetsSessionLayoutToAssignedHit() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        let candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id
+            ),
+            assigned.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 1,
+                currentSessionLayoutID: third.id
+            ),
+            third.id
+        )
+        let locked = SnapTarget.zone(zoneB)
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                lockedTarget: locked
+            ),
+            third.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: nil,
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id,
+                assignedLayoutID: assigned.id,
+                lockedTarget: locked
+            ),
+            third.id
+        )
+    }
+
     func testOverlayDigitAppliesMatchingZone() {
         let zone1 = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
         let zone3 = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 800, y: 0, width: 400, height: 800))

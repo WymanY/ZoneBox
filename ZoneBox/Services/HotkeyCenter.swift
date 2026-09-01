@@ -224,6 +224,30 @@ final class HotkeyCenter {
             return consume ? nil : event
         }
 
+        if runtime.engine.isOverlayArmed,
+           event.keyCode == HardwareKeyCode.tab,
+           !flags.contains(.command),
+           !flags.contains(.control),
+           !flags.contains(.option)
+        {
+            if !event.isARepeat {
+                runtime.engine.handleCycleCandidate(flags.contains(.shift) ? -1 : 1)
+            }
+            return consume ? nil : event
+        }
+
+        if runtime.engine.isQuickSnapperShowing,
+           event.keyCode == HardwareKeyCode.tab,
+           !flags.contains(.command),
+           !flags.contains(.control),
+           !flags.contains(.option)
+        {
+            if !event.isARepeat {
+                runtime.engine.handleQuickSnapper(.cycleLayout(flags.contains(.shift) ? -1 : 1))
+            }
+            return consume ? nil : event
+        }
+
         if let id = ShortcutCatalog.hotkeyID(
             matching: event.keyCode,
             carbonModifiers: modifiers,

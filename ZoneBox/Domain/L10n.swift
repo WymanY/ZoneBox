@@ -122,6 +122,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsQuickSnapperDetail
     case settingsShowNumbersDetail
     case settingsGutterDetail
+    case settingsShowLayoutStrip
+    case settingsShowLayoutStripDetail
     case settingsSnappingTriggersSection
     case settingsSnappingBehaviorSection
     case settingsGeneralPreviewTitle
@@ -176,6 +178,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutSnapGridDraw
     case shortcutSnapMagneticResize
     case shortcutSnapOverlayDigit
+    case shortcutSnapCycleCandidate
+    case shortcutSnapLayoutStrip
     case shortcutSettings
     case shortcutQuit
     case shortcutGestureScroll
@@ -187,6 +191,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureMagneticResize
     case shortcutGestureOverlayDigit
     case shortcutGestureDrag
+    case shortcutGestureCycleCandidate
+    case shortcutGestureLayoutStrip
 
     case onboardingWindowTitle
     case onboardingTitle
@@ -467,6 +473,8 @@ public enum L10n {
         .settingsQuickSnapperDetail: "Show the overlay first, then choose a numbered zone.",
         .settingsShowNumbersDetail: "Make numbered keyboard targets visible in the overlay.",
         .settingsGutterDetail: "Set the breathing room between neighboring zones.",
+        .settingsShowLayoutStrip: "Show layout strip while dragging",
+        .settingsShowLayoutStripDetail: "Drop a window onto a mini zone to switch layouts in one step.",
         .settingsSnappingTriggersSection: "Snap triggers",
         .settingsSnappingBehaviorSection: "Window behavior",
         .settingsGeneralPreviewTitle: "General overview",
@@ -521,6 +529,8 @@ public enum L10n {
         .shortcutSnapGridDraw: "Draw a rectangle across grid cells",
         .shortcutSnapMagneticResize: "Magnetic resize to zone edges",
         .shortcutSnapOverlayDigit: "Snap to a numbered zone while the overlay is showing",
+        .shortcutSnapCycleCandidate: "Cycle zones under the pointer while the overlay is showing",
+        .shortcutSnapLayoutStrip: "Drop onto a layout-strip mini zone",
         .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
         .shortcutGestureScroll: "Scroll",
@@ -532,6 +542,8 @@ public enum L10n {
         .shortcutGestureMagneticResize: "Drag a window edge",
         .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "Drag",
+        .shortcutGestureCycleCandidate: "Scroll or ⇥",
+        .shortcutGestureLayoutStrip: "Drop on strip",
 
         .onboardingWindowTitle: "Enable Accessibility",
         .onboardingTitle: "Allow ZoneBox to arrange windows",
@@ -699,6 +711,8 @@ public enum L10n {
         .settingsQuickSnapperDetail: "先显示覆盖层，再按数字选择分区。",
         .settingsShowNumbersDetail: "在覆盖层中显示可用键盘选择的编号。",
         .settingsGutterDetail: "设置相邻分区之间的留白。",
+        .settingsShowLayoutStrip: "拖拽时显示布局条",
+        .settingsShowLayoutStripDetail: "把窗口拖到缩略格上松手，即可一步换布局并贴入。",
         .settingsSnappingTriggersSection: "吸附触发方式",
         .settingsSnappingBehaviorSection: "窗口行为",
         .settingsGeneralPreviewTitle: "通用概览",
@@ -753,6 +767,8 @@ public enum L10n {
         .shortcutSnapGridDraw: "在网格上画矩形吸附",
         .shortcutSnapMagneticResize: "缩放时磁性对齐分区边缘",
         .shortcutSnapOverlayDigit: "覆盖层显示时按分区编号吸附",
+        .shortcutSnapCycleCandidate: "覆盖层显示时轮换光标处的分区",
+        .shortcutSnapLayoutStrip: "拖到布局条的小格子上松手",
         .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
         .shortcutGestureScroll: "滚动",
@@ -764,6 +780,8 @@ public enum L10n {
         .shortcutGestureMagneticResize: "拖动窗口边缘",
         .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "拖动",
+        .shortcutGestureCycleCandidate: "滚轮或 ⇥",
+        .shortcutGestureLayoutStrip: "拖到布局条",
 
         .onboardingWindowTitle: "开启辅助功能",
         .onboardingTitle: "允许 ZoneBox 排列窗口",
