@@ -11,6 +11,7 @@ final class PinCenter {
         var lastKnownFrameAX: CGRect
         let pinnedAt: Date
         var goneSince: Date?
+        var lastRaisedAt = Date.distantPast
     }
 
     private enum Watchdog {
@@ -32,6 +33,10 @@ final class PinCenter {
         /// A live window can drop out of one CGWindowList sample and come back
         /// in the next, so only retire a pin once the absence sticks.
         static let goneGrace: TimeInterval = 1.5
+        /// Keep the real window in front of other layer-0 apps. Faster than
+        /// this fights the app that currently has focus; slower lets another
+        /// window cover the pin between ticks.
+        static let raiseInterval: TimeInterval = 0.35
     }
 
     private enum StartError: LocalizedError {
@@ -314,6 +319,7 @@ final class PinCenter {
                 Log.pin.info(
                     "Pinned mirror pid=\(identity.pid, privacy: .public) window=\(identity.windowNumber, privacy: .public) count=\(self.count, privacy: .public)"
                 )
+                await self.raiseSourceWindow(identity, frameAX: ref.boundsAX)
             } catch {
                 Log.pin.error(
                     "Mirror start failed pid=\(identity.pid, privacy: .public) window=\(identity.windowNumber, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
@@ -402,6 +408,7 @@ final class PinCenter {
             )
             updateBadge(identity: identity, frameAX: frame, reorder: false)
         }
+        raiseVisiblePins(now: now)
     }
 
     /// A held mouse button alone is not enough — the pointer has to be on a
@@ -478,6 +485,23 @@ final class PinCenter {
         for identity in plan.visible {
             guard let frame = plan.visibleFrames[identity] else { continue }
             updateBadge(identity: identity, frameAX: frame, reorder: reorder)
+        }
+        raiseVisiblePins(now: now)
+    }
+
+    private func raiseVisiblePins(now: Date) {
+        guard runtime.trust.isTrusted() else { return }
+        for index in records.indices {
+            let identity = records[index].identity
+            guard lastVisibleOrder.contains(identity) else { continue }
+            guard now.timeIntervalSince(records[index].lastRaisedAt) >= Watchdog.raiseInterval else {
+                continue
+            }
+            records[index].lastRaisedAt = now
+            let frameAX = records[index].lastKnownFrameAX
+            Task { @MainActor [weak self] in
+                await self?.raiseSourceWindow(identity, frameAX: frameAX)
+            }
         }
     }
 

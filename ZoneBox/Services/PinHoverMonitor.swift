@@ -206,7 +206,11 @@ final class PinHoverMonitor {
               PinBadgeSlot.hoverButtonRect(windowFrameAX: ref.boundsAX) != nil,
               hoverArmRegion(for: ref).contains(axPoint)
         else {
-            scheduleDismiss()
+            if runtime.pins.hasPins, runtime.pins.consumesPoint(pointAppKit) {
+                cancelDismiss()
+            } else {
+                scheduleDismiss()
+            }
             return
         }
 

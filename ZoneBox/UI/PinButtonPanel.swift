@@ -70,7 +70,7 @@ final class PinButtonPanel: NSPanel {
         becomesKeyOnlyIfNeeded = false
         hidesOnDeactivate = false
         isFloatingPanel = true
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)) + 2)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
 
         effectView.wantsLayer = true

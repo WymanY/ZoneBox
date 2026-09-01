@@ -31,6 +31,8 @@ final class PinMirrorPanel: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none
         sharingType = .none
+        // Sit with other floating chrome, but never capture hits. Clicks,
+        // scrolling, and typing must reach the real window underneath.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.floatingWindow)))
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         contentView = mirrorView

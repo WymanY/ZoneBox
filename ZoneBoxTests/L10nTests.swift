@@ -105,11 +105,11 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.settingsBeta, language: .chineseSimplified), "Beta")
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .english),
-            "This feature is still unstable. Pinned windows use a local live mirror and require Screen Recording permission."
+            "Keep a window above other apps. The original window stays clickable and scrollable. macOS Screen Recording permission is required."
         )
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .chineseSimplified),
-            "这个功能还不稳定。置顶窗口使用本机实时镜像，并需要录屏权限。"
+            "让窗口保持在其他应用上方。原窗口仍可点击和滚动。需要 macOS 录屏权限。"
         )
     }
 

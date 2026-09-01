@@ -25,8 +25,8 @@ struct CGWindowQuery: WindowQuerying {
 
     /// Front-to-back geometry for the pin watchdog. Unlike `windows(excludingPID:)`
     /// this skips the per-window `NSRunningApplication` lookup, which matters
-    /// because the watchdog samples up to 60 times a second while a mirrored
-    /// window is being dragged or resized.
+    /// because the watchdog still needs a cheap full-screen sample while pins
+    /// are active.
     func pinSnapshots(excludingPID: pid_t) -> [PinWindowSnapshot] {
         let info = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
