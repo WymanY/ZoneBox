@@ -196,6 +196,20 @@ public enum SnapLayoutSession {
         }
         return (currentSessionLayoutID, false)
     }
+
+    /// When the pointer leaves the previously cycled candidate, index 0 is the
+    /// assigned-layout hit. Keep `sessionLayoutID` on that candidate so overlay
+    /// zones and labels do not describe different layouts.
+    public static func layoutIDAfterCandidateReset(
+        candidates: [ZoneCandidate],
+        candidateIndex: Int,
+        currentSessionLayoutID: Layout.ID?
+    ) -> Layout.ID? {
+        if candidates.indices.contains(candidateIndex) {
+            return candidates[candidateIndex].layoutID
+        }
+        return currentSessionLayoutID
+    }
 }
 
 public enum SnapLayoutAssignmentPolicy {

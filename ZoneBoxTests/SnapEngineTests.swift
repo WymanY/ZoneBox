@@ -247,6 +247,10 @@ final class SnapEngineTests: XCTestCase {
         let out = SnapSessionReducer.reduce(input)
         XCTAssertTrue(out.effects.contains(.applyFrame(window, zoneB.frameAX)))
         XCTAssertTrue(out.effects.contains(.assignLayout(third.id)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(third.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, zoneB.frameAX)))
+        )
     }
 
     func testSameLayoutDropDoesNotAssign() {
@@ -302,6 +306,10 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains(.applyFrame(window, stripZone.frameAX)))
         XCTAssertTrue(out.effects.contains(.assignLayout(third.id)))
         XCTAssertFalse(out.effects.contains(.applyFrame(window, locked.frameAX)))
+        XCTAssertLessThan(
+            try XCTUnwrap(out.effects.firstIndex(of: .assignLayout(third.id))),
+            try XCTUnwrap(out.effects.firstIndex(of: .applyFrame(window, stripZone.frameAX)))
+        )
     }
 
     func testLayoutStripMissDoesNotSnap() {
@@ -343,6 +351,33 @@ final class SnapEngineTests: XCTestCase {
     func testLayoutAssignmentPersistsOnlyAfterFrameApplies() {
         XCTAssertTrue(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: true))
         XCTAssertFalse(SnapLayoutAssignmentPolicy.shouldPersist(afterFrameApplied: false))
+    }
+
+    func testLeavingACycledCandidateResetsSessionLayoutToAssignedHit() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        let third = Layout(name: "Third", kind: .canvas, zones: [])
+        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
+        let candidates = [
+            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
+            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
+        ]
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: third.id
+            ),
+            assigned.id
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 1,
+                currentSessionLayoutID: third.id
+            ),
+            third.id
+        )
     }
 
     func testOverlayDigitAppliesMatchingZone() {

@@ -562,6 +562,11 @@ final class SnapEngine {
             candidateIndex = match
         } else {
             candidateIndex = 0
+            sessionLayoutID = SnapLayoutSession.layoutIDAfterCandidateReset(
+                candidates: candidates,
+                candidateIndex: 0,
+                currentSessionLayoutID: sessionLayoutID
+            )
         }
 
         var strip: LayoutStripGeometry?

@@ -116,7 +116,11 @@ public enum SnapSessionReducer {
             }
             if let layoutID = layoutID(for: target, input: input),
                layoutID != input.assignedLayoutID {
-                effects.append(.assignLayout(layoutID))
+                if let applyIndex = effects.firstIndex(of: .applyFrame(window, frame)) {
+                    effects.insert(.assignLayout(layoutID), at: applyIndex)
+                } else {
+                    effects.append(.assignLayout(layoutID))
+                }
             }
             return SnapReducerOutput(phase: .idle, effects: effects)
         }
