@@ -13,6 +13,11 @@ public struct NormalizedRect: Codable, Hashable, Sendable {
         self.height = height
     }
 
+    public var maxX: Double { x + width }
+    public var maxY: Double { y + height }
+    public var midX: Double { x + width / 2 }
+    public var midY: Double { y + height / 2 }
+
     public func clamped() -> NormalizedRect {
         var r = self
         r.width = min(max(r.width, 0.02), 1)

@@ -165,4 +165,47 @@ public enum ZonePixelMetrics {
             in: workAreaAX
         )
     }
+
+    /// Move a zone by pixel origin. X/Y are work-area coordinates with y growing downward,
+    /// matching NormalizedRect and the on-canvas size labels.
+    public static func moving(
+        _ rect: NormalizedRect,
+        toX x: Int?,
+        y: Int?,
+        workAreaAX: CGRect
+    ) -> NormalizedRect {
+        guard workAreaAX.width > 0, workAreaAX.height > 0 else { return rect.clamped() }
+        let current = rect.denormalize(in: workAreaAX)
+        let width = min(max(current.width, CGFloat(minPixels)), workAreaAX.width)
+        let height = min(max(current.height, CGFloat(minPixels)), workAreaAX.height)
+        let nextX: CGFloat
+        if let x {
+            nextX = workAreaAX.minX + CGFloat(x)
+        } else {
+            nextX = current.minX
+        }
+        let nextY: CGFloat
+        if let y {
+            nextY = workAreaAX.minY + CGFloat(y)
+        } else {
+            nextY = current.minY
+        }
+        let clampedX = min(max(nextX, workAreaAX.minX), workAreaAX.maxX - width)
+        let clampedY = min(max(nextY, workAreaAX.minY), workAreaAX.maxY - height)
+        return NormalizedRect.normalize(
+            CGRect(x: clampedX, y: clampedY, width: width, height: height),
+            in: workAreaAX
+        )
+    }
+
+    public static func origin(
+        of rect: NormalizedRect,
+        workAreaAX: CGRect
+    ) -> (x: Int, y: Int) {
+        let frame = rect.denormalize(in: workAreaAX)
+        return (
+            Int((frame.minX - workAreaAX.minX).rounded()),
+            Int((frame.minY - workAreaAX.minY).rounded())
+        )
+    }
 }

@@ -24,9 +24,22 @@ final class LayoutEditorController: NSObject {
     private var metricsRow: NSStackView?
     private var widthField: NSTextField?
     private var heightField: NSTextField?
+    private var xField: NSTextField?
+    private var yField: NSTextField?
     private var widthLabel: NSTextField?
     private var heightLabel: NSTextField?
+    private var xLabel: NSTextField?
+    private var yLabel: NSTextField?
     private var pixelUnitLabel: NSTextField?
+    private var paneActionRow: NSStackView?
+    private var insertPaneButton: NSButton?
+    private var duplicatePaneButton: NSButton?
+    private var splitVerticalButton: NSButton?
+    private var splitHorizontalButton: NSButton?
+    private var alignPopup: NSPopUpButton?
+    private var deletePaneButton: NSButton?
+    private var emptyTemplateButtons: [NSButton] = []
+    private var emptyTemplateHost: NSStackView?
     private var aspectLabel: NSTextField?
     private var aspectPopup: NSPopUpButton?
     private var lockAspectButton: NSButton?
@@ -118,10 +131,20 @@ final class LayoutEditorController: NSObject {
         }
         panel.onSaveCopy = { [weak self] in self?.saveCopyShortcut() }
         panel.onUndo = { [weak self] in self?.undoLastEdit() }
+        panel.onRedo = { [weak self] in self?.redoLastEdit() }
+        panel.onDuplicate = { [weak self] in self?.duplicateSelectedPanes() }
+        panel.onSelectAll = { [weak self] in _ = self?.canvas?.perform(.selectAll) }
+        panel.onSplitVertical = { [weak self] in self?.splitSelected(.vertical) }
+        panel.onSplitHorizontal = { [weak self] in self?.splitSelected(.horizontal) }
+        canvas.onMenuWillOpen = { [weak self] in self?.canCancelOnAppSwitch = false }
+        canvas.onMenuDidClose = { [weak self] in
+            DispatchQueue.main.async { self?.canCancelOnAppSwitch = true }
+        }
         panel.delegate = self
         self.panel = panel
         self.canvas = canvas
         updateSaveState()
+        refreshEmptyTemplateButtons()
         makeEditorKey(panel: panel, canvas: canvas)
         observeAppSwitchToCancel()
     }
@@ -162,6 +185,41 @@ final class LayoutEditorController: NSObject {
             carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
         ) {
             undoLastEdit()
+            return true
+        }
+        if ShortcutCatalog.isEditorRedoChord(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            redoLastEdit()
+            return true
+        }
+        if ShortcutCatalog.editorDuplicateChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            duplicateSelectedPanes()
+            return true
+        }
+        if ShortcutCatalog.editorSelectAllChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            _ = canvas?.perform(.selectAll)
+            return true
+        }
+        if ShortcutCatalog.editorSplitVerticalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            splitSelected(.vertical)
+            return true
+        }
+        if ShortcutCatalog.editorSplitHorizontalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: KeyEventBridge.carbonModifiers(from: event.modifierFlags)
+        ) {
+            splitSelected(.horizontal)
             return true
         }
         if event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter {
@@ -301,6 +359,7 @@ final class LayoutEditorController: NSObject {
 
         var rows: [NSView] = [topRowCenter]
         rows.append(hint)
+        rows.append(makePaneActionRow())
         rows.append(makeMetricsRow())
 
         let column = NSStackView(views: rows)
@@ -343,7 +402,94 @@ final class LayoutEditorController: NSObject {
         }
     }
 
+    private func makePaneActionRow() -> NSView {
+        let insert = iconButton("plus.rectangle", tooltip: L10n.text(.canvasNewPane), action: #selector(insertDefaultPane))
+        insertPaneButton = insert
+        let duplicate = iconButton("plus.square.on.square", tooltip: L10n.text(.canvasDuplicate), action: #selector(duplicateSelectedPanes))
+        duplicatePaneButton = duplicate
+        let splitV = iconButton("rectangle.split.2x1", tooltip: L10n.text(.canvasSplitVertical), action: #selector(splitVerticalAction))
+        splitVerticalButton = splitV
+        let splitH = iconButton("rectangle.split.1x2", tooltip: L10n.text(.canvasSplitHorizontal), action: #selector(splitHorizontalAction))
+        splitHorizontalButton = splitH
+        let align = NSPopUpButton(frame: .zero, pullsDown: true)
+        align.bezelStyle = .rounded
+        align.imagePosition = .imageOnly
+        align.translatesAutoresizingMaskIntoConstraints = false
+        align.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        alignPopup = align
+        rebuildAlignMenu()
+        let delete = iconButton("trash", tooltip: L10n.text(.canvasDeletePane), action: #selector(deleteSelectedPanes))
+        deletePaneButton = delete
+        let row = NSStackView(views: [insert, duplicate, splitV, splitH, align, delete])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        paneActionRow = row
+        refreshPaneActions()
+        let wrap = NSView()
+        wrap.translatesAutoresizingMaskIntoConstraints = false
+        wrap.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: wrap.topAnchor),
+            row.bottomAnchor.constraint(equalTo: wrap.bottomAnchor),
+            row.centerXAnchor.constraint(equalTo: wrap.centerXAnchor),
+            row.leadingAnchor.constraint(greaterThanOrEqualTo: wrap.leadingAnchor),
+            row.trailingAnchor.constraint(lessThanOrEqualTo: wrap.trailingAnchor),
+        ])
+        return wrap
+    }
+
+    private func iconButton(_ symbol: String, tooltip: String, action: Selector) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip) ?? NSImage(), target: self, action: action)
+        button.bezelStyle = .rounded
+        button.imagePosition = .imageOnly
+        button.toolTip = tooltip
+        button.refusesFirstResponder = true
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        return button
+    }
+
+    private func rebuildAlignMenu() {
+        guard let popup = alignPopup else { return }
+        popup.removeAllItems()
+        popup.addItem(withTitle: "")
+        popup.lastItem?.image = NSImage(systemSymbolName: "align.horizontal.left", accessibilityDescription: L10n.text(.canvasAlign))
+        func add(_ title: String, tag: Int, action: Selector) {
+            popup.addItem(withTitle: title)
+            popup.lastItem?.tag = tag
+            popup.lastItem?.target = self
+            popup.lastItem?.action = action
+        }
+        add(L10n.text(.canvasAlignLeft), tag: 0, action: #selector(alignAction(_:)))
+        add(L10n.text(.canvasAlignCenterX), tag: 1, action: #selector(alignAction(_:)))
+        add(L10n.text(.canvasAlignRight), tag: 2, action: #selector(alignAction(_:)))
+        add(L10n.text(.canvasAlignTop), tag: 3, action: #selector(alignAction(_:)))
+        add(L10n.text(.canvasAlignCenterY), tag: 4, action: #selector(alignAction(_:)))
+        add(L10n.text(.canvasAlignBottom), tag: 5, action: #selector(alignAction(_:)))
+        popup.menu?.addItem(.separator())
+        add(L10n.text(.canvasMatchWidth), tag: 0, action: #selector(matchSizeAction(_:)))
+        add(L10n.text(.canvasMatchHeight), tag: 1, action: #selector(matchSizeAction(_:)))
+        add(L10n.text(.canvasMatchBoth), tag: 2, action: #selector(matchSizeAction(_:)))
+        popup.menu?.addItem(.separator())
+        add(L10n.text(.canvasDistributeHorizontal), tag: 0, action: #selector(distributeAction(_:)))
+        add(L10n.text(.canvasDistributeVertical), tag: 1, action: #selector(distributeAction(_:)))
+        popup.selectItem(at: 0)
+    }
+
     private func makeMetricsRow() -> NSView {
+        let xLabel = metricCaption(L10n.text(.editorX))
+        self.xLabel = xLabel
+        let xField = metricField()
+        xField.identifier = NSUserInterfaceItemIdentifier("editor-x")
+        self.xField = xField
+
+        let yLabel = metricCaption(L10n.text(.editorY))
+        self.yLabel = yLabel
+        let yField = metricField()
+        yField.identifier = NSUserInterfaceItemIdentifier("editor-y")
+        self.yField = yField
+
         let widthLabel = metricCaption(L10n.text(.editorWidth))
         self.widthLabel = widthLabel
         let widthField = metricField()
@@ -382,7 +528,7 @@ final class LayoutEditorController: NSObject {
         hint.textColor = NSColor.white.withAlphaComponent(0.72)
         metricsHintLabel = hint
 
-        let row = NSStackView(views: [widthLabel, widthField, heightLabel, heightField, px, aspectLabel, aspect, lock, hint])
+        let row = NSStackView(views: [xLabel, xField, yLabel, yField, widthLabel, widthField, heightLabel, heightField, px, aspectLabel, aspect, lock, hint])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
@@ -457,32 +603,58 @@ final class LayoutEditorController: NSObject {
         let enabled = selected != nil
         widthField?.isEnabled = enabled
         heightField?.isEnabled = enabled
+        xField?.isEnabled = enabled
+        yField?.isEnabled = enabled
         aspectPopup?.isEnabled = enabled
         lockAspectButton?.isEnabled = enabled
         metricsHintLabel?.isHidden = enabled
         widthLabel?.isHidden = !enabled
         heightLabel?.isHidden = !enabled
+        xLabel?.isHidden = !enabled
+        yLabel?.isHidden = !enabled
         pixelUnitLabel?.isHidden = !enabled
         aspectLabel?.isHidden = !enabled
         aspectPopup?.isHidden = !enabled
         lockAspectButton?.isHidden = !enabled
         widthField?.isHidden = !enabled
         heightField?.isHidden = !enabled
+        xField?.isHidden = !enabled
+        yField?.isHidden = !enabled
+        refreshPaneActions()
+        refreshEmptyTemplateButtons()
         guard let selected else {
             widthField?.stringValue = ""
             heightField?.stringValue = ""
+            xField?.stringValue = ""
+            yField?.stringValue = ""
             aspectPopup?.selectItem(withTag: 0)
             return
         }
         let pixels = ZonePixelMetrics.pixelSize(of: selected.rect, workAreaAX: canvas.workAreaAX)
+        let origin = ZonePixelMetrics.origin(of: selected.rect, workAreaAX: canvas.workAreaAX)
         if widthField?.currentEditor() == nil {
             widthField?.integerValue = pixels.width
         }
         if heightField?.currentEditor() == nil {
             heightField?.integerValue = pixels.height
         }
+        if xField?.currentEditor() == nil {
+            xField?.integerValue = origin.x
+        }
+        if yField?.currentEditor() == nil {
+            yField?.integerValue = origin.y
+        }
         layoutToolbar()
         restoreCanvasKeyFocusIfNeeded()
+    }
+
+    private func applyPixelOrigin(x: Int?, y: Int?) {
+        guard let canvas, let selected = selectedZoneRect() else { return }
+        if canvas.layout.kind == .grid { return }
+        applyCanvasRect(
+            ZonePixelMetrics.moving(selected.rect, toX: x, y: y, workAreaAX: canvas.workAreaAX),
+            to: selected.id
+        )
     }
 
     private func applyPixelSize(width: Int?, height: Int?) {
@@ -586,19 +758,33 @@ final class LayoutEditorController: NSObject {
             return
         }
         let current = ZonePixelMetrics.pixelSize(of: selected.rect, workAreaAX: canvas.workAreaAX)
+        let origin = ZonePixelMetrics.origin(of: selected.rect, workAreaAX: canvas.workAreaAX)
         let width = parsedPixel(widthField?.stringValue)
         let height = parsedPixel(heightField?.stringValue)
-        guard width != nil || height != nil else {
-            refreshMetrics()
-            return
+        let x = parsedPixel(xField?.stringValue)
+        let y = parsedPixel(yField?.stringValue)
+        var changed = false
+        if x != nil || y != nil {
+            let nextX = x ?? origin.x
+            let nextY = y ?? origin.y
+            if nextX != origin.x || nextY != origin.y {
+                applyPixelOrigin(x: x, y: y)
+                changed = true
+            }
         }
-        let locked = ZonePixelMetrics.lockedFields(
-            current: current,
-            width: width,
-            height: height,
-            lockAspect: lockAspect
-        )
-        applyPixelSize(width: locked.width, height: locked.height)
+        if width != nil || height != nil {
+            let locked = ZonePixelMetrics.lockedFields(
+                current: current,
+                width: width,
+                height: height,
+                lockAspect: lockAspect
+            )
+            applyPixelSize(width: locked.width, height: locked.height)
+            changed = true
+        }
+        if !changed {
+            refreshMetrics()
+        }
     }
 
     private func parsedPixel(_ raw: String?) -> Int? {
@@ -679,6 +865,113 @@ final class LayoutEditorController: NSObject {
         guard var transaction, let previous = transaction.undo() else { return }
         self.transaction = transaction
         presentDraft(previous, reselectFirstZone: false)
+    }
+
+    private func redoLastEdit() {
+        guard var transaction, let next = transaction.redo() else { return }
+        self.transaction = transaction
+        presentDraft(next, reselectFirstZone: false)
+    }
+
+    @objc private func insertDefaultPane() {
+        _ = canvas?.perform(.insertDefault)
+    }
+
+    @objc private func duplicateSelectedPanes() {
+        _ = canvas?.perform(.duplicate)
+    }
+
+    @objc private func splitVerticalAction() { splitSelected(.vertical) }
+    @objc private func splitHorizontalAction() { splitSelected(.horizontal) }
+
+    private func splitSelected(_ axis: GridAxis) {
+        _ = canvas?.perform(.split(axis))
+    }
+
+    @objc private func deleteSelectedPanes() {
+        canvas?.deleteSelected()
+    }
+
+    @objc private func alignAction(_ sender: NSMenuItem) {
+        let edges: [CanvasAlignment.Edge] = [.left, .centerX, .right, .top, .centerY, .bottom]
+        guard edges.indices.contains(sender.tag) else { return }
+        _ = canvas?.perform(.align(edges[sender.tag]))
+    }
+
+    @objc private func matchSizeAction(_ sender: NSMenuItem) {
+        let matches: [CanvasAlignment.SizeMatch] = [.width, .height, .both]
+        guard matches.indices.contains(sender.tag) else { return }
+        _ = canvas?.perform(.matchSize(matches[sender.tag]))
+    }
+
+    @objc private func distributeAction(_ sender: NSMenuItem) {
+        _ = canvas?.perform(.distribute(sender.tag == 1 ? .vertical : .horizontal))
+    }
+
+    private func refreshPaneActions() {
+        let isCanvas = (transaction?.draft.kind ?? original.kind) != .grid
+        let count = canvas?.selectedIDs.count ?? 0
+        insertPaneButton?.isEnabled = isCanvas
+        duplicatePaneButton?.isEnabled = isCanvas && count > 0
+        splitVerticalButton?.isEnabled = isCanvas && count > 0
+        splitHorizontalButton?.isEnabled = isCanvas && count > 0
+        deletePaneButton?.isEnabled = count > 0
+        alignPopup?.isEnabled = isCanvas && count >= 2
+    }
+
+    private func refreshEmptyTemplateButtons() {
+        guard let canvas, let root = panel?.contentView else { return }
+        let presets = [LayoutTemplates.columns(2), LayoutTemplates.grid2x2(), LayoutTemplates.rows(2)]
+        let shouldShow = canvas.layout.kind == .canvas && canvas.layout.zones.isEmpty
+        if emptyTemplateHost == nil {
+            let host = NSStackView()
+            host.orientation = .horizontal
+            host.alignment = .centerY
+            host.spacing = 10
+            host.translatesAutoresizingMaskIntoConstraints = false
+            var buttons: [NSButton] = []
+            for (index, preset) in presets.enumerated() {
+                let button = NSButton(title: "", target: self, action: #selector(emptyTemplatePressed(_:)))
+                button.bezelStyle = .rounded
+                button.imagePosition = .imageOnly
+                button.tag = index
+                button.refusesFirstResponder = true
+                button.image = LayoutThumbnailRenderer.image(
+                    for: preset,
+                    size: NSSize(width: 72, height: 44),
+                    fill: NSColor.white.withAlphaComponent(0.86),
+                    stroke: NSColor.white.withAlphaComponent(0.35)
+                )
+                button.toolTip = preset.name
+                buttons.append(button)
+                host.addArrangedSubview(button)
+            }
+            root.addSubview(host)
+            NSLayoutConstraint.activate([
+                host.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+                host.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 90),
+            ])
+            emptyTemplateHost = host
+            emptyTemplateButtons = buttons
+        }
+        canvas.additionalChromeViews = [emptyTemplateHost].compactMap { $0 }
+        canvas.chromeView = toolbar
+        emptyTemplateHost?.isHidden = !shouldShow
+        for (index, button) in emptyTemplateButtons.enumerated() where presets.indices.contains(index) {
+            button.image = LayoutThumbnailRenderer.image(
+                for: presets[index],
+                size: NSSize(width: 72, height: 44),
+                fill: NSColor.white.withAlphaComponent(0.86),
+                stroke: NSColor.white.withAlphaComponent(0.35),
+                gutterPoints: canvas.gutterPoints
+            )
+        }
+    }
+
+    @objc private func emptyTemplatePressed(_ sender: NSButton) {
+        let presets = [LayoutTemplates.columns(2), LayoutTemplates.grid2x2(), LayoutTemplates.rows(2)]
+        guard presets.indices.contains(sender.tag), let canvas else { return }
+        canvas.applyTemplateKeepingCanvas(presets[sender.tag])
     }
 
     private func presentDraft(_ draft: Layout, reselectFirstZone: Bool) {
@@ -897,6 +1190,14 @@ final class LayoutEditorController: NSObject {
         }
         widthLabel?.stringValue = L10n.text(.editorWidth)
         heightLabel?.stringValue = L10n.text(.editorHeight)
+        xLabel?.stringValue = L10n.text(.editorX)
+        yLabel?.stringValue = L10n.text(.editorY)
+        insertPaneButton?.toolTip = L10n.text(.canvasNewPane)
+        duplicatePaneButton?.toolTip = L10n.text(.canvasDuplicate)
+        splitVerticalButton?.toolTip = L10n.text(.canvasSplitVertical)
+        splitHorizontalButton?.toolTip = L10n.text(.canvasSplitHorizontal)
+        deletePaneButton?.toolTip = L10n.text(.canvasDeletePane)
+        rebuildAlignMenu()
         pixelUnitLabel?.stringValue = L10n.text(.editorPixels)
         aspectLabel?.stringValue = L10n.text(.editorAspect)
         lockAspectButton?.title = L10n.text(.editorLockAspect)
@@ -948,7 +1249,9 @@ final class LayoutEditorController: NSObject {
 
     var isEditingMetrics: Bool {
         panel?.firstResponder === widthField || panel?.firstResponder === heightField
+            || panel?.firstResponder === xField || panel?.firstResponder === yField
             || widthField?.currentEditor() != nil || heightField?.currentEditor() != nil
+            || xField?.currentEditor() != nil || yField?.currentEditor() != nil
     }
 
     private func restoreCanvasKeyFocusIfNeeded() {
@@ -1084,8 +1387,22 @@ final class LayoutEditorController: NSObject {
         metricsRow = nil
         widthField = nil
         heightField = nil
+        xField = nil
+        yField = nil
         widthLabel = nil
         heightLabel = nil
+        xLabel = nil
+        yLabel = nil
+        paneActionRow = nil
+        insertPaneButton = nil
+        duplicatePaneButton = nil
+        splitVerticalButton = nil
+        splitHorizontalButton = nil
+        alignPopup = nil
+        deletePaneButton = nil
+        emptyTemplateHost?.removeFromSuperview()
+        emptyTemplateHost = nil
+        emptyTemplateButtons = []
         pixelUnitLabel = nil
         aspectLabel = nil
         aspectPopup = nil
@@ -1144,7 +1461,11 @@ extension LayoutEditorController: NSTextFieldDelegate {
         }
         if commandSelector == #selector(NSResponder.insertTab(_:)) {
             commitMetricsFields()
-            if control === widthField {
+            if control === xField {
+                panel?.makeFirstResponder(yField)
+            } else if control === yField {
+                panel?.makeFirstResponder(widthField)
+            } else if control === widthField {
                 panel?.makeFirstResponder(heightField)
             } else {
                 panel?.makeFirstResponder(canvas)

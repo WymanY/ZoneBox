@@ -269,6 +269,9 @@ final class HotkeyCenter {
                ) || ShortcutCatalog.isEditorUndoChord(
                    keyCode: event.keyCode,
                    carbonModifiers: modifiers
+               ) || ShortcutCatalog.isEditorRedoChord(
+                   keyCode: event.keyCode,
+                   carbonModifiers: modifiers
                )
             {
                 return nil
@@ -279,6 +282,7 @@ final class HotkeyCenter {
                     || event.keyCode == HardwareKeyCode.return
                     || event.keyCode == HardwareKeyCode.keypadEnter
                     || HardwareKeyCode.isEditorPaneNavigation(event.keyCode)
+                    || HardwareKeyCode.isEditorNudge(event.keyCode)
                     ? nil
                     : event
             }

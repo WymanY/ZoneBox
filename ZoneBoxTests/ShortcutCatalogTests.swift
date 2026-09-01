@@ -497,4 +497,29 @@ final class ShortcutCatalogTests: XCTestCase {
             .duplicate(.unsnap)
         )
     }
+
+    func testEditorCanvasChordsAreUniqueAndDocumented() throws {
+        let items = ShortcutCatalog.items(from: .default)
+        let duplicate = try XCTUnwrap(items.first(where: { $0.id == "editorDuplicate" }))
+        let redo = try XCTUnwrap(items.first(where: { $0.id == "editorRedo" }))
+        let splitV = try XCTUnwrap(items.first(where: { $0.id == "editorSplitVertical" }))
+        let splitH = try XCTUnwrap(items.first(where: { $0.id == "editorSplitHorizontal" }))
+        XCTAssertEqual(duplicate.title(language: .english), "Duplicate pane")
+        XCTAssertEqual(redo.title(language: .chineseSimplified), "重做上一步")
+        guard case .chord(let duplicateChord) = duplicate.binding else {
+            return XCTFail("duplicate must be a chord")
+        }
+        XCTAssertTrue(duplicateChord.matches(keyCode: HardwareKeyCode.d, carbonModifiers: CarbonModifier.command))
+        XCTAssertTrue(ShortcutCatalog.isEditorRedoChord(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.command | CarbonModifier.shift))
+        XCTAssertTrue(HardwareKeyCode.isEditorNudge(HardwareKeyCode.left))
+        XCTAssertTrue(HardwareKeyCode.isEditorNudge(HardwareKeyCode.right))
+        XCTAssertTrue(HardwareKeyCode.isEditorNudge(HardwareKeyCode.up))
+        XCTAssertTrue(HardwareKeyCode.isEditorNudge(HardwareKeyCode.down))
+        guard case .chord(let vertical) = splitV.binding, case .chord(let horizontal) = splitH.binding else {
+            return XCTFail("split commands must be chords")
+        }
+        XCTAssertTrue(vertical.matches(keyCode: HardwareKeyCode.backslash, carbonModifiers: CarbonModifier.command | CarbonModifier.shift))
+        XCTAssertTrue(horizontal.matches(keyCode: HardwareKeyCode.minus, carbonModifiers: CarbonModifier.command))
+    }
+
 }

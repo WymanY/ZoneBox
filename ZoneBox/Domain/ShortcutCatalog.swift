@@ -27,6 +27,8 @@ public enum HardwareKeyCode {
     public static let slash: UInt16 = 44
     public static let comma: UInt16 = 43
     public static let q: UInt16 = 12
+    public static let minus: UInt16 = 27
+    public static let backslash: UInt16 = 42
     public static let `return`: UInt16 = 36
     public static let keypadEnter: UInt16 = 76
     public static let tab: UInt16 = 48
@@ -52,6 +54,13 @@ public enum HardwareKeyCode {
     public static func isEditorPaneNavigation(_ keyCode: UInt16) -> Bool {
         switch keyCode {
         case a, s, d, w: true
+        default: false
+        }
+    }
+
+    public static func isEditorNudge(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case left, right, up, down: true
         default: false
         }
     }
@@ -261,10 +270,39 @@ public enum ShortcutCatalog {
         keyCode: HardwareKeyCode.z,
         carbonModifiers: CarbonModifier.control
     )
+    public static let editorRedoChord = KeyChord(
+        keyCode: HardwareKeyCode.z,
+        carbonModifiers: CarbonModifier.command | CarbonModifier.shift
+    )
+    public static let editorRedoAlternateChord = KeyChord(
+        keyCode: HardwareKeyCode.z,
+        carbonModifiers: CarbonModifier.control | CarbonModifier.shift
+    )
+    public static let editorDuplicateChord = KeyChord(
+        keyCode: HardwareKeyCode.d,
+        carbonModifiers: CarbonModifier.command
+    )
+    public static let editorSelectAllChord = KeyChord(
+        keyCode: HardwareKeyCode.a,
+        carbonModifiers: CarbonModifier.command
+    )
+    public static let editorSplitVerticalChord = KeyChord(
+        keyCode: HardwareKeyCode.backslash,
+        carbonModifiers: CarbonModifier.command | CarbonModifier.shift
+    )
+    public static let editorSplitHorizontalChord = KeyChord(
+        keyCode: HardwareKeyCode.minus,
+        carbonModifiers: CarbonModifier.command
+    )
 
     public static func isEditorUndoChord(keyCode: UInt16, carbonModifiers: UInt32) -> Bool {
         editorUndoChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
             || editorUndoAlternateChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
+    }
+
+    public static func isEditorRedoChord(keyCode: UInt16, carbonModifiers: UInt32) -> Bool {
+        editorRedoChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
+            || editorRedoAlternateChord.matches(keyCode: keyCode, carbonModifiers: carbonModifiers)
     }
 
     /// IDs that must fire even when Accessibility is not granted.
@@ -403,6 +441,54 @@ public enum ShortcutCatalog {
                 surface: .editor,
                 titleKey: .shortcutEditorUndo,
                 binding: .chord(editorUndoChord)
+            ),
+            ShortcutSpec(
+                id: "editorRedo",
+                surface: .editor,
+                titleKey: .shortcutEditorRedo,
+                binding: .chord(editorRedoChord)
+            ),
+            ShortcutSpec(
+                id: "editorNewPane",
+                surface: .editor,
+                titleKey: .shortcutEditorNewPane,
+                binding: .gesture(.shortcutGestureClickEmpty)
+            ),
+            ShortcutSpec(
+                id: "editorDuplicate",
+                surface: .editor,
+                titleKey: .shortcutEditorDuplicate,
+                binding: .chord(editorDuplicateChord)
+            ),
+            ShortcutSpec(
+                id: "editorSplitVertical",
+                surface: .editor,
+                titleKey: .shortcutEditorSplitVertical,
+                binding: .chord(editorSplitVerticalChord)
+            ),
+            ShortcutSpec(
+                id: "editorSplitHorizontal",
+                surface: .editor,
+                titleKey: .shortcutEditorSplitHorizontal,
+                binding: .chord(editorSplitHorizontalChord)
+            ),
+            ShortcutSpec(
+                id: "editorNudge",
+                surface: .editor,
+                titleKey: .shortcutEditorNudge,
+                binding: .gesture(.shortcutGestureArrowKeys)
+            ),
+            ShortcutSpec(
+                id: "editorMarquee",
+                surface: .editor,
+                titleKey: .shortcutEditorMarquee,
+                binding: .gesture(.shortcutGestureCommandDrag)
+            ),
+            ShortcutSpec(
+                id: "editorSnapOff",
+                surface: .editor,
+                titleKey: .shortcutEditorSnapOff,
+                binding: .gesture(.shortcutGestureControlHold)
             ),
             ShortcutSpec(
                 id: "editorZoomHeight",
