@@ -319,11 +319,14 @@ final class WorkspaceCenter {
         prepareMissingPlacements(profile: profile, outcome: outcome)
         updateCensus()
 
+        let launchingCount = Set(pending.map(\.bundleID)).count
+        let unresolvedMissingCount = max(0, outcome.missingBundleIDs.count - launchingCount)
         let feedback = WorkspaceApplyFeedback.make(
             moved: movedWindows,
             issues: issues,
             skipped: skippedWindows,
-            missingCount: outcome.missingBundleIDs.count,
+            missingCount: unresolvedMissingCount,
+            launchingCount: launchingCount,
             staleCount: outcome.staleRules.count,
             disconnectedCount: outcome.skippedDisplayIDs.count,
             applicationName: applicationName(for:)

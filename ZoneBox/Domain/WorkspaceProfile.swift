@@ -69,6 +69,7 @@ public struct WorkspaceApplyFeedback: Equatable, Sendable {
         issues: [WindowOrganizeIssue],
         skipped: [WindowIdentity],
         missingCount: Int,
+        launchingCount: Int = 0,
         staleCount: Int,
         disconnectedCount: Int,
         applicationName: (WindowIdentity) -> String,

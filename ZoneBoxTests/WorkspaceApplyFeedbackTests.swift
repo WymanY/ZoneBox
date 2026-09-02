@@ -77,4 +77,25 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
         XCTAssertEqual(feedback.detail, "已完整归位 2 个窗口。")
         XCTAssertFalse(feedback.isError)
     }
+
+    func testLaunchingAppsAreNotReportedAsMissingWindows() {
+        let chatGPT = WindowIdentity(pid: 10, windowNumber: 1, bundleID: "com.openai.codex")
+
+        let feedback = WorkspaceApplyFeedback.make(
+            moved: [chatGPT],
+            issues: [],
+            skipped: [],
+            missingCount: 0,
+            launchingCount: 1,
+            staleCount: 0,
+            disconnectedCount: 0,
+            applicationName: { _ in "ChatGPT" },
+            language: .chineseSimplified
+        )
+
+        XCTAssertEqual(feedback.titleKey, .workspaceAppliedTitle)
+        XCTAssertEqual(feedback.detail, "已完整归位 1 个窗口。")
+        XCTAssertFalse(feedback.detail.contains("缺少窗口"))
+        XCTAssertFalse(feedback.isError)
+    }
 }
