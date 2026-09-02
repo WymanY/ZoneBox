@@ -8,6 +8,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.editorHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.shortcutsPanelHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
+        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.applyWorkspaceHotkeyID }))
         XCTAssertEqual(WindowOrganize.isPubliclyAvailable, false)
         XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
         XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.settingsHotkeyID }))
@@ -34,6 +35,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.d), "D")
         XCTAssertEqual(HardwareKeyCode.o, 31)
         XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.o), "O")
+        XCTAssertEqual(KeyChord.glyph(for: HardwareKeyCode.p), "P")
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.d))
         XCTAssertTrue(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.w))
         XCTAssertFalse(HardwareKeyCode.isEditorPaneNavigation(HardwareKeyCode.tab))
@@ -49,6 +51,19 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertFalse(chord.matches(keyCode: HardwareKeyCode.z, carbonModifiers: CarbonModifier.control))
         XCTAssertFalse(chord.matches(keyCode: HardwareKeyCode.u, carbonModifiers: CarbonModifier.controlOption))
         XCTAssertEqual(chord.displayCaps, ["⌃", "⌥", "Z"])
+    }
+
+    func testWorkspaceShortcutCanBeCustomizedAndReset() {
+        let custom = KeyChord(
+            keyCode: HardwareKeyCode.p,
+            carbonModifiers: CarbonModifier.command | CarbonModifier.shift
+        )
+        let changed = ShortcutCatalog.applying(custom, to: .applyWorkspace, in: .default)
+        XCTAssertEqual(changed.applyWorkspaceHotkey, custom)
+        XCTAssertEqual(
+            ShortcutCatalog.resetting(.applyWorkspace, in: changed).applyWorkspaceHotkey,
+            AppSettings.default.applyWorkspaceHotkey
+        )
     }
 
     func testHotkeyLookupUsesCurrentSettings() {
@@ -76,6 +91,14 @@ final class ShortcutCatalogTests: XCTestCase {
                 settings: settings
             ),
             ShortcutCatalog.quickSnapperHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.p,
+                carbonModifiers: CarbonModifier.controlOption,
+                settings: settings
+            ),
+            ShortcutCatalog.applyWorkspaceHotkeyID
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(

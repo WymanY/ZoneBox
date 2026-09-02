@@ -40,6 +40,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuOpenEditor
     case menuPreviewZones
     case menuLayouts
+    case menuWorkspaces
+    case menuCaptureWorkspace
+    case menuUpdateActiveWorkspace
+    case menuManageWorkspaces
     case menuNewCanvas
     case menuNewGrid
     case menuDeleteLayout
@@ -78,6 +82,28 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case organizeRestoreAction
     case organizeIgnoreAction
     case organizeClose
+    case workspaceNameTitle
+    case workspaceNameMessage
+    case workspaceNamePlaceholder
+    case workspaceSave
+    case workspaceDefaultName
+    case workspaceCapturedTitle
+    case workspaceUpdatedTitle
+    case workspaceCapturedDetail
+    case workspaceCaptureEmptyTitle
+    case workspaceCaptureEmptyDetail
+    case workspaceAppliedTitle
+    case workspaceApplyPartialTitle
+    case workspaceMovedDetail
+    case workspaceSizeConstrainedDetail
+    case workspaceMissingDetail
+    case workspaceStaleDetail
+    case workspaceDisplaysSkippedDetail
+    case workspaceWindowsSkippedDetail
+    case workspaceAppMissingTitle
+    case workspaceAppNotInstalledDetail
+    case workspaceLaunchTimeoutDetail
+    case workspaceLayoutDeleteImpact
 
     case settingsTitle
     case settingsAccessBanner
@@ -107,10 +133,12 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSectionSnapping
     case settingsSectionOverlay
     case settingsSectionKeyboard
+    case settingsSectionWorkspaces
     case settingsGeneralSubtitle
     case settingsSnappingSubtitle
     case settingsOverlaySubtitle
     case settingsKeyboardSubtitle
+    case settingsWorkspacesSubtitle
     case settingsLanguageDetail
     case settingsLaunchAtLoginDetail
     case settingsHoverPinDetail
@@ -132,10 +160,26 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSnappingPreviewTitle
     case settingsOverlayPreviewTitle
     case settingsKeyboardPreviewTitle
+    case settingsWorkspacesPreviewTitle
     case settingsGeneralPreviewDescription
     case settingsSnappingPreviewDescription
     case settingsOverlayPreviewDescription
     case settingsKeyboardPreviewDescription
+    case settingsWorkspacesPreviewDescription
+    case settingsWorkspaceEmpty
+    case settingsWorkspaceLaunchMissing
+    case settingsWorkspaceRename
+    case settingsWorkspaceDelete
+    case settingsWorkspaceDeleteTitle
+    case settingsWorkspaceRecapture
+    case settingsWorkspaceSummary
+    case settingsWorkspaceShowDetails
+    case settingsWorkspaceHideDetails
+    case settingsWorkspaceSectionSummary
+    case settingsWorkspaceZone
+    case settingsWorkspaceUnavailableDisplay
+    case settingsWorkspaceUnavailableLayout
+    case settingsWorkspaceActive
     case settingsAccessGranted
     case settingsAccessRequired
     case settingsManageAccess
@@ -166,6 +210,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutShowShortcuts
     case shortcutQuickSnapper
     case shortcutOrganizeWindows
+    case shortcutApplyWorkspace
     case shortcutEditorCancel
     case shortcutEditorCycle
     case shortcutEditorCycleBack
@@ -390,6 +435,13 @@ public enum L10n {
         String(format: text(.organizeIgnoredDetail, language: language), locale: language.locale, appName)
     }
 
+    public static func workspaceSizeConstrained(
+        _ appName: String,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        String(format: text(.workspaceSizeConstrainedDetail, language: language), locale: language.locale, appName)
+    }
+
     /// Localize a stored layout name. Canonical storage stays English (`Columns 2`, `Canvas 3 Copy`).
     public static func layoutDisplayName(_ stored: String, language: AppLanguage = LanguageCenter.language) -> String {
         let copyWord = text(.layoutCopy, language: .english)
@@ -438,6 +490,10 @@ public enum L10n {
         .menuOpenEditor: "Open Layout Editor",
         .menuPreviewZones: "Preview Zones",
         .menuLayouts: "Layouts",
+        .menuWorkspaces: "Workspaces",
+        .menuCaptureWorkspace: "Save Current Arrangement…",
+        .menuUpdateActiveWorkspace: "Update Last Applied Workspace",
+        .menuManageWorkspaces: "Manage Workspaces…",
         .menuNewCanvas: "New Canvas Layout…",
         .menuNewGrid: "New Grid Layout…",
         .menuDeleteLayout: "Delete Current Layout…",
@@ -476,6 +532,28 @@ public enum L10n {
         .organizeRestoreAction: "Restore Layout",
         .organizeIgnoreAction: "Ignore %@",
         .organizeClose: "Close",
+        .workspaceNameTitle: "Save Workspace",
+        .workspaceNameMessage: "Name this arrangement of apps and zones.",
+        .workspaceNamePlaceholder: "Workspace name",
+        .workspaceSave: "Save",
+        .workspaceDefaultName: "Workspace",
+        .workspaceCapturedTitle: "Workspace saved",
+        .workspaceUpdatedTitle: "Workspace updated",
+        .workspaceCapturedDetail: "%@ includes %d applications.",
+        .workspaceCaptureEmptyTitle: "Nothing to save",
+        .workspaceCaptureEmptyDetail: "Place at least one application window mostly inside a zone, then try again.",
+        .workspaceAppliedTitle: "Workspace applied",
+        .workspaceApplyPartialTitle: "Workspace partially applied",
+        .workspaceMovedDetail: "%d windows fully placed.",
+        .workspaceSizeConstrainedDetail: "%@ was moved into place, but its minimum window size is larger than the zone.",
+        .workspaceMissingDetail: "%d applications have missing windows.",
+        .workspaceStaleDetail: "%d rules need recapturing.",
+        .workspaceDisplaysSkippedDetail: "%d disconnected displays were skipped.",
+        .workspaceWindowsSkippedDetail: "%d windows could not be moved.",
+        .workspaceAppMissingTitle: "Application could not be placed",
+        .workspaceAppNotInstalledDetail: "%@ is not installed.",
+        .workspaceLaunchTimeoutDetail: "%@ did not open a window in time.",
+        .workspaceLayoutDeleteImpact: "%d workspace profiles will be affected.",
 
         .settingsTitle: "ZoneBox Settings",
         .settingsAccessBanner: "Snapping is off until Accessibility is allowed. Open the guide to turn on the ZoneBox switch.",
@@ -505,10 +583,12 @@ public enum L10n {
         .settingsSectionSnapping: "Snapping",
         .settingsSectionOverlay: "Overlay",
         .settingsSectionKeyboard: "Keyboard",
+        .settingsSectionWorkspaces: "Workspaces",
         .settingsGeneralSubtitle: "Choose the language and how ZoneBox starts.",
         .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
         .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
         .settingsKeyboardSubtitle: "Record the shortcuts you use to move between zones.",
+        .settingsWorkspacesSubtitle: "Manage saved arrangements. Applying one is a one-time action.",
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
         .settingsHoverPinDetail: "Keep a window above other apps. The original window stays clickable and scrollable. macOS Screen Recording permission is required.",
@@ -530,10 +610,26 @@ public enum L10n {
         .settingsSnappingPreviewTitle: "Snapping preview",
         .settingsOverlayPreviewTitle: "Overlay preview",
         .settingsKeyboardPreviewTitle: "Keyboard control",
+        .settingsWorkspacesPreviewTitle: "Saved workspaces",
         .settingsGeneralPreviewDescription: "Language and startup preferences apply across ZoneBox.",
         .settingsSnappingPreviewDescription: "Drag, right-click, or shake a title bar to place a window in a zone.",
         .settingsOverlayPreviewDescription: "Zone labels and spacing stay visible only while you need them.",
         .settingsKeyboardPreviewDescription: "Move, cycle, and restore windows without leaving the keyboard.",
+        .settingsWorkspacesPreviewDescription: "Restore a complete app layout once and launch missing applications when needed.",
+        .settingsWorkspaceEmpty: "No workspaces saved yet. Save the current arrangement from the menu bar.",
+        .settingsWorkspaceLaunchMissing: "Launch missing applications",
+        .settingsWorkspaceRename: "Rename…",
+        .settingsWorkspaceDelete: "Delete",
+        .settingsWorkspaceDeleteTitle: "Delete “%@”?",
+        .settingsWorkspaceRecapture: "Recapture",
+        .settingsWorkspaceSummary: "%d displays · %d applications",
+        .settingsWorkspaceShowDetails: "Show details",
+        .settingsWorkspaceHideDetails: "Hide details",
+        .settingsWorkspaceSectionSummary: "%@ · %@",
+        .settingsWorkspaceZone: "Zone %d",
+        .settingsWorkspaceUnavailableDisplay: "Unavailable display",
+        .settingsWorkspaceUnavailableLayout: "Unavailable layout",
+        .settingsWorkspaceActive: "Last applied",
         .settingsAccessGranted: "Accessibility allowed",
         .settingsAccessRequired: "Accessibility required",
         .settingsManageAccess: "Manage…",
@@ -564,6 +660,7 @@ public enum L10n {
         .shortcutShowShortcuts: "Keyboard shortcuts",
         .shortcutQuickSnapper: "Quick Snapper overlay",
         .shortcutOrganizeWindows: "Organize windows",
+        .shortcutApplyWorkspace: "Apply active workspace",
         .shortcutEditorCancel: "Close editor",
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
@@ -723,6 +820,10 @@ public enum L10n {
         .menuOpenEditor: "打开布局编辑器",
         .menuPreviewZones: "预览分区",
         .menuLayouts: "布局",
+        .menuWorkspaces: "工作区",
+        .menuCaptureWorkspace: "保存当前排布…",
+        .menuUpdateActiveWorkspace: "更新最近应用的工作区",
+        .menuManageWorkspaces: "管理工作区…",
         .menuNewCanvas: "新建画布布局…",
         .menuNewGrid: "新建网格布局…",
         .menuDeleteLayout: "删除当前布局…",
@@ -761,6 +862,28 @@ public enum L10n {
         .organizeRestoreAction: "恢复原布局",
         .organizeIgnoreAction: "以后忽略 %@",
         .organizeClose: "关闭",
+        .workspaceNameTitle: "保存工作区",
+        .workspaceNameMessage: "为这组应用与分区排布命名。",
+        .workspaceNamePlaceholder: "工作区名称",
+        .workspaceSave: "保存",
+        .workspaceDefaultName: "工作区",
+        .workspaceCapturedTitle: "工作区已保存",
+        .workspaceUpdatedTitle: "工作区已更新",
+        .workspaceCapturedDetail: "“%@”包含 %d 个应用。",
+        .workspaceCaptureEmptyTitle: "没有可保存的窗口",
+        .workspaceCaptureEmptyDetail: "请先把至少一个应用窗口大部分放入分区，再重试。",
+        .workspaceAppliedTitle: "工作区已归位",
+        .workspaceApplyPartialTitle: "工作区已部分归位",
+        .workspaceMovedDetail: "已完整归位 %d 个窗口。",
+        .workspaceSizeConstrainedDetail: "%@已移动到位，但其最小窗口尺寸大于当前分区。",
+        .workspaceMissingDetail: "%d 个应用缺少窗口。",
+        .workspaceStaleDetail: "%d 条规则需要重新捕获。",
+        .workspaceDisplaysSkippedDetail: "已跳过 %d 台未连接显示器。",
+        .workspaceWindowsSkippedDetail: "%d 个窗口无法移动。",
+        .workspaceAppMissingTitle: "应用未能归位",
+        .workspaceAppNotInstalledDetail: "未安装 %@。",
+        .workspaceLaunchTimeoutDetail: "%@ 未在限定时间内打开窗口。",
+        .workspaceLayoutDeleteImpact: "%d 个工作区方案将受影响。",
 
         .settingsTitle: "ZoneBox 设置",
         .settingsAccessBanner: "未允许辅助功能时无法吸附。请打开引导，打开 ZoneBox 开关。",
@@ -790,10 +913,12 @@ public enum L10n {
         .settingsSectionSnapping: "吸附",
         .settingsSectionOverlay: "覆盖层",
         .settingsSectionKeyboard: "键盘",
+        .settingsSectionWorkspaces: "工作区",
         .settingsGeneralSubtitle: "设置界面语言，以及 ZoneBox 的启动方式。",
         .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
         .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",
         .settingsKeyboardSubtitle: "录制用于移动、切换和恢复窗口的快捷键。",
+        .settingsWorkspacesSubtitle: "管理已保存的整桌排布。切换只在当次执行，不会持续固定窗口。",
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
         .settingsHoverPinDetail: "让窗口保持在其他应用上方。原窗口仍可点击和滚动。需要 macOS 录屏权限。",
@@ -815,10 +940,26 @@ public enum L10n {
         .settingsSnappingPreviewTitle: "吸附预览",
         .settingsOverlayPreviewTitle: "覆盖层预览",
         .settingsKeyboardPreviewTitle: "键盘控制",
+        .settingsWorkspacesPreviewTitle: "已保存的工作区",
         .settingsGeneralPreviewDescription: "语言和启动偏好会应用到整个 ZoneBox。",
         .settingsSnappingPreviewDescription: "通过拖动、右键或晃动标题栏，将窗口快速吸附到分区。",
         .settingsOverlayPreviewDescription: "分区编号和间距只在需要吸附时出现。",
         .settingsKeyboardPreviewDescription: "不用离开键盘，即可移动、切换和恢复窗口。",
+        .settingsWorkspacesPreviewDescription: "一次性恢复整套应用布局，并按需启动缺失应用。",
+        .settingsWorkspaceEmpty: "还没有工作区。请从菜单栏保存当前排布。",
+        .settingsWorkspaceLaunchMissing: "启动缺失应用",
+        .settingsWorkspaceRename: "重命名…",
+        .settingsWorkspaceDelete: "删除",
+        .settingsWorkspaceDeleteTitle: "删除“%@”？",
+        .settingsWorkspaceRecapture: "重新捕获",
+        .settingsWorkspaceSummary: "%d 台显示器 · %d 个应用",
+        .settingsWorkspaceShowDetails: "查看详情",
+        .settingsWorkspaceHideDetails: "收起详情",
+        .settingsWorkspaceSectionSummary: "%@ · %@",
+        .settingsWorkspaceZone: "分区 %d",
+        .settingsWorkspaceUnavailableDisplay: "不可用的显示器",
+        .settingsWorkspaceUnavailableLayout: "不可用的布局",
+        .settingsWorkspaceActive: "最近应用",
         .settingsAccessGranted: "辅助功能权限：已授权",
         .settingsAccessRequired: "需要辅助功能权限",
         .settingsManageAccess: "管理权限…",
@@ -849,6 +990,7 @@ public enum L10n {
         .shortcutShowShortcuts: "键盘快捷键",
         .shortcutQuickSnapper: "快速吸附覆盖层",
         .shortcutOrganizeWindows: "一键布局",
+        .shortcutApplyWorkspace: "应用当前工作区",
         .shortcutEditorCancel: "关闭编辑器",
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",

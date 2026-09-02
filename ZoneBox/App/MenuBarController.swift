@@ -252,6 +252,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         layouts.submenu = makeLayoutsMenu()
         menu.addItem(layouts)
 
+        let workspaces = NSMenuItem(title: L10n.text(.menuWorkspaces), action: nil, keyEquivalent: "")
+        workspaces.submenu = makeWorkspacesMenu()
+        menu.addItem(workspaces)
+
         let newGrid = NSMenuItem(title: L10n.text(.menuNewGrid), action: #selector(newGrid(_:)), keyEquivalent: "")
         newGrid.target = self
         menu.addItem(newGrid)
@@ -319,6 +323,54 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return menu
     }
 
+    private func makeWorkspacesMenu() -> NSMenu {
+        let menu = NSMenu()
+        for profile in runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt }) {
+            let title = profile.name.count > 30 ? String(profile.name.prefix(29)) + "…" : profile.name
+            let item = NSMenuItem(title: title, action: #selector(applyWorkspace(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = profile.id.uuidString
+            item.state = profile.id == runtime.document.activeProfileID ? .on : .off
+            item.isEnabled = !runtime.isOrganizingWindows
+            menu.addItem(item)
+        }
+        if !runtime.document.profiles.isEmpty { menu.addItem(.separator()) }
+
+        let capture = NSMenuItem(
+            title: L10n.text(.menuCaptureWorkspace),
+            action: #selector(captureWorkspace(_:)),
+            keyEquivalent: ""
+        )
+        capture.target = self
+        capture.isEnabled = !runtime.isOrganizingWindows
+        menu.addItem(capture)
+
+        if let activeID = runtime.document.activeProfileID,
+           let active = runtime.document.profiles.first(where: { $0.id == activeID })
+        {
+            let update = NSMenuItem(
+                title: L10n.text(.menuUpdateActiveWorkspace),
+                action: #selector(updateActiveWorkspace(_:)),
+                keyEquivalent: ""
+            )
+            update.target = self
+            update.representedObject = active.id.uuidString
+            update.isEnabled = !runtime.isOrganizingWindows
+            menu.addItem(update)
+
+        }
+
+        menu.addItem(.separator())
+        let manage = NSMenuItem(
+            title: L10n.text(.menuManageWorkspaces),
+            action: #selector(openWorkspaceSettings(_:)),
+            keyEquivalent: ""
+        )
+        manage.target = self
+        menu.addItem(manage)
+        return menu
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
         applySettingsShortcut(in: menu, enabled: true)
     }
@@ -366,6 +418,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc
     private func openSettings(_ sender: NSMenuItem) {
         runtime.openSettings()
+    }
+
+    @objc
+    private func openWorkspaceSettings(_ sender: NSMenuItem) {
+        runtime.openWorkspaceSettings()
     }
 
     @objc
@@ -418,6 +475,41 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @objc
+    private func applyWorkspace(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
+        runtime.workspace.apply(profileID: id)
+    }
+
+    @objc
+    private func captureWorkspace(_ sender: NSMenuItem) {
+        guard let name = promptWorkspaceName() else { return }
+        runtime.workspace.capture(name: name)
+    }
+
+    @objc
+    private func updateActiveWorkspace(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let id = UUID(uuidString: raw),
+              let profile = runtime.document.profiles.first(where: { $0.id == id })
+        else { return }
+        runtime.workspace.capture(name: profile.name, replacing: profile.id)
+    }
+
+    private func promptWorkspaceName(initial: String = "") -> String? {
+        let alert = NSAlert()
+        alert.messageText = L10n.text(.workspaceNameTitle)
+        alert.informativeText = L10n.text(.workspaceNameMessage)
+        let field = NSTextField(string: initial)
+        field.placeholderString = L10n.text(.workspaceNamePlaceholder)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: L10n.text(.workspaceSave))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return field.stringValue
+    }
+
+    @objc
     private func deleteLayout(_ sender: NSMenuItem) {
         let current = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
             .flatMap { runtime.document.layout(for: $0.display.id) }
@@ -429,7 +521,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let name = L10n.layoutDisplayName(layout.name)
         let alert = NSAlert()
         alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
-        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
+        let affected = runtime.document.profiles.filter { profile in
+            profile.sections.contains(where: { $0.layoutID == layout.id })
+        }.count
+        alert.informativeText = affected == 0
+            ? L10n.text(.menuDeleteLayoutMessage)
+            : L10n.text(.menuDeleteLayoutMessage) + " "
+                + String(format: L10n.text(.workspaceLayoutDeleteImpact), affected)
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))

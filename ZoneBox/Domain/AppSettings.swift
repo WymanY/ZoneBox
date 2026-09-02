@@ -46,6 +46,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var cycleBackwardHotkey: KeyChord
     public var unsnapHotkey: KeyChord
     public var organizeHotkey: KeyChord
+    public var applyWorkspaceHotkey: KeyChord
     public var settingsHotkey: KeyChord
 
     public static let controlOption: UInt32 = CarbonModifier.controlOption
@@ -99,6 +100,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         cycleBackwardHotkey: KeyChord(keyCode: 33, carbonModifiers: controlOption),
         unsnapHotkey: KeyChord(keyCode: 32, carbonModifiers: controlOption),
         organizeHotkey: KeyChord(keyCode: HardwareKeyCode.o, carbonModifiers: controlOption),
+        applyWorkspaceHotkey: KeyChord(keyCode: HardwareKeyCode.p, carbonModifiers: controlOption),
         settingsHotkey: KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command)
     )
 
@@ -151,6 +153,8 @@ extension AppSettings {
         cycleBackwardHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .cycleBackwardHotkey) ?? defaults.cycleBackwardHotkey
         unsnapHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .unsnapHotkey) ?? defaults.unsnapHotkey
         organizeHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .organizeHotkey) ?? defaults.organizeHotkey
+        applyWorkspaceHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .applyWorkspaceHotkey)
+            ?? defaults.applyWorkspaceHotkey
         settingsHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .settingsHotkey) ?? defaults.settingsHotkey
     }
 
