@@ -391,7 +391,8 @@ final class LayoutEditorCanvasView: NSView {
                 resized,
                 intent: resizeIntent(for: handle),
                 event: event,
-                lockAspectSingleAxis: lockAspect
+                lockAspectFrom: lockAspect ? startRect : nil,
+                usingWidth: lockAspectUsesWidth(handle: handle, dx: dx, dy: dy)
             )
             updateZone(id) { zone in
                 zone.canvasRect = snapped
@@ -911,11 +912,23 @@ final class LayoutEditorCanvasView: NSView {
         _ rect: NormalizedRect,
         intent: CanvasSnapping.Intent,
         event: NSEvent?,
-        lockAspectSingleAxis: Bool = false
+        lockAspectSingleAxis: Bool = false,
+        lockAspectFrom start: NormalizedRect? = nil,
+        usingWidth: Bool = true
     ) -> NormalizedRect {
         let thresholds = snapThresholds(event: event)
         let result: CanvasSnapResult
-        if lockAspectSingleAxis {
+        if let start {
+            result = CanvasSnapping.snappingPreservingAspect(
+                from: start,
+                resized: rect,
+                intent: intent,
+                candidates: snapCandidates,
+                thresholdX: thresholds.x,
+                thresholdY: thresholds.y,
+                usingWidth: usingWidth
+            )
+        } else if lockAspectSingleAxis {
             result = CanvasSnapping.snappingClosestAxis(
                 rect,
                 intent: intent,
@@ -934,6 +947,15 @@ final class LayoutEditorCanvasView: NSView {
         }
         snapHits = (result.hitX, result.hitY)
         return result.rect.clamped()
+    }
+
+    private func lockAspectUsesWidth(handle: Handle, dx: Double, dy: Double) -> Bool {
+        switch handle {
+        case .e, .w, .ne, .nw, .se, .sw:
+            return abs(dx) >= abs(dy)
+        case .n, .s:
+            return false
+        }
     }
 
     private func createIntent(from start: CGPoint, to point: CGPoint) -> CanvasSnapping.Intent {

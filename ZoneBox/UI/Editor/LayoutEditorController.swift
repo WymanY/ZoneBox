@@ -601,25 +601,26 @@ final class LayoutEditorController: NSObject {
         guard let canvas else { return }
         let selected = selectedZoneRect()
         let enabled = selected != nil
+        let canMoveOrigin = enabled && canvas.layout.kind != .grid
         widthField?.isEnabled = enabled
         heightField?.isEnabled = enabled
-        xField?.isEnabled = enabled
-        yField?.isEnabled = enabled
+        xField?.isEnabled = canMoveOrigin
+        yField?.isEnabled = canMoveOrigin
         aspectPopup?.isEnabled = enabled
         lockAspectButton?.isEnabled = enabled
         metricsHintLabel?.isHidden = enabled
         widthLabel?.isHidden = !enabled
         heightLabel?.isHidden = !enabled
-        xLabel?.isHidden = !enabled
-        yLabel?.isHidden = !enabled
+        xLabel?.isHidden = !canMoveOrigin
+        yLabel?.isHidden = !canMoveOrigin
         pixelUnitLabel?.isHidden = !enabled
         aspectLabel?.isHidden = !enabled
         aspectPopup?.isHidden = !enabled
         lockAspectButton?.isHidden = !enabled
         widthField?.isHidden = !enabled
         heightField?.isHidden = !enabled
-        xField?.isHidden = !enabled
-        yField?.isHidden = !enabled
+        xField?.isHidden = !canMoveOrigin
+        yField?.isHidden = !canMoveOrigin
         refreshPaneActions()
         refreshEmptyTemplateButtons()
         guard let selected else {

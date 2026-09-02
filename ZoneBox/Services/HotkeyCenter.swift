@@ -277,12 +277,15 @@ final class HotkeyCenter {
                 return nil
             }
             if event.isARepeat, event.keyCode != HardwareKeyCode.tab {
+                if HardwareKeyCode.isEditorNudge(event.keyCode) {
+                    if runtime.handleEditorKey(event) { return nil }
+                    return event
+                }
                 return event.keyCode == HardwareKeyCode.delete
                     || event.keyCode == HardwareKeyCode.forwardDelete
                     || event.keyCode == HardwareKeyCode.return
                     || event.keyCode == HardwareKeyCode.keypadEnter
                     || HardwareKeyCode.isEditorPaneNavigation(event.keyCode)
-                    || HardwareKeyCode.isEditorNudge(event.keyCode)
                     ? nil
                     : event
             }

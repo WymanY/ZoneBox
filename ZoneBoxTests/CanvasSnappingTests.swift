@@ -109,4 +109,23 @@ final class CanvasSnappingTests: XCTestCase {
         XCTAssertEqual(result.rect, tiny)
         XCTAssertTrue(result.hitX.isEmpty)
     }
+
+    func testLockedAspectSnapRestoresTheOppositeDimension() {
+        let start = NormalizedRect(x: 0.1, y: 0.1, width: 0.2, height: 0.1)
+        let resized = NormalizedRect(x: 0.1, y: 0.1, width: 0.305, height: 0.1525)
+        let sibling = NormalizedRect(x: 0.4, y: 0.0, width: 0.2, height: 0.4)
+        let result = CanvasSnapping.snappingPreservingAspect(
+            from: start,
+            resized: resized,
+            intent: .edges(left: false, right: true, top: false, bottom: true),
+            candidates: .from(rects: [sibling]),
+            thresholdX: 0.01,
+            thresholdY: 0.01,
+            usingWidth: true
+        )
+        XCTAssertEqual(result.rect.maxX, sibling.x, accuracy: 0.0001)
+        XCTAssertEqual(result.rect.width / result.rect.height, start.width / start.height, accuracy: 0.0001)
+        XCTAssertEqual(result.rect.x, start.x, accuracy: 0.0001)
+        XCTAssertEqual(result.rect.y, start.y, accuracy: 0.0001)
+    }
 }

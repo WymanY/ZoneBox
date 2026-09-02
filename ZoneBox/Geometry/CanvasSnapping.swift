@@ -75,6 +75,41 @@ public enum CanvasSnapping {
         }
     }
 
+    /// Snap one moving edge, then restore the locked aspect around the opposite corner.
+    public static func snappingPreservingAspect(
+        from start: NormalizedRect,
+        resized: NormalizedRect,
+        intent: Intent,
+        candidates: CanvasSnapCandidates,
+        thresholdX: Double,
+        thresholdY: Double,
+        usingWidth: Bool,
+        minSize: Double = ZoneSplit.minSize
+    ) -> CanvasSnapResult {
+        let snapped = snappingClosestAxis(
+            resized,
+            intent: intent,
+            candidates: candidates,
+            thresholdX: thresholdX,
+            thresholdY: thresholdY,
+            minSize: minSize
+        )
+        let restored = ZonePixelMetrics.preservingAspect(
+            from: start,
+            resized: snapped.rect,
+            usingWidth: usingWidth
+        )
+        let hits = snapping(
+            restored,
+            intent: intent,
+            candidates: candidates,
+            thresholdX: 1e-9,
+            thresholdY: 1e-9,
+            minSize: minSize
+        )
+        return CanvasSnapResult(rect: restored, hitX: hits.hitX, hitY: hits.hitY)
+    }
+
     public static func snappingClosestAxis(
         _ rect: NormalizedRect,
         intent: Intent,
