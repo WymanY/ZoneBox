@@ -51,4 +51,32 @@ public struct OverlayPresentation: Equatable, Sendable {
         self.strip = strip
         self.layoutName = layoutName
     }
+
+    /// Chrome for the armed snap overlay.
+    ///
+    /// Alternate-layout candidate frames are intentionally omitted. Drawing every
+    /// other layout's hit as a dashed outline stacked into a full-screen grid on
+    /// top of the current trigger zones.
+    public static func snapSession(
+        candidates: [ZoneCandidate],
+        candidateIndex: Int,
+        localizedLayoutName: (String) -> String = { $0 },
+        strip: OverlayStripRenderModel? = nil
+    ) -> OverlayPresentation {
+        let candidate = candidates.indices.contains(candidateIndex) ? candidates[candidateIndex] : nil
+        let label: OverlayCandidateLabel?
+        if let candidate, candidates.count > 1 {
+            label = OverlayCandidateLabel(
+                text: "\(localizedLayoutName(candidate.layoutName)) · \(candidateIndex + 1)/\(candidates.count)",
+                anchorAX: candidate.zone.frameAX
+            )
+        } else {
+            label = nil
+        }
+        return OverlayPresentation(
+            candidateOutlinesAX: [],
+            candidateLabel: label,
+            strip: strip
+        )
+    }
 }

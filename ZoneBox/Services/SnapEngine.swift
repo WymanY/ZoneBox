@@ -664,19 +664,6 @@ final class SnapEngine {
 
         let layoutID = sessionLayoutID ?? assignedID
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
-        var outlines: [CGRect] = []
-        var label: OverlayCandidateLabel?
-        if let candidate = candidates.indices.contains(candidateIndex) ? candidates[candidateIndex] : nil {
-            outlines = candidates.compactMap { item in
-                item.zone.zoneID == candidate.zone.zoneID ? nil : item.zone.frameAX
-            }
-            if candidates.count > 1 {
-                label = OverlayCandidateLabel(
-                    text: "\(L10n.layoutDisplayName(candidate.layoutName)) · \(candidateIndex + 1)/\(candidates.count)",
-                    anchorAX: candidate.zone.frameAX
-                )
-            }
-        }
         let stripModel: OverlayStripRenderModel?
         if let strip, runtime.settings.showLayoutStrip {
             stripModel = OverlayStripRenderModel(
@@ -695,9 +682,10 @@ final class SnapEngine {
             strip: strip,
             pointerInStrip: pointerInStrip,
             forcedTarget: forcedTarget,
-            presentation: OverlayPresentation(
-                candidateOutlinesAX: outlines,
-                candidateLabel: label,
+            presentation: OverlayPresentation.snapSession(
+                candidates: candidates,
+                candidateIndex: candidateIndex,
+                localizedLayoutName: { L10n.layoutDisplayName($0) },
                 strip: stripModel
             )
         )
