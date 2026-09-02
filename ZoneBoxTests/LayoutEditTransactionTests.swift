@@ -591,4 +591,69 @@ final class LayoutEditTransactionTests: XCTestCase {
         XCTAssertFalse(transaction.targetIsAvailable(in: [otherDisplayID]))
         XCTAssertEqual(transaction.targetDisplayID, displayID)
     }
+
+    func testUndoThenRedoRestoresTheSameDraft() {
+        let original = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        XCTAssertFalse(transaction.canRedo)
+
+        var edited = original
+        edited.zones.removeLast()
+        edited = edited.packedNumbers()
+        transaction.updateDraft(edited)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        XCTAssertFalse(transaction.canRedo)
+
+        let undone = transaction.undo()
+        XCTAssertEqual(undone?.zones.count, 3)
+        XCTAssertTrue(transaction.canRedo)
+
+        let redone = transaction.redo()
+        XCTAssertEqual(redone?.zones.count, 2)
+        XCTAssertEqual(transaction.draft.zones.count, 2)
+        XCTAssertFalse(transaction.canRedo)
+    }
+
+    func testEditingAfterRedoClearsTheRedoStack() {
+        let original = LayoutTemplates.columns(3)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        var first = original
+        first.zones.removeLast()
+        first = first.packedNumbers()
+        transaction.updateDraft(first)
+        _ = transaction.undo()
+        XCTAssertTrue(transaction.canRedo)
+
+        var second = original
+        second.zones.removeLast()
+        second.zones.removeLast()
+        second = second.packedNumbers()
+        transaction.updateDraft(second)
+        XCTAssertFalse(transaction.canRedo)
+        XCTAssertEqual(transaction.draft.zones.count, 1)
+    }
+
+    func testRedoStackIsCappedAtFifty() {
+        let original = LayoutTemplates.columns(2)
+        var transaction = LayoutEditTransaction(original: original, draft: original, targetDisplayID: displayID)
+        for count in 0..<55 {
+            var next = original
+            if count % 2 == 0 {
+                next.zones.removeLast()
+                next = next.packedNumbers()
+            }
+            transaction.updateDraft(next)
+        }
+        var undoCount = 0
+        while transaction.undo() != nil {
+            undoCount += 1
+        }
+        XCTAssertEqual(undoCount, 50)
+        var redoCount = 0
+        while transaction.redo() != nil {
+            redoCount += 1
+        }
+        XCTAssertEqual(redoCount, 50)
+    }
+
 }

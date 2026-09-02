@@ -73,4 +73,21 @@ final class ZonePixelMetricsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(frame.minX, work.minX - 0.6)
         XCTAssertGreaterThanOrEqual(frame.minY, work.minY - 0.6)
     }
+
+    func testMovingClampsAndLeavesUnspecifiedAxis() {
+        let rect = NormalizedRect(x: 0.1, y: 0.2, width: 0.2, height: 0.2)
+        let movedX = ZonePixelMetrics.moving(rect, toX: -40, y: nil, workAreaAX: work)
+        XCTAssertEqual(movedX.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(movedX.y, rect.y, accuracy: 0.0001)
+
+        let movedY = ZonePixelMetrics.moving(rect, toX: nil, y: 900, workAreaAX: work)
+        XCTAssertEqual(movedY.x, rect.x, accuracy: 0.0001)
+        XCTAssertLessThanOrEqual(movedY.maxY, 1.0001)
+
+        let both = ZonePixelMetrics.moving(rect, toX: 100, y: 80, workAreaAX: work)
+        let origin = ZonePixelMetrics.origin(of: both, workAreaAX: work)
+        XCTAssertEqual(origin.x, 100)
+        XCTAssertEqual(origin.y, 80)
+    }
+
 }

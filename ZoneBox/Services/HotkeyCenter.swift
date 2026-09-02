@@ -269,11 +269,18 @@ final class HotkeyCenter {
                ) || ShortcutCatalog.isEditorUndoChord(
                    keyCode: event.keyCode,
                    carbonModifiers: modifiers
+               ) || ShortcutCatalog.isEditorRedoChord(
+                   keyCode: event.keyCode,
+                   carbonModifiers: modifiers
                )
             {
                 return nil
             }
             if event.isARepeat, event.keyCode != HardwareKeyCode.tab {
+                if HardwareKeyCode.isEditorNudge(event.keyCode) {
+                    if runtime.handleEditorKey(event) { return nil }
+                    return event
+                }
                 return event.keyCode == HardwareKeyCode.delete
                     || event.keyCode == HardwareKeyCode.forwardDelete
                     || event.keyCode == HardwareKeyCode.return

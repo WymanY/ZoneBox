@@ -7,6 +7,7 @@ public struct LayoutEditTransaction: Sendable {
     public let targetDisplayID: DisplayIdentity.ID
     public private(set) var draft: Layout
     private var undoStack: [Layout] = []
+    private var redoStack: [Layout] = []
     private var interactionBase: Layout?
 
     public init(original: Layout?, draft: Layout, targetDisplayID: DisplayIdentity.ID) {
@@ -56,6 +57,7 @@ public struct LayoutEditTransaction: Sendable {
                     undoStack.removeFirst(undoStack.count - 50)
                 }
             }
+            redoStack.removeAll()
         }
         draft = layout
     }
@@ -68,12 +70,32 @@ public struct LayoutEditTransaction: Sendable {
     }
 
     public var canUndo: Bool { !undoStack.isEmpty }
+    public var canRedo: Bool { !redoStack.isEmpty }
 
     @discardableResult
     public mutating func undo() -> Layout? {
         guard let previous = undoStack.popLast() else { return nil }
+        if redoStack.last.map({ Self.sameEditingState($0, draft) }) != true {
+            redoStack.append(draft)
+            if redoStack.count > 50 {
+                redoStack.removeFirst(redoStack.count - 50)
+            }
+        }
         draft = previous
         return previous
+    }
+
+    @discardableResult
+    public mutating func redo() -> Layout? {
+        guard let next = redoStack.popLast() else { return nil }
+        if undoStack.last.map({ Self.sameEditingState($0, draft) }) != true {
+            undoStack.append(draft)
+            if undoStack.count > 50 {
+                undoStack.removeFirst(undoStack.count - 50)
+            }
+        }
+        draft = next
+        return next
     }
 
     private mutating func recordUndoIfNeeded(_ layout: Layout) {
@@ -83,6 +105,7 @@ public struct LayoutEditTransaction: Sendable {
         if undoStack.count > 50 {
             undoStack.removeFirst(undoStack.count - 50)
         }
+        redoStack.removeAll()
     }
 
     static func sameEditingState(_ lhs: Layout, _ rhs: Layout) -> Bool {

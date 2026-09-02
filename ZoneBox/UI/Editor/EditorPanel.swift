@@ -30,6 +30,11 @@ final class EditorPanel: NSPanel {
     }
 
     var onUndo: (() -> Void)?
+    var onRedo: (() -> Void)?
+    var onDuplicate: (() -> Void)?
+    var onSelectAll: (() -> Void)?
+    var onSplitVertical: (() -> Void)?
+    var onSplitHorizontal: (() -> Void)?
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
@@ -45,6 +50,41 @@ final class EditorPanel: NSPanel {
             carbonModifiers: modifiers
         ) {
             onUndo?()
+            return true
+        }
+        if ShortcutCatalog.isEditorRedoChord(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onRedo?()
+            return true
+        }
+        if ShortcutCatalog.editorDuplicateChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onDuplicate?()
+            return true
+        }
+        if ShortcutCatalog.editorSelectAllChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onSelectAll?()
+            return true
+        }
+        if ShortcutCatalog.editorSplitVerticalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onSplitVertical?()
+            return true
+        }
+        if ShortcutCatalog.editorSplitHorizontalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            onSplitHorizontal?()
             return true
         }
         return super.performKeyEquivalent(with: event)

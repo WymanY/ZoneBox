@@ -172,6 +172,14 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutEditorDelete
     case shortcutEditorSave
     case shortcutEditorUndo
+    case shortcutEditorRedo
+    case shortcutEditorNewPane
+    case shortcutEditorDuplicate
+    case shortcutEditorSplitVertical
+    case shortcutEditorSplitHorizontal
+    case shortcutEditorNudge
+    case shortcutEditorMarquee
+    case shortcutEditorSnapOff
     case shortcutEditorZoomHeight
     case shortcutEditorZoomWidth
     case shortcutSnapShiftDrag
@@ -195,6 +203,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureDrag
     case shortcutGestureCycleCandidate
     case shortcutGestureLayoutStrip
+    case shortcutGestureClickEmpty
+    case shortcutGestureArrowKeys
+    case shortcutGestureCommandDrag
+    case shortcutGestureControlHold
 
     case onboardingWindowTitle
     case onboardingTitle
@@ -260,6 +272,39 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case editorAspect4x3
     case editorLockAspect
     case editorNoZoneSelected
+    case editorX
+    case editorY
+    case canvasEmptyTitle
+    case canvasEmptySubtitle
+    case canvasNewPane
+    case canvasDuplicate
+    case canvasSplitVertical
+    case canvasSplitHorizontal
+    case canvasAlign
+    case canvasAlignLeft
+    case canvasAlignCenterX
+    case canvasAlignRight
+    case canvasAlignTop
+    case canvasAlignCenterY
+    case canvasAlignBottom
+    case canvasMatchSize
+    case canvasMatchWidth
+    case canvasMatchHeight
+    case canvasMatchBoth
+    case canvasDistribute
+    case canvasDistributeHorizontal
+    case canvasDistributeVertical
+    case canvasSnapToHalf
+    case canvasSnapHalfLeft
+    case canvasSnapHalfRight
+    case canvasSnapHalfTop
+    case canvasSnapHalfBottom
+    case canvasCenter
+    case canvasFillFromTemplate
+    case canvasSelectAll
+    case canvasNumber
+    case canvasDeletePane
+    case editorRedo
 
     case layoutColumns
     case layoutRows
@@ -525,6 +570,14 @@ public enum L10n {
         .shortcutEditorDelete: "Delete zone",
         .shortcutEditorSave: "Save layout or copy",
         .shortcutEditorUndo: "Undo last edit",
+        .shortcutEditorRedo: "Redo last undone edit",
+        .shortcutEditorNewPane: "Create a pane",
+        .shortcutEditorDuplicate: "Duplicate pane",
+        .shortcutEditorSplitVertical: "Split pane vertically",
+        .shortcutEditorSplitHorizontal: "Split pane horizontally",
+        .shortcutEditorNudge: "Nudge selected panes",
+        .shortcutEditorMarquee: "Marquee-select panes",
+        .shortcutEditorSnapOff: "Disable snapping while dragging",
         .shortcutEditorZoomHeight: "Scale height",
         .shortcutEditorZoomWidth: "Scale width",
         .shortcutSnapShiftDrag: "Snap while dragging the title bar",
@@ -548,6 +601,10 @@ public enum L10n {
         .shortcutGestureDrag: "Drag",
         .shortcutGestureCycleCandidate: "Scroll or ⇥",
         .shortcutGestureLayoutStrip: "Drop on strip",
+        .shortcutGestureClickEmpty: "Click empty space",
+        .shortcutGestureArrowKeys: "← → ↑ ↓",
+        .shortcutGestureCommandDrag: "⌘  drag empty space",
+        .shortcutGestureControlHold: "⌃  while dragging",
 
         .onboardingWindowTitle: "Enable Accessibility",
         .onboardingTitle: "Allow ZoneBox to arrange windows",
@@ -590,8 +647,8 @@ public enum L10n {
         .editorFromTemplate: "From Template",
         .editorCustomLayout: "Custom",
         .editorFromTemplateTooltip: "Replace the draft with a template. Save updates this layout. Save Copy creates a new one.",
-        .editorHint: "Drag edges to resize. Type pixels or lock aspect. WASD selects a pane. ⌘Z undoes. Esc exits.",
-        .editorGridHint: "Click splits a cell. Shift-click splits a row. Drag across cells to merge. ⌘Z undoes.",
+        .editorHint: "Click empty space or drag to create a pane. ⌘D duplicates, ⌘⇧\\ / ⌘- split, arrows nudge. Hold ⌃ while dragging to turn off snapping. ⌘Z undoes, Esc exits.",
+        .editorGridHint: "Click splits a cell. Shift-click splits a row. Drag across cells to merge. ⌘Z undoes, ⌘⇧Z redoes.",
         .editorGridProtected: "Grid layouts are protected; saving creates a copy and does not overwrite the original.",
         .editorSaveTooltip: "Save layout",
         .editorSaveCopyTooltip: "Save changes as a new layout",
@@ -613,6 +670,39 @@ public enum L10n {
         .editorAspect4x3: "4:3",
         .editorLockAspect: "Lock aspect",
         .editorNoZoneSelected: "Select a zone to set pixels",
+        .editorX: "X",
+        .editorY: "Y",
+        .canvasEmptyTitle: "Click anywhere to create a pane",
+        .canvasEmptySubtitle: "Or drag out a rectangle. You can also start from a template.",
+        .canvasNewPane: "New Pane",
+        .canvasDuplicate: "Duplicate Pane",
+        .canvasSplitVertical: "Split Vertically",
+        .canvasSplitHorizontal: "Split Horizontally",
+        .canvasAlign: "Align",
+        .canvasAlignLeft: "Left",
+        .canvasAlignCenterX: "Horizontal Centers",
+        .canvasAlignRight: "Right",
+        .canvasAlignTop: "Top",
+        .canvasAlignCenterY: "Vertical Centers",
+        .canvasAlignBottom: "Bottom",
+        .canvasMatchSize: "Size",
+        .canvasMatchWidth: "Make Same Width",
+        .canvasMatchHeight: "Make Same Height",
+        .canvasMatchBoth: "Make Same Size",
+        .canvasDistribute: "Distribute",
+        .canvasDistributeHorizontal: "Horizontally",
+        .canvasDistributeVertical: "Vertically",
+        .canvasSnapToHalf: "Snap to Half",
+        .canvasSnapHalfLeft: "Left Half",
+        .canvasSnapHalfRight: "Right Half",
+        .canvasSnapHalfTop: "Top Half",
+        .canvasSnapHalfBottom: "Bottom Half",
+        .canvasCenter: "Center",
+        .canvasFillFromTemplate: "Fill From Template",
+        .canvasSelectAll: "Select All",
+        .canvasNumber: "Number",
+        .canvasDeletePane: "Delete Pane",
+        .editorRedo: "Redo",
 
         .layoutColumns: "Columns %d",
         .layoutRows: "Rows %d",
@@ -765,6 +855,14 @@ public enum L10n {
         .shortcutEditorDelete: "删除分区",
         .shortcutEditorSave: "保存布局或另存副本",
         .shortcutEditorUndo: "撤销上一步",
+        .shortcutEditorRedo: "重做上一步",
+        .shortcutEditorNewPane: "新建窗格",
+        .shortcutEditorDuplicate: "复制窗格",
+        .shortcutEditorSplitVertical: "垂直二等分窗格",
+        .shortcutEditorSplitHorizontal: "水平二等分窗格",
+        .shortcutEditorNudge: "微调选中窗格",
+        .shortcutEditorMarquee: "框选窗格",
+        .shortcutEditorSnapOff: "拖动时关闭吸附",
         .shortcutEditorZoomHeight: "缩放高度",
         .shortcutEditorZoomWidth: "缩放宽度",
         .shortcutSnapShiftDrag: "拖动标题栏时吸附",
@@ -788,6 +886,10 @@ public enum L10n {
         .shortcutGestureDrag: "拖动",
         .shortcutGestureCycleCandidate: "滚轮或 ⇥",
         .shortcutGestureLayoutStrip: "拖到布局条",
+        .shortcutGestureClickEmpty: "点击空白处",
+        .shortcutGestureArrowKeys: "← → ↑ ↓",
+        .shortcutGestureCommandDrag: "⌘  拖空白处",
+        .shortcutGestureControlHold: "拖动时按 ⌃",
 
         .onboardingWindowTitle: "开启辅助功能",
         .onboardingTitle: "允许 ZoneBox 排列窗口",
@@ -830,8 +932,8 @@ public enum L10n {
         .editorFromTemplate: "基于模板",
         .editorCustomLayout: "自定义",
         .editorFromTemplateTooltip: "用模板替换当前草稿。保存会更新当前布局，另存副本会创建新布局。",
-        .editorHint: "拖边缘缩放。可输入像素或锁定长宽比。WASD 选格。⌘Z 撤销。Esc 退出。",
-        .editorGridHint: "点击竖切，Shift+点击横切。拖过相邻格子可合并。⌘Z 撤销。",
+        .editorHint: "空白处点击或拖拽新建窗格。⌘D 复制，⌘⇧\\ / ⌘- 二等分，方向键微调。拖动时按 ⌃ 关闭吸附。⌘Z 撤销，Esc 退出。",
+        .editorGridHint: "点击竖切，Shift+点击横切。拖过相邻格子可合并。⌘Z 撤销，⌘⇧Z 重做。",
         .editorGridProtected: "Grid 布局受保护；修改后会创建副本，不会覆盖原布局。",
         .editorSaveTooltip: "保存布局",
         .editorSaveCopyTooltip: "将修改保存为新布局",
@@ -853,6 +955,39 @@ public enum L10n {
         .editorAspect4x3: "4:3",
         .editorLockAspect: "锁定比例",
         .editorNoZoneSelected: "选中分区后可设置像素",
+        .editorX: "X",
+        .editorY: "Y",
+        .canvasEmptyTitle: "点击任意位置新建窗格",
+        .canvasEmptySubtitle: "或拖出一个矩形；也可以从模板起手",
+        .canvasNewPane: "新建窗格",
+        .canvasDuplicate: "复制窗格",
+        .canvasSplitVertical: "垂直二等分",
+        .canvasSplitHorizontal: "水平二等分",
+        .canvasAlign: "对齐",
+        .canvasAlignLeft: "左",
+        .canvasAlignCenterX: "水平居中",
+        .canvasAlignRight: "右",
+        .canvasAlignTop: "上",
+        .canvasAlignCenterY: "垂直居中",
+        .canvasAlignBottom: "下",
+        .canvasMatchSize: "尺寸",
+        .canvasMatchWidth: "等宽",
+        .canvasMatchHeight: "等高",
+        .canvasMatchBoth: "等宽高",
+        .canvasDistribute: "分布",
+        .canvasDistributeHorizontal: "水平等距",
+        .canvasDistributeVertical: "垂直等距",
+        .canvasSnapToHalf: "贴到半屏",
+        .canvasSnapHalfLeft: "左半",
+        .canvasSnapHalfRight: "右半",
+        .canvasSnapHalfTop: "上半",
+        .canvasSnapHalfBottom: "下半",
+        .canvasCenter: "居中",
+        .canvasFillFromTemplate: "从模板填充",
+        .canvasSelectAll: "全选",
+        .canvasNumber: "编号",
+        .canvasDeletePane: "删除窗格",
+        .editorRedo: "重做",
 
         .layoutColumns: "%d 列",
         .layoutRows: "%d 行",

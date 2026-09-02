@@ -236,6 +236,36 @@ final class AppRuntime {
         ) {
             return editor?.handleLocalKey(event) ?? false
         }
+        if ShortcutCatalog.isEditorRedoChord(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
+        if ShortcutCatalog.editorDuplicateChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
+        if ShortcutCatalog.editorSelectAllChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
+        if ShortcutCatalog.editorSplitVerticalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
+        if ShortcutCatalog.editorSplitHorizontalChord.matches(
+            keyCode: event.keyCode,
+            carbonModifiers: modifiers
+        ) {
+            return editor?.handleLocalKey(event) ?? false
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags.contains(.command) || flags.contains(.control) { return false }
         return editor?.handleLocalKey(event) ?? false

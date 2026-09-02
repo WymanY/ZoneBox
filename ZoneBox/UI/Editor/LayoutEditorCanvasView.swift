@@ -4,28 +4,35 @@ import ZoneBoxCore
 final class LayoutEditorCanvasView: NSView {
     var layout: Layout {
         didSet {
-            if let selectedID, !layout.zones.contains(where: { $0.id == selectedID }) {
-                self.selectedID = nil
-            }
+            pruneSelection()
             needsDisplay = true
         }
     }
     var primaryFlipHeight: CGFloat
     var workAreaAX: CGRect
+    private var selection: Set<UUID> = []
+    private var primaryID: UUID?
     var selectedID: UUID? {
-        didSet {
+        get { primaryID }
+        set {
+            let old = primaryID
+            primaryID = newValue
+            selection = newValue.map { [$0] } ?? []
             needsDisplay = true
-            if oldValue != selectedID {
+            if old != primaryID {
                 onSelectionChange?()
             }
         }
     }
+    var selectedIDs: Set<UUID> { selection }
     var onChange: ((Layout) -> Void)?
     var onPreview: ((Layout) -> Void)?
     var onInteractionBegin: (() -> Void)?
     var onCancel: (() -> Void)?
     var onInteractionChange: ((Bool) -> Void)?
     var onSelectionChange: (() -> Void)?
+    var onMenuWillOpen: (() -> Void)?
+    var onMenuDidClose: (() -> Void)?
     var lockAspect = false
     var gutterPoints: CGFloat = 0 {
         didSet { needsDisplay = true }
@@ -37,10 +44,11 @@ final class LayoutEditorCanvasView: NSView {
     /// Pointers over that chrome, or a zone's delete control, should not
     /// show a grid split preview.
     var chromeView: NSView?
+    var additionalChromeViews: [NSView] = []
 
     private enum DragKind {
         case create(start: CGPoint)
-        case move(id: UUID, startRect: NormalizedRect, start: CGPoint)
+        case move(id: UUID, startRect: NormalizedRect, start: CGPoint, clones: Bool)
         case resize(id: UUID, startRect: NormalizedRect, start: CGPoint, handle: Handle)
         case split(
             axis: SplitAxis,
@@ -53,6 +61,7 @@ final class LayoutEditorCanvasView: NSView {
         case gridLine(axis: GridAxis, afterIndex: Int)
         case gridMerge(start: CGPoint, normalizedStart: (x: Double, y: Double))
         case close
+        case marquee(start: CGPoint)
     }
 
     private enum Handle: CaseIterable, Equatable {
@@ -90,6 +99,12 @@ final class LayoutEditorCanvasView: NSView {
     private var pointerOverChrome = false
     private var lastCycle: (forward: Bool, time: TimeInterval)?
     private var lastPaneMove: (direction: Layout.ArrowDirection, time: TimeInterval)?
+    private var ghostRect: NormalizedRect?
+    private var snapHits: (x: [Double], y: [Double]) = ([], [])
+    private var snapCandidates = CanvasSnapCandidates(x: [0, 0.5, 1], y: [0, 0.5, 1])
+    private var creatingID: UUID?
+    private var nudgeInteractionStarted = false
+    private var nudgeFinishWorkItem: DispatchWorkItem?
     private let closeButtonSize: CGFloat = 22
     private let closeButtonInset: CGFloat = 8
     private let edgeSlop: CGFloat = 12
@@ -154,6 +169,8 @@ final class LayoutEditorCanvasView: NSView {
         hoverEdge = nil
         hoverSplit = nil
         pointerOverChrome = false
+        ghostRect = nil
+        snapHits = ([], [])
         NSCursor.arrow.set()
         needsDisplay = true
     }
@@ -163,7 +180,7 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     override func flagsChanged(with event: NSEvent) {
-        if layout.kind == .grid, drag == nil, let window {
+        if drag == nil, let window {
             refreshHover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
         }
         super.flagsChanged(with: event)
@@ -184,9 +201,9 @@ final class LayoutEditorCanvasView: NSView {
         for zone in zones {
             let rect = viewRect(for: displayedRects[zone.id] ?? canvasRect(of: zone))
             guard !rect.isNull, rect.width > 1, rect.height > 1 else { continue }
-            let selected = zone.id == selectedID
+            let selected = selection.contains(zone.id)
             let body = rect.insetBy(dx: 3, dy: 3)
-            NSColor.systemBlue.withAlphaComponent(selected ? 0.35 : 0.18).setFill()
+            NSColor.systemBlue.withAlphaComponent(selected ? (zone.id == primaryID ? 0.38 : 0.28) : 0.18).setFill()
             let path = NSBezierPath(roundedRect: body, xRadius: 8, yRadius: 8)
             path.fill()
             NSColor.white.withAlphaComponent(selected ? 0.95 : 0.6).setStroke()
@@ -244,6 +261,10 @@ final class LayoutEditorCanvasView: NSView {
             guard canDeleteGrid else { continue }
             drawCloseButton(in: closeButtonRect(for: rect), highlighted: zone.id == selectedID)
         }
+        drawEmptyGuideIfNeeded()
+        drawGhostIfNeeded()
+        drawSnapGuides()
+        drawMarqueeIfNeeded()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -263,7 +284,7 @@ final class LayoutEditorCanvasView: NSView {
         }
 
         if let edge = edgeInteraction(at: point) {
-            selectedID = edge.primaryID
+            selectOnly(edge.primaryID)
             hoverEdge = edge
             guard let primary = layout.zones.first(where: { $0.id == edge.primaryID }) else { return }
             if let neighborID = edge.neighborID,
@@ -284,6 +305,7 @@ final class LayoutEditorCanvasView: NSView {
                     handle: edge.primaryHandle
                 )
             }
+            cacheSnapCandidates(excluding: [edge.primaryID, edge.neighborID].compactMap { $0 })
             beginUndoInteraction()
             setInteracting(true)
             applyCursor()
@@ -292,16 +314,46 @@ final class LayoutEditorCanvasView: NSView {
         }
 
         if let zone = hitZone(at: point) {
-            selectedID = zone.id
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags.contains(.shift) || flags.contains(.command) {
+                toggleSelection(zone.id)
+                drag = nil
+                hoverEdge = nil
+                setInteracting(false)
+                needsDisplay = true
+                return
+            }
+            selectOnly(zone.id)
             let rect = canvasRect(of: zone)
             if let handle = handle(at: point, in: viewRect(for: rect)) {
+                cacheSnapCandidates(excluding: [zone.id])
                 drag = .resize(id: zone.id, startRect: rect, start: point, handle: handle)
+            } else if flags.contains(.option) {
+                beginUndoInteraction()
+                if let cloned = cloneZonesForDrag(ids: selection.isEmpty ? [zone.id] : selection) {
+                    cacheSnapCandidates(excluding: cloned.ids)
+                    drag = .move(id: cloned.primary, startRect: cloned.startRect, start: point, clones: true)
+                    hoverEdge = nil
+                    setInteracting(true)
+                    needsDisplay = true
+                    return
+                }
+                cacheSnapCandidates(excluding: [zone.id])
+                drag = .move(id: zone.id, startRect: rect, start: point, clones: false)
             } else {
-                drag = .move(id: zone.id, startRect: rect, start: point)
+                cacheSnapCandidates(excluding: selection.isEmpty ? [zone.id] : Array(selection))
+                drag = .move(id: zone.id, startRect: rect, start: point, clones: false)
             }
         } else {
-            selectedID = nil
-            drag = .create(start: point)
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if flags.contains(.command) {
+                selectedID = nil
+                drag = .marquee(start: point)
+            } else {
+                selectedID = nil
+                cacheSnapCandidates(excluding: [])
+                drag = .create(start: point)
+            }
         }
         hoverEdge = nil
         beginUndoInteraction()
@@ -315,26 +367,41 @@ final class LayoutEditorCanvasView: NSView {
         case .create(let start):
             let rect = rubberBand(from: start, to: point)
             guard rect.width >= 24, rect.height >= 24 else { return }
-            upsertCreatingZone(normalized(fromView: rect))
-        case .move(let id, let startRect, let start):
+            let snapped = snapRect(
+                normalized(fromView: rect),
+                intent: createIntent(from: start, to: point),
+                event: event
+            )
+            upsertCreatingZone(snapped)
+        case .move(let id, let startRect, let start, _):
             let dx = Double((point.x - start.x) / max(bounds.width, 1))
             let dy = Double(-(point.y - start.y) / max(bounds.height, 1))
+            var moved = startRect
+            moved.x += dx
+            moved.y += dy
+            let snapped = snapRect(moved.clamped(), intent: .move, event: event, lockAspectSingleAxis: false)
             updateZone(id) { zone in
-                var r = startRect
-                r.x += dx
-                r.y += dy
-                zone.canvasRect = r.clamped()
+                zone.canvasRect = snapped
             }
         case .resize(let id, let startRect, let start, let handle):
             let dx = Double((point.x - start.x) / max(bounds.width, 1))
             let dy = Double(-(point.y - start.y) / max(bounds.height, 1))
+            let resized = resize(startRect, handle: handle, dx: dx, dy: dy, lockAspect: lockAspect).clamped()
+            let snapped = snapRect(
+                resized,
+                intent: resizeIntent(for: handle),
+                event: event,
+                lockAspectFrom: lockAspect ? startRect : nil,
+                usingWidth: lockAspectUsesWidth(handle: handle, dx: dx, dy: dy)
+            )
             updateZone(id) { zone in
-                zone.canvasRect = resize(startRect, handle: handle, dx: dx, dy: dy, lockAspect: lockAspect).clamped()
+                zone.canvasRect = snapped
             }
             if let zone = layout.zones.first(where: { $0.id == id }) {
                 hoverEdge = edgeHandle(for: zone, handle: handle, pointer: point)
             }
         case .split(let axis, let firstID, let firstRect, let secondID, let secondRect, let start):
+            snapHits = ([], [])
             applySplitDrag(
                 axis: axis,
                 firstID: firstID,
@@ -350,6 +417,14 @@ final class LayoutEditorCanvasView: NSView {
             updateGridMergeSelection(at: point)
             previewDraft()
             return
+        case .marquee(let start):
+            selection = zonesIntersecting(rubberBand(from: start, to: point))
+            primaryID = selection.sorted { lhs, rhs in
+                zoneNumber(lhs) < zoneNumber(rhs)
+            }.first
+            onSelectionChange?()
+            needsDisplay = true
+            return
         case .close, nil:
             break
         }
@@ -364,14 +439,18 @@ final class LayoutEditorCanvasView: NSView {
         }
         if case .create(let start) = drag {
             let traveled = hypot(point.x - start.x, point.y - start.y)
-            if let last = layout.zones.last, last.name == "__creating" {
-                layout.zones[layout.zones.count - 1].name = nil
-                selectedID = last.id
+            if let creatingID, let zone = layout.zones.first(where: { $0.id == creatingID }) {
+                selectOnly(zone.id)
+                self.creatingID = nil
             } else if traveled < 8 {
                 createDefaultZone(at: start)
             }
+        } else if case .marquee = drag {
+            onSelectionChange?()
         }
         drag = nil
+        creatingID = nil
+        snapHits = ([], [])
         setInteracting(false)
         ensureCanvas()
         refreshHover(at: point)
@@ -441,20 +520,30 @@ final class LayoutEditorCanvasView: NSView {
             return true
         }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.subtracting(.shift).isEmpty,
+        if HardwareKeyCode.isEditorNudge(event.keyCode) {
+            return handleNudge(event)
+        }
+        if flags.subtracting([.shift, .option]).isEmpty,
            let direction = arrowDirection(for: event.keyCode)
         {
             if event.isARepeat { return true }
             moveSelection(direction)
             return true
         }
+        if flags.isEmpty, let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode) {
+            return perform(.assignNumber(number))
+        }
         return false
     }
 
     func deleteSelected() {
-        if let selectedID {
-            deleteZone(id: selectedID)
+        if layout.kind == .grid {
+            if let selectedID {
+                deleteZone(id: selectedID)
+            }
+            return
         }
+        _ = perform(.delete)
     }
 
     override func insertTab(_ sender: Any?) {
@@ -470,8 +559,7 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     func selectFirstZone() {
-        selectedID = layout.cycledZoneID(from: nil, forward: true)
-        needsDisplay = true
+        selectOnly(layout.cycledZoneID(from: nil, forward: true))
     }
 
     func cycleSelection(forward: Bool) {
@@ -482,8 +570,7 @@ final class LayoutEditorCanvasView: NSView {
         }
         lastCycle = (forward, now)
         window?.makeFirstResponder(self)
-        selectedID = layout.cycledZoneID(from: selectedID, forward: forward)
-        needsDisplay = true
+        selectOnly(layout.cycledZoneID(from: selectedID, forward: forward))
     }
 
     func moveSelection(_ direction: Layout.ArrowDirection) {
@@ -499,12 +586,12 @@ final class LayoutEditorCanvasView: NSView {
             rects = GridEditing.normalizedRects(for: layout, workAreaAX: workAreaAX)
         } else {
             rects = Dictionary(uniqueKeysWithValues: layout.zones.compactMap { zone -> (UUID, NormalizedRect)? in
-                guard zone.name != "__creating" else { return nil }
+                guard zone.id != creatingID else { return nil }
                 return (zone.id, canvasRect(of: zone))
             })
         }
         selectedID = layout.neighborZoneID(from: selectedID, direction: direction, rects: rects)
-        needsDisplay = true
+        selectOnly(selectedID)
     }
 
     private func arrowDirection(for keyCode: UInt16) -> Layout.ArrowDirection? {
@@ -519,24 +606,21 @@ final class LayoutEditorCanvasView: NSView {
 
     private func createDefaultZone(at point: CGPoint) {
         ensureCanvas()
-        let width = min(280, max(140, bounds.width * 0.28))
-        let height = min(200, max(110, bounds.height * 0.24))
-        var rect = CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
-        rect.origin.x = min(max(0, rect.origin.x), max(0, bounds.width - rect.width))
-        rect.origin.y = min(max(0, rect.origin.y), max(0, bounds.height - rect.height))
-        let number = (layout.zones.map(\.number).max() ?? 0) + 1
-        let zone = Zone(number: number, canvasRect: normalized(fromView: rect))
-        layout.zones.append(zone)
-        selectedID = zone.id
+        let n = normalizedPoint(point)
+        var rect = CanvasEditing.defaultRect(centeredAt: n, canvasSize: bounds.size)
+        rect = snapRect(rect, intent: .move, event: nil)
+        _ = perform(.insert(rect))
     }
 
     private func upsertCreatingZone(_ rect: NormalizedRect) {
         ensureCanvas()
-        if let last = layout.zones.last, last.name == "__creating" {
-            layout.zones[layout.zones.count - 1].canvasRect = rect
+        if let creatingID, let idx = layout.zones.firstIndex(where: { $0.id == creatingID }) {
+            layout.zones[idx].canvasRect = rect
         } else {
             let number = (layout.zones.map(\.number).max() ?? 0) + 1
-            layout.zones.append(Zone(number: number, name: "__creating", canvasRect: rect))
+            let zone = Zone(number: number, canvasRect: rect)
+            layout.zones.append(zone)
+            creatingID = zone.id
         }
     }
 
@@ -553,7 +637,8 @@ final class LayoutEditorCanvasView: NSView {
         }
         layout.zones.removeAll { $0.id == id }
         layout = layout.packedNumbers()
-        if selectedID == id { selectedID = nil }
+        selection.remove(id)
+        if primaryID == id { primaryID = selection.first }
         ensureCanvas()
         commit()
     }
@@ -588,10 +673,433 @@ final class LayoutEditorCanvasView: NSView {
         onSelectionChange?()
     }
 
-    private func sanitizeCreatingZoneIfNeeded() {
-        if let last = layout.zones.last, last.name == "__creating" {
-            layout.zones[layout.zones.count - 1].name = nil
+    @discardableResult
+    func perform(_ command: CanvasCommand) -> Bool {
+        guard layout.kind != .grid || isGridCompatible(command) else {
+            NSSound.beep()
+            return false
         }
+        guard let result = CanvasCommandRunner.perform(
+            command,
+            layout: layout,
+            selection: selection,
+            primaryID: primaryID,
+            workAreaAX: workAreaAX,
+            canvasSize: bounds.size
+        ) else {
+            NSSound.beep()
+            return false
+        }
+        layout = result.layout
+        applySelection(result.selection, primary: result.primaryID)
+        ensureCanvas()
+        commit()
+        return true
+    }
+
+    func applyTemplateKeepingCanvas(_ preset: Layout) {
+        _ = perform(.fillTemplate(preset))
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        drag = nil
+        ghostRect = nil
+        snapHits = ([], [])
+        if let zone = hitZone(at: point) {
+            if !selection.contains(zone.id) {
+                selectOnly(zone.id)
+            } else {
+                primaryID = zone.id
+                onSelectionChange?()
+            }
+        }
+        onMenuWillOpen?()
+        let menu = CanvasContextMenu.make(
+            layout: layout,
+            hitZone: hitZone(at: point),
+            selectionCount: selection.count,
+            target: self,
+            insert: #selector(menuInsert),
+            duplicate: #selector(menuDuplicate),
+            splitVertical: #selector(menuSplitVertical),
+            splitHorizontal: #selector(menuSplitHorizontal),
+            selectAll: #selector(menuSelectAll),
+            delete: #selector(menuDelete),
+            center: #selector(menuCenter),
+            fillTemplate: #selector(menuFillTemplate(_:)),
+            align: #selector(menuAlign(_:)),
+            matchSize: #selector(menuMatchSize(_:)),
+            distribute: #selector(menuDistribute(_:)),
+            snapHalf: #selector(menuSnapHalf(_:)),
+            assignNumber: #selector(menuAssignNumber(_:))
+        )
+        NotificationCenter.default.addObserver(
+            forName: NSMenu.didEndTrackingNotification,
+            object: menu,
+            queue: .main
+        ) { [weak self] _ in
+            self?.onMenuDidClose?()
+        }
+        return menu
+    }
+
+    @objc private func menuInsert() { _ = perform(.insertDefault) }
+    @objc private func menuDuplicate() { _ = perform(.duplicate) }
+    @objc private func menuSplitVertical() { _ = perform(.split(.vertical)) }
+    @objc private func menuSplitHorizontal() { _ = perform(.split(.horizontal)) }
+    @objc private func menuSelectAll() { _ = perform(.selectAll) }
+    @objc private func menuDelete() { deleteSelected() }
+    @objc private func menuCenter() { _ = perform(.center) }
+
+    @objc private func menuFillTemplate(_ sender: NSMenuItem) {
+        let presets = LayoutTemplates.editorPresets()
+        guard presets.indices.contains(sender.tag) else { return }
+        _ = perform(.fillTemplate(presets[sender.tag]))
+    }
+
+    @objc private func menuAlign(_ sender: NSMenuItem) {
+        let edges: [CanvasAlignment.Edge] = [.left, .centerX, .right, .top, .centerY, .bottom]
+        guard edges.indices.contains(sender.tag) else { return }
+        _ = perform(.align(edges[sender.tag]))
+    }
+
+    @objc private func menuMatchSize(_ sender: NSMenuItem) {
+        let matches: [CanvasAlignment.SizeMatch] = [.width, .height, .both]
+        guard matches.indices.contains(sender.tag) else { return }
+        _ = perform(.matchSize(matches[sender.tag]))
+    }
+
+    @objc private func menuDistribute(_ sender: NSMenuItem) {
+        _ = perform(.distribute(sender.tag == 1 ? .vertical : .horizontal))
+    }
+
+    @objc private func menuSnapHalf(_ sender: NSMenuItem) {
+        let edges: [CanvasAlignment.Edge] = [.left, .right, .top, .bottom]
+        guard edges.indices.contains(sender.tag) else { return }
+        _ = perform(.snapToHalf(edges[sender.tag]))
+    }
+
+    @objc private func menuAssignNumber(_ sender: NSMenuItem) {
+        _ = perform(.assignNumber(sender.tag))
+    }
+
+    private func isGridCompatible(_ command: CanvasCommand) -> Bool {
+        switch command {
+        case .selectAll, .delete:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func pruneSelection() {
+        let valid = Set(layout.zones.map(\.id))
+        selection = selection.intersection(valid)
+        if let primaryID, !valid.contains(primaryID) {
+            self.primaryID = selection.sorted { zoneNumber($0) < zoneNumber($1) }.first
+        }
+    }
+
+    private func applySelection(_ ids: Set<UUID>, primary: UUID?) {
+        let valid = Set(layout.zones.map(\.id))
+        selection = ids.intersection(valid)
+        if let primary, valid.contains(primary) {
+            primaryID = primary
+        } else {
+            primaryID = selection.sorted { zoneNumber($0) < zoneNumber($1) }.first
+        }
+        onSelectionChange?()
+        needsDisplay = true
+    }
+
+    private func selectOnly(_ id: UUID?) {
+        applySelection(id.map { [$0] } ?? [], primary: id)
+    }
+
+    private func toggleSelection(_ id: UUID) {
+        if selection.contains(id) {
+            selection.remove(id)
+            if primaryID == id {
+                primaryID = selection.sorted { zoneNumber($0) < zoneNumber($1) }.first
+            }
+        } else {
+            selection.insert(id)
+            primaryID = id
+        }
+        onSelectionChange?()
+        needsDisplay = true
+    }
+
+    private func zoneNumber(_ id: UUID) -> Int {
+        layout.zones.first(where: { $0.id == id })?.number ?? .max
+    }
+
+    private func handleNudge(_ event: NSEvent) -> Bool {
+        guard layout.kind != .grid else { return true }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let amount: CGFloat = flags.contains(.shift) ? 10 : 1
+        var dx: CGFloat = 0
+        var dy: CGFloat = 0
+        switch event.keyCode {
+        case HardwareKeyCode.left: dx = -amount
+        case HardwareKeyCode.right: dx = amount
+        case HardwareKeyCode.up: dy = -amount
+        case HardwareKeyCode.down: dy = amount
+        default: return false
+        }
+        let resize = flags.contains(.option)
+        if !nudgeInteractionStarted {
+            beginUndoInteraction()
+            nudgeInteractionStarted = true
+        }
+        var next = layout
+        let ids = selection.isEmpty ? Set([primaryID].compactMap { $0 }) : selection
+        for id in ids {
+            guard let idx = next.zones.firstIndex(where: { $0.id == id }),
+                  let rect = next.zones[idx].canvasRect
+            else { continue }
+            next.zones[idx].canvasRect = CanvasEditing.nudge(
+                rect,
+                dxPoints: dx,
+                dyPoints: dy,
+                resize: resize,
+                workAreaAX: workAreaAX
+            )
+        }
+        layout = next
+        previewDraft()
+        nudgeFinishWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.nudgeInteractionStarted = false
+            self.commit()
+        }
+        nudgeFinishWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+        return true
+    }
+
+    private func cloneZonesForDrag(ids: Set<UUID>) -> (primary: UUID, ids: [UUID], startRect: NormalizedRect)? {
+        guard let result = CanvasEditing.duplicating(layout, ids: ids, offset: (0, 0)) else { return nil }
+        layout = result.layout
+        applySelection(Set(result.newIDs), primary: result.newIDs.last)
+        guard let primary = result.newIDs.last,
+              let zone = layout.zones.first(where: { $0.id == primary })
+        else { return nil }
+        return (primary, result.newIDs, canvasRect(of: zone))
+    }
+
+    private func cacheSnapCandidates(excluding ids: [UUID]) {
+        let excluded = Set(ids)
+        let rects = layout.zones.compactMap { zone -> NormalizedRect? in
+            guard !excluded.contains(zone.id), zone.id != creatingID else { return nil }
+            return canvasRect(of: zone)
+        }
+        snapCandidates = .from(rects: rects)
+    }
+
+    private func snapThresholds(event: NSEvent?) -> (x: Double, y: Double) {
+        let flags = (event ?? NSApp.currentEvent)?.modifierFlags.intersection(.deviceIndependentFlagsMask) ?? []
+        if flags.contains(.control) { return (0, 0) }
+        return (
+            Double(CanvasSnapping.thresholdPoints / max(bounds.width, 1)),
+            Double(CanvasSnapping.thresholdPoints / max(bounds.height, 1))
+        )
+    }
+
+    private func snapRect(
+        _ rect: NormalizedRect,
+        intent: CanvasSnapping.Intent,
+        event: NSEvent?,
+        lockAspectSingleAxis: Bool = false,
+        lockAspectFrom start: NormalizedRect? = nil,
+        usingWidth: Bool = true
+    ) -> NormalizedRect {
+        let thresholds = snapThresholds(event: event)
+        let result: CanvasSnapResult
+        if let start {
+            result = CanvasSnapping.snappingPreservingAspect(
+                from: start,
+                resized: rect,
+                intent: intent,
+                candidates: snapCandidates,
+                thresholdX: thresholds.x,
+                thresholdY: thresholds.y,
+                usingWidth: usingWidth
+            )
+        } else if lockAspectSingleAxis {
+            result = CanvasSnapping.snappingClosestAxis(
+                rect,
+                intent: intent,
+                candidates: snapCandidates,
+                thresholdX: thresholds.x,
+                thresholdY: thresholds.y
+            )
+        } else {
+            result = CanvasSnapping.snapping(
+                rect,
+                intent: intent,
+                candidates: snapCandidates,
+                thresholdX: thresholds.x,
+                thresholdY: thresholds.y
+            )
+        }
+        snapHits = (result.hitX, result.hitY)
+        return result.rect.clamped()
+    }
+
+    private func lockAspectUsesWidth(handle: Handle, dx: Double, dy: Double) -> Bool {
+        switch handle {
+        case .e, .w, .ne, .nw, .se, .sw:
+            return abs(dx) >= abs(dy)
+        case .n, .s:
+            return false
+        }
+    }
+
+    private func createIntent(from start: CGPoint, to point: CGPoint) -> CanvasSnapping.Intent {
+        CanvasSnapping.Intent.edges(
+            left: point.x < start.x,
+            right: point.x >= start.x,
+            top: point.y > start.y,
+            bottom: point.y <= start.y
+        )
+    }
+
+    private func resizeIntent(for handle: Handle) -> CanvasSnapping.Intent {
+        switch handle {
+        case .n: return .edges(left: false, right: false, top: true, bottom: false)
+        case .s: return .edges(left: false, right: false, top: false, bottom: true)
+        case .e: return .edges(left: false, right: true, top: false, bottom: false)
+        case .w: return .edges(left: true, right: false, top: false, bottom: false)
+        case .ne: return .edges(left: false, right: true, top: true, bottom: false)
+        case .nw: return .edges(left: true, right: false, top: true, bottom: false)
+        case .se: return .edges(left: false, right: true, top: false, bottom: true)
+        case .sw: return .edges(left: true, right: false, top: false, bottom: true)
+        }
+    }
+
+    private func zonesIntersecting(_ rect: CGRect) -> Set<UUID> {
+        var ids = Set<UUID>()
+        for zone in layout.zones {
+            let frame = viewRect(for: canvasRect(of: zone))
+            if frame.intersects(rect) {
+                ids.insert(zone.id)
+            }
+        }
+        return ids
+    }
+
+    private func drawEmptyGuideIfNeeded() {
+        guard layout.kind == .canvas else { return }
+        let visible = layout.zones.filter { $0.id != creatingID }
+        guard visible.isEmpty, drag == nil else { return }
+        let guide = CGRect(
+            x: bounds.midX - bounds.width * 0.21,
+            y: bounds.midY - bounds.height * 0.15,
+            width: bounds.width * 0.42,
+            height: bounds.height * 0.30
+        )
+        NSColor.white.withAlphaComponent(0.5).setStroke()
+        let path = NSBezierPath(roundedRect: guide, xRadius: 8, yRadius: 8)
+        path.lineWidth = 1.5
+        path.setLineDash([4, 3], count: 2, phase: 0)
+        path.stroke()
+        if let image = NSImage(systemSymbolName: "plus", accessibilityDescription: nil) {
+            let size = NSSize(width: 28, height: 28)
+            image.draw(
+                in: CGRect(x: guide.midX - size.width / 2, y: guide.midY + 8, width: size.width, height: size.height),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 0.85
+            )
+        }
+        let title = L10n.text(.canvasEmptyTitle) as NSString
+        let subtitle = L10n.text(.canvasEmptySubtitle) as NSString
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 16, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+        ]
+        let subtitleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.72),
+        ]
+        let titleSize = title.size(withAttributes: titleAttrs)
+        let subtitleSize = subtitle.size(withAttributes: subtitleAttrs)
+        title.draw(
+            at: NSPoint(x: guide.midX - titleSize.width / 2, y: guide.midY - 18),
+            withAttributes: titleAttrs
+        )
+        subtitle.draw(
+            at: NSPoint(x: guide.midX - subtitleSize.width / 2, y: guide.midY - 40),
+            withAttributes: subtitleAttrs
+        )
+    }
+
+    private func drawGhostIfNeeded() {
+        guard let ghostRect, drag == nil else { return }
+        let rect = viewRect(for: ghostRect)
+        guard !rect.isNull, rect.width > 2, rect.height > 2 else { return }
+        NSColor.white.withAlphaComponent(0.45).setStroke()
+        let path = NSBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 2), xRadius: 8, yRadius: 8)
+        path.lineWidth = 1.5
+        path.setLineDash([5, 4], count: 2, phase: 0)
+        path.stroke()
+        if let image = NSImage(systemSymbolName: "plus", accessibilityDescription: nil) {
+            let size = NSSize(width: 16, height: 16)
+            image.draw(
+                in: CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 0.7
+            )
+        }
+        let pixels = ZonePixelMetrics.pixelSize(of: ghostRect, workAreaAX: workAreaAX)
+        let label = "\(pixels.width) × \(pixels.height)" as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.8),
+        ]
+        let size = label.size(withAttributes: attrs)
+        label.draw(at: NSPoint(x: rect.maxX - size.width - 8, y: rect.minY + 8), withAttributes: attrs)
+    }
+
+    private func drawSnapGuides() {
+        NSColor.systemTeal.withAlphaComponent(0.9).setStroke()
+        for x in snapHits.x {
+            let path = NSBezierPath()
+            path.lineWidth = 1
+            let vx = CGFloat(x) * bounds.width
+            path.move(to: CGPoint(x: vx, y: 0))
+            path.line(to: CGPoint(x: vx, y: bounds.height))
+            path.stroke()
+        }
+        for y in snapHits.y {
+            let path = NSBezierPath()
+            path.lineWidth = 1
+            let vy = CGFloat(1 - y) * bounds.height
+            path.move(to: CGPoint(x: 0, y: vy))
+            path.line(to: CGPoint(x: bounds.width, y: vy))
+            path.stroke()
+        }
+    }
+
+    private func drawMarqueeIfNeeded() {
+        guard case .marquee(let start) = drag, let window else { return }
+        let current = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        let box = rubberBand(from: start, to: current)
+        guard box.width > 2, box.height > 2 else { return }
+        NSColor.white.withAlphaComponent(0.85).setStroke()
+        let path = NSBezierPath(rect: box)
+        path.lineWidth = 1.5
+        path.setLineDash([4, 3], count: 2, phase: 0)
+        path.stroke()
+    }
+
+
+    private func sanitizeCreatingZoneIfNeeded() {
+        creatingID = nil
     }
 
     private func ensureCanvas() {
@@ -646,12 +1154,37 @@ final class LayoutEditorCanvasView: NSView {
     private func refreshHover(at point: CGPoint) {
         guard drag == nil else { return }
         if layout.kind == .grid {
+            ghostRect = nil
+            snapHits = ([], [])
             refreshGridHover(at: point)
             return
         }
+        if isPointOverChrome(point) {
+            let changed = hoverEdge != nil || ghostRect != nil || !pointerOverChrome
+            hoverEdge = nil
+            ghostRect = nil
+            snapHits = ([], [])
+            pointerOverChrome = true
+            if changed { needsDisplay = true }
+            applyCursor()
+            return
+        }
+        pointerOverChrome = false
         let next = edgeInteraction(at: point)
-        if next != hoverEdge {
+        var nextGhost: NormalizedRect?
+        var nextHits: (x: [Double], y: [Double]) = ([], [])
+        if next == nil, hitZone(at: point) == nil, !isPointOverCloseButton(point) {
+            cacheSnapCandidates(excluding: [])
+            let n = normalizedPoint(point)
+            var rect = CanvasEditing.defaultRect(centeredAt: n, canvasSize: bounds.size)
+            let snapped = snapRect(rect, intent: .move, event: NSApp.currentEvent)
+            nextGhost = snapped
+            nextHits = snapHits
+        }
+        if next != hoverEdge || nextGhost != ghostRect {
             hoverEdge = next
+            ghostRect = nextGhost
+            snapHits = nextHits
             needsDisplay = true
         }
         applyCursor()
@@ -678,8 +1211,16 @@ final class LayoutEditorCanvasView: NSView {
             NSCursor.crosshair.set()
             return
         }
-        guard let edge = visibleSplitHandle() else {
+        if pointerOverChrome, drag == nil {
             NSCursor.arrow.set()
+            return
+        }
+        guard let edge = visibleSplitHandle() else {
+            if ghostRect != nil, drag == nil {
+                NSCursor.crosshair.set()
+            } else {
+                NSCursor.arrow.set()
+            }
             return
         }
 
@@ -709,7 +1250,7 @@ final class LayoutEditorCanvasView: NSView {
 
     private func visibleSplitHandle() -> EdgeInteraction? {
         switch drag {
-        case .create, .move, .close, .gridMerge, .gridLine: return nil
+        case .create, .move, .close, .gridMerge, .gridLine, .marquee: return nil
         case .resize, .split, nil: return hoverEdge
         }
     }
@@ -868,9 +1409,13 @@ final class LayoutEditorCanvasView: NSView {
     }
 
     private func isPointOverChrome(_ point: CGPoint) -> Bool {
-        guard let chrome = chromeView, let chromeSuperview = chrome.superview else { return false }
-        let chromeRect = convert(chrome.frame, from: chromeSuperview)
-        return chromeRect.contains(point)
+        let views = [chromeView].compactMap { $0 } + additionalChromeViews
+        for chrome in views {
+            guard let chromeSuperview = chrome.superview else { continue }
+            let chromeRect = convert(chrome.frame, from: chromeSuperview)
+            if chromeRect.contains(point) { return true }
+        }
+        return false
     }
 
     private func isPointOverCloseButton(_ point: CGPoint) -> Bool {
