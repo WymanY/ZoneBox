@@ -48,6 +48,22 @@ final class ProfilePlanTests: XCTestCase {
         XCTAssertEqual(outcome.skippedDisplayIDs, [disconnected])
     }
 
+    func testKeepsConnectedSectionWhenEverySavedWindowIsMissing() {
+        let display = UUID()
+        let layoutID = UUID()
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 100))
+        let profile = WorkspaceProfile(name: "Work", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), layoutID: layoutID, rules: [rule("editor", zone)]),
+        ])
+
+        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [display: [zone]], candidates: [])
+
+        XCTAssertEqual(outcome.sections.map(\.displayID), [display])
+        XCTAssertEqual(outcome.sections.map(\.layoutID), [layoutID])
+        XCTAssertTrue(outcome.sections.first?.placements.isEmpty ?? false)
+        XCTAssertEqual(outcome.missingBundleIDs, ["editor"])
+    }
+
     func testMissingBundleIDsAreDeduplicated() {
         let display = UUID()
         let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: .zero)

@@ -251,6 +251,8 @@ final class WorkspaceCenter {
                 fromAppKit: area.visibleFrameAppKit,
                 primaryFlipHeight: runtime.displays.primaryFlipHeight
             )
+            runtime.document.assign(layoutID: layout.id, to: sectionPlan.displayID)
+            runtime.document.markLayoutUsed(layout.id)
             let result = await WindowOrganizeExecutor.execute(
                 windows: entries,
                 initialSkipped: initialSkipped,
@@ -260,7 +262,7 @@ final class WorkspaceCenter {
                     guard filtered.count == identities.count else { return nil }
                     return WindowOrganizeAttemptPlan(layout: layout, placements: filtered, workAreaAX: workAX)
                 },
-                readFrame: { [runtime] window in await runtime.ax.frame(of: window) },
+                readFrame: { [weak self] window in await self?.runtime.ax.frame(of: window) },
                 applyFrame: { [weak self] frame, window in
                     guard let self else {
                         return WindowOrganizeApplication(actualFrameAX: nil, behavior: .immutable)
@@ -277,7 +279,7 @@ final class WorkspaceCenter {
             )
             switch result {
             case .success(_, let moves, let skipped):
-                appendUnique(moves.map(\.identity), to: &movedWindows)
+                appendUnique(moves.map { $0.identity }, to: &movedWindows)
                 appendUnique(skipped, to: &skippedWindows)
                 for move in moves {
                     runtime.catalog.record(
@@ -293,13 +295,12 @@ final class WorkspaceCenter {
                         restoredWindows.append(window)
                     }
                 }
-                runtime.document.assign(layoutID: layout.id, to: sectionPlan.displayID)
-                runtime.document.markLayoutUsed(layout.id)
                 runtime.flashWorkspaceZones(area: area, layout: layout)
             case .noMovableWindows(let skipped):
                 appendUnique(skipped, to: &skippedWindows)
             case .failed(let skipped, let rollbackFailed):
-                appendUnique(skipped + rollbackFailed, to: &skippedWindows)
+                appendUnique(skipped, to: &skippedWindows)
+                appendUnique(rollbackFailed, to: &skippedWindows)
             }
         }
 
@@ -498,7 +499,7 @@ final class WorkspaceCenter {
                   let zone = resolvedZone(for: item.target),
                   let window = await runtime.ax.resolveAsync(ref: ref),
                   let original = await runtime.ax.frame(of: window),
-                  let applied = await runtime.ax.setFrame(zone.frameAX, of: window)
+                  let applied = await acceptedDelayedFrame(zone.frameAX, of: window)
             else { continue }
             runtime.catalog.record(
                 UnsnapRecord(
@@ -553,6 +554,16 @@ final class WorkspaceCenter {
         NSRunningApplication(processIdentifier: identity.pid)?.localizedName
             ?? identity.bundleID
             ?? L10n.text(.organizeNoWindowsTitle)
+    }
+
+    private func acceptedDelayedFrame(_ target: CGRect, of window: AXWindow) async -> CGRect? {
+        let application = await runtime.applyWorkspaceFrame(target, to: window)
+        switch application.behavior {
+        case .compliant, .sizeConstrained:
+            return application.actualFrameAX
+        case .positionConstrained, .immutable, .unstable:
+            return nil
+        }
     }
 
     private func showFeedback(title: String, detail: String, error: Bool) {

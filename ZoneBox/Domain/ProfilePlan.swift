@@ -80,16 +80,14 @@ public enum ProfilePlan {
                 placements.append(WindowOrganizePlacement(identity: sample.identity, targetFrameAX: zone.frameAX))
                 zoneIDs[sample.identity] = zone.zoneID
             }
-            if !placements.isEmpty {
-                sections.append(
-                    SectionPlan(
-                        displayID: displayID,
-                        layoutID: section.layoutID,
-                        placements: placements,
-                        zoneIDByIdentity: zoneIDs
-                    )
+            sections.append(
+                SectionPlan(
+                    displayID: displayID,
+                    layoutID: section.layoutID,
+                    placements: placements,
+                    zoneIDByIdentity: zoneIDs
                 )
-            }
+            )
         }
 
         return Outcome(
