@@ -18,6 +18,7 @@ public enum HardwareKeyCode {
     public static let e: UInt16 = 14
     public static let z: UInt16 = 6
     public static let o: UInt16 = 31
+    public static let p: UInt16 = 35
     public static let w: UInt16 = 13
     public static let u: UInt16 = 32
     public static let h: UInt16 = 4
@@ -189,6 +190,7 @@ public enum ShortcutCustomizationID: String, Sendable, CaseIterable, Equatable {
     case showShortcuts
     case quickSnapper
     case organizeWindows
+    case applyWorkspace
     case snapZones
     case openSettings
 }
@@ -258,6 +260,7 @@ public enum ShortcutCatalog {
     public static let quickSnapperHotkeyID: UInt32 = 107
     public static let organizeHotkeyID: UInt32 = 108
     public static let settingsHotkeyID: UInt32 = 109
+    public static let applyWorkspaceHotkeyID: UInt32 = 110
     public static let editorSaveChord = KeyChord(
         keyCode: HardwareKeyCode.s,
         carbonModifiers: CarbonModifier.command
@@ -365,6 +368,13 @@ public enum ShortcutCatalog {
                 titleKey: .shortcutQuickSnapper,
                 hotkeyID: quickSnapperHotkeyID,
                 binding: .chord(settings.quickSnapperHotkey)
+            ),
+            ShortcutSpec(
+                id: "applyWorkspace",
+                surface: .global,
+                titleKey: .shortcutApplyWorkspace,
+                hotkeyID: applyWorkspaceHotkeyID,
+                binding: .chord(settings.applyWorkspaceHotkey)
             ),
         ]
 
@@ -623,6 +633,7 @@ public enum ShortcutCatalog {
             (.showShortcuts, .shortcutShowShortcuts, settings.shortcutsPanelHotkey),
             (.quickSnapper, .shortcutQuickSnapper, settings.quickSnapperHotkey),
             (.organizeWindows, .shortcutOrganizeWindows, settings.organizeHotkey),
+            (.applyWorkspace, .shortcutApplyWorkspace, settings.applyWorkspaceHotkey),
             (.openSettings, .shortcutSettings, settings.settingsHotkey),
             (.snapZones, .shortcutSnapZones, KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: settings.zoneHotkeyModifiers)),
         ]
@@ -648,6 +659,7 @@ public enum ShortcutCatalog {
         case .showShortcuts: next.shortcutsPanelHotkey = normalized
         case .quickSnapper: next.quickSnapperHotkey = normalized
         case .organizeWindows: next.organizeHotkey = normalized
+        case .applyWorkspace: next.applyWorkspaceHotkey = normalized
         case .openSettings: next.settingsHotkey = normalized
         case .snapZones: next.zoneHotkeyModifiers = normalized.carbonModifiers
         }

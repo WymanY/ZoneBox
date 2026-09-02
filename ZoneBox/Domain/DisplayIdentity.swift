@@ -103,20 +103,26 @@ public struct StoreDocument: Codable, Equatable, Sendable {
     public var assignments: [LayoutAssignment]
     /// Most-recently-used layout IDs, newest first. Missing from legacy store.json.
     public var recentLayoutIDs: [Layout.ID]
+    public var profiles: [WorkspaceProfile]
+    public var activeProfileID: WorkspaceProfile.ID?
 
     public init(
         schemaVersion: Int = 1,
         layouts: [Layout] = LayoutTemplates.all(),
         displays: [DisplayIdentity] = [],
         assignments: [LayoutAssignment] = [],
-        recentLayoutIDs: [Layout.ID] = []
+        recentLayoutIDs: [Layout.ID] = [],
+        profiles: [WorkspaceProfile] = [],
+        activeProfileID: WorkspaceProfile.ID? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.layouts = layouts
         self.displays = displays
         self.assignments = assignments
         self.recentLayoutIDs = recentLayoutIDs
-        pruneRecentLayoutIDs()
+        self.profiles = profiles
+        self.activeProfileID = activeProfileID
+        normalizeReferences()
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -125,6 +131,8 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         case displays
         case assignments
         case recentLayoutIDs
+        case profiles
+        case activeProfileID
     }
 
     public init(from decoder: Decoder) throws {
@@ -134,7 +142,9 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         displays = try container.decode([DisplayIdentity].self, forKey: .displays)
         assignments = try container.decode([LayoutAssignment].self, forKey: .assignments)
         recentLayoutIDs = try container.decodeIfPresent([Layout.ID].self, forKey: .recentLayoutIDs) ?? []
-        pruneRecentLayoutIDs()
+        profiles = try container.decodeIfPresent([WorkspaceProfile].self, forKey: .profiles) ?? []
+        activeProfileID = try container.decodeIfPresent(WorkspaceProfile.ID.self, forKey: .activeProfileID)
+        normalizeReferences()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -144,6 +154,8 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         try container.encode(displays, forKey: .displays)
         try container.encode(assignments, forKey: .assignments)
         try container.encode(recentLayoutIDs, forKey: .recentLayoutIDs)
+        try container.encode(profiles, forKey: .profiles)
+        try container.encodeIfPresent(activeProfileID, forKey: .activeProfileID)
     }
 
     public func layout(for displayID: DisplayIdentity.ID) -> Layout? {
@@ -211,7 +223,47 @@ public struct StoreDocument: Codable, Equatable, Sendable {
             assignments[assignmentIndex].layoutID = fallbackID
         }
         recentLayoutIDs.removeAll { $0 == id }
+        for profileIndex in profiles.indices {
+            profiles[profileIndex].sections.removeAll { $0.layoutID == id }
+        }
+        profiles.removeAll { $0.sections.isEmpty }
+        if let activeProfileID, !profiles.contains(where: { $0.id == activeProfileID }) {
+            self.activeProfileID = nil
+        }
         return true
+    }
+
+    public mutating func upsertProfile(_ profile: WorkspaceProfile) {
+        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+            profiles[index] = profile
+        } else {
+            profiles.append(profile)
+        }
+        normalizeReferences()
+    }
+
+    @discardableResult
+    public mutating func deleteProfile(id: WorkspaceProfile.ID) -> Bool {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return false }
+        profiles.remove(at: index)
+        if activeProfileID == id { activeProfileID = nil }
+        return true
+    }
+
+    public mutating func normalizeReferences() {
+        pruneRecentLayoutIDs()
+        let knownLayouts = Set(layouts.map(\.id))
+        var seenProfiles = Set<WorkspaceProfile.ID>()
+        profiles = profiles.compactMap { profile in
+            guard !seenProfiles.contains(profile.id) else { return nil }
+            seenProfiles.insert(profile.id)
+            var copy = profile
+            copy.sections.removeAll { !knownLayouts.contains($0.layoutID) || $0.rules.isEmpty }
+            return copy.sections.isEmpty ? nil : copy
+        }
+        if let activeProfileID, !profiles.contains(where: { $0.id == activeProfileID }) {
+            self.activeProfileID = nil
+        }
     }
 
     private mutating func pruneRecentLayoutIDs() {

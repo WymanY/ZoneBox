@@ -7,6 +7,7 @@ struct WindowRef: Equatable, Sendable {
     var boundsAX: CGRect
     var bundleID: String?
     var layer: Int
+    var alpha: Double = 1
 }
 
 extension WindowRef {

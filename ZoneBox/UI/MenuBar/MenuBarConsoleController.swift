@@ -17,6 +17,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var gridHeightConstraint: NSLayoutConstraint?
     private var otherLayoutCount = 0
     private var organizeButton: NSButton?
+    private var workspaceButton: NSButton?
     private var settingsButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
@@ -268,6 +269,15 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeFooter() -> NSView {
+        let workspace = NSButton(
+            title: L10n.text(.menuWorkspaces),
+            target: self,
+            action: #selector(showWorkspaceMenu(_:))
+        )
+        workspace.bezelStyle = .rounded
+        workspace.controlSize = .small
+        workspaceButton = workspace
+
         let settings = NSButton(title: L10n.text(.menuSettings), target: self, action: #selector(openSettings))
         settings.bezelStyle = .rounded
         settings.controlSize = .small
@@ -280,7 +290,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let row = NSStackView(views: [settings, spacer, quit])
+        let row = NSStackView(views: [workspace, settings, spacer, quit])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
@@ -307,6 +317,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
         organizeButton?.title = L10n.text(.consoleOrganize)
         organizeButton?.isEnabled = !runtime.isOrganizingWindows
+        workspaceButton?.title = L10n.text(.menuWorkspaces)
         settingsButton?.title = L10n.text(.menuSettings)
         if let newButton {
             newButton.attributedTitle = NSAttributedString(
@@ -540,7 +551,13 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let name = L10n.layoutDisplayName(layout.name)
         let alert = NSAlert()
         alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
-        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
+        let affected = runtime.document.profiles.filter { profile in
+            profile.sections.contains(where: { $0.layoutID == layout.id })
+        }.count
+        alert.informativeText = affected == 0
+            ? L10n.text(.menuDeleteLayoutMessage)
+            : L10n.text(.menuDeleteLayoutMessage) + " "
+                + String(format: L10n.text(.workspaceLayoutDeleteImpact), affected)
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))
@@ -568,6 +585,65 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     @objc
     private func newLayout() {
         dismiss(handoff: { [runtime] in runtime.newGridLayout() })
+    }
+
+    @objc
+    private func showWorkspaceMenu(_ sender: NSButton) {
+        let menu = NSMenu()
+        for profile in runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt }) {
+            let title = profile.name.count > 30 ? String(profile.name.prefix(29)) + "…" : profile.name
+            let item = NSMenuItem(title: title, action: #selector(applyConsoleWorkspace(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = profile.id.uuidString
+            item.state = profile.id == runtime.document.activeProfileID ? .on : .off
+            item.isEnabled = !runtime.isOrganizingWindows
+            menu.addItem(item)
+        }
+        if !runtime.document.profiles.isEmpty { menu.addItem(.separator()) }
+        let capture = NSMenuItem(
+            title: L10n.text(.menuCaptureWorkspace),
+            action: #selector(captureConsoleWorkspace(_:)),
+            keyEquivalent: ""
+        )
+        capture.target = self
+        capture.isEnabled = !runtime.isOrganizingWindows
+        menu.addItem(capture)
+        menu.addItem(.separator())
+        let manage = NSMenuItem(
+            title: L10n.text(.menuManageWorkspaces),
+            action: #selector(manageConsoleWorkspaces(_:)),
+            keyEquivalent: ""
+        )
+        manage.target = self
+        menu.addItem(manage)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
+    }
+
+    @objc
+    private func applyConsoleWorkspace(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
+        dismiss(handoff: { [runtime] in runtime.workspace.apply(profileID: id) })
+    }
+
+    @objc
+    private func captureConsoleWorkspace(_ sender: NSMenuItem) {
+        let alert = NSAlert()
+        alert.messageText = L10n.text(.workspaceNameTitle)
+        alert.informativeText = L10n.text(.workspaceNameMessage)
+        let field = NSTextField(string: "")
+        field.placeholderString = L10n.text(.workspaceNamePlaceholder)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: L10n.text(.workspaceSave))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue
+        dismiss(handoff: { [runtime] in runtime.workspace.capture(name: name) })
+    }
+
+    @objc
+    private func manageConsoleWorkspaces(_ sender: NSMenuItem) {
+        dismiss(handoff: { [runtime] in runtime.openWorkspaceSettings() })
     }
 
     @objc

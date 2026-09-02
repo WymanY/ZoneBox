@@ -21,6 +21,7 @@ final class AppRuntime {
     let engine = SnapEngine()
     let drag = DragMonitor()
     let hotkeys = HotkeyCenter()
+    let workspace = WorkspaceCenter()
     let pins = PinCenter()
     let pinHover = PinHoverMonitor()
     var ax: AccessibilityClientLive
@@ -59,6 +60,7 @@ final class AppRuntime {
         engine.runtime = self
         drag.runtime = self
         hotkeys.runtime = self
+        workspace.runtime = self
         pins.runtime = self
         pinHover.runtime = self
 
@@ -85,6 +87,7 @@ final class AppRuntime {
 
         drag.start()
         hotkeys.start()
+        workspace.start()
         pins.start()
         pinHover.start()
         observeSystem()
@@ -110,6 +113,7 @@ final class AppRuntime {
     }
 
     func teardown() {
+        workspace.stop()
         pinHover.stop()
         pins.stop()
         overlay.hideAll()
@@ -144,6 +148,16 @@ final class AppRuntime {
         settingsWindow?.showWindow()
     }
 
+    func openWorkspaceSettings() {
+        menuBar?.closeConsole()
+        if settingsWindow == nil {
+            settingsWindow = SettingsWindowController(runtime: self)
+            uiSession.enterRegular()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.showWorkspaces()
+    }
+
     func settingsDidClose() {
         guard settingsWindow != nil else { return }
         settingsWindow = nil
@@ -151,6 +165,10 @@ final class AppRuntime {
         hotkeys.reregister()
         menuBar?.reloadMenu()
         uiSession.leaveRegular()
+    }
+
+    func refreshWorkspaceSettings() {
+        settingsWindow?.reloadWorkspaceProfiles()
     }
 
     func openEditor() {
@@ -368,6 +386,7 @@ final class AppRuntime {
         guard deleted else { return false }
         persist()
         menuBar?.reloadMenu()
+        refreshWorkspaceSettings()
         if editor?.originalLayoutID == layout.id {
             editor?.cancelEditing()
         }
@@ -445,21 +464,21 @@ final class AppRuntime {
 
     func organizeWindowsFromPointer() {
         guard WindowOrganize.isPubliclyAvailable else { return }
-        guard beginOrganizingWindows() else { return }
+        guard beginWindowTransaction() else { return }
         let area = displays.area(containingAppKit: NSEvent.mouseLocation)
         Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { finishOrganizingWindows() }
+            defer { finishWindowTransaction() }
             await organizeWindows(on: area)
         }
     }
 
     func organizeWindowsFromHotkey() {
         guard WindowOrganize.isPubliclyAvailable else { return }
-        guard beginOrganizingWindows() else { return }
+        guard beginWindowTransaction() else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { finishOrganizingWindows() }
+            defer { finishWindowTransaction() }
             guard let target = await focusedWindowTarget() else {
                 NSSound.beep()
                 return
@@ -468,7 +487,7 @@ final class AppRuntime {
         }
     }
 
-    private func beginOrganizingWindows() -> Bool {
+    func beginWindowTransaction() -> Bool {
         guard !isOrganizingWindows else {
             Log.ax.info("Organize ignored because another transaction is running")
             return false
@@ -479,7 +498,7 @@ final class AppRuntime {
         return true
     }
 
-    private func finishOrganizingWindows() {
+    func finishWindowTransaction() {
         isOrganizingWindows = false
         menuBar?.reloadMenu()
     }
@@ -726,6 +745,18 @@ final class AppRuntime {
         )
     }
 
+    func applyWorkspaceFrame(_ target: CGRect, to window: AXWindow) async -> WindowOrganizeApplication {
+        await applyOrganizeFrame(target, to: window)
+    }
+
+    func cachedOrganizeBehavior(for identity: WindowIdentity) -> WindowOrganizeWindowBehavior? {
+        organizeBehaviorCache[identity]
+    }
+
+    func cacheOrganizeBehavior(_ behavior: WindowOrganizeWindowBehavior, for identity: WindowIdentity) {
+        organizeBehaviorCache[identity] = behavior
+    }
+
     private func framesMatch(_ lhs: CGRect?, _ rhs: CGRect?, tolerance: CGFloat) -> Bool {
         guard let lhs, let rhs else { return lhs == nil && rhs == nil }
         return abs(lhs.minX - rhs.minX) <= tolerance
@@ -920,6 +951,10 @@ final class AppRuntime {
         }
     }
 
+    func flashWorkspaceZones(area: WorkArea, layout: Layout) {
+        flashZones(area: area, layout: layout, duration: 1.2)
+    }
+
     func openAccessibility() {
         if onboarding == nil {
             onboarding = OnboardingWindowController(runtime: self)
@@ -1051,6 +1086,10 @@ final class AppRuntime {
         return zones
     }
 
+    func resolvedZones(layout: Layout, area: WorkArea) -> [ResolvedZone] {
+        cachedResolvedZones(layout: layout, area: area)
+    }
+
     func persist() {
         invalidateResolvedLayoutCache()
         try? layoutStore.save(document)
@@ -1126,6 +1165,7 @@ final class AppRuntime {
                 runtime.overlay.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
                 runtime.invalidateResolvedLayoutCache()
                 runtime.persist()
+                runtime.workspace.displaysDidChange()
             }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
@@ -1135,6 +1175,8 @@ final class AppRuntime {
                 if let pid {
                     runtime.catalog.drop(pid: pid)
                     runtime.pins.drop(pid: pid)
+                    let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                    runtime.workspace.applicationDidTerminate(pid: pid, bundleID: app?.bundleIdentifier)
                 }
             }
         }
@@ -1144,11 +1186,29 @@ final class AppRuntime {
             queue: .main
         ) { [weak self] _ in
             guard let runtime = self else { return }
-            Task { @MainActor in runtime.hideAllOverlays() }
+            Task { @MainActor in
+                runtime.hideAllOverlays()
+                runtime.workspace.pause()
+            }
+        }
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.screenIsUnlocked"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.workspace.resume() }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
             guard let runtime = self else { return }
-            Task { @MainActor in runtime.hideAllOverlays() }
+            Task { @MainActor in
+                runtime.hideAllOverlays()
+                runtime.workspace.pause()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let runtime = self else { return }
+            Task { @MainActor in runtime.workspace.resume() }
         }
     }
 }

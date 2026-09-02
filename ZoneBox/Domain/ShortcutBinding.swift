@@ -29,6 +29,7 @@ public extension ShortcutCustomizationID {
         case .showShortcuts: .shortcutShowShortcuts
         case .quickSnapper: .shortcutQuickSnapper
         case .organizeWindows: .shortcutOrganizeWindows
+        case .applyWorkspace: .shortcutApplyWorkspace
         case .snapZones: .shortcutSnapZones
         case .openSettings: .shortcutSettings
         }

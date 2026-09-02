@@ -374,6 +374,37 @@ final class WindowOrganizeTests: XCTestCase {
     }
 
     @MainActor
+    func testPlacementAcceptanceKeepsSizeConstrainedWindowOutsidePrimaryWithoutRollback() async {
+        let identity = WindowIdentity(pid: 1, windowNumber: 1)
+        let original = CGRect(x: 20, y: 20, width: 320, height: 240)
+        let mover = FakeMover(frames: [identity: original], sizeLocked: [identity])
+        var issues: [WindowOrganizeIssue] = []
+
+        let result = await WindowOrganizeExecutor.execute(
+            windows: [(identity, identity)],
+            acceptance: .placement,
+            makePlan: { self.attemptPlan(for: $0, baseX: 1_000) },
+            readFrame: { mover.frame(of: $0) },
+            applyFrame: { frame, handle in
+                let actual = mover.apply(frame, to: handle)
+                return WindowOrganizeApplication(
+                    actualFrameAX: actual,
+                    behavior: WindowOrganize.behavior(actual: actual, target: frame)
+                )
+            },
+            onIssues: { issues = $0 }
+        )
+
+        guard case .success(_, let moves, let skipped) = result else {
+            return XCTFail("expected placement acceptance success, got \(result)")
+        }
+        XCTAssertEqual(moves.map(\.identity), [identity])
+        XCTAssertTrue(skipped.isEmpty)
+        XCTAssertEqual(issues.map(\.behavior), [.sizeConstrained])
+        XCTAssertFalse(mover.calls.contains { $0.frame == original })
+    }
+
+    @MainActor
     func testExecutorStopsBeforeLaterWindowsAndReportsTheFirstRejection() async {
         let identities = makeIdentities(3)
         let originals = Dictionary(uniqueKeysWithValues: identities.enumerated().map {

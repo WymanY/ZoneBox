@@ -48,6 +48,10 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.organizeRestoreAction, language: .english), "Restore Layout")
         XCTAssertEqual(L10n.text(.organizeClose, language: .english), "Close")
         XCTAssertEqual(L10n.text(.organizeClose, language: .chineseSimplified), "关闭")
+        XCTAssertEqual(
+            L10n.workspaceSizeConstrained("阿里云盘", language: .chineseSimplified),
+            "阿里云盘已移动到位，但其最小窗口尺寸大于当前分区。"
+        )
     }
 
     func testConsoleCopy() {
@@ -103,6 +107,17 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.settingsHoverPin, language: .chineseSimplified), "悬停窗口标题栏时显示置顶按钮")
         XCTAssertEqual(L10n.text(.settingsBeta, language: .english), "Beta")
         XCTAssertEqual(L10n.text(.settingsBeta, language: .chineseSimplified), "Beta")
+        XCTAssertEqual(L10n.text(.settingsWorkspaceShowDetails, language: .english), "Show details")
+        XCTAssertEqual(L10n.text(.settingsWorkspaceShowDetails, language: .chineseSimplified), "查看详情")
+        XCTAssertEqual(L10n.text(.settingsWorkspaceActive, language: .chineseSimplified), "最近应用")
+        XCTAssertEqual(
+            L10n.text(.settingsWorkspacesSubtitle, language: .chineseSimplified),
+            "管理已保存的整桌排布。切换只在当次执行，不会持续固定窗口。"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsWorkspaceZone, language: .chineseSimplified), 2),
+            "分区 2"
+        )
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .english),
             "Keep a window above other apps. The original window stays clickable and scrollable. macOS Screen Recording permission is required."

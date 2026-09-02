@@ -43,6 +43,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var hoverPinSwitch: NSSwitch?
     private var languagePopup: NSPopUpButton?
     private var hotkeyList: NSStackView?
+    private var workspaceList: NSStackView?
+    private var expandedWorkspaceIDs = Set<WorkspaceProfile.ID>()
+    private var didInitializeWorkspaceExpansion = false
     private var hotkeyErrorLabel: NSTextField?
     private var resetAllButton: NSButton?
     private var recordingID: ShortcutCustomizationID?
@@ -59,6 +62,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         refreshAccessStatus()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func showWorkspaces() {
+        selectedCategory = .workspaces
+        showWindow()
+        categoryControl?.selectedSegment = SettingsCategory.workspaces.rawValue
+        for (candidate, page) in pageViews { page.isHidden = candidate != .workspaces }
+        updatePreview()
     }
 
     private func applyPresentation() {
@@ -169,7 +180,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         NSLayoutConstraint.activate([
             categories.topAnchor.constraint(equalTo: content.topAnchor, constant: 52),
             categories.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            categories.widthAnchor.constraint(equalToConstant: 420),
+            categories.widthAnchor.constraint(equalToConstant: 540),
             body.topAnchor.constraint(equalTo: categories.bottomAnchor, constant: 20),
             body.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
             body.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
@@ -214,6 +225,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .snapping: group = makeSnappingGroup()
         case .overlay: group = makeOverlayGroup()
         case .keyboard: group = makeKeyboardGroup()
+        case .workspaces: group = makeWorkspacesGroup()
         }
         group.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(title)
@@ -339,6 +351,362 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(makeSeparator())
         stack.addArrangedSubview(makeActionRow())
         return SettingsGroupSurfaceView(content: stack)
+    }
+
+    private func makeWorkspacesGroup() -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .width
+        stack.spacing = 12
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 4, right: 0)
+        stack.detachesHiddenViews = true
+        workspaceList = stack
+        reloadWorkspaceProfiles()
+        return stack
+    }
+
+    func reloadWorkspaceProfiles() {
+        guard let list = workspaceList else { return }
+        for view in list.arrangedSubviews {
+            list.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+        let profiles = runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt })
+        expandedWorkspaceIDs.formIntersection(profiles.map(\.id))
+        if !profiles.isEmpty, !didInitializeWorkspaceExpansion {
+            let initialID = runtime.document.activeProfileID ?? profiles[0].id
+            expandedWorkspaceIDs.insert(initialID)
+            didInitializeWorkspaceExpansion = true
+        }
+        if profiles.isEmpty {
+            let empty = NSTextField(wrappingLabelWithString: L10n.text(.settingsWorkspaceEmpty))
+            empty.font = .systemFont(ofSize: 12)
+            empty.textColor = .secondaryLabelColor
+            empty.alignment = .center
+            let emptyContent = NSStackView(views: [empty])
+            emptyContent.orientation = .vertical
+            emptyContent.edgeInsets = NSEdgeInsets(top: 24, left: 18, bottom: 24, right: 18)
+            let surface = SettingsGroupSurfaceView(content: emptyContent)
+            list.addArrangedSubview(surface)
+            surface.widthAnchor.constraint(equalTo: list.widthAnchor).isActive = true
+            return
+        }
+        for profile in profiles {
+            let card = makeWorkspaceRow(profile)
+            list.addArrangedSubview(card)
+            card.widthAnchor.constraint(equalTo: list.widthAnchor).isActive = true
+        }
+    }
+
+    private func makeWorkspaceRow(_ profile: WorkspaceProfile) -> NSView {
+        let isActive = profile.id == runtime.document.activeProfileID
+        let workspaceIcon = SettingsRowIconView(
+            symbolName: "square.grid.2x2.fill",
+            title: profile.name,
+            tint: .systemIndigo
+        )
+        let title = NSTextField(labelWithString: profile.name)
+        title.font = .systemFont(ofSize: 15, weight: .semibold)
+        title.lineBreakMode = .byTruncatingTail
+        title.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        var titleViews: [NSView] = [title]
+        if isActive {
+            titleViews.append(WorkspaceStatusBadgeView(text: L10n.text(.settingsWorkspaceActive)))
+        }
+        titleViews.append(NSView())
+        let titleRow = NSStackView(views: titleViews)
+        titleRow.orientation = .horizontal
+        titleRow.alignment = .centerY
+        titleRow.spacing = 7
+
+        let detail = NSTextField(
+            labelWithString: String(
+                format: L10n.text(.settingsWorkspaceSummary),
+                profile.sections.count,
+                profile.applicationCount
+            )
+        )
+        detail.font = .systemFont(ofSize: 11)
+        detail.textColor = .secondaryLabelColor
+
+        let expanded = expandedWorkspaceIDs.contains(profile.id)
+        let detailsToggle = NSButton(
+            title: L10n.text(expanded ? .settingsWorkspaceHideDetails : .settingsWorkspaceShowDetails),
+            target: self,
+            action: #selector(toggleWorkspaceDetails(_:))
+        )
+        detailsToggle.bezelStyle = .inline
+        detailsToggle.controlSize = .small
+        detailsToggle.identifier = NSUserInterfaceItemIdentifier(profile.id.uuidString)
+        detailsToggle.image = NSImage(
+            systemSymbolName: expanded ? "chevron.down" : "chevron.right",
+            accessibilityDescription: detailsToggle.title
+        )
+        detailsToggle.imagePosition = .imageLeading
+        detailsToggle.contentTintColor = .secondaryLabelColor
+        detailsToggle.setContentHuggingPriority(.required, for: .horizontal)
+
+        let summary = NSStackView(views: [detail, detailsToggle, NSView()])
+        summary.orientation = .horizontal
+        summary.alignment = .centerY
+        summary.spacing = 6
+
+        let labels = NSStackView(views: [titleRow, summary])
+        labels.orientation = .vertical
+        labels.alignment = .width
+        labels.spacing = 3
+        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        labels.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let launch = NSButton(
+            checkboxWithTitle: L10n.text(.settingsWorkspaceLaunchMissing),
+            target: self,
+            action: #selector(toggleWorkspaceLaunch(_:))
+        )
+        launch.state = profile.launchMissingApps ? .on : .off
+        launch.controlSize = .small
+        launch.identifier = NSUserInterfaceItemIdentifier(profile.id.uuidString)
+
+        let recapture = NSButton(
+            title: L10n.text(.settingsWorkspaceRecapture),
+            target: self,
+            action: #selector(recaptureWorkspace(_:))
+        )
+        recapture.bezelStyle = .rounded
+        recapture.controlSize = .small
+        recapture.identifier = NSUserInterfaceItemIdentifier(profile.id.uuidString)
+        recapture.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: recapture.title)
+        recapture.imagePosition = .imageLeading
+        recapture.setContentHuggingPriority(.required, for: .horizontal)
+
+        let rename = workspaceIconButton(
+            symbol: "pencil",
+            title: L10n.text(.settingsWorkspaceRename),
+            profile: profile,
+            action: #selector(renameWorkspace(_:)),
+            tint: .secondaryLabelColor
+        )
+        let delete = workspaceIconButton(
+            symbol: "trash",
+            title: L10n.text(.settingsWorkspaceDelete),
+            profile: profile,
+            action: #selector(deleteWorkspace(_:)),
+            tint: .systemRed
+        )
+
+        let actions = NSStackView(views: [recapture, rename, delete])
+        actions.orientation = .horizontal
+        actions.alignment = .centerY
+        actions.spacing = 4
+        actions.setContentHuggingPriority(.required, for: .horizontal)
+        let header = NSStackView(views: [workspaceIcon, labels, NSView(), actions])
+        header.orientation = .horizontal
+        header.alignment = .top
+        header.spacing = 11
+        header.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        header.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let options = NSStackView(views: [launch, NSView()])
+        options.orientation = .horizontal
+        options.alignment = .centerY
+        options.spacing = 20
+        options.edgeInsets = NSEdgeInsets(top: 0, left: 39, bottom: 0, right: 0)
+
+        var rowViews: [NSView] = [header]
+        if expanded {
+            rowViews.append(makeWorkspaceDetails(profile))
+        }
+        rowViews.append(makeSeparator(inset: 39))
+        rowViews.append(options)
+        let row = NSStackView(views: rowViews)
+        row.orientation = .vertical
+        row.alignment = .width
+        row.spacing = 11
+        row.edgeInsets = NSEdgeInsets(top: 15, left: 16, bottom: 13, right: 14)
+        return WorkspaceCardView(content: row, active: isActive)
+    }
+
+    private func makeWorkspaceDetails(_ profile: WorkspaceProfile) -> NSView {
+        let content = NSStackView()
+        content.orientation = .vertical
+        content.alignment = .width
+        content.spacing = 8
+        content.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+
+        for (sectionIndex, section) in profile.sections.enumerated() {
+            let displayName = runtime.document.displays.first(where: { $0.id == section.space.displayID })?.localizedName
+                ?? L10n.text(.settingsWorkspaceUnavailableDisplay)
+            let layoutName = runtime.document.layouts.first(where: { $0.id == section.layoutID })
+                .map { L10n.layoutDisplayName($0.name) }
+                ?? L10n.text(.settingsWorkspaceUnavailableLayout)
+            let sectionTitle = NSTextField(
+                labelWithString: String(
+                    format: L10n.text(.settingsWorkspaceSectionSummary),
+                    displayName,
+                    layoutName
+                )
+            )
+            sectionTitle.font = .systemFont(ofSize: 11, weight: .semibold)
+            sectionTitle.textColor = .secondaryLabelColor
+            let displayIcon = NSImageView()
+            displayIcon.image = NSImage(systemSymbolName: "display", accessibilityDescription: displayName)
+            displayIcon.symbolConfiguration = .init(pointSize: 11, weight: .medium)
+            displayIcon.contentTintColor = .secondaryLabelColor
+            displayIcon.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                displayIcon.widthAnchor.constraint(equalToConstant: 16),
+                displayIcon.heightAnchor.constraint(equalToConstant: 16),
+            ])
+            let sectionHeader = NSStackView(views: [displayIcon, sectionTitle, NSView()])
+            sectionHeader.orientation = .horizontal
+            sectionHeader.alignment = .centerY
+            sectionHeader.spacing = 6
+            content.addArrangedSubview(sectionHeader)
+
+            for rule in section.rules {
+                content.addArrangedSubview(makeWorkspaceApplicationRow(rule))
+            }
+            if sectionIndex < profile.sections.count - 1 {
+                content.addArrangedSubview(makeSeparator())
+            }
+        }
+        return WorkspaceDetailsSurfaceView(content: content)
+    }
+
+    private func makeWorkspaceApplicationRow(_ rule: AppPlacementRule) -> NSView {
+        let info = workspaceApplicationInfo(bundleID: rule.bundleID)
+        let icon = NSImageView()
+        icon.image = info.icon
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.setAccessibilityLabel(info.name)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            icon.widthAnchor.constraint(equalToConstant: 22),
+            icon.heightAnchor.constraint(equalToConstant: 22),
+        ])
+
+        let name = NSTextField(labelWithString: info.name)
+        name.font = .systemFont(ofSize: 12, weight: .medium)
+        name.lineBreakMode = .byTruncatingTail
+        let bundle = NSTextField(labelWithString: rule.bundleID)
+        bundle.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
+        bundle.textColor = .secondaryLabelColor
+        bundle.lineBreakMode = .byTruncatingMiddle
+        let labels = NSStackView(views: [name, bundle])
+        labels.orientation = .vertical
+        labels.alignment = .leading
+        labels.spacing = 1
+        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let zone = WorkspaceZoneBadgeView(
+            text: String(format: L10n.text(.settingsWorkspaceZone), rule.zoneNumber)
+        )
+
+        let row = NSStackView(views: [icon, labels, NSView(), zone])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        return row
+    }
+
+    private func workspaceApplicationInfo(bundleID: String) -> (name: String, icon: NSImage?) {
+        let runningName = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .first?.localizedName
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return (
+                runningName ?? bundleID,
+                NSImage(systemSymbolName: "app.fill", accessibilityDescription: runningName ?? bundleID)
+            )
+        }
+        let bundle = Bundle(url: url)
+        let storedName = bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+            ?? bundle?.localizedInfoDictionary?["CFBundleName"] as? String
+            ?? bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+        let name = runningName ?? storedName ?? url.deletingPathExtension().lastPathComponent
+        let icon = (NSWorkspace.shared.icon(forFile: url.path).copy() as? NSImage)
+            ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: name)
+        return (name, icon)
+    }
+
+    private func workspaceIconButton(
+        symbol: String,
+        title: String,
+        profile: WorkspaceProfile,
+        action: Selector,
+        tint: NSColor
+    ) -> NSButton {
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: title) ?? NSImage()
+        let button = NSButton(image: image, target: self, action: action)
+        button.bezelStyle = .inline
+        button.isBordered = false
+        button.contentTintColor = tint
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        button.identifier = NSUserInterfaceItemIdentifier(profile.id.uuidString)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            button.widthAnchor.constraint(equalToConstant: 28),
+            button.heightAnchor.constraint(equalToConstant: 28),
+        ])
+        return button
+    }
+
+    private func workspaceProfile(for control: NSControl) -> WorkspaceProfile? {
+        guard let raw = control.identifier?.rawValue, let id = UUID(uuidString: raw) else { return nil }
+        return runtime.document.profiles.first(where: { $0.id == id })
+    }
+
+    @objc private func toggleWorkspaceDetails(_ sender: NSButton) {
+        guard let profile = workspaceProfile(for: sender) else { return }
+        if expandedWorkspaceIDs.contains(profile.id) {
+            expandedWorkspaceIDs.remove(profile.id)
+        } else {
+            expandedWorkspaceIDs.insert(profile.id)
+        }
+        reloadWorkspaceProfiles()
+    }
+
+    @objc private func toggleWorkspaceLaunch(_ sender: NSButton) {
+        guard var profile = workspaceProfile(for: sender) else { return }
+        profile.launchMissingApps = sender.state == .on
+        runtime.workspace.updateProfile(profile)
+    }
+
+    @objc private func recaptureWorkspace(_ sender: NSButton) {
+        guard let profile = workspaceProfile(for: sender) else { return }
+        runtime.workspace.capture(name: profile.name, replacing: profile.id)
+    }
+
+    @objc private func renameWorkspace(_ sender: NSButton) {
+        guard var profile = workspaceProfile(for: sender) else { return }
+        let alert = NSAlert()
+        alert.messageText = L10n.text(.settingsWorkspaceRename)
+        let field = NSTextField(string: profile.name)
+        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: L10n.text(.workspaceSave))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        profile.name = LayoutEditTransaction.uniqueName(
+            base: name,
+            existingNames: runtime.document.profiles.filter { $0.id != profile.id }.map(\.name)
+        )
+        runtime.workspace.updateProfile(profile)
+    }
+
+    @objc private func deleteWorkspace(_ sender: NSButton) {
+        guard let profile = workspaceProfile(for: sender) else { return }
+        let alert = NSAlert()
+        alert.messageText = String(format: L10n.text(.settingsWorkspaceDeleteTitle), profile.name)
+        alert.addButton(withTitle: L10n.text(.settingsWorkspaceDelete))
+        alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.buttons.first?.hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        runtime.workspace.deleteProfile(id: profile.id)
     }
 
     private func makeSettingRow(
@@ -584,6 +952,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         list.setContentHuggingPriority(.defaultLow, for: .horizontal)
         hotkeyList = list
         reloadHotkeyRows()
+        reloadWorkspaceProfiles()
         return list
     }
 
@@ -609,7 +978,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         previewTitle = title
 
         let image = NSImageView()
-        image.imageScaling = .scaleProportionallyUpOrDown
+        image.imageScaling = .scaleProportionallyDown
         image.translatesAutoresizingMaskIntoConstraints = false
         previewImageView = image
 
@@ -1078,6 +1447,7 @@ private enum SettingsCategory: Int, CaseIterable {
     case snapping
     case overlay
     case keyboard
+    case workspaces
 
     var titleKey: L10nKey {
         switch self {
@@ -1085,6 +1455,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: .settingsSectionSnapping
         case .overlay: .settingsSectionOverlay
         case .keyboard: .settingsSectionKeyboard
+        case .workspaces: .settingsSectionWorkspaces
         }
     }
     var subtitleKey: L10nKey {
@@ -1093,6 +1464,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: .settingsSnappingSubtitle
         case .overlay: .settingsOverlaySubtitle
         case .keyboard: .settingsKeyboardSubtitle
+        case .workspaces: .settingsWorkspacesSubtitle
         }
     }
     var previewTitleKey: L10nKey {
@@ -1101,6 +1473,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: .settingsSnappingPreviewTitle
         case .overlay: .settingsOverlayPreviewTitle
         case .keyboard: .settingsKeyboardPreviewTitle
+        case .workspaces: .settingsWorkspacesPreviewTitle
         }
     }
     var previewDescriptionKey: L10nKey {
@@ -1109,6 +1482,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: .settingsSnappingPreviewDescription
         case .overlay: .settingsOverlayPreviewDescription
         case .keyboard: .settingsKeyboardPreviewDescription
+        case .workspaces: .settingsWorkspacesPreviewDescription
         }
     }
     var symbolName: String {
@@ -1117,6 +1491,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: "link"
         case .overlay: "square.grid.2x2.fill"
         case .keyboard: "keyboard.fill"
+        case .workspaces: "square.grid.3x3.square"
         }
     }
     var tint: NSColor {
@@ -1125,6 +1500,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .snapping: .controlAccentColor
         case .overlay: .systemMint
         case .keyboard: .systemOrange
+        case .workspaces: .systemIndigo
         }
     }
 }
@@ -1379,6 +1755,168 @@ private final class SettingsGroupSurfaceView: NSVisualEffectView {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.76).cgColor
             layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+            layer?.borderWidth = 0.5
+        }
+    }
+}
+
+private final class WorkspaceCardView: NSVisualEffectView {
+    private let active: Bool
+
+    init(content: NSView, active: Bool) {
+        self.active = active
+        super.init(frame: .zero)
+        material = .contentBackground
+        blendingMode = .withinWindow
+        state = .followsWindowActiveState
+        wantsLayer = true
+        layer?.cornerRadius = 12
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: topAnchor),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        updateColors()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = active
+                ? NSColor.controlAccentColor.withAlphaComponent(0.075).cgColor
+                : NSColor.controlBackgroundColor.withAlphaComponent(0.74).cgColor
+            layer?.borderColor = active
+                ? NSColor.controlAccentColor.withAlphaComponent(0.48).cgColor
+                : NSColor.separatorColor.withAlphaComponent(0.52).cgColor
+            layer?.borderWidth = active ? 1 : 0.5
+        }
+    }
+}
+
+private final class WorkspaceStatusBadgeView: NSView {
+    init(text: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 5
+        layer?.cornerCurve = .continuous
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 9.5, weight: .semibold)
+        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 2),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+        ])
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        updateColors()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        }
+    }
+}
+
+private final class WorkspaceZoneBadgeView: NSView {
+    init(text: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 5
+        layer?.cornerCurve = .continuous
+        let label = NSTextField(labelWithString: text)
+        label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .semibold)
+        label.textColor = .systemIndigo
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
+        ])
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+        updateColors()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.systemIndigo.withAlphaComponent(0.12).cgColor
+            layer?.borderColor = NSColor.systemIndigo.withAlphaComponent(0.12).cgColor
+            layer?.borderWidth = 0.5
+        }
+    }
+}
+
+private final class WorkspaceDetailsSurfaceView: NSView {
+    init(content: NSView) {
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.cornerCurve = .continuous
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: topAnchor),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        updateColors()
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.unemphasizedSelectedContentBackgroundColor
+                .withAlphaComponent(0.42).cgColor
+            layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
             layer?.borderWidth = 0.5
         }
     }

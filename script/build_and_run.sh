@@ -12,7 +12,10 @@ APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 stop_debug_app() {
   local pids
-  pids="$(pgrep -f "$APP_BINARY" || true)"
+  # Every Debug worktree uses the same bundle ID and Application Support store.
+  # Stop all Debug copies so an older process cannot overwrite the new process's
+  # workspace profiles with stale in-memory state.
+  pids="$(pgrep -f '/Build/Products/Debug/ZoneBox.app/Contents/MacOS/ZoneBox' || true)"
   if [[ -n "$pids" ]]; then
     # shellcheck disable=SC2086
     kill $pids >/dev/null 2>&1 || true

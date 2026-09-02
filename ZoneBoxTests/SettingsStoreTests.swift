@@ -61,4 +61,26 @@ final class SettingsStoreTests: XCTestCase {
         )
         XCTAssertTrue(legacy.previewLayoutOnSelect)
     }
+
+    func testWorkspaceHotkeyRoundTripsAndLegacyDefaultsToControlOptionP() throws {
+        var settings = AppSettings.default
+        settings.applyWorkspaceHotkey = KeyChord(
+            keyCode: HardwareKeyCode.p,
+            carbonModifiers: CarbonModifier.command | CarbonModifier.shift
+        )
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertEqual(
+            try JSONDecoder().decode(AppSettings.self, from: data).applyWorkspaceHotkey,
+            settings.applyWorkspaceHotkey
+        )
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertEqual(
+            legacy.applyWorkspaceHotkey,
+            KeyChord(keyCode: HardwareKeyCode.p, carbonModifiers: CarbonModifier.controlOption)
+        )
+    }
 }

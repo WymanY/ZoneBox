@@ -107,7 +107,15 @@ struct CGWindowQuery: WindowQuerying {
                 height: boundsDict["Height"] ?? 0
             )
             let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-            return WindowRef(pid: pid, windowNumber: number, boundsAX: bounds, bundleID: bundleID, layer: layer)
+            let alpha = (dict[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            return WindowRef(
+                pid: pid,
+                windowNumber: number,
+                boundsAX: bounds,
+                bundleID: bundleID,
+                layer: layer,
+                alpha: alpha
+            )
         }
     }
 }

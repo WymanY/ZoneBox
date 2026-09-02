@@ -100,10 +100,16 @@ public enum WindowOrganizeExecutionResult: Equatable, Sendable {
     case failed(skipped: [WindowIdentity], rollbackFailed: [WindowIdentity])
 }
 
+public enum WindowOrganizeAcceptance: Equatable, Sendable {
+    case organize
+    case placement
+}
+
 public enum WindowOrganizeExecutor {
     @MainActor
     public static func execute<Handle>(
         windows: [(identity: WindowIdentity, handle: Handle)],
+        acceptance: WindowOrganizeAcceptance = .organize,
         makePlan: ([WindowIdentity]) -> WindowOrganizeAttemptPlan?,
         makeFallbackPlan: (([WindowIdentity], [WindowIdentity]) -> WindowOrganizeAttemptPlan?)? = nil,
         readFrame: (Handle) async -> CGRect?,
@@ -111,6 +117,7 @@ public enum WindowOrganizeExecutor {
     ) async -> WindowOrganizeExecutionResult {
         await execute(
             windows: windows,
+            acceptance: acceptance,
             makePlan: makePlan,
             makeFallbackPlan: makeFallbackPlan.map { fallback in
                 { identities, issues in fallback(identities, issues.map(\.identity)) }
@@ -136,6 +143,7 @@ public enum WindowOrganizeExecutor {
     public static func execute<Handle>(
         windows: [(identity: WindowIdentity, handle: Handle)],
         initialSkipped: [WindowIdentity] = [],
+        acceptance: WindowOrganizeAcceptance = .organize,
         makePlan: ([WindowIdentity]) -> WindowOrganizeAttemptPlan?,
         makeFallbackPlan: (([WindowIdentity], [WindowOrganizeIssue]) -> WindowOrganizeAttemptPlan?)? = nil,
         readFrame: (Handle) async -> CGRect?,
@@ -203,7 +211,7 @@ public enum WindowOrganizeExecutor {
                     )
                 } ?? false
                 if let actual = application.actualFrameAX,
-                   accepts(application, inPrimary: inPrimary)
+                   accepts(application, inPrimary: inPrimary, acceptance: acceptance)
                 {
                     applied[identity] = actual
                     if application.behavior != .compliant {
@@ -306,13 +314,14 @@ public enum WindowOrganizeExecutor {
 
     private static func accepts(
         _ application: WindowOrganizeApplication,
-        inPrimary: Bool
+        inPrimary: Bool,
+        acceptance: WindowOrganizeAcceptance
     ) -> Bool {
         switch application.behavior {
         case .compliant:
             true
         case .sizeConstrained:
-            inPrimary
+            acceptance == .placement || inPrimary
         case .positionConstrained, .immutable, .unstable:
             false
         }
