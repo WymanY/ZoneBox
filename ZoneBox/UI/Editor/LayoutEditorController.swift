@@ -21,7 +21,9 @@ final class LayoutEditorController: NSObject {
     private var selectedSavedLayout = false
     private var hintLabel: NSTextField?
     private var modeControl: NSSegmentedControl?
+    private var toolbarColumn: NSStackView?
     private var metricsRow: NSStackView?
+    private var metricsHost: NSView?
     private var widthField: NSTextField?
     private var heightField: NSTextField?
     private var xField: NSTextField?
@@ -32,6 +34,7 @@ final class LayoutEditorController: NSObject {
     private var yLabel: NSTextField?
     private var pixelUnitLabel: NSTextField?
     private var paneActionRow: NSStackView?
+    private var paneActionHost: NSView?
     private var insertPaneButton: NSButton?
     private var duplicatePaneButton: NSButton?
     private var splitVerticalButton: NSButton?
@@ -144,6 +147,7 @@ final class LayoutEditorController: NSObject {
         self.panel = panel
         self.canvas = canvas
         updateSaveState()
+        refreshCanvasOnlyToolbarRows()
         refreshEmptyTemplateButtons()
         makeEditorKey(panel: panel, canvas: canvas)
         observeAppSwitchToCancel()
@@ -374,6 +378,8 @@ final class LayoutEditorController: NSObject {
             column.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -12),
             column.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -10),
         ])
+        toolbarColumn = column
+        refreshCanvasOnlyToolbarRows()
         return bar
     }
 
@@ -425,7 +431,6 @@ final class LayoutEditorController: NSObject {
         row.alignment = .centerY
         row.spacing = 8
         paneActionRow = row
-        refreshPaneActions()
         let wrap = NSView()
         wrap.translatesAutoresizingMaskIntoConstraints = false
         wrap.addSubview(row)
@@ -436,6 +441,8 @@ final class LayoutEditorController: NSObject {
             row.leadingAnchor.constraint(greaterThanOrEqualTo: wrap.leadingAnchor),
             row.trailingAnchor.constraint(lessThanOrEqualTo: wrap.trailingAnchor),
         ])
+        paneActionHost = wrap
+        refreshPaneActions()
         return wrap
     }
 
@@ -534,7 +541,6 @@ final class LayoutEditorController: NSObject {
         row.spacing = 8
         row.translatesAutoresizingMaskIntoConstraints = false
         metricsRow = row
-        refreshMetrics()
         let wrap = NSView()
         wrap.translatesAutoresizingMaskIntoConstraints = false
         wrap.addSubview(row)
@@ -545,6 +551,8 @@ final class LayoutEditorController: NSObject {
             row.leadingAnchor.constraint(greaterThanOrEqualTo: wrap.leadingAnchor),
             row.trailingAnchor.constraint(lessThanOrEqualTo: wrap.trailingAnchor),
         ])
+        metricsHost = wrap
+        refreshMetrics()
         return wrap
     }
 
@@ -598,6 +606,7 @@ final class LayoutEditorController: NSObject {
     }
 
     private func refreshMetrics() {
+        refreshCanvasOnlyToolbarRows()
         guard let canvas else { return }
         let selected = selectedZoneRect()
         let enabled = selected != nil
@@ -918,6 +927,24 @@ final class LayoutEditorController: NSObject {
         splitHorizontalButton?.isEnabled = isCanvas && count > 0
         deletePaneButton?.isEnabled = count > 0
         alignPopup?.isEnabled = isCanvas && count >= 2
+        refreshCanvasOnlyToolbarRows()
+    }
+
+    private func refreshCanvasOnlyToolbarRows() {
+        let isCanvas = (transaction?.draft.kind ?? original.kind) != .grid
+        setCanvasOnlyToolbarRow(paneActionHost, visible: isCanvas)
+        setCanvasOnlyToolbarRow(metricsHost, visible: isCanvas)
+        if !isCanvas, isEditingMetrics {
+            panel?.makeFirstResponder(canvas)
+        }
+        layoutToolbar()
+    }
+
+    private func setCanvasOnlyToolbarRow(_ row: NSView?, visible: Bool) {
+        guard let row else { return }
+        row.isHidden = !visible
+        toolbarColumn?.setVisibilityPriority(visible ? .mustHold : .notVisible, for: row)
+        row.invalidateIntrinsicContentSize()
     }
 
     private func refreshEmptyTemplateButtons() {
@@ -1385,7 +1412,9 @@ final class LayoutEditorController: NSObject {
         selectedSavedLayout = false
         hintLabel = nil
         modeControl = nil
+        toolbarColumn = nil
         metricsRow = nil
+        metricsHost = nil
         widthField = nil
         heightField = nil
         xField = nil
@@ -1395,6 +1424,7 @@ final class LayoutEditorController: NSObject {
         xLabel = nil
         yLabel = nil
         paneActionRow = nil
+        paneActionHost = nil
         insertPaneButton = nil
         duplicatePaneButton = nil
         splitVerticalButton = nil
