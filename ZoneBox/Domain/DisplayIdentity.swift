@@ -233,6 +233,36 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         return true
     }
 
+    /// Folds a stale duplicate display identity into the one that is live.
+    /// Profile sections and layout assignments keyed on the stale identity move
+    /// over, so workspaces saved before a monitor changed ports still restore.
+    /// The live display keeps its own assignment when both had one.
+    public mutating func mergeDisplay(_ staleID: DisplayIdentity.ID, into liveID: DisplayIdentity.ID) {
+        guard staleID != liveID, displays.contains(where: { $0.id == liveID }) else { return }
+        displays.removeAll { $0.id == staleID }
+        let liveHasAssignment = assignments.contains { $0.space.displayID == liveID }
+        if liveHasAssignment {
+            assignments.removeAll { $0.space.displayID == staleID }
+        } else {
+            for index in assignments.indices where assignments[index].space.displayID == staleID {
+                assignments[index].space.displayID = liveID
+            }
+        }
+        for profileIndex in profiles.indices {
+            var sections = profiles[profileIndex].sections
+            let liveHasSection = sections.contains { $0.space.displayID == liveID }
+            if liveHasSection {
+                sections.removeAll { $0.space.displayID == staleID }
+            } else {
+                for index in sections.indices where sections[index].space.displayID == staleID {
+                    sections[index].space.displayID = liveID
+                }
+            }
+            profiles[profileIndex].sections = sections
+        }
+        normalizeReferences()
+    }
+
     public mutating func upsertProfile(_ profile: WorkspaceProfile) {
         if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
             profiles[index] = profile

@@ -141,6 +141,26 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
     }
 
+    func testTitleBarUnarmedDragRestoresOriginalSizeAtDropOrigin() {
+        let record = UnsnapRecord(
+            identity: window,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: frame,
+            zoneIDs: [UUID()]
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftUp)
+        input.startedOnMoveChrome = true
+        input.restoreSizeOnUnsnap = true
+        input.unsnapRecord = record
+        input.currentFrameAX = CGRect(x: 220, y: 180, width: 400, height: 300)
+        input.downLocationAppKit = .zero
+        input.event.locationAppKit = CGPoint(x: 80, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, CGRect(x: 220, y: 180, width: 500, height: 400))))
+        XCTAssertFalse(out.effects.contains(.applyFrame(window, record.originalFrameAX)))
+    }
+
     func testShiftReleaseKeepsHighlightedZoneWhenSticky() {
         let zone = ResolvedZone(
             zoneID: UUID(),

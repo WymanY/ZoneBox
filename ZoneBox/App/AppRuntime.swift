@@ -1224,7 +1224,47 @@ final class AppRuntime {
             guard let runtime = self else { return }
             Task { @MainActor in runtime.workspace.resume() }
         }
+#if DEBUG
+        observeDebugTriggers()
+#endif
     }
+
+#if DEBUG
+    /// Debug builds accept workspace commands over distributed notifications so
+    /// capture/restore can be exercised from a script without synthesizing
+    /// hotkeys (which needs Accessibility for the sending process):
+    ///   `com.fancyzone.app.debug.applyWorkspace`   object: profile UUID or nil
+    ///   `com.fancyzone.app.debug.captureWorkspace` object: profile name or nil
+    private func observeDebugTriggers() {
+        let center = DistributedNotificationCenter.default()
+        center.addObserver(
+            forName: Notification.Name("\(AppIdentity.bundleID).applyWorkspace"),
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let runtime = self else { return }
+            let id = (note.object as? String).flatMap(UUID.init(uuidString:))
+            Task { @MainActor in
+                if let id {
+                    runtime.workspace.apply(profileID: id)
+                } else {
+                    runtime.workspace.applyCurrentOrMostRecent()
+                }
+            }
+        }
+        center.addObserver(
+            forName: Notification.Name("\(AppIdentity.bundleID).captureWorkspace"),
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let runtime = self else { return }
+            let name = note.object as? String
+            Task { @MainActor in
+                runtime.workspace.capture(name: name ?? runtime.workspace.suggestedCaptureName())
+            }
+        }
+    }
+#endif
 }
 
 private struct ResolvedLayoutCacheKey: Hashable {

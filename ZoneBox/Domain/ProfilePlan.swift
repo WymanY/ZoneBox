@@ -94,7 +94,7 @@ public enum ProfilePlan {
                     if !missing.contains(rule.bundleID) { missing.append(rule.bundleID) }
                     continue
                 }
-                let sample = queue.removeFirst()
+                let sample = queue.remove(at: preferredIndex(in: queue, zone: zone.frameAX, sectionZones: zones))
                 queues[rule.bundleID] = queue
                 placements.append(WindowOrganizePlacement(identity: sample.identity, targetFrameAX: zone.frameAX))
                 zoneIDs[sample.identity] = zone.zoneID
@@ -115,5 +115,39 @@ public enum ProfilePlan {
             staleRules: stale,
             skippedDisplayIDs: skipped
         )
+    }
+
+    /// Same-app windows are consumed front-to-back, but a window that already
+    /// sits in the rule's zone keeps it, and a window on the section's display
+    /// beats one on another display. Otherwise two browser windows swap places
+    /// on every restore even though both were exactly where the profile wanted.
+    static func preferredIndex(
+        in queue: [ProfileCapture.WindowSample],
+        zone: CGRect,
+        sectionZones: [ResolvedZone]
+    ) -> Int {
+        var bestIndex = 0
+        var bestScore = -1
+        for (index, sample) in queue.enumerated() {
+            let score: Int
+            if ProfileCapture.occupies(sample.frameAX, zone: zone) {
+                score = 2
+            } else if sectionZones.contains(where: { intersectsInterior(sample.frameAX, $0.frameAX) }) {
+                score = 1
+            } else {
+                score = 0
+            }
+            if score > bestScore {
+                bestScore = score
+                bestIndex = index
+                if score == 2 { break }
+            }
+        }
+        return bestIndex
+    }
+
+    private static func intersectsInterior(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let overlap = lhs.intersection(rhs)
+        return !overlap.isNull && overlap.width > 0 && overlap.height > 0
     }
 }

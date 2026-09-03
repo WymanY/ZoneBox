@@ -108,6 +108,49 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertFalse(String(decoding: encoded, as: UTF8.self).contains("autoPlaceNewWindows"))
     }
 
+    func testMergeDisplayMovesOrphanedSectionsAndAssignmentsToLiveIdentity() {
+        let layout = LayoutTemplates.columns(2)
+        let other = LayoutTemplates.rows(2)
+        let stale = DisplayIdentity(localizedName: "Mi Monitor", visibleWidth: 1920, visibleHeight: 1049, backingScale: 2)
+        let live = DisplayIdentity(localizedName: "Mi Monitor", visibleWidth: 1920, visibleHeight: 1049, backingScale: 2)
+        let builtIn = DisplayIdentity(localizedName: "Built-in", visibleWidth: 1440, visibleHeight: 809, backingScale: 2)
+        let rule = AppPlacementRule(bundleID: "app", zoneID: layout.zones[0].id, zoneNumber: 1)
+        let orphaned = WorkspaceProfile(
+            name: "Desk",
+            sections: [ProfileSection(space: SpaceKey(displayID: stale.id), layoutID: layout.id, rules: [rule])]
+        )
+        let both = WorkspaceProfile(
+            name: "Both",
+            sections: [
+                ProfileSection(space: SpaceKey(displayID: stale.id), layoutID: layout.id, rules: [rule]),
+                ProfileSection(space: SpaceKey(displayID: live.id), layoutID: other.id, rules: [rule]),
+                ProfileSection(space: SpaceKey(displayID: builtIn.id), layoutID: other.id, rules: [rule]),
+            ]
+        )
+        var document = StoreDocument(
+            layouts: [layout, other],
+            displays: [builtIn, stale, live],
+            assignments: [LayoutAssignment(space: SpaceKey(displayID: stale.id), layoutID: layout.id)],
+            profiles: [orphaned, both]
+        )
+
+        document.mergeDisplay(stale.id, into: live.id)
+
+        XCTAssertEqual(document.displays.map(\.id), [builtIn.id, live.id])
+        XCTAssertEqual(document.assignments, [LayoutAssignment(space: SpaceKey(displayID: live.id), layoutID: layout.id)])
+        XCTAssertEqual(document.profiles[0].sections.map(\.space.displayID), [live.id])
+        XCTAssertEqual(document.profiles[1].sections.map(\.space.displayID), [live.id, builtIn.id])
+        XCTAssertEqual(document.profiles[1].sections.map(\.layoutID), [other.id, other.id])
+    }
+
+    func testMergeDisplayIgnoresUnknownLiveIdentity() {
+        let stale = DisplayIdentity(localizedName: "A", visibleWidth: 1, visibleHeight: 1, backingScale: 1)
+        var document = StoreDocument(displays: [stale])
+        let before = document
+        document.mergeDisplay(stale.id, into: UUID())
+        XCTAssertEqual(document, before)
+    }
+
     func testDeleteLayoutCascadesProfileSectionsAndActiveProfile() {
         let first = LayoutTemplates.columns(2)
         let second = LayoutTemplates.rows(2)

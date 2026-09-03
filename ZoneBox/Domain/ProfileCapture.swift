@@ -35,18 +35,21 @@ public enum ProfileCapture {
         windows: [WindowSample],
         zones: [ResolvedZone]
     ) -> [AppPlacementRule] {
-        var used = Set<WindowIdentity>()
+        var occupied = Set<UUID>()
+        var assigned: [UUID: WindowSample] = [:]
+        for sample in windows {
+            guard sample.identity.bundleID?.isEmpty == false else { continue }
+            guard let zone = bestZone(for: sample.frameAX, in: zones, excluding: occupied) else { continue }
+            occupied.insert(zone.zoneID)
+            assigned[zone.zoneID] = sample
+        }
         return zones.sorted { lhs, rhs in
             if lhs.number != rhs.number { return lhs.number < rhs.number }
             return lhs.zoneID.uuidString < rhs.zoneID.uuidString
         }.compactMap { zone in
-            guard let sample = windows.first(where: { candidate in
-                guard !used.contains(candidate.identity),
-                      let bundleID = candidate.identity.bundleID, !bundleID.isEmpty
-                else { return false }
-                return occupies(candidate.frameAX, zone: zone.frameAX)
-            }), let bundleID = sample.identity.bundleID else { return nil }
-            used.insert(sample.identity)
+            guard let sample = assigned[zone.zoneID],
+                  let bundleID = sample.identity.bundleID
+            else { return nil }
             return AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
         }
     }
@@ -89,14 +92,41 @@ public enum ProfileCapture {
         }
     }
 
-    private static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
+    /// Whether a window currently counts as living in `zone`: either snapped
+    /// there within tolerance or covering most of it.
+    public static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
         WindowOrganize.didApply(frame, to: zone, sizeTolerance: 28, originTolerance: 28)
             || fills(frame, zone: zone)
     }
 
-    /// A window owns a zone only when it still covers most of that zone.
-    /// Background full-screen windows can fill a zone too, but each zone is
-    /// assigned to the frontmost occupant so ChatGPT+Notes beat aDrive behind them.
+    /// Pick the unoccupied zone this window belongs to. Prefer the zone the
+    /// window fills; otherwise the unoccupied zone with the largest overlap.
+    private static func bestZone(
+        for frame: CGRect,
+        in zones: [ResolvedZone],
+        excluding occupied: Set<UUID>
+    ) -> ResolvedZone? {
+        let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat, Bool)? in
+            guard !occupied.contains(zone.zoneID) else { return nil }
+            let intersection = frame.intersection(zone.frameAX)
+            guard !intersection.isNull, !intersection.isInfinite else { return nil }
+            let overlap = max(intersection.width, 0) * max(intersection.height, 0)
+            guard overlap > 0 else { return nil }
+            let zoneArea = max(zone.frameAX.width * zone.frameAX.height, 1)
+            let coverage = overlap / zoneArea
+            let fillsZone = occupies(frame, zone: zone.frameAX)
+            guard fillsZone || coverage >= 0.20 else { return nil }
+            return (zone, coverage, fillsZone)
+        }
+        let preferred = ranked.filter { $0.2 }
+        let pool = preferred.isEmpty ? ranked : preferred
+        return pool.max { lhs, rhs in
+            if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
+            return lhs.0.number > rhs.0.number
+        }?.0
+    }
+
+    /// A window fills a zone when it still covers most of that zone.
     private static func fills(_ frame: CGRect, zone: CGRect) -> Bool {
         let intersection = frame.intersection(zone)
         guard !intersection.isNull, !intersection.isInfinite else { return false }

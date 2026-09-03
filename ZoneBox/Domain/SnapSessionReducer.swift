@@ -79,7 +79,13 @@ public enum SnapSessionReducer {
                let record = input.unsnapRecord,
                let down = input.downLocationAppKit,
                RectMath.chebyshev(input.event.locationAppKit, down) >= 30 {
-                let frame = clamp(record.originalFrameAX, to: input.workAreas, flip: input.primaryFlipHeight)
+                let current = input.currentFrameAX ?? record.snappedFrameAX
+                let frame = restoredSizePreservingDrop(
+                    original: record.originalFrameAX,
+                    current: current,
+                    workAreas: input.workAreas,
+                    flip: input.primaryFlipHeight
+                )
                 return SnapReducerOutput(
                     phase: .idle,
                     effects: [.applyFrame(window, frame), .hideOverlay]
@@ -454,5 +460,24 @@ public enum SnapSessionReducer {
         guard let area = workAreas.first else { return rect }
         let workAX = CoordinateConverter.axRect(fromAppKit: area.visibleFrameAppKit, primaryFlipHeight: flip)
         return rect.intersection(workAX)
+    }
+
+    /// Restore the pre-snap size without teleporting back to the original
+    /// origin. Keep the current top-left so a title-bar drag stays where the
+    /// user dropped the window.
+    private static func restoredSizePreservingDrop(
+        original: CGRect,
+        current: CGRect,
+        workAreas: [WorkArea],
+        flip: CGFloat
+    ) -> CGRect {
+        var frame = CGRect(x: current.minX, y: current.minY, width: original.width, height: original.height)
+        guard let area = workAreas.first else { return frame }
+        let workAX = CoordinateConverter.axRect(fromAppKit: area.visibleFrameAppKit, primaryFlipHeight: flip)
+        if frame.maxX > workAX.maxX { frame.origin.x = workAX.maxX - frame.width }
+        if frame.maxY > workAX.maxY { frame.origin.y = workAX.maxY - frame.height }
+        if frame.minX < workAX.minX { frame.origin.x = workAX.minX }
+        if frame.minY < workAX.minY { frame.origin.y = workAX.minY }
+        return frame
     }
 }

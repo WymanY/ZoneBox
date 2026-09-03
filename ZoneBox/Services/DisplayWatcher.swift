@@ -8,14 +8,27 @@ final class DisplayWatcher {
     private(set) var primaryFlipHeight: CGFloat = 0
     var onChange: (() -> Void)?
 
+    /// `DisplayIdentity.score`: 55 is "same localized name and same visible size".
+    static let reidentifyThreshold = 55
+
     func refresh(document: inout StoreDocument) {
         let screens = NSScreen.screens
         primaryFlipHeight = CoordinateConverter.primaryFlipHeight(screenFramesAppKit: screens.map(\.frame))
         var areas: [WorkArea] = []
+        var claimed = Set<DisplayIdentity.ID>()
         for screen in screens {
             let probe = Self.probe(screen)
             let identity: DisplayIdentity
-            if let match = DisplayIdentity.bestMatch(probe: probe, candidates: document.displays), match.1 >= 70 {
+            // The same physical monitor reports a different product number,
+            // serial and UUID depending on the port or cable it is plugged into.
+            // Same name plus same visible size (score 55) is still the same
+            // desk, so keep its layout assignment and workspace sections instead
+            // of minting a duplicate identity that orphans them.
+            let candidates = document.displays.filter { !claimed.contains($0.id) }
+            if let match = DisplayIdentity.bestMatch(probe: probe, candidates: candidates),
+               match.1 >= Self.reidentifyThreshold
+            {
+                claimed.insert(match.0.id)
                 var updated = match.0
                 updated.lastCGDisplayID = probe.lastCGDisplayID
                 updated.uuid = probe.uuid ?? updated.uuid
@@ -28,6 +41,7 @@ final class DisplayWatcher {
                 }
             } else {
                 identity = probe
+                claimed.insert(identity.id)
                 document.displays.append(identity)
                 let layout = LayoutTemplates.defaultForVisible(width: probe.visibleWidth, height: probe.visibleHeight)
                 if !document.layouts.contains(where: { $0.id == layout.id }) {
@@ -44,8 +58,29 @@ final class DisplayWatcher {
                 )
             )
         }
+        mergeStaleDuplicates(document: &document, live: areas.map(\.display))
         workAreas = areas
         onChange?()
+    }
+
+    /// Earlier builds minted a fresh identity whenever a monitor came back with
+    /// a different product number or UUID. A disconnected record that matches
+    /// exactly one live display by name and size, but not by vendor and product
+    /// (a second identical monitor would match those too), is that display's
+    /// past life; fold it in so its saved workspaces follow the monitor.
+    private func mergeStaleDuplicates(document: inout StoreDocument, live: [DisplayIdentity]) {
+        let liveIDs = Set(live.map(\.id))
+        for stale in document.displays where !liveIDs.contains(stale.id) {
+            let matches = live.filter {
+                let score = stale.score(against: $0)
+                return score >= Self.reidentifyThreshold && score < 70
+            }
+            guard matches.count == 1, let target = matches.first else { continue }
+            Log.display.info(
+                "Merging stale display \(stale.id.uuidString.prefix(8), privacy: .public) into \(target.id.uuidString.prefix(8), privacy: .public) name=\(target.localizedName, privacy: .public)"
+            )
+            document.mergeDisplay(stale.id, into: target.id)
+        }
     }
 
     func area(containingAppKit point: CGPoint) -> WorkArea? {

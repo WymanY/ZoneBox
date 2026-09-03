@@ -53,6 +53,25 @@ final class ProfileCaptureTests: XCTestCase {
         XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2])
     }
 
+    func testStackedWindowsOnColumnsThreeCaptureEachPane() {
+        let left = UUID()
+        let middle = UUID()
+        let right = UUID()
+        let zones = [
+            ResolvedZone(zoneID: left, number: 1, frameAX: CGRect(x: 0, y: 31, width: 480, height: 804)),
+            ResolvedZone(zoneID: middle, number: 2, frameAX: CGRect(x: 480, y: 31, width: 480, height: 804)),
+            ResolvedZone(zoneID: right, number: 3, frameAX: CGRect(x: 960, y: 31, width: 480, height: 804)),
+        ]
+        let chatGPT = sample(pid: 1, number: 1, bundleID: "com.openai.codex", frame: CGRect(x: 0, y: 31, width: 718, height: 806))
+        let notes = sample(pid: 2, number: 2, bundleID: "com.apple.Notes", frame: CGRect(x: 718, y: 31, width: 722, height: 456))
+        let cursor = sample(pid: 3, number: 3, bundleID: "com.todesktop.230313mzl4w4u92", frame: CGRect(x: 718, y: 487, width: 722, height: 350))
+
+        let rules = ProfileCapture.rules(windows: [chatGPT, notes, cursor], zones: zones)
+
+        XCTAssertEqual(Set(rules.map(\.bundleID)), ["com.openai.codex", "com.apple.Notes", "com.todesktop.230313mzl4w4u92"])
+        XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2, 3])
+    }
+
     func testFullyCoveredBackWindowIsNotVisible() {
         let front = visibility(pid: 1, number: 1, frame: CGRect(x: 0, y: 0, width: 500, height: 500))
         let back = visibility(pid: 2, number: 2, frame: CGRect(x: 0, y: 0, width: 500, height: 500))

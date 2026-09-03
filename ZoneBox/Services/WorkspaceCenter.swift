@@ -8,7 +8,22 @@ final class WorkspaceCenter {
     private struct WindowCandidate {
         var sample: ProfileCapture.WindowSample
         var handle: AXWindow
+        var isMinimized = false
+        var isHiddenApp = false
     }
+
+    private struct CandidateSet {
+        var candidates: [WindowCandidate] = []
+        /// Running saved apps whose standard windows exist but cannot be
+        /// reached from this Space (another Space or native full screen).
+        /// Reopening them would yank the user to that Space, so restore only
+        /// reports them.
+        var unreachableBundleIDs: Set<String> = []
+    }
+
+    /// Cold launches of heavy apps (editors, Electron shells) routinely take
+    /// longer than 15s before their first standard window appears.
+    static let launchTimeout: TimeInterval = 30
 
     private struct PendingPlacement: Identifiable {
         var id = UUID()
@@ -25,7 +40,12 @@ final class WorkspaceCenter {
         var target: PendingPlacement
         var lastFrame: CGRect
         var stableSamples: Int
+        var rejectedAttempts = 0
     }
+
+    /// A freshly launched window may still be resizing itself when the first
+    /// placement lands. Retry a few polls before giving the target up.
+    private static let maxRejectedAttempts = 3
 
     private var pending: [PendingPlacement] = []
     private var observed: [WindowIdentity: ObservedWindow] = [:]
@@ -145,8 +165,18 @@ final class WorkspaceCenter {
             runtime.openAccessibility()
             return
         }
-        let candidates = await collectCandidates(visibleOnly: true)
+        let candidates = await collectCandidates(visibleOnly: true).candidates
         let sections = captureSections(from: candidates.map(\.sample))
+        Log.workspace.info(
+            "Capture visibleWindows=\(candidates.count, privacy: .public) sections=\(sections.count, privacy: .public) rules=\(sections.reduce(0) { $0 + $1.rules.count }, privacy: .public)"
+        )
+        for section in sections {
+            for rule in section.rules {
+                Log.workspace.info(
+                    "Capture rule display=\(section.space.displayID.uuidString.prefix(8), privacy: .public) zone=\(rule.zoneNumber, privacy: .public) app=\(rule.bundleID, privacy: .public)"
+                )
+            }
+        }
         guard !sections.isEmpty else {
             NSSound.beep()
             showFeedback(
@@ -210,8 +240,11 @@ final class WorkspaceCenter {
 
         pending.removeAll()
         observed.removeAll()
-        let candidates = await collectCandidates()
+        let savedBundleIDs = Set(profile.sections.flatMap(\.rules).map(\.bundleID))
+        let collected = await collectCandidates(restorableBundleIDs: savedBundleIDs)
+        let candidates = collected.candidates
         let handles = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0.handle) })
+        let candidatesByIdentity = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0) })
         var zonesBySection: [DisplayIdentity.ID: [ResolvedZone]] = [:]
         for section in profile.sections {
             guard let area = runtime.displays.workAreas.first(where: { $0.display.id == section.space.displayID }),
@@ -224,6 +257,12 @@ final class WorkspaceCenter {
             zonesBySection: zonesBySection,
             candidates: candidates.map(\.sample)
         )
+        Log.workspace.info(
+            "Apply profile=\(profile.name, privacy: .public) candidates=\(candidates.count, privacy: .public) placements=\(outcome.sections.reduce(0) { $0 + $1.placements.count }, privacy: .public) missing=\(outcome.missingBundleIDs.joined(separator: ","), privacy: .public) unreachable=\(collected.unreachableBundleIDs.sorted().joined(separator: ","), privacy: .public) stale=\(outcome.staleRules.count, privacy: .public) skippedDisplays=\(outcome.skippedDisplayIDs.count, privacy: .public)"
+        )
+
+        await revealPlannedWindows(outcome: outcome, candidates: candidatesByIdentity)
+
         var issues: [WindowOrganizeIssue] = []
         var skippedWindows: [WindowIdentity] = []
         var restoredWindows: [AXWindow] = []
@@ -271,6 +310,9 @@ final class WorkspaceCenter {
             )
             switch result {
             case .success(_, let moves, let skipped):
+                Log.workspace.info(
+                    "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) moved=\(moves.count, privacy: .public) skipped=\(skipped.count, privacy: .public)"
+                )
                 appendUnique(moves.map { $0.identity }, to: &movedWindows)
                 appendUnique(skipped, to: &skippedWindows)
                 for move in moves {
@@ -289,11 +331,22 @@ final class WorkspaceCenter {
                 }
                 runtime.flashWorkspaceZones(area: area, layout: layout)
             case .noMovableWindows(let skipped):
+                Log.workspace.info(
+                    "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) no movable windows skipped=\(skipped.count, privacy: .public)"
+                )
                 appendUnique(skipped, to: &skippedWindows)
             case .failed(let skipped, let rollbackFailed):
+                Log.workspace.error(
+                    "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) failed skipped=\(skipped.count, privacy: .public) rollbackFailed=\(rollbackFailed.count, privacy: .public)"
+                )
                 appendUnique(skipped, to: &skippedWindows)
                 appendUnique(rollbackFailed, to: &skippedWindows)
             }
+        }
+        for issue in issues {
+            Log.workspace.info(
+                "Apply issue app=\(issue.identity.bundleID ?? "?", privacy: .public) window=\(issue.identity.windowNumber, privacy: .public) behavior=\(issue.behavior.rawValue, privacy: .public)"
+            )
         }
 
         // Frame changes do not affect WindowServer ordering. Raise every
@@ -309,7 +362,11 @@ final class WorkspaceCenter {
         runtime.menuBar?.reloadMenu()
         runtime.refreshWorkspaceSettings()
         resetBaseline()
-        prepareMissingPlacements(profile: profile, outcome: outcome)
+        prepareMissingPlacements(
+            profile: profile,
+            outcome: outcome,
+            unreachableBundleIDs: collected.unreachableBundleIDs
+        )
         updateCensus()
 
         let launchingCount = Set(pending.map(\.bundleID)).count
@@ -381,10 +438,17 @@ final class WorkspaceCenter {
         return sections
     }
 
-    private func collectCandidates(visibleOnly: Bool = false) async -> [WindowCandidate] {
-        var seen = Set<WindowIdentity>()
-        var candidates: [WindowCandidate] = []
-        let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
+    /// On-screen windows in WindowServer z-order, resolved through one AX
+    /// enumeration per application. Apps named in `restorableBundleIDs` also
+    /// contribute their minimized windows and, when the app is hidden, the
+    /// windows CGWindowList cannot see; those are appended after the visible
+    /// ones so a visible window is always consumed first.
+    private func collectCandidates(
+        visibleOnly: Bool = false,
+        restorableBundleIDs: Set<String> = []
+    ) async -> CandidateSet {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let refs = runtime.query.windows(excludingPID: ownPID)
         let visibleIdentities = visibleOnly
             ? ProfileCapture.visibleWindowIdentities(
                 frontToBack: refs.map {
@@ -397,31 +461,145 @@ final class WorkspaceCenter {
                 }
             )
             : nil
-        for ref in refs {
+
+        var pidOrder: [pid_t] = []
+        var refsByPID: [pid_t: [WindowRef]] = [:]
+        for ref in refs where ref.layer == 0 && isLargeEnough(ref.boundsAX) {
             if let visibleIdentities, !visibleIdentities.contains(ref.identity) { continue }
-            guard let window = await runtime.ax.resolveAsync(ref: ref),
-                  !seen.contains(window.identity),
-                  let frame = await runtime.ax.frame(of: window),
-                  !runtime.settings.excludedBundleIDs.contains(window.identity.bundleID ?? "")
-            else { continue }
-            seen.insert(window.identity)
-            candidates.append(
-                WindowCandidate(
-                    sample: ProfileCapture.WindowSample(identity: window.identity, frameAX: frame),
-                    handle: window
-                )
-            )
+            guard let bundleID = ref.bundleID, !bundleID.isEmpty, !isExcluded(bundleID) else { continue }
+            if refsByPID[ref.pid] == nil { pidOrder.append(ref.pid) }
+            refsByPID[ref.pid, default: []].append(ref)
         }
-        return candidates
+        var hiddenByPID: [pid_t: Bool] = [:]
+        var unhid = false
+        for app in NSWorkspace.shared.runningApplications {
+            guard let bundleID = app.bundleIdentifier,
+                  restorableBundleIDs.contains(bundleID),
+                  !isExcluded(bundleID),
+                  app.processIdentifier != ownPID,
+                  !app.isTerminated
+            else { continue }
+            hiddenByPID[app.processIdentifier] = app.isHidden
+            if refsByPID[app.processIdentifier] == nil {
+                pidOrder.append(app.processIdentifier)
+                refsByPID[app.processIdentifier] = []
+            }
+            // A hidden application exposes no windows through AX at all, so it
+            // has to be unhidden before its saved windows can be enumerated.
+            // The profile includes the app, so showing it is what restore means.
+            if app.isHidden, app.unhide() {
+                unhid = true
+                Log.workspace.info("Apply unhide app=\(bundleID, privacy: .public)")
+            }
+        }
+        if unhid {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+
+        var result = CandidateSet()
+        var seen = Set<WindowIdentity>()
+        var offscreen: [WindowCandidate] = []
+        for pid in pidOrder {
+            let windows = await runtime.ax.applicationWindows(pid: pid)
+            if !restorableBundleIDs.isEmpty {
+                Log.workspace.info(
+                    "Candidates pid=\(pid, privacy: .public) app=\(refsByPID[pid]?.first?.bundleID ?? NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "?", privacy: .public) onScreen=\(refsByPID[pid]?.count ?? 0, privacy: .public) ax=\(windows.count, privacy: .public) minimized=\(windows.filter(\.isMinimized).count, privacy: .public) fullscreen=\(windows.filter(\.isFullscreen).count, privacy: .public) hidden=\(hiddenByPID[pid] ?? false, privacy: .public)"
+                )
+            }
+            guard !windows.isEmpty else { continue }
+            var unmatched = windows.filter { !$0.isFullscreen }
+            for ref in refsByPID[pid] ?? [] {
+                let index = unmatched.firstIndex { $0.window.identity.windowNumber == ref.windowNumber }
+                    ?? unmatched.firstIndex { framesMatch($0.frameAX, ref.boundsAX) }
+                guard let index else { continue }
+                let window = unmatched.remove(at: index)
+                guard seen.insert(window.window.identity).inserted else { continue }
+                result.candidates.append(
+                    WindowCandidate(
+                        sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
+                        handle: window.window
+                    )
+                )
+            }
+            guard let bundleID = windows.first?.window.identity.bundleID ?? refsByPID[pid]?.first?.bundleID,
+                  restorableBundleIDs.contains(bundleID)
+            else { continue }
+            let appHidden = hiddenByPID[pid] ?? false
+            var reachable = !(refsByPID[pid] ?? []).isEmpty
+            for window in unmatched where isLargeEnough(window.frameAX) {
+                guard seen.insert(window.window.identity).inserted else { continue }
+                if window.isMinimized || appHidden {
+                    reachable = true
+                    offscreen.append(
+                        WindowCandidate(
+                            sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
+                            handle: window.window,
+                            isMinimized: window.isMinimized,
+                            isHiddenApp: appHidden
+                        )
+                    )
+                }
+            }
+            if !reachable {
+                result.unreachableBundleIDs.insert(bundleID)
+            }
+        }
+        result.candidates.append(contentsOf: offscreen)
+        return result
     }
 
-    private func prepareMissingPlacements(profile: WorkspaceProfile, outcome: ProfilePlan.Outcome) {
+    /// Minimized windows and hidden apps are part of the saved arrangement, so
+    /// restore brings them back before writing frames. Frames written to a
+    /// window that is still miniaturizing are dropped by many apps.
+    private func revealPlannedWindows(
+        outcome: ProfilePlan.Outcome,
+        candidates: [WindowIdentity: WindowCandidate]
+    ) async {
+        var revealed = 0
+        var unhiddenPIDs = Set<pid_t>()
+        for placement in outcome.sections.flatMap(\.placements) {
+            guard let candidate = candidates[placement.identity] else { continue }
+            if candidate.isHiddenApp, !unhiddenPIDs.contains(placement.identity.pid) {
+                unhiddenPIDs.insert(placement.identity.pid)
+                if NSRunningApplication(processIdentifier: placement.identity.pid)?.unhide() == true {
+                    revealed += 1
+                    Log.workspace.info(
+                        "Apply unhide app=\(placement.identity.bundleID ?? "?", privacy: .public)"
+                    )
+                }
+            }
+            if candidate.isMinimized {
+                let restored = await runtime.ax.unminimize(candidate.handle)
+                if restored { revealed += 1 }
+                Log.workspace.info(
+                    "Apply unminimize app=\(placement.identity.bundleID ?? "?", privacy: .public) window=\(placement.identity.windowNumber, privacy: .public) ok=\(restored, privacy: .public)"
+                )
+            }
+        }
+        if revealed > 0 {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+    }
+
+    private func isExcluded(_ bundleID: String) -> Bool {
+        runtime.settings.excludedBundleIDs.contains(bundleID)
+    }
+
+    private func isLargeEnough(_ frame: CGRect) -> Bool {
+        frame.width >= 80 && frame.height >= 80
+    }
+
+    private func prepareMissingPlacements(
+        profile: WorkspaceProfile,
+        outcome: ProfilePlan.Outcome,
+        unreachableBundleIDs: Set<String>
+    ) {
         guard profile.launchMissingApps else { return }
         var consumed = Dictionary(
             grouping: outcome.sections.flatMap(\.placements),
             by: { $0.identity.bundleID ?? "" }
         ).mapValues(\.count)
-        let expiresAt = Date().addingTimeInterval(15)
+        let expiresAt = Date().addingTimeInterval(Self.launchTimeout)
         var openActions: [String: ProfilePlan.AppOpenAction] = [:]
         let runningBundleIDs = Set(
             NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
@@ -433,6 +611,7 @@ final class WorkspaceCenter {
                     consumed[rule.bundleID, default: 0] -= 1
                     continue
                 }
+                if unreachableBundleIDs.contains(rule.bundleID) { continue }
                 let action = ProfilePlan.openAction(
                     bundleID: rule.bundleID,
                     missingBundleIDs: outcome.missingBundleIDs,
@@ -459,6 +638,9 @@ final class WorkspaceCenter {
             }
         }
         for (bundleID, action) in openActions {
+            Log.workspace.info(
+                "Apply open app=\(bundleID, privacy: .public) action=\(action == .reopen ? "reopen" : "launch", privacy: .public)"
+            )
             open(bundleID: bundleID, action: action)
         }
     }
@@ -484,6 +666,9 @@ final class WorkspaceCenter {
         configuration.createsNewApplicationInstance = false
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] _, error in
             guard let error else { return }
+            Log.workspace.error(
+                "Apply open failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             Task { @MainActor in
                 self?.pending.removeAll { $0.bundleID == bundleID }
                 self?.showFeedback(
@@ -498,6 +683,7 @@ final class WorkspaceCenter {
     private func updateCensus() {
         let needed = !paused && !pending.isEmpty
         if needed, censusTask == nil {
+            Log.workspace.info("Census started pending=\(self.pending.count, privacy: .public)")
             censusTask = Task { @MainActor [weak self] in
                 while let self, !Task.isCancelled {
                     await self.poll()
@@ -517,6 +703,9 @@ final class WorkspaceCenter {
         let expiredBundles = Set(pending.filter { $0.expiresAt <= now }.map(\.bundleID))
         pending.removeAll { $0.expiresAt <= now }
         if !expiredBundles.isEmpty {
+            Log.workspace.error(
+                "Census timeout apps=\(expiredBundles.sorted().joined(separator: ","), privacy: .public)"
+            )
             showFeedback(
                 title: L10n.text(.workspaceAppMissingTitle),
                 detail: String(
@@ -530,17 +719,28 @@ final class WorkspaceCenter {
 
         let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
         let current = Dictionary(uniqueKeysWithValues: refs.map { ($0.identity, $0) })
-        for (identity, ref) in current where !baseline.contains(identity) {
-            if let target = reserveTarget(for: ref) {
-                observed[identity] = ObservedWindow(
-                    pendingID: target.pendingID,
-                    target: target.placement,
-                    lastFrame: ref.boundsAX,
-                    stableSamples: 1
-                )
+        // Splash screens, tooltips and helper panels appear before an app's
+        // real window. Only a window that resolves to a standard AX window may
+        // reserve a pending target; one that does not resolve yet is checked
+        // again next poll without holding a reservation, so it can never block
+        // the real window when it arrives.
+        for ref in refs where !baseline.contains(ref.identity) {
+            guard ref.layer == 0, isLargeEnough(ref.boundsAX), let target = reserveTarget(for: ref) else {
+                baseline.insert(ref.identity)
+                continue
             }
+            guard await runtime.ax.resolveAsync(ref: ref) != nil else { continue }
+            baseline.insert(ref.identity)
+            Log.workspace.info(
+                "Census observed app=\(ref.bundleID ?? "?", privacy: .public) window=\(ref.windowNumber, privacy: .public) zone=\(target.placement.zoneNumber, privacy: .public)"
+            )
+            observed[ref.identity] = ObservedWindow(
+                pendingID: target.pendingID,
+                target: target.placement,
+                lastFrame: ref.boundsAX,
+                stableSamples: 1
+            )
         }
-        baseline.formUnion(current.keys)
 
         for identity in Array(observed.keys) {
             guard let ref = current[identity], var item = observed[identity] else {
@@ -554,12 +754,36 @@ final class WorkspaceCenter {
                 item.stableSamples = 1
             }
             observed[identity] = item
-            guard item.stableSamples >= 2,
-                  let zone = resolvedZone(for: item.target),
-                  let window = await runtime.ax.resolveAsync(ref: ref),
-                  let original = await runtime.ax.frame(of: window),
-                  let applied = await acceptedDelayedFrame(zone.frameAX, of: window)
-            else { continue }
+            guard item.stableSamples >= 2 else { continue }
+            guard let zone = resolvedZone(for: item.target) else {
+                // The target display went away; free the reservation so the
+                // pending entry can expire or be claimed on another screen.
+                observed[identity] = nil
+                continue
+            }
+            guard let window = await runtime.ax.resolveAsync(ref: ref),
+                  let original = await runtime.ax.frame(of: window)
+            else {
+                observed[identity] = nil
+                continue
+            }
+            guard let applied = await acceptedDelayedFrame(zone.frameAX, of: window) else {
+                item.rejectedAttempts += 1
+                item.stableSamples = 0
+                Log.workspace.info(
+                    "Census placement rejected app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public) attempt=\(item.rejectedAttempts, privacy: .public)"
+                )
+                if item.rejectedAttempts >= Self.maxRejectedAttempts {
+                    if let pendingID = item.pendingID { pending.removeAll { $0.id == pendingID } }
+                    observed[identity] = nil
+                } else {
+                    observed[identity] = item
+                }
+                continue
+            }
+            Log.workspace.info(
+                "Census placed app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public) zone=\(zone.number, privacy: .public)"
+            )
             runtime.catalog.record(
                 UnsnapRecord(
                     identity: identity,

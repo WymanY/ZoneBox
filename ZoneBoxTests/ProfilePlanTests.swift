@@ -128,6 +128,77 @@ final class ProfilePlanTests: XCTestCase {
         XCTAssertTrue(outcome.staleRules.isEmpty)
     }
 
+    func testWindowAlreadyInZoneKeepsItInsteadOfFrontmostWindow() throws {
+        let display = UUID()
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 500))
+        let profile = WorkspaceProfile(name: "Work", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", left), rule("browser", right)]),
+        ])
+        let frontInRight = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
+            frameAX: right.frameAX
+        )
+        let backInLeft = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "browser"),
+            frameAX: left.frameAX
+        )
+
+        let outcome = ProfilePlan.make(
+            profile: profile,
+            zonesBySection: [display: [left, right]],
+            candidates: [frontInRight, backInLeft]
+        )
+
+        let placements = try XCTUnwrap(outcome.sections.first?.placements)
+        XCTAssertEqual(placements.map(\.identity), [backInLeft.identity, frontInRight.identity])
+        XCTAssertEqual(placements.map(\.targetFrameAX), [left.frameAX, right.frameAX])
+    }
+
+    func testWindowOnSectionDisplayBeatsWindowOnAnotherDisplay() throws {
+        let display = UUID()
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
+        let profile = WorkspaceProfile(name: "Work", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", zone)]),
+        ])
+        let frontElsewhere = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
+            frameAX: CGRect(x: 2000, y: 0, width: 300, height: 300)
+        )
+        let backOnDisplay = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "browser"),
+            frameAX: CGRect(x: 100, y: 100, width: 100, height: 100)
+        )
+
+        let outcome = ProfilePlan.make(
+            profile: profile,
+            zonesBySection: [display: [zone]],
+            candidates: [frontElsewhere, backOnDisplay]
+        )
+
+        XCTAssertEqual(outcome.sections.first?.placements.map(\.identity), [backOnDisplay.identity])
+    }
+
+    func testFrontmostWindowWinsWhenNoWindowIsNearAnyZone() {
+        let display = UUID()
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
+        let profile = WorkspaceProfile(name: "Work", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", zone)]),
+        ])
+        let front = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
+            frameAX: CGRect(x: 2000, y: 0, width: 300, height: 300)
+        )
+        let back = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "browser"),
+            frameAX: CGRect(x: 3000, y: 0, width: 300, height: 300)
+        )
+
+        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [display: [zone]], candidates: [front, back])
+
+        XCTAssertEqual(outcome.sections.first?.placements.map(\.identity), [front.identity])
+    }
+
     func testRunningAppWithoutWindowsShouldReopenInsteadOfLaunch() {
         XCTAssertEqual(
             ProfilePlan.openAction(
