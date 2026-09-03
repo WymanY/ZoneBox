@@ -305,7 +305,8 @@ final class HotkeyCenter {
                 isRecordingHotkey: runtime.isRecordingHotkey,
                 settingsIsKey: runtime.settingsIsKey,
                 onboardingIsKey: runtime.onboardingIsKey,
-                consoleIsVisible: runtime.consoleIsVisible
+                consoleIsVisible: runtime.consoleIsVisible,
+                dividerDragging: runtime.divider.isDragging
             )
         )
         switch action {
@@ -317,6 +318,8 @@ final class HotkeyCenter {
             runtime.cancelEditor()
         case .dismissQuickSnapper:
             runtime.engine.handleQuickSnapper(.dismiss)
+        case .cancelDivider:
+            runtime.divider.cancelDrag()
         case .closeSettings:
             _ = runtime.closeSettingsIfOpen()
         case .closeOnboarding:

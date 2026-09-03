@@ -270,6 +270,17 @@ final class ShortcutCatalogTests: XCTestCase {
             ),
             .closeConsole
         )
+        XCTAssertEqual(
+            ShortcutRouteContext.escapeAction(
+                ShortcutRouteContext(
+                    shortcutsPanelIsKey: false,
+                    editorClaimsKeyboard: false,
+                    appHasKeyWindow: true,
+                    dividerDragging: true
+                )
+            ),
+            .cancelDivider
+        )
     }
 
     func testOnlyAdjacentAndCycleHotkeysRepeat() {

@@ -101,7 +101,7 @@ public enum SnapSessionReducer {
                 return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
             }
             var effects: [SnapEffect] = [.applyFrame(window, frame), .hideOverlay]
-            if input.unsnapRecord == nil, let original = input.downFrameAX {
+            if let original = input.downFrameAX {
                 effects.insert(
                     .recordUnsnap(
                         UnsnapRecord(
@@ -317,7 +317,7 @@ public enum SnapSessionReducer {
             }
             effects.append(.highlight(target))
             effects.append(.applyFrame(window, zone.frameAX))
-            if input.unsnapRecord == nil, let original = input.downFrameAX {
+            if let original = input.downFrameAX {
                 effects.append(
                     .recordUnsnap(
                         UnsnapRecord(
