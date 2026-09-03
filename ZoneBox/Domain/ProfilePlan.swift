@@ -59,6 +59,31 @@ public enum ProfilePlan {
         return runningBundleIDs.contains(bundleID) ? .reopen : .launch
     }
 
+    /// Bundle IDs from sections whose display and layout are currently available.
+    /// Skipped (disconnected) sections must not unhide or reopen their apps.
+    public static func restorableBundleIDs(
+        profile: WorkspaceProfile,
+        availableDisplayIDs: Set<DisplayIdentity.ID>
+    ) -> Set<String> {
+        Set(
+            profile.sections
+                .filter { availableDisplayIDs.contains($0.space.displayID) }
+                .flatMap(\.rules)
+                .map(\.bundleID)
+        )
+    }
+
+    /// Leftover AX windows that are neither minimized nor hidden live on another
+    /// Space or in native full screen. Extra saved placements for that app must
+    /// not reopen it.
+    public static func isUnreachableLeftoverWindow(
+        isMinimized: Bool,
+        isHiddenApp: Bool,
+        isFullscreen: Bool
+    ) -> Bool {
+        isFullscreen || !(isMinimized || isHiddenApp)
+    }
+
     public static func make(
         profile: WorkspaceProfile,
         zonesBySection: [DisplayIdentity.ID: [ResolvedZone]],

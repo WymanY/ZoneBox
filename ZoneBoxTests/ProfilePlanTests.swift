@@ -46,6 +46,52 @@ final class ProfilePlanTests: XCTestCase {
         XCTAssertEqual(outcome.missingBundleIDs, ["editor"])
         XCTAssertEqual(outcome.staleRules, [stale])
         XCTAssertEqual(outcome.skippedDisplayIDs, [disconnected])
+        XCTAssertEqual(
+            ProfilePlan.restorableBundleIDs(
+                profile: profile,
+                availableDisplayIDs: [activeDisplay]
+            ),
+            Set(["editor", "stale"])
+        )
+    }
+
+    func testRestorableBundleIDsIgnoreSkippedDisplays() {
+        let active = UUID()
+        let disconnected = UUID()
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: .zero)
+        let profile = WorkspaceProfile(name: "Work", sections: [
+            ProfileSection(space: SpaceKey(displayID: active), layoutID: UUID(), rules: [rule("editor", zone)]),
+            ProfileSection(space: SpaceKey(displayID: disconnected), layoutID: UUID(), rules: [rule("hidden.app", zone)]),
+        ])
+
+        XCTAssertEqual(
+            ProfilePlan.restorableBundleIDs(profile: profile, availableDisplayIDs: [active]),
+            Set(["editor"])
+        )
+    }
+
+    func testUnreachableLeftoverWindowsAreNotReopened() {
+        XCTAssertTrue(
+            ProfilePlan.isUnreachableLeftoverWindow(isMinimized: false, isHiddenApp: false, isFullscreen: false)
+        )
+        XCTAssertTrue(
+            ProfilePlan.isUnreachableLeftoverWindow(isMinimized: false, isHiddenApp: false, isFullscreen: true)
+        )
+        XCTAssertFalse(
+            ProfilePlan.isUnreachableLeftoverWindow(isMinimized: true, isHiddenApp: false, isFullscreen: false)
+        )
+        XCTAssertFalse(
+            ProfilePlan.isUnreachableLeftoverWindow(isMinimized: false, isHiddenApp: true, isFullscreen: false)
+        )
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "browser",
+                missingBundleIDs: ["browser"],
+                runningBundleIDs: ["browser"],
+                launchMissingApps: true
+            ),
+            .reopen
+        )
     }
 
     func testKeepsConnectedSectionWhenEverySavedWindowIsMissing() {

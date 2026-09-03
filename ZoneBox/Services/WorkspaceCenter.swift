@@ -240,11 +240,6 @@ final class WorkspaceCenter {
 
         pending.removeAll()
         observed.removeAll()
-        let savedBundleIDs = Set(profile.sections.flatMap(\.rules).map(\.bundleID))
-        let collected = await collectCandidates(restorableBundleIDs: savedBundleIDs)
-        let candidates = collected.candidates
-        let handles = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0.handle) })
-        let candidatesByIdentity = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0) })
         var zonesBySection: [DisplayIdentity.ID: [ResolvedZone]] = [:]
         for section in profile.sections {
             guard let area = runtime.displays.workAreas.first(where: { $0.display.id == section.space.displayID }),
@@ -252,6 +247,14 @@ final class WorkspaceCenter {
             else { continue }
             zonesBySection[section.space.displayID] = runtime.resolvedZones(layout: layout, area: area)
         }
+        let restorableBundleIDs = ProfilePlan.restorableBundleIDs(
+            profile: profile,
+            availableDisplayIDs: Set(zonesBySection.keys)
+        )
+        let collected = await collectCandidates(restorableBundleIDs: restorableBundleIDs)
+        let candidates = collected.candidates
+        let handles = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0.handle) })
+        let candidatesByIdentity = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0) })
         let outcome = ProfilePlan.make(
             profile: profile,
             zonesBySection: zonesBySection,
@@ -525,22 +528,27 @@ final class WorkspaceCenter {
                   restorableBundleIDs.contains(bundleID)
             else { continue }
             let appHidden = hiddenByPID[pid] ?? false
-            var reachable = !(refsByPID[pid] ?? []).isEmpty
+            var hasUnreachableLeftover = windows.contains(where: \.isFullscreen)
             for window in unmatched where isLargeEnough(window.frameAX) {
                 guard seen.insert(window.window.identity).inserted else { continue }
-                if window.isMinimized || appHidden {
-                    reachable = true
-                    offscreen.append(
-                        WindowCandidate(
-                            sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
-                            handle: window.window,
-                            isMinimized: window.isMinimized,
-                            isHiddenApp: appHidden
-                        )
-                    )
+                if ProfilePlan.isUnreachableLeftoverWindow(
+                    isMinimized: window.isMinimized,
+                    isHiddenApp: appHidden,
+                    isFullscreen: window.isFullscreen
+                ) {
+                    hasUnreachableLeftover = true
+                    continue
                 }
+                offscreen.append(
+                    WindowCandidate(
+                        sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
+                        handle: window.window,
+                        isMinimized: window.isMinimized,
+                        isHiddenApp: appHidden
+                    )
+                )
             }
-            if !reachable {
+            if hasUnreachableLeftover {
                 result.unreachableBundleIDs.insert(bundleID)
             }
         }

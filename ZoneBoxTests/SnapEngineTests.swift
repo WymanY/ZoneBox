@@ -161,6 +161,40 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertFalse(out.effects.contains(.applyFrame(window, record.originalFrameAX)))
     }
 
+    func testTitleBarUnarmedDragClampsRestoredSizeToTheDropDisplay() {
+        let record = UnsnapRecord(
+            identity: window,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: frame,
+            zoneIDs: [UUID()]
+        )
+        let primary = sampleWorkArea()
+        let secondary = WorkArea(
+            display: DisplayIdentity(
+                localizedName: "Dell",
+                visibleWidth: 1920,
+                visibleHeight: 1080,
+                backingScale: 1
+            ),
+            frameAppKit: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+            visibleFrameAppKit: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
+            backingScale: 1
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftUp)
+        input.startedOnMoveChrome = true
+        input.restoreSizeOnUnsnap = true
+        input.unsnapRecord = record
+        input.workAreas = [primary, secondary]
+        input.primaryFlipHeight = 900
+        input.currentFrameAX = CGRect(x: 1600, y: 100, width: 400, height: 300)
+        input.downLocationAppKit = .zero
+        input.event.locationAppKit = CGPoint(x: 1700, y: 700)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, CGRect(x: 1600, y: 100, width: 500, height: 400))))
+        XCTAssertFalse(out.effects.contains(.applyFrame(window, CGRect(x: 940, y: 100, width: 500, height: 400))))
+    }
+
     func testShiftReleaseKeepsHighlightedZoneWhenSticky() {
         let zone = ResolvedZone(
             zoneID: UUID(),

@@ -472,7 +472,16 @@ public enum SnapSessionReducer {
         flip: CGFloat
     ) -> CGRect {
         var frame = CGRect(x: current.minX, y: current.minY, width: original.width, height: original.height)
-        guard let area = workAreas.first else { return frame }
+        let dropPointAppKit = CoordinateConverter.appKitPoint(
+            fromAX: CGPoint(x: current.minX, y: current.minY),
+            primaryFlipHeight: flip
+        )
+        let area = DisplayTargetResolver.workArea(
+            containingWindowFrameAX: current,
+            from: workAreas,
+            primaryFlipHeight: flip
+        ) ?? workAreas.first { $0.containsAppKitPoint(dropPointAppKit) }
+        guard let area else { return frame }
         let workAX = CoordinateConverter.axRect(fromAppKit: area.visibleFrameAppKit, primaryFlipHeight: flip)
         if frame.maxX > workAX.maxX { frame.origin.x = workAX.maxX - frame.width }
         if frame.maxY > workAX.maxY { frame.origin.y = workAX.maxY - frame.height }
