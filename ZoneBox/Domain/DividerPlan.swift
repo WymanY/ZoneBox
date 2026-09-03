@@ -128,9 +128,7 @@ public enum DividerPlan {
 
         for window in clipped {
             guard !used.contains(window.identity) else { continue }
-            guard let zoneID = uniqueFilledZone(for: window.frameAX, in: resolvedFrames),
-                  result[zoneID] == nil
-            else { continue }
+            guard let zoneID = uniqueFilledZone(for: window.frameAX, in: resolvedFrames) else { continue }
             assign(window.identity, to: zoneID)
         }
         return result

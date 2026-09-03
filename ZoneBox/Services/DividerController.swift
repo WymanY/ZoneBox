@@ -151,7 +151,19 @@ final class DividerController {
         let preferred = Dictionary(
             uniqueKeysWithValues: runtime.catalog.snappedMemberships(on: area.display.id)
         )
-        for ref in query.windows(excludingPID: ownPID) where ref.layer == 0 {
+        let refs = query.windows(excludingPID: ownPID)
+        let visible = ProfileCapture.visibleWindowIdentities(
+            frontToBack: refs.map {
+                ProfileCapture.VisibilitySample(
+                    identity: $0.identity,
+                    frameAX: $0.boundsAX,
+                    opacity: $0.alpha,
+                    isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
+                )
+            }
+        )
+        for ref in refs where ref.layer == 0 {
+            guard visible.contains(ref.identity) else { continue }
             guard !seen.contains(ref.identity) else { continue }
             if let bundleID = ref.bundleID, excluded.contains(bundleID) { continue }
             guard ref.alpha >= 0.15 else { continue }

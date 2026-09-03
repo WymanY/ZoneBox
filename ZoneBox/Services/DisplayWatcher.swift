@@ -58,29 +58,8 @@ final class DisplayWatcher {
                 )
             )
         }
-        mergeStaleDuplicates(document: &document, live: areas.map(\.display))
         workAreas = areas
         onChange?()
-    }
-
-    /// Earlier builds minted a fresh identity whenever a monitor came back with
-    /// a different product number or UUID. A disconnected record that matches
-    /// exactly one live display by name and size, but not by vendor and product
-    /// (a second identical monitor would match those too), is that display's
-    /// past life; fold it in so its saved workspaces follow the monitor.
-    private func mergeStaleDuplicates(document: inout StoreDocument, live: [DisplayIdentity]) {
-        let liveIDs = Set(live.map(\.id))
-        for stale in document.displays where !liveIDs.contains(stale.id) {
-            let matches = live.filter {
-                let score = stale.score(against: $0)
-                return score >= Self.reidentifyThreshold && score < 70
-            }
-            guard matches.count == 1, let target = matches.first else { continue }
-            Log.display.info(
-                "Merging stale display \(stale.id.uuidString.prefix(8), privacy: .public) into \(target.id.uuidString.prefix(8), privacy: .public) name=\(target.localizedName, privacy: .public)"
-            )
-            document.mergeDisplay(stale.id, into: target.id)
-        }
     }
 
     func area(containingAppKit point: CGPoint) -> WorkArea? {

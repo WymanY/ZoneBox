@@ -113,6 +113,37 @@ final class DividerPlanTests: XCTestCase {
         XCTAssertEqual(Set(handle.slots.map { $0.zoneID }), Set(layout.zones.map { $0.id }))
     }
 
+    func testOccupancyRecordsStackedWindowsSoTheHandleStaysHidden() {
+        let layout = LayoutTemplates.columns(2)
+        let windows = identities(count: 3)
+        let left = CGRect(x: work.minX, y: work.minY, width: 500, height: work.height)
+        let right = CGRect(x: work.minX + 500, y: work.minY, width: 500, height: work.height)
+        let occupancy = DividerPlan.occupancy(
+            resolvedFrames: [
+                layout.zones[0].id: left,
+                layout.zones[1].id: right,
+            ],
+            windows: [
+                (windows[0], left),
+                (windows[1], left),
+                (windows[2], right),
+            ]
+        )
+        XCTAssertEqual(occupancy[layout.zones[0].id], [windows[0], windows[1]])
+        XCTAssertEqual(occupancy[layout.zones[1].id], [windows[2]])
+        XCTAssertTrue(
+            DividerPlan.handles(
+                layout: layout,
+                workAreaAX: work,
+                resolvedFrames: [
+                    layout.zones[0].id: left,
+                    layout.zones[1].id: right,
+                ],
+                snapped: occupancy
+            ).isEmpty
+        )
+    }
+
     func testOccupancyBindsWindowsByLiveFrameInsteadOfCatalogZoneIDs() {
         let layout = LayoutTemplates.columns(2)
         let windows = identities(count: 2)

@@ -733,7 +733,15 @@ final class WorkspaceCenter {
         // again next poll without holding a reservation, so it can never block
         // the real window when it arrives.
         for ref in refs where !baseline.contains(ref.identity) {
-            guard ref.layer == 0, isLargeEnough(ref.boundsAX), let target = reserveTarget(for: ref) else {
+            guard ref.layer == 0 else {
+                baseline.insert(ref.identity)
+                continue
+            }
+            // Splash/tool windows often start below 80x80 and later grow into
+            // the real document window under the same identity. Keep them out
+            // of baseline until they are large enough to reserve a zone.
+            guard isLargeEnough(ref.boundsAX) else { continue }
+            guard let target = reserveTarget(for: ref) else {
                 baseline.insert(ref.identity)
                 continue
             }

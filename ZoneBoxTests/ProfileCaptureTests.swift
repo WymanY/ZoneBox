@@ -72,13 +72,21 @@ final class ProfileCaptureTests: XCTestCase {
         XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2, 3])
     }
 
+    func testMaximizedFrontWindowHidesCoveredSnappedWindows() {
+        let front = visibility(pid: 1, number: 1, frame: CGRect(x: 0, y: 0, width: 1000, height: 800))
+        let left = visibility(pid: 2, number: 2, frame: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = visibility(pid: 3, number: 3, frame: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [front, left, right])
+        XCTAssertEqual(visible, Set([front.identity]))
+    }
+
     func testFullyCoveredBackWindowIsNotVisible() {
         let front = visibility(pid: 1, number: 1, frame: CGRect(x: 0, y: 0, width: 500, height: 500))
         let back = visibility(pid: 2, number: 2, frame: CGRect(x: 0, y: 0, width: 500, height: 500))
 
         let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [front, back])
 
-        XCTAssertEqual(visible, [front.identity])
+        XCTAssertEqual(visible, Set([front.identity]))
     }
 
     func testAdjacentFrontWindowsCanJointlyCoverBackWindow() {
@@ -97,7 +105,7 @@ final class ProfileCaptureTests: XCTestCase {
 
         let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [front, back])
 
-        XCTAssertEqual(visible, [front.identity])
+        XCTAssertEqual(visible, Set([front.identity]))
     }
 
     func testAdjacentSnappedWindowsRemainVisibleAcrossASharedSeam() {
