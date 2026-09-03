@@ -256,7 +256,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case onboardingWindowTitle
     case onboardingTitle
     case onboardingSubtitle
-    case onboardingPathCaption
     case onboardingStep1Title
     case onboardingStep1Detail
     case onboardingStep2Title
@@ -706,11 +705,10 @@ public enum L10n {
         .onboardingWindowTitle: "Enable Accessibility",
         .onboardingTitle: "Allow ZoneBox to arrange windows",
         .onboardingSubtitle: "macOS requires Accessibility permission before ZoneBox can move and resize other apps. This stays on your Mac — nothing is uploaded.",
-        .onboardingPathCaption: "Enable this exact build (Xcode Debug ≠ a copy in /Applications):",
         .onboardingStep1Title: "Open Accessibility settings",
         .onboardingStep1Detail: "Use the button below. System Settings opens to Privacy & Security → Accessibility.",
-        .onboardingStep2Title: "Turn on THIS ZoneBox",
-        .onboardingStep2Detail: "You may see several ZoneBox rows (Xcode Debug, another folder, /Applications). Enable the one that matches the path above.",
+        .onboardingStep2Title: "Turn on ZoneBox",
+        .onboardingStep2Detail: "Find ZoneBox in the list and turn on its switch.",
         .onboardingStep3Title: "Come back to ZoneBox",
         .onboardingStep3Detail: "Snapping turns on automatically once the switch is on. If it doesn’t, use Quit & Relaunch below.",
         .onboardingMockHeader: "Accessibility",
@@ -1036,11 +1034,10 @@ public enum L10n {
         .onboardingWindowTitle: "开启辅助功能",
         .onboardingTitle: "允许 ZoneBox 排列窗口",
         .onboardingSubtitle: "macOS 要求先开启辅助功能，ZoneBox 才能移动和调整其他应用的窗口。权限只留在这台 Mac 上，不会上传。",
-        .onboardingPathCaption: "请开启这一份构建（Xcode Debug 和 /Applications 里的副本不是同一个）：",
         .onboardingStep1Title: "打开辅助功能设置",
         .onboardingStep1Detail: "点下面的按钮。系统设置会打开到“隐私与安全性 → 辅助功能”。",
-        .onboardingStep2Title: "打开这一份 ZoneBox",
-        .onboardingStep2Detail: "列表里可能有多行 ZoneBox（Xcode Debug、其他文件夹、/Applications）。请打开与上面路径一致的那一行。",
+        .onboardingStep2Title: "打开 ZoneBox",
+        .onboardingStep2Detail: "在列表里找到 ZoneBox，打开旁边的开关。",
         .onboardingStep3Title: "回到 ZoneBox",
         .onboardingStep3Detail: "开关打开后，吸附会自动启用。如果没有生效，请用下方的“退出并重新打开”。",
         .onboardingMockHeader: "辅助功能",

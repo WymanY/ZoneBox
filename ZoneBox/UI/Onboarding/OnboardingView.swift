@@ -23,7 +23,6 @@ final class OnboardingView: NSView {
     private var phase: Phase = .needsPermission
     private var titleLabel: NSTextField?
     private var subtitleLabel: NSTextField?
-    private var pathCaptionLabel: NSTextField?
     private var step1Title: NSTextField?
     private var step1Detail: NSTextField?
     private var step2Title: NSTextField?
@@ -45,7 +44,6 @@ final class OnboardingView: NSView {
     func applyLanguage() {
         titleLabel?.stringValue = L10n.text(.onboardingTitle)
         subtitleLabel?.stringValue = L10n.text(.onboardingSubtitle)
-        pathCaptionLabel?.stringValue = L10n.text(.onboardingPathCaption)
         step1Title?.stringValue = L10n.text(.onboardingStep1Title)
         step1Detail?.stringValue = L10n.text(.onboardingStep1Detail)
         step2Title?.stringValue = L10n.text(.onboardingStep2Title)
@@ -105,9 +103,12 @@ final class OnboardingView: NSView {
 
     private func build() {
         let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "rectangle.split.3x1", accessibilityDescription: "ZoneBox")
-        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .medium)
-        icon.contentTintColor = .controlAccentColor
+        icon.image = NSApp.applicationIconImage
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.wantsLayer = true
+        icon.layer?.cornerRadius = 12
+        icon.layer?.masksToBounds = true
+        icon.setAccessibilityLabel("ZoneBox")
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.setContentHuggingPriority(.required, for: .vertical)
 
@@ -117,18 +118,9 @@ final class OnboardingView: NSView {
         subtitle.textColor = .secondaryLabelColor
         subtitleLabel = subtitle
 
-        let pathCaption = label(L10n.text(.onboardingPathCaption), font: .systemFont(ofSize: 11, weight: .medium))
-        pathCaption.textColor = .secondaryLabelColor
-        pathCaptionLabel = pathCaption
-        let pathField = NSTextField(wrappingLabelWithString: TrustMonitor.currentBuildPath)
-        pathField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        pathField.textColor = .labelColor
-        pathField.translatesAutoresizingMaskIntoConstraints = false
-
         let guide = mockList()
         let stack = NSStackView(views: [
             icon, title, subtitle,
-            pathCaption, pathField,
             makeStep(1, titleKey: .onboardingStep1Title, detailKey: .onboardingStep1Detail),
             makeStep(2, titleKey: .onboardingStep2Title, detailKey: .onboardingStep2Detail),
             makeStep(3, titleKey: .onboardingStep3Title, detailKey: .onboardingStep3Detail),
@@ -149,8 +141,8 @@ final class OnboardingView: NSView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -24),
-            icon.heightAnchor.constraint(equalToConstant: 40),
-            icon.widthAnchor.constraint(equalToConstant: 40),
+            icon.heightAnchor.constraint(equalToConstant: 64),
+            icon.widthAnchor.constraint(equalToConstant: 64),
         ])
     }
 

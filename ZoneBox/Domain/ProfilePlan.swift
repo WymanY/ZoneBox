@@ -47,7 +47,7 @@ public enum ProfilePlan {
     }
 
     /// A saved app with no usable window still needs an open action.
-    /// If the process is already running, reopen its default window instead of
+    /// If the process is already running, activate its existing windows instead of
     /// treating the running app as already restored.
     public static func openAction(
         bundleID: String,
@@ -73,15 +73,15 @@ public enum ProfilePlan {
         )
     }
 
-    /// Leftover AX windows that are neither minimized nor hidden live on another
-    /// Space or in native full screen. Extra saved placements for that app must
-    /// not reopen it.
+    /// Native full screen is the only leftover window restore must not yank
+    /// the user toward. Minimized, hidden, and ordinary AX windows are claimed
+    /// by activating the already-running app.
     public static func isUnreachableLeftoverWindow(
         isMinimized: Bool,
         isHiddenApp: Bool,
         isFullscreen: Bool
     ) -> Bool {
-        isFullscreen || !(isMinimized || isHiddenApp)
+        isFullscreen
     }
 
     public static func make(
