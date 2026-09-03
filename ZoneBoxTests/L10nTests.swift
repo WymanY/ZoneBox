@@ -214,4 +214,34 @@ final class L10nTests: XCTestCase {
             XCTAssertFalse(L10n.text(key, language: .chineseSimplified).isEmpty, "missing zh \(key)")
         }
     }
+
+    func testOnboardingCopyDoesNotMentionXcode() {
+        XCTAssertEqual(
+            L10n.text(.onboardingStep2Title, language: .english),
+            "Turn on ZoneBox"
+        )
+        XCTAssertEqual(
+            L10n.text(.onboardingStep2Title, language: .chineseSimplified),
+            "打开 ZoneBox"
+        )
+        XCTAssertEqual(
+            L10n.text(.onboardingStep2Detail, language: .english),
+            "Find ZoneBox in the list and turn on its switch."
+        )
+        XCTAssertEqual(
+            L10n.text(.onboardingStep2Detail, language: .chineseSimplified),
+            "在列表里找到 ZoneBox，打开旁边的开关。"
+        )
+
+        for key in L10nKey.allCases {
+            XCTAssertFalse(
+                L10n.text(key, language: .english).localizedCaseInsensitiveContains("xcode"),
+                "user-facing en copy still mentions Xcode: \(key)"
+            )
+            XCTAssertFalse(
+                L10n.text(key, language: .chineseSimplified).localizedCaseInsensitiveContains("xcode"),
+                "user-facing zh copy still mentions Xcode: \(key)"
+            )
+        }
+    }
 }

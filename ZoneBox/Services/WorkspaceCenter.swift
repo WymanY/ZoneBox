@@ -467,14 +467,14 @@ final class WorkspaceCenter {
 
         var pidOrder: [pid_t] = []
         var refsByPID: [pid_t: [WindowRef]] = [:]
-        for ref in refs where ref.layer == 0 && isLargeEnough(ref.boundsAX) {
+        for ref in refs where ref.layer == 0 {
             if let visibleIdentities, !visibleIdentities.contains(ref.identity) { continue }
             guard let bundleID = ref.bundleID, !bundleID.isEmpty, !isExcluded(bundleID) else { continue }
             if refsByPID[ref.pid] == nil { pidOrder.append(ref.pid) }
             refsByPID[ref.pid, default: []].append(ref)
         }
         var hiddenByPID: [pid_t: Bool] = [:]
-        var unhid = false
+        var revealedRunning = false
         for app in NSWorkspace.shared.runningApplications {
             guard let bundleID = app.bundleIdentifier,
                   restorableBundleIDs.contains(bundleID),
@@ -487,16 +487,40 @@ final class WorkspaceCenter {
                 pidOrder.append(app.processIdentifier)
                 refsByPID[app.processIdentifier] = []
             }
-            // A hidden application exposes no windows through AX at all, so it
-            // has to be unhidden before its saved windows can be enumerated.
-            // The profile includes the app, so showing it is what restore means.
-            if app.isHidden, app.unhide() {
-                unhid = true
+            // Hidden apps must be unhidden before AX can see their windows.
+            // Windowless running apps are reopened later, then all windows are
+            // activated — activating here would skip that restore step.
+            let hasUsableWindow = (refsByPID[app.processIdentifier] ?? []).contains {
+                isLargeEnough($0.boundsAX)
+            }
+            if !hasUsableWindow, app.isHidden, app.unhide() {
+                revealedRunning = true
                 Log.workspace.info("Apply unhide app=\(bundleID, privacy: .public)")
             }
         }
-        if unhid {
+        if revealedRunning {
             try? await Task.sleep(nanoseconds: 300_000_000)
+            let refreshed = runtime.query.windows(excludingPID: ownPID)
+            pidOrder = []
+            refsByPID = [:]
+            for ref in refreshed where ref.layer == 0 {
+                if let visibleIdentities, !visibleIdentities.contains(ref.identity) { continue }
+                guard let bundleID = ref.bundleID, !bundleID.isEmpty, !isExcluded(bundleID) else { continue }
+                if refsByPID[ref.pid] == nil { pidOrder.append(ref.pid) }
+                refsByPID[ref.pid, default: []].append(ref)
+            }
+            for app in NSWorkspace.shared.runningApplications {
+                guard let bundleID = app.bundleIdentifier,
+                      restorableBundleIDs.contains(bundleID),
+                      !isExcluded(bundleID),
+                      app.processIdentifier != ownPID,
+                      !app.isTerminated
+                else { continue }
+                if refsByPID[app.processIdentifier] == nil {
+                    pidOrder.append(app.processIdentifier)
+                    refsByPID[app.processIdentifier] = []
+                }
+            }
         }
 
         var result = CandidateSet()
@@ -516,6 +540,9 @@ final class WorkspaceCenter {
                     ?? unmatched.firstIndex { framesMatch($0.frameAX, ref.boundsAX) }
                 guard let index else { continue }
                 let window = unmatched.remove(at: index)
+                // CGWindowList can report a stub menu/chrome strip for apps like
+                // Simulator. Prefer the AX frame, which is the real window size.
+                guard isLargeEnough(window.frameAX) else { continue }
                 guard seen.insert(window.window.identity).inserted else { continue }
                 result.candidates.append(
                     WindowCandidate(
@@ -531,20 +558,28 @@ final class WorkspaceCenter {
             var hasUnreachableLeftover = windows.contains(where: \.isFullscreen)
             for window in unmatched where isLargeEnough(window.frameAX) {
                 guard seen.insert(window.window.identity).inserted else { continue }
-                if ProfilePlan.isUnreachableLeftoverWindow(
-                    isMinimized: window.isMinimized,
-                    isHiddenApp: appHidden,
-                    isFullscreen: window.isFullscreen
-                ) {
+                if window.isFullscreen {
                     hasUnreachableLeftover = true
                     continue
                 }
-                offscreen.append(
+                if window.isMinimized || appHidden {
+                    offscreen.append(
+                        WindowCandidate(
+                            sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
+                            handle: window.window,
+                            isMinimized: window.isMinimized,
+                            isHiddenApp: appHidden
+                        )
+                    )
+                    continue
+                }
+                // CGWindowList can miss or stub a real window (Simulator chrome
+                // strips, Electron shells). After activate, the AX window is the
+                // source of truth and should be placed like any other app.
+                result.candidates.append(
                     WindowCandidate(
                         sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
-                        handle: window.window,
-                        isMinimized: window.isMinimized,
-                        isHiddenApp: appHidden
+                        handle: window.window
                     )
                 )
             }
@@ -665,26 +700,86 @@ final class WorkspaceCenter {
             return
         }
         if action == .reopen {
-            _ = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.activate()
+            reopenRunningApplication(bundleID: bundleID)
         }
         let configuration = NSWorkspace.OpenConfiguration()
-        // Reopening a windowless running app needs activation so it creates its
-        // default/initial window. A cold launch stays in the background.
-        configuration.activates = action == .reopen
+        configuration.activates = true
         configuration.createsNewApplicationInstance = false
-        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] _, error in
-            guard let error else { return }
-            Log.workspace.error(
-                "Apply open failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
-            )
-            Task { @MainActor in
-                self?.pending.removeAll { $0.bundleID == bundleID }
-                self?.showFeedback(
-                    title: L10n.text(.workspaceAppMissingTitle),
-                    detail: error.localizedDescription,
-                    error: true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] running, error in
+            if let error {
+                Log.workspace.error(
+                    "Apply open failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
+                Task { @MainActor in
+                    self?.pending.removeAll { $0.bundleID == bundleID }
+                    self?.showFeedback(
+                        title: L10n.text(.workspaceAppMissingTitle),
+                        detail: error.localizedDescription,
+                        error: true
+                    )
+                }
+                return
             }
+            let app = running ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
+            _ = app?.unhide()
+            _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+            Log.workspace.info("Apply activated all windows app=\(bundleID, privacy: .public)")
+            if bundleID == SimulatorDevicePlan.bundleID {
+                Task { @MainActor [weak self] in
+                    await self?.bootSimulatorDeviceIfNeeded(simulatorAppURL: url)
+                }
+            }
+        }
+    }
+
+    /// Simulator.app stays alive with only menu-bar strips after its last
+    /// device shuts down. Reopen and relaunch just activate it, so restore
+    /// would wait the whole launch timeout for a window that never comes.
+    /// Boot the device Simulator itself would have opened. A cold launch
+    /// starts that boot on its own; the delay lets it show up as Booting so
+    /// the check below leaves it alone.
+    private func bootSimulatorDeviceIfNeeded(simulatorAppURL: URL) async {
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        guard pending.contains(where: { $0.bundleID == SimulatorDevicePlan.bundleID }) else { return }
+        let booter = SimulatorDeviceBooter(
+            developerDirectory: SimulatorDeviceBooter.developerDirectory(simulatorAppURL: simulatorAppURL)
+        )
+        let outcome = await Task.detached(priority: .userInitiated) { booter.ensureDeviceBooted() }.value
+        switch outcome {
+        case .alreadyActive:
+            Log.workspace.info("Apply simulator device already active")
+        case .booted(let udid, let name):
+            Log.workspace.info(
+                "Apply simulator boot device=\(name, privacy: .public) udid=\(udid, privacy: .public)"
+            )
+        case .noDevice:
+            Log.workspace.error("Apply simulator boot skipped: no available device")
+        case .failed(let reason):
+            Log.workspace.error("Apply simulator boot failed: \(reason, privacy: .public)")
+        }
+    }
+
+    /// Dock-click / Keyboard Maestro "Reopen initial windows": tell an already
+    /// running app to restore its saved windows before activating them.
+    private func reopenRunningApplication(bundleID: String) {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+            return
+        }
+        _ = app.unhide()
+        let event = NSAppleEventDescriptor(
+            eventClass: AEEventClass(kCoreEventClass),
+            eventID: AEEventID(kAEReopenApplication),
+            targetDescriptor: NSAppleEventDescriptor(processIdentifier: app.processIdentifier),
+            returnID: AEReturnID(kAutoGenerateReturnID),
+            transactionID: AETransactionID(kAnyTransactionID)
+        )
+        do {
+            try event.sendEvent(options: [.noReply], timeout: 1)
+            Log.workspace.info("Apply reopen app=\(bundleID, privacy: .public)")
+        } catch {
+            Log.workspace.error(
+                "Apply reopen failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -727,6 +822,7 @@ final class WorkspaceCenter {
 
         let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
         let current = Dictionary(uniqueKeysWithValues: refs.map { ($0.identity, $0) })
+        await claimExistingWindowsForPending()
         // Splash screens, tooltips and helper panels appear before an app's
         // real window. Only a window that resolves to a standard AX window may
         // reserve a pending target; one that does not resolve yet is checked
@@ -813,6 +909,44 @@ final class WorkspaceCenter {
             observed[identity] = nil
         }
         updateCensus()
+    }
+
+    /// Already-running apps often have a usable AX window that CGWindowList
+    /// first reports as chrome, a stub, or an existing identity. After activate,
+    /// claim that window instead of waiting for a brand-new one.
+    private func claimExistingWindowsForPending() async {
+        guard !pending.isEmpty else { return }
+        var claimed = Set<String>()
+        for app in NSWorkspace.shared.runningApplications {
+            guard let bundleID = app.bundleIdentifier,
+                  pending.contains(where: { $0.bundleID == bundleID }),
+                  claimed.insert(bundleID).inserted
+            else { continue }
+            let windows = await runtime.ax.applicationWindows(pid: app.processIdentifier)
+            for window in windows where isLargeEnough(window.frameAX) && !window.isFullscreen {
+                let identity = window.window.identity
+                guard observed[identity] == nil else { continue }
+                let ref = WindowRef(
+                    pid: identity.pid,
+                    windowNumber: identity.windowNumber,
+                    boundsAX: window.frameAX,
+                    bundleID: bundleID,
+                    layer: 0,
+                    alpha: 1
+                )
+                guard let target = reserveTarget(for: ref) else { continue }
+                baseline.insert(identity)
+                Log.workspace.info(
+                    "Census claimed existing app=\(bundleID, privacy: .public) window=\(identity.windowNumber, privacy: .public) zone=\(target.placement.zoneNumber, privacy: .public)"
+                )
+                observed[identity] = ObservedWindow(
+                    pendingID: target.pendingID,
+                    target: target.placement,
+                    lastFrame: window.frameAX,
+                    stableSamples: 2
+                )
+            }
+        }
     }
 
     private func reserveTarget(for ref: WindowRef) -> (pendingID: UUID?, placement: PendingPlacement)? {

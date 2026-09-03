@@ -71,7 +71,7 @@ final class ProfilePlanTests: XCTestCase {
     }
 
     func testUnreachableLeftoverWindowsAreNotReopened() {
-        XCTAssertTrue(
+        XCTAssertFalse(
             ProfilePlan.isUnreachableLeftoverWindow(isMinimized: false, isHiddenApp: false, isFullscreen: false)
         )
         XCTAssertTrue(
@@ -281,6 +281,15 @@ final class ProfilePlanTests: XCTestCase {
                 launchMissingApps: true
             ),
             .none
+        )
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "com.apple.iphonesimulator",
+                missingBundleIDs: ["com.apple.iphonesimulator"],
+                runningBundleIDs: ["com.apple.iphonesimulator"],
+                launchMissingApps: true
+            ),
+            .reopen
         )
     }
 
