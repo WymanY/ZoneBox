@@ -69,7 +69,10 @@ public struct DisplayIdentity: Codable, Hashable, Identifiable, Sendable {
             .sorted { $0.1 > $1.1 }
         guard let best = scored.first else { return nil }
         let close = scored.filter { best.1 - $0.1 <= 10 && $0.1 >= 55 }
-        if close.count >= 2, best.1 >= 55 { return (best.0, best.1) }
+        // Two identical monitors that both lost vendor/product/UUID after a
+        // dock or port change both score 55. Picking one by sort order swaps
+        // their saved layouts; wait for a unique weak match or a hardware hit.
+        if close.count >= 2 { return best.1 >= 70 ? best : nil }
         if best.1 >= 70 { return best }
         if best.1 >= 25 { return best }
         return nil
@@ -231,6 +234,36 @@ public struct StoreDocument: Codable, Equatable, Sendable {
             self.activeProfileID = nil
         }
         return true
+    }
+
+    /// Folds a stale duplicate display identity into the one that is live.
+    /// Profile sections and layout assignments keyed on the stale identity move
+    /// over, so workspaces saved before a monitor changed ports still restore.
+    /// The live display keeps its own assignment when both had one.
+    public mutating func mergeDisplay(_ staleID: DisplayIdentity.ID, into liveID: DisplayIdentity.ID) {
+        guard staleID != liveID, displays.contains(where: { $0.id == liveID }) else { return }
+        displays.removeAll { $0.id == staleID }
+        let liveHasAssignment = assignments.contains { $0.space.displayID == liveID }
+        if liveHasAssignment {
+            assignments.removeAll { $0.space.displayID == staleID }
+        } else {
+            for index in assignments.indices where assignments[index].space.displayID == staleID {
+                assignments[index].space.displayID = liveID
+            }
+        }
+        for profileIndex in profiles.indices {
+            var sections = profiles[profileIndex].sections
+            let liveHasSection = sections.contains { $0.space.displayID == liveID }
+            if liveHasSection {
+                sections.removeAll { $0.space.displayID == staleID }
+            } else {
+                for index in sections.indices where sections[index].space.displayID == staleID {
+                    sections[index].space.displayID = liveID
+                }
+            }
+            profiles[profileIndex].sections = sections
+        }
+        normalizeReferences()
     }
 
     public mutating func upsertProfile(_ profile: WorkspaceProfile) {

@@ -40,6 +40,50 @@ public enum ProfilePlan {
         }
     }
 
+    public enum AppOpenAction: Equatable, Sendable {
+        case none
+        case launch
+        case reopen
+    }
+
+    /// A saved app with no usable window still needs an open action.
+    /// If the process is already running, reopen its default window instead of
+    /// treating the running app as already restored.
+    public static func openAction(
+        bundleID: String,
+        missingBundleIDs: [String],
+        runningBundleIDs: Set<String>,
+        launchMissingApps: Bool
+    ) -> AppOpenAction {
+        guard launchMissingApps, missingBundleIDs.contains(bundleID) else { return .none }
+        return runningBundleIDs.contains(bundleID) ? .reopen : .launch
+    }
+
+    /// Bundle IDs from sections whose display and layout are currently available.
+    /// Skipped (disconnected) sections must not unhide or reopen their apps.
+    public static func restorableBundleIDs(
+        profile: WorkspaceProfile,
+        availableDisplayIDs: Set<DisplayIdentity.ID>
+    ) -> Set<String> {
+        Set(
+            profile.sections
+                .filter { availableDisplayIDs.contains($0.space.displayID) }
+                .flatMap(\.rules)
+                .map(\.bundleID)
+        )
+    }
+
+    /// Leftover AX windows that are neither minimized nor hidden live on another
+    /// Space or in native full screen. Extra saved placements for that app must
+    /// not reopen it.
+    public static func isUnreachableLeftoverWindow(
+        isMinimized: Bool,
+        isHiddenApp: Bool,
+        isFullscreen: Bool
+    ) -> Bool {
+        isFullscreen || !(isMinimized || isHiddenApp)
+    }
+
     public static func make(
         profile: WorkspaceProfile,
         zonesBySection: [DisplayIdentity.ID: [ResolvedZone]],
@@ -75,7 +119,7 @@ public enum ProfilePlan {
                     if !missing.contains(rule.bundleID) { missing.append(rule.bundleID) }
                     continue
                 }
-                let sample = queue.removeFirst()
+                let sample = queue.remove(at: preferredIndex(in: queue, zone: zone.frameAX, sectionZones: zones))
                 queues[rule.bundleID] = queue
                 placements.append(WindowOrganizePlacement(identity: sample.identity, targetFrameAX: zone.frameAX))
                 zoneIDs[sample.identity] = zone.zoneID
@@ -96,5 +140,39 @@ public enum ProfilePlan {
             staleRules: stale,
             skippedDisplayIDs: skipped
         )
+    }
+
+    /// Same-app windows are consumed front-to-back, but a window that already
+    /// sits in the rule's zone keeps it, and a window on the section's display
+    /// beats one on another display. Otherwise two browser windows swap places
+    /// on every restore even though both were exactly where the profile wanted.
+    static func preferredIndex(
+        in queue: [ProfileCapture.WindowSample],
+        zone: CGRect,
+        sectionZones: [ResolvedZone]
+    ) -> Int {
+        var bestIndex = 0
+        var bestScore = -1
+        for (index, sample) in queue.enumerated() {
+            let score: Int
+            if ProfileCapture.occupies(sample.frameAX, zone: zone) {
+                score = 2
+            } else if sectionZones.contains(where: { intersectsInterior(sample.frameAX, $0.frameAX) }) {
+                score = 1
+            } else {
+                score = 0
+            }
+            if score > bestScore {
+                bestScore = score
+                bestIndex = index
+                if score == 2 { break }
+            }
+        }
+        return bestIndex
+    }
+
+    private static func intersectsInterior(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let overlap = lhs.intersection(rhs)
+        return !overlap.isNull && overlap.width > 0 && overlap.height > 0
     }
 }

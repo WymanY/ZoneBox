@@ -264,9 +264,11 @@ final class SnapEngine {
                     highlight: .none,
                     captureKeys: true
                 )
+                runtime.divider.refresh()
             case .hideOverlay:
                 runtime.overlay.hideSessionOverlay()
                 runtime.noteQuickSnapperUI(showing: false)
+                runtime.divider.refresh()
             case .snap(let identity, let number):
                 await snap(identity, to: number, layoutID: output.selectedLayoutID)
             }
@@ -384,6 +386,7 @@ final class SnapEngine {
                 ),
                 displayID: target.area.display.id
             )
+            runtime.divider.refresh()
             return applied
         }
         return nil
@@ -396,12 +399,14 @@ final class SnapEngine {
             else { return }
             _ = await runtime.ax.setFrame(record.originalFrameAX, of: window)
             runtime.catalog.drop(identity: window.identity)
+            runtime.divider.refresh()
         }
     }
 
     func cancelSession() {
         phase = .idle
         runtime.overlay.hideSessionOverlay()
+        runtime.divider.refresh()
         activeWindow = nil
         pointerTrace = []
         stickyArm = false
@@ -484,6 +489,7 @@ final class SnapEngine {
                     primaryFlipHeight: runtime.displays.primaryFlipHeight
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
+                runtime.divider.refresh()
             case .assignLayout(let layoutID):
                 let pending = PendingLayoutAssignment(
                     layoutID: layoutID,
@@ -503,6 +509,7 @@ final class SnapEngine {
         }
         if hideOverlay {
             runtime.overlay.hideSessionOverlay()
+            runtime.divider.refresh()
             return
         }
         if let overlayDisplayID {
@@ -522,6 +529,7 @@ final class SnapEngine {
                 highlight: overlayHighlight ?? SnapTarget.none,
                 presentation: lastPresentation
             )
+            runtime.divider.refresh()
         } else if let overlayHighlight {
             runtime.overlay.highlight(overlayHighlight)
         }

@@ -3,47 +3,42 @@ import ZoneBoxCore
 
 @MainActor
 final class WindowCatalog {
-    private var records: [WindowIdentity: UnsnapRecord] = [:]
-    private var membership: [WindowIdentity: (zoneID: UUID, displayID: UUID, snappedAt: Date)] = [:]
+    private var state = WindowCatalogState()
 
     func record(_ value: UnsnapRecord, displayID: UUID?) {
-        if records[value.identity] == nil {
-            records[value.identity] = value
-        }
-        if let zone = value.zoneIDs.first, let displayID {
-            membership[value.identity] = (zone, displayID, value.snappedAt)
-        } else {
-            membership[value.identity] = nil
-        }
+        state.record(value, displayID: displayID)
     }
 
     func record(for identity: WindowIdentity) -> UnsnapRecord? {
-        records[identity]
+        state.records[identity]
     }
 
     func drop(pid: pid_t) {
-        records = records.filter { $0.key.pid != pid }
-        membership = membership.filter { $0.key.pid != pid }
+        state.drop(pid: pid)
     }
 
     func drop(identity: WindowIdentity) {
-        records[identity] = nil
-        membership[identity] = nil
+        state.drop(identity: identity)
     }
 
     func zoneID(for identity: WindowIdentity, displayID: UUID) -> UUID? {
-        guard membership[identity]?.displayID == displayID else { return nil }
-        return membership[identity]?.zoneID
+        state.zoneID(for: identity, displayID: displayID)
     }
 
     func identities(in zoneID: UUID, displayID: UUID) -> [WindowIdentity] {
-        membership.filter { $0.value.zoneID == zoneID && $0.value.displayID == displayID }
-            .sorted { lhs, rhs in
-                if lhs.value.snappedAt != rhs.value.snappedAt {
-                    return lhs.value.snappedAt < rhs.value.snappedAt
-                }
-                return lhs.key.windowNumber < rhs.key.windowNumber
-            }
-            .map(\.key)
+        state.identities(in: zoneID, displayID: displayID)
+    }
+
+    func snappedMemberships(on displayID: UUID) -> [(identity: WindowIdentity, zoneID: UUID)] {
+        state.snappedMemberships(on: displayID)
+    }
+
+    func updateSnappedFrame(
+        _ frame: CGRect,
+        for identity: WindowIdentity,
+        zoneID: UUID,
+        displayID: UUID
+    ) {
+        state.updateSnappedFrame(frame, for: identity, zoneID: zoneID, displayID: displayID)
     }
 }

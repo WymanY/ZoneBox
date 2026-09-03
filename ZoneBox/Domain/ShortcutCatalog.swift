@@ -732,6 +732,7 @@ public enum ShortcutEscapeAction: Equatable, Sendable {
     case cancelEditor
     case dismissQuickSnapper
     case cancelSnap
+    case cancelDivider
     case closeSettings
     case closeOnboarding
     case closeConsole
@@ -747,6 +748,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
     public var settingsIsKey: Bool
     public var onboardingIsKey: Bool
     public var consoleIsVisible: Bool
+    public var dividerDragging: Bool
 
     public init(
         shortcutsPanelIsKey: Bool,
@@ -756,7 +758,8 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         isRecordingHotkey: Bool = false,
         settingsIsKey: Bool = false,
         onboardingIsKey: Bool = false,
-        consoleIsVisible: Bool = false
+        consoleIsVisible: Bool = false,
+        dividerDragging: Bool = false
     ) {
         self.shortcutsPanelIsKey = shortcutsPanelIsKey
         self.editorClaimsKeyboard = editorClaimsKeyboard
@@ -766,6 +769,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         self.settingsIsKey = settingsIsKey
         self.onboardingIsKey = onboardingIsKey
         self.consoleIsVisible = consoleIsVisible
+        self.dividerDragging = dividerDragging
     }
 
     public static func escapeAction(_ context: ShortcutRouteContext) -> ShortcutEscapeAction {
@@ -773,6 +777,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         if context.shortcutsPanelIsKey { return .closeShortcuts }
         if context.editorClaimsKeyboard { return .cancelEditor }
         if context.quickSnapperShowing { return .dismissQuickSnapper }
+        if context.dividerDragging { return .cancelDivider }
         if context.settingsIsKey { return .closeSettings }
         if context.onboardingIsKey { return .closeOnboarding }
         if context.consoleIsVisible { return .closeConsole }

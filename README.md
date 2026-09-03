@@ -36,7 +36,8 @@ make test
    - **Layouts** — switch the layout for the display under the mouse
    - **Settings…** — Shift-drag, gutter, hotkeys notes
 4. Snap a window: drag it by the title bar, hold **Shift** (or right-click while dragging), drop on a numbered zone. Dragging inside the window content does not show the zone overlay. While the overlay is visible, press **1…9** to snap to that zone.
-5. Keyboard defaults: **Control+Option+1…9** snaps the focused window; **Control+Option+Z** opens the editor; **Control+Option+U** unsnaps; **Control+Option+/** opens the keyboard shortcuts panel; **Command+,** opens Settings. Rebind these in **Settings → Keyboard**.
+5. After two or more neighboring grid zones each contain one snapped window, a divider handle appears in the seam. Drag it to resize those windows together; the new ratio is saved to the current layout.
+6. Keyboard defaults: **Control+Option+1…9** snaps the focused window; **Control+Option+Z** opens the editor; **Control+Option+U** unsnaps; **Control+Option+/** opens the keyboard shortcuts panel; **Command+,** opens Settings. Rebind these in **Settings → Keyboard**.
 
 ## Identifiers
 
@@ -49,4 +50,4 @@ make test
 
 ## Design
 
-See [docs/design.md](docs/design.md).
+See [docs/design.md](docs/design.md) and [docs/runtime-divider-design.md](docs/runtime-divider-design.md).

@@ -154,6 +154,22 @@ final class GridEditingTests: XCTestCase {
         try assertTilesWorkArea(moved, workArea: large)
     }
 
+    func testMoveLineOnColumnsThreeLeavesTheFarColumnWidthUnchanged() throws {
+        let start = LayoutTemplates.columns(3)
+        let before = try XCTUnwrap(start.grid)
+        XCTAssertEqual(before.columnWeights.reduce(0, +), 10_000)
+        let farWidth = before.columnWeights[2]
+        let moved = try XCTUnwrap(GridEditing.moveLine(start, axis: .vertical, afterIndex: 0, toNormalized: 0.2))
+        let spec = try XCTUnwrap(moved.grid)
+        XCTAssertEqual(spec.columns, 3)
+        XCTAssertEqual(spec.columnWeights.reduce(0, +), 10_000)
+        XCTAssertEqual(spec.columnWeights[0], 2_000)
+        XCTAssertEqual(spec.columnWeights[1], before.columnWeights[0] + before.columnWeights[1] - 2_000)
+        XCTAssertEqual(spec.columnWeights[2], farWidth)
+        try assertTilesWorkArea(moved, workArea: small)
+        try assertTilesWorkArea(moved, workArea: large)
+    }
+
     func testMergeTwoCellsAndCompact() throws {
         let split = try XCTUnwrap(GridEditing.split(GridEditing.empty(), normalizedX: 0.5, normalizedY: 0.5, axis: .vertical))
         let merged = try XCTUnwrap(GridEditing.merge(split, zoneIDs: Set(split.zones.map(\.id))))

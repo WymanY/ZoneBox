@@ -18,6 +18,7 @@ final class AppRuntime {
     let overlay = OverlayController()
     let organizeFeedback = OrganizeFeedbackController()
     let catalog = WindowCatalog()
+    let divider = DividerController()
     let engine = SnapEngine()
     let drag = DragMonitor()
     let hotkeys = HotkeyCenter()
@@ -63,9 +64,11 @@ final class AppRuntime {
         workspace.runtime = self
         pins.runtime = self
         pinHover.runtime = self
+        divider.runtime = self
 
         displays.refresh(document: &document)
         overlay.rebuild(workAreas: displays.workAreas, screens: NSScreen.screens)
+        divider.rebuild(workAreas: displays.workAreas, screens: NSScreen.screens)
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
         persist()
@@ -90,6 +93,7 @@ final class AppRuntime {
         workspace.start()
         pins.start()
         pinHover.start()
+        divider.start()
         observeSystem()
 
         Log.trust.info(
@@ -117,6 +121,7 @@ final class AppRuntime {
         pinHover.stop()
         pins.stop()
         overlay.hideAll()
+        divider.stop()
         organizeFeedback.dismiss()
         drag.stop()
         hotkeys.stop()
@@ -134,6 +139,7 @@ final class AppRuntime {
         pinHover.hideImmediately()
         pins.hideBadges()
         overlay.hideAll()
+        divider.hideAll()
     }
 
     var snapEnabled: Bool { true }
@@ -224,6 +230,7 @@ final class AppRuntime {
     func editorDidClose() {
         editor = nil
         menuBar?.reloadMenu()
+        divider.refresh()
     }
 
     func cancelEditor() {
@@ -452,6 +459,7 @@ final class AppRuntime {
     private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
         pinHover.hideImmediately()
         pins.hideBadges()
+        divider.hideAll()
         let controller = LayoutEditorController(
             runtime: self,
             layout: layout,
@@ -494,6 +502,7 @@ final class AppRuntime {
         }
         isOrganizingWindows = true
         pinHover.hideImmediately()
+        divider.hideAll()
         menuBar?.reloadMenu()
         return true
     }
@@ -501,6 +510,7 @@ final class AppRuntime {
     func finishWindowTransaction() {
         isOrganizingWindows = false
         menuBar?.reloadMenu()
+        divider.refresh()
     }
 
     func previewZones() {
@@ -916,6 +926,7 @@ final class AppRuntime {
         let displayID = area.display.id
         let present: () -> Void = { [weak self] in
             guard let self else { return }
+            self.divider.hideAll()
             if showName {
                 self.overlay.showPreview(
                     displayID: displayID,
@@ -939,6 +950,7 @@ final class AppRuntime {
                 } else if !self.engine.isSessionActive {
                     self.overlay.hideAll()
                 }
+                self.divider.refresh()
                 self.previewHideWorkItem = nil
             }
             self.previewHideWorkItem = work
@@ -1050,6 +1062,7 @@ final class AppRuntime {
             previewHideWorkItem = nil
             if !engine.isSessionActive {
                 overlay.hideAll()
+                divider.refresh()
             }
         }
     }
@@ -1094,6 +1107,7 @@ final class AppRuntime {
         invalidateResolvedLayoutCache()
         try? layoutStore.save(document)
         persistSettings()
+        divider.refresh()
     }
 
     func persistSettings() {
@@ -1163,6 +1177,7 @@ final class AppRuntime {
             Task { @MainActor in
                 runtime.displays.refresh(document: &runtime.document)
                 runtime.overlay.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
+                runtime.divider.rebuild(workAreas: runtime.displays.workAreas, screens: NSScreen.screens)
                 runtime.invalidateResolvedLayoutCache()
                 runtime.persist()
                 runtime.workspace.displaysDidChange()
@@ -1177,6 +1192,7 @@ final class AppRuntime {
                     runtime.pins.drop(pid: pid)
                     let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                     runtime.workspace.applicationDidTerminate(pid: pid, bundleID: app?.bundleIdentifier)
+                    runtime.divider.refresh()
                 }
             }
         }
@@ -1210,7 +1226,47 @@ final class AppRuntime {
             guard let runtime = self else { return }
             Task { @MainActor in runtime.workspace.resume() }
         }
+#if DEBUG
+        observeDebugTriggers()
+#endif
     }
+
+#if DEBUG
+    /// Debug builds accept workspace commands over distributed notifications so
+    /// capture/restore can be exercised from a script without synthesizing
+    /// hotkeys (which needs Accessibility for the sending process):
+    ///   `com.fancyzone.app.debug.applyWorkspace`   object: profile UUID or nil
+    ///   `com.fancyzone.app.debug.captureWorkspace` object: profile name or nil
+    private func observeDebugTriggers() {
+        let center = DistributedNotificationCenter.default()
+        center.addObserver(
+            forName: Notification.Name("\(AppIdentity.bundleID).applyWorkspace"),
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let runtime = self else { return }
+            let id = (note.object as? String).flatMap(UUID.init(uuidString:))
+            Task { @MainActor in
+                if let id {
+                    runtime.workspace.apply(profileID: id)
+                } else {
+                    runtime.workspace.applyCurrentOrMostRecent()
+                }
+            }
+        }
+        center.addObserver(
+            forName: Notification.Name("\(AppIdentity.bundleID).captureWorkspace"),
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let runtime = self else { return }
+            let name = note.object as? String
+            Task { @MainActor in
+                runtime.workspace.capture(name: name ?? runtime.workspace.suggestedCaptureName())
+            }
+        }
+    }
+#endif
 }
 
 private struct ResolvedLayoutCacheKey: Hashable {

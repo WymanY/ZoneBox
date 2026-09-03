@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		000A7ABBCA4988EA1D84C8DF /* ZonePixelMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */; };
+		01034520349DC78B30DF051F /* DividerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E3A9E10D7D51318797C876 /* DividerController.swift */; };
 		01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */; };
 		0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */; };
 		077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */; };
@@ -30,7 +31,10 @@
 		296F259F88E45597E8CC3595 /* PinButtonPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD7D23302AA5B84B8A0413E1 /* PinButtonPanel.swift */; };
 		2999B0F0BC8D0A957817B331 /* ProfileCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5EBB47EA4E377C72E84BDE /* ProfileCaptureTests.swift */; };
 		2BF1C0D0DA809F6E43EE996A /* EditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */; };
+		2D0E4DE4E2DB7CA72006E027 /* WindowCatalogState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33400B4EA55E91DE0709E7E /* WindowCatalogState.swift */; };
+		2D248204FFC46EF8BB63DADF /* DividerOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31B755547546BEB821F785 /* DividerOverlayView.swift */; };
 		30BBD31606521AA8D9527935 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
+		31C3FDF786216F6231203B26 /* DividerPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A26B472B8AD57437CC0AC7 /* DividerPlanTests.swift */; };
 		3221C9A4F5E9F507E3622277 /* CanvasEditorCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7344A0AA5258CE72F2F37A /* CanvasEditorCommands.swift */; };
 		3404124FE47711426FE97D17 /* PinBadgeSlotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA194CF90613C4665568EB3 /* PinBadgeSlotTests.swift */; };
 		3720A56A822E92C0F694A322 /* PinMirrorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CD56E29284C47A1F36B1DA9 /* PinMirrorPanel.swift */; };
@@ -41,6 +45,7 @@
 		3BD5E7D6FEFA6AEFCBC42FF9 /* PinPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9962C23C66C523F135A92A /* PinPlannerTests.swift */; };
 		40EF2A76030C4DFCA3331285 /* ScaffoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ED48EADD1D174472389480 /* ScaffoldTests.swift */; };
 		427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */; };
+		4314A6CA7011C119E05455E6 /* DividerPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1179F5E0E9E644378B45AB /* DividerPlan.swift */; };
 		4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */; };
 		4486D67D1C15BF0826156B7F /* ZoneCandidateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */; };
 		457858D9720581855722618D /* CanvasEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1EA11777D94206C972FF4E /* CanvasEditingTests.swift */; };
@@ -81,6 +86,7 @@
 		97B317731ECAC7D2582CC02F /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */; };
 		995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */; };
 		A240F4BF13C5454FC76CFE6E /* LayoutEditorCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */; };
+		A589991E85D71B9A081AB3D9 /* DividerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE04A96E07C2D24DDCD0089D /* DividerPanel.swift */; };
 		A86D44434E408A8320723282 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */; };
 		A91F5DFAA57416B532A923DB /* PinHoverMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942FE52E6C0BB6AEA399DDE8 /* PinHoverMonitor.swift */; };
 		AB132842525793E4FA9EA7A6 /* Gutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0B8B1AA2CD7208340838FC /* Gutter.swift */; };
@@ -126,6 +132,7 @@
 		F7E6A2499A2E05798EE18CA0 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9D165C2B155D2E12A803AB /* L10n.swift */; };
 		F8498FAC48EBA72D235B1E86 /* Logging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4236C43CC31EA103E8850694 /* Logging.swift */; };
 		F9380732C4C78F9D2CAE183C /* AccessibilityClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D061B41E08AE18D0642BBC7 /* AccessibilityClient.swift */; };
+		FE8BF3FEE40CA0DE650A2D86 /* WindowCatalogStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 169745AABF7306DB7316EF01 /* WindowCatalogStateTests.swift */; };
 		FFB58EB33E86634605604872 /* WindowCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */; };
 /* End PBXBuildFile section */
 
@@ -156,6 +163,7 @@
 		0D5EBB47EA4E377C72E84BDE /* ProfileCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCaptureTests.swift; sourceTree = "<group>"; };
 		10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonePixelMetricsTests.swift; sourceTree = "<group>"; };
 		144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceProfile.swift; sourceTree = "<group>"; };
+		169745AABF7306DB7316EF01 /* WindowCatalogStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalogStateTests.swift; sourceTree = "<group>"; };
 		16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridEditingTests.swift; sourceTree = "<group>"; };
 		1B5341B1D36801076F2E2DC2 /* OverlayPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPresentationTests.swift; sourceTree = "<group>"; };
 		1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorController.swift; sourceTree = "<group>"; };
@@ -190,6 +198,7 @@
 		625BA92949DBCF1FF27043A7 /* ScreenRecordingAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecordingAccess.swift; sourceTree = "<group>"; };
 		6347EA9F47DCC7BE5E1E7CE1 /* ZonePixelMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonePixelMetrics.swift; sourceTree = "<group>"; };
 		643D257C1C1C278B39EA9176 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		67A26B472B8AD57437CC0AC7 /* DividerPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerPlanTests.swift; sourceTree = "<group>"; };
 		69685BECC3CD1AA25F48583D /* CanvasSnappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSnappingTests.swift; sourceTree = "<group>"; };
 		6DAA1C2D5E46EE4CAA6AAAEB /* LayoutEditorCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditorCanvasView.swift; sourceTree = "<group>"; };
 		6E72011FF0EB3D1B4EDBA1BC /* ProfilePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePlanTests.swift; sourceTree = "<group>"; };
@@ -197,6 +206,7 @@
 		738A17F5CF20FFC2AC5980B6 /* ZoneBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ZoneBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChromeTests.swift; sourceTree = "<group>"; };
 		76D46356DE7D3AE004DC760C /* CanvasSnapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSnapping.swift; sourceTree = "<group>"; };
+		79E3A9E10D7D51318797C876 /* DividerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerController.swift; sourceTree = "<group>"; };
 		7C7DFD02329D309FA09EBCF9 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		7CD56E29284C47A1F36B1DA9 /* PinMirrorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinMirrorPanel.swift; sourceTree = "<group>"; };
 		7EFE483F6CBDB37363637CAD /* WorkArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkArea.swift; sourceTree = "<group>"; };
@@ -205,8 +215,10 @@
 		8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalog.swift; sourceTree = "<group>"; };
 		8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libZoneBoxCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BBA04EB532BBE6D88A88DD7 /* CanvasEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditing.swift; sourceTree = "<group>"; };
+		8C31B755547546BEB821F785 /* DividerOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerOverlayView.swift; sourceTree = "<group>"; };
 		8D17E2D7EF1A72728C7AE16A /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasContextMenu.swift; sourceTree = "<group>"; };
 		8D39E9BE7A08C15E0BA42702 /* QuickSnapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSnapper.swift; sourceTree = "<group>"; };
+		8E1179F5E0E9E644378B45AB /* DividerPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerPlan.swift; sourceTree = "<group>"; };
 		8EC410EE59F835DE6A809848 /* CoordinateConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateConverter.swift; sourceTree = "<group>"; };
 		8F09677CE6C82C3B3978A9E2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
@@ -259,9 +271,11 @@
 		E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransaction.swift; sourceTree = "<group>"; };
 		E8B1C541ACF2E6802EC67C06 /* ZoneScrollZoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneScrollZoom.swift; sourceTree = "<group>"; };
 		EDC74C1E359F8A0851AB0402 /* PinPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinPlan.swift; sourceTree = "<group>"; };
+		EE04A96E07C2D24DDCD0089D /* DividerPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerPanel.swift; sourceTree = "<group>"; };
 		F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizeFeedbackController.swift; sourceTree = "<group>"; };
 		F17C5CBE01B46CDD558A5216 /* SnapEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapEngine.swift; sourceTree = "<group>"; };
 		F3029ADED93C5B74F5139101 /* GridEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridEditing.swift; sourceTree = "<group>"; };
+		F33400B4EA55E91DE0709E7E /* WindowCatalogState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalogState.swift; sourceTree = "<group>"; };
 		F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneOverlayView.swift; sourceTree = "<group>"; };
 		F64B2F37B354BF9262ACF1EE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		F855477293635D7EFA9475DC /* WorkspaceCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceCenter.swift; sourceTree = "<group>"; };
@@ -332,6 +346,7 @@
 				E62292FD18B81A5F1168FDFD /* AppIdentity.swift */,
 				9118B8805E80F4D1DA3FC84D /* AppSettings.swift */,
 				0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */,
+				8E1179F5E0E9E644378B45AB /* DividerPlan.swift */,
 				BA9D165C2B155D2E12A803AB /* L10n.swift */,
 				30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */,
 				D41D9B63F5FC12E5EF6EC7D3 /* Layout.swift */,
@@ -351,6 +366,7 @@
 				446A73B628D4176872A8FC46 /* SnapSession.swift */,
 				A54CCDC2D0CA3E96560FD02A /* SnapSessionReducer.swift */,
 				B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */,
+				F33400B4EA55E91DE0709E7E /* WindowCatalogState.swift */,
 				9A2957655E620023F8101FFC /* WindowIdentity.swift */,
 				ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */,
 				144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */,
@@ -382,6 +398,7 @@
 			isa = PBXGroup;
 			children = (
 				A62BDEBD923D79EAFEBD9559 /* DisplayWatcher.swift */,
+				79E3A9E10D7D51318797C876 /* DividerController.swift */,
 				2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */,
 				D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */,
 				FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */,
@@ -429,6 +446,8 @@
 		44B9EB6803A213ECA69D3464 /* Overlay */ = {
 			isa = PBXGroup;
 			children = (
+				8C31B755547546BEB821F785 /* DividerOverlayView.swift */,
+				EE04A96E07C2D24DDCD0089D /* DividerPanel.swift */,
 				F154AB3125FD0D1DD614A6D0 /* OrganizeFeedbackController.swift */,
 				DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */,
 				F3F75A472A42567EAE77B68E /* ZoneOverlayView.swift */,
@@ -487,6 +506,7 @@
 				9A1EA11777D94206C972FF4E /* CanvasEditingTests.swift */,
 				69685BECC3CD1AA25F48583D /* CanvasSnappingTests.swift */,
 				0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */,
+				67A26B472B8AD57437CC0AC7 /* DividerPlanTests.swift */,
 				AF21D7874A246CBEA1AEE0C6 /* GridCoverageTests.swift */,
 				16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */,
 				0BE004EFD8BDD601307B109C /* GutterTests.swift */,
@@ -506,6 +526,7 @@
 				4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */,
 				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				A4EE7BFBFADE6C04E60F6449 /* SnapEngineTests.swift */,
+				169745AABF7306DB7316EF01 /* WindowCatalogStateTests.swift */,
 				769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */,
 				059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */,
 				1D6AB5C2E2A6651D73D15795 /* WorkspaceApplyFeedbackTests.swift */,
@@ -702,6 +723,9 @@
 				0E0D5809DA42F2206D2F95AF /* CanvasContextMenu.swift in Sources */,
 				3221C9A4F5E9F507E3622277 /* CanvasEditorCommands.swift in Sources */,
 				5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */,
+				01034520349DC78B30DF051F /* DividerController.swift in Sources */,
+				2D248204FFC46EF8BB63DADF /* DividerOverlayView.swift in Sources */,
+				A589991E85D71B9A081AB3D9 /* DividerPanel.swift in Sources */,
 				E9BB1FDB1FFFFC4498CC1EBB /* DragMonitor.swift in Sources */,
 				2BF1C0D0DA809F6E43EE996A /* EditorPanel.swift in Sources */,
 				49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */,
@@ -744,6 +768,7 @@
 				C3DD325D613F7341CAEB29F6 /* CanvasSnapping.swift in Sources */,
 				0AE7E89A6887FED40C2DD84A /* CoordinateConverter.swift in Sources */,
 				7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */,
+				4314A6CA7011C119E05455E6 /* DividerPlan.swift in Sources */,
 				F7BE3CF8E73A2EA289E5860D /* GridCoverage.swift in Sources */,
 				17E6ADFF3CAEAF14CEE7E1FC /* GridEditing.swift in Sources */,
 				1E8F613C9745B11E71208D83 /* GridResolver.swift in Sources */,
@@ -777,6 +802,7 @@
 				4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */,
 				C8F6AD9DAF96B5E2676EBD87 /* SnapSessionReducer.swift in Sources */,
 				1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */,
+				2D0E4DE4E2DB7CA72006E027 /* WindowCatalogState.swift in Sources */,
 				D713F6C41B6F168F1E33B1CC /* WindowIdentity.swift in Sources */,
 				C4468985A7D42FCA94C8EF75 /* WindowMoveChrome.swift in Sources */,
 				4CC68B6A2EF49FB06FE2D6E1 /* WindowOrganize.swift in Sources */,
@@ -798,6 +824,7 @@
 				457858D9720581855722618D /* CanvasEditingTests.swift in Sources */,
 				0FE94C325E5B5EA959CB1188 /* CanvasSnappingTests.swift in Sources */,
 				01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */,
+				31C3FDF786216F6231203B26 /* DividerPlanTests.swift in Sources */,
 				775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */,
 				0BE1560BB10D4319D04E012A /* GridCoverageTests.swift in Sources */,
 				87808C55FDDC7CB7F87CE4A1 /* GridEditingTests.swift in Sources */,
@@ -818,6 +845,7 @@
 				8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */,
 				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				B3561842930414B48BC1F78A /* SnapEngineTests.swift in Sources */,
+				FE8BF3FEE40CA0DE650A2D86 /* WindowCatalogStateTests.swift in Sources */,
 				68AAC6FA693112B8729E97B3 /* WindowMoveChromeTests.swift in Sources */,
 				0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */,
 				51F10BF1A00BFD058A23EF33 /* WorkspaceApplyFeedbackTests.swift in Sources */,

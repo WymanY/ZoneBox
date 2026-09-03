@@ -13,6 +13,15 @@ final class AXWindow: @unchecked Sendable {
     }
 }
 
+/// One standard window of an application as seen through AX, including
+/// windows that CGWindowList's on-screen enumeration cannot see.
+struct AXApplicationWindow {
+    var window: AXWindow
+    var frameAX: CGRect
+    var isMinimized: Bool
+    var isFullscreen: Bool
+}
+
 protocol AccessibilityClient: AnyObject {
     func focusedWindow() async -> AXWindow?
     func window(matching identity: WindowIdentity) async -> AXWindow?
@@ -22,6 +31,11 @@ protocol AccessibilityClient: AnyObject {
 }
 
 final class AccessibilityClientLive: AccessibilityClient {
+    /// A hung application must not stall a whole workspace restore. AX calls
+    /// default to several seconds per message; two seconds is generous for a
+    /// healthy process and keeps a beachballing one from blocking the queue.
+    static let messagingTimeout: Float = 2.0
+
     private let queue = DispatchQueue(label: "com.fancyzone.ax", qos: .userInteractive)
     private let query: WindowQuerying
     private let excluded: () -> [String]
@@ -53,7 +67,7 @@ final class AccessibilityClientLive: AccessibilityClient {
 
     func window(matching identity: WindowIdentity) async -> AXWindow? {
         await onAX { [self] in
-            let app = AXUIElementCreateApplication(identity.pid)
+            let app = applicationElement(pid: identity.pid)
             guard let windows = copyArray(app, kAXWindowsAttribute) else { return nil }
             for element in windows {
                 let axElement = element as! AXUIElement
@@ -63,6 +77,61 @@ final class AccessibilityClientLive: AccessibilityClient {
                 }
             }
             return nil
+        }
+    }
+
+    /// Every standard window of one process in AX order, including minimized,
+    /// full-screen and hidden-application windows that the on-screen CG list
+    /// cannot see. Workspace restore uses this instead of resolving each CG
+    /// window separately so a saved app costs one AX enumeration regardless of
+    /// how many windows it has.
+    func applicationWindows(pid: pid_t) async -> [AXApplicationWindow] {
+        await onAX { [self] in
+            let app = applicationElement(pid: pid)
+            guard let windows = copyArray(app, kAXWindowsAttribute) else {
+                Log.ax.info("AX windows pid=\(pid, privacy: .public) attribute unavailable")
+                return []
+            }
+            var result: [AXApplicationWindow] = []
+            var seen = Set<CGWindowID>()
+            for element in windows {
+                let axElement = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
+                guard let window = makeWindow(pid: pid, element: axElement, includeUnreachable: true),
+                      seen.insert(window.identity.windowNumber).inserted,
+                      let frame = Self.readFrame(axElement)
+                else {
+                    Log.ax.debug(
+                        "AX window skipped pid=\(pid, privacy: .public) role=\(stringAttribute(axElement, kAXRoleAttribute) ?? "nil", privacy: .public) subrole=\(stringAttribute(axElement, kAXSubroleAttribute) ?? "nil", privacy: .public) minimized=\(boolAttribute(axElement, "AXMinimized" as CFString) ?? false, privacy: .public) number=\(AXPrivate.windowNumber(axElement).map(String.init) ?? "nil", privacy: .public)"
+                    )
+                    continue
+                }
+                result.append(
+                    AXApplicationWindow(
+                        window: window,
+                        frameAX: frame,
+                        isMinimized: boolAttribute(axElement, "AXMinimized" as CFString) == true,
+                        isFullscreen: isFullscreen(axElement)
+                    )
+                )
+            }
+            return result
+        }
+    }
+
+    /// Restores a miniaturized window to the desktop. Returns true once AX
+    /// reports the window as no longer minimized.
+    func unminimize(_ window: AXWindow) async -> Bool {
+        await onAX { [self] in
+            guard trusted() else { return false }
+            let name = "AXMinimized" as CFString
+            if boolAttribute(window.element, name) != true { return true }
+            let error = AXUIElementSetAttributeValue(window.element, name, kCFBooleanFalse)
+            guard error == .success else { return false }
+            for _ in 0..<10 {
+                if boolAttribute(window.element, name) == false { return true }
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            return boolAttribute(window.element, name) == false
         }
     }
 
@@ -101,7 +170,7 @@ final class AccessibilityClientLive: AccessibilityClient {
 
     func resolve(ref: WindowRef) -> AXWindow? {
         guard isSnappable(ref) else { return nil }
-        let app = AXUIElementCreateApplication(ref.pid)
+        let app = applicationElement(pid: ref.pid)
         guard let windows = copyArray(app, kAXWindowsAttribute) else { return nil }
         for element in windows {
             let axElement = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
@@ -121,10 +190,26 @@ final class AccessibilityClientLive: AccessibilityClient {
         return nil
     }
 
-    private func makeWindow(pid: pid_t, element: AXUIElement) -> AXWindow? {
-        guard isStandardWindow(element) else { return nil }
-        if isFullscreen(element) { return nil }
-        if boolAttribute(element, "AXMinimized" as CFString) == true { return nil }
+    private func applicationElement(pid: pid_t) -> AXUIElement {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
+        return app
+    }
+
+    private func makeWindow(pid: pid_t, element: AXUIElement, includeUnreachable: Bool = false) -> AXWindow? {
+        let minimized = boolAttribute(element, "AXMinimized" as CFString) == true
+        // While a window sits in the Dock its subrole is reported as AXDialog,
+        // so the standard-window test would drop every minimized document
+        // window. Minimized windows in the unreachable set only need the role.
+        if includeUnreachable, minimized {
+            guard stringAttribute(element, kAXRoleAttribute) == kAXWindowRole else { return nil }
+        } else {
+            guard isStandardWindow(element) else { return nil }
+        }
+        if !includeUnreachable {
+            if isFullscreen(element) { return nil }
+            if minimized { return nil }
+        }
         let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         if let bundleID, excluded().contains(bundleID) { return nil }
         guard let number = windowNumber(of: element, pid: pid) else { return nil }

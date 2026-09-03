@@ -35,23 +35,22 @@ public enum ProfileCapture {
         windows: [WindowSample],
         zones: [ResolvedZone]
     ) -> [AppPlacementRule] {
-        var occupiedZoneIDs = Set<UUID>()
-        var occupiedZoneNumbers = Set<Int>()
-        let indexed = windows.enumerated().compactMap { index, sample -> (Int, ResolvedZone, String)? in
-            guard let bundleID = sample.identity.bundleID, !bundleID.isEmpty,
-                  let zone = matchingZone(for: sample.frameAX, zones: zones),
-                  !occupiedZoneIDs.contains(zone.zoneID),
-                  !occupiedZoneNumbers.contains(zone.number)
-            else { return nil }
-            occupiedZoneIDs.insert(zone.zoneID)
-            occupiedZoneNumbers.insert(zone.number)
-            return (index, zone, bundleID)
+        var occupied = Set<UUID>()
+        var assigned: [UUID: WindowSample] = [:]
+        for sample in windows {
+            guard sample.identity.bundleID?.isEmpty == false else { continue }
+            guard let zone = bestZone(for: sample.frameAX, in: zones, excluding: occupied) else { continue }
+            occupied.insert(zone.zoneID)
+            assigned[zone.zoneID] = sample
         }
-        return indexed.sorted { lhs, rhs in
-            if lhs.1.number != rhs.1.number { return lhs.1.number < rhs.1.number }
-            return lhs.0 < rhs.0
-        }.map { _, zone, bundleID in
-            AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
+        return zones.sorted { lhs, rhs in
+            if lhs.number != rhs.number { return lhs.number < rhs.number }
+            return lhs.zoneID.uuidString < rhs.zoneID.uuidString
+        }.compactMap { zone in
+            guard let sample = assigned[zone.zoneID],
+                  let bundleID = sample.identity.bundleID
+            else { return nil }
+            return AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
         }
     }
 
@@ -93,31 +92,61 @@ public enum ProfileCapture {
         }
     }
 
-    private static func matchingZone(for frame: CGRect, zones: [ResolvedZone]) -> ResolvedZone? {
-        if let exact = zones.first(where: {
-            WindowOrganize.didApply(frame, to: $0.frameAX, sizeTolerance: 28, originTolerance: 28)
-        }) {
-            return exact
-        }
-        let area = max(frame.width, 0) * max(frame.height, 0)
-        guard area > 0 else { return nil }
-        return zones.enumerated().compactMap { index, zone -> (Int, ResolvedZone, CGFloat)? in
-            let intersection = frame.intersection(zone.frameAX)
-            guard !intersection.isNull else { return nil }
-            let ratio = max(intersection.width, 0) * max(intersection.height, 0) / area
-            guard ratio >= 0.5 else { return nil }
-            return (index, zone, ratio)
-        }.max { lhs, rhs in
-            if abs(lhs.2 - rhs.2) > 0.000_001 { return lhs.2 < rhs.2 }
-            return lhs.0 > rhs.0
-        }?.1
+    /// Whether a window currently counts as living in `zone`: either snapped
+    /// there within tolerance or covering most of it.
+    public static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
+        WindowOrganize.didApply(frame, to: zone, sizeTolerance: 28, originTolerance: 28)
+            || fills(frame, zone: zone)
     }
 
+    /// Pick the unoccupied zone this window belongs to. Prefer the zone the
+    /// window fills; otherwise the unoccupied zone with the largest overlap.
+    private static func bestZone(
+        for frame: CGRect,
+        in zones: [ResolvedZone],
+        excluding occupied: Set<UUID>
+    ) -> ResolvedZone? {
+        let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat, Bool)? in
+            guard !occupied.contains(zone.zoneID) else { return nil }
+            let intersection = frame.intersection(zone.frameAX)
+            guard !intersection.isNull, !intersection.isInfinite else { return nil }
+            let overlap = max(intersection.width, 0) * max(intersection.height, 0)
+            guard overlap > 0 else { return nil }
+            let zoneArea = max(zone.frameAX.width * zone.frameAX.height, 1)
+            let coverage = overlap / zoneArea
+            let fillsZone = occupies(frame, zone: zone.frameAX)
+            guard fillsZone || coverage >= 0.20 else { return nil }
+            return (zone, coverage, fillsZone)
+        }
+        let preferred = ranked.filter { $0.2 }
+        let pool = preferred.isEmpty ? ranked : preferred
+        return pool.max { lhs, rhs in
+            if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
+            return lhs.0.number > rhs.0.number
+        }?.0
+    }
+
+    /// A window fills a zone when it still covers most of that zone.
+    private static func fills(_ frame: CGRect, zone: CGRect) -> Bool {
+        let intersection = frame.intersection(zone)
+        guard !intersection.isNull, !intersection.isInfinite else { return false }
+        let overlap = max(intersection.width, 0) * max(intersection.height, 0)
+        let zoneArea = max(zone.width * zone.height, 1)
+        return overlap / zoneArea >= 0.62
+    }
+
+    /// Adjacent snapped windows commonly share a 1pt seam. That is not occlusion.
+    /// A window is hidden only when a front opaque window covers a meaningful
+    /// fraction of its surface.
+    private static let occlusionCoverage: CGFloat = 0.25
+
     private static func isFullyVisible(_ frame: CGRect, behind occluders: [CGRect]) -> Bool {
-        !occluders.contains { occluder in
+        let area = max(frame.width * frame.height, 1)
+        return !occluders.contains { occluder in
             guard isUsable(occluder) else { return false }
             let overlap = frame.intersection(occluder)
-            return !overlap.isNull && overlap.width * overlap.height > 0.5
+            guard !overlap.isNull, !overlap.isInfinite else { return false }
+            return (overlap.width * overlap.height) / area >= occlusionCoverage
         }
     }
 

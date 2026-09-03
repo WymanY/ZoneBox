@@ -102,6 +102,7 @@ final class DragMonitor {
         guard !runtime.isEditorOpen else { return }
         guard runtime.trust.isTrusted() else { return }
         guard !runtime.pinHover.consumesPoint(mouse.locationAppKit) else { return }
+        guard !runtime.divider.consumesPoint(mouse.locationAppKit) else { return }
         Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
         leftButtonHeld = true
         bufferedDrags.removeAll()
