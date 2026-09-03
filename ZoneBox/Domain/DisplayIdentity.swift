@@ -69,7 +69,10 @@ public struct DisplayIdentity: Codable, Hashable, Identifiable, Sendable {
             .sorted { $0.1 > $1.1 }
         guard let best = scored.first else { return nil }
         let close = scored.filter { best.1 - $0.1 <= 10 && $0.1 >= 55 }
-        if close.count >= 2, best.1 >= 55 { return (best.0, best.1) }
+        // Two identical monitors that both lost vendor/product/UUID after a
+        // dock or port change both score 55. Picking one by sort order swaps
+        // their saved layouts; wait for a unique weak match or a hardware hit.
+        if close.count >= 2 { return best.1 >= 70 ? best : nil }
         if best.1 >= 70 { return best }
         if best.1 >= 25 { return best }
         return nil

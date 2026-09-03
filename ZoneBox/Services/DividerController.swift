@@ -69,6 +69,7 @@ final class DividerController {
         guard !isDragging else { return }
         guard runtime.trust.isTrusted(),
               !runtime.isEditorOpen,
+              !runtime.isOrganizingWindows,
               !runtime.engine.isSessionActive
         else {
             hidePanels()

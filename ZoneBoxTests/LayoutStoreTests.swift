@@ -143,6 +143,69 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(document.profiles[1].sections.map(\.layoutID), [other.id, other.id])
     }
 
+    func testBestMatchRejectsAmbiguousNameAndSizeTies() {
+        let left = DisplayIdentity(
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+        let right = DisplayIdentity(
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+        let probe = DisplayIdentity(
+            uuid: UUID(),
+            vendorNumber: 1,
+            productNumber: 2,
+            serialNumber: 3,
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+
+        XCTAssertNil(DisplayIdentity.bestMatch(probe: probe, candidates: [left, right]))
+        XCTAssertEqual(DisplayIdentity.bestMatch(probe: probe, candidates: [left])?.0.id, left.id)
+    }
+
+    func testBestMatchStillAcceptsUniqueHardwareHitAmongIdenticalNames() {
+        let left = DisplayIdentity(
+            uuid: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"),
+            vendorNumber: 10,
+            productNumber: 20,
+            serialNumber: 30,
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+        let right = DisplayIdentity(
+            uuid: UUID(uuidString: "11111111-2222-3333-4444-555555555555"),
+            vendorNumber: 40,
+            productNumber: 50,
+            serialNumber: 60,
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+        let probe = DisplayIdentity(
+            uuid: left.uuid,
+            vendorNumber: left.vendorNumber,
+            productNumber: left.productNumber,
+            serialNumber: left.serialNumber,
+            localizedName: "LG UltraFine",
+            visibleWidth: 1920,
+            visibleHeight: 1080,
+            backingScale: 2
+        )
+
+        XCTAssertEqual(DisplayIdentity.bestMatch(probe: probe, candidates: [left, right])?.0.id, left.id)
+    }
+
     func testMergeDisplayIgnoresUnknownLiveIdentity() {
         let stale = DisplayIdentity(localizedName: "A", visibleWidth: 1, visibleHeight: 1, backingScale: 1)
         var document = StoreDocument(displays: [stale])

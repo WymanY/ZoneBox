@@ -502,6 +502,7 @@ final class AppRuntime {
         }
         isOrganizingWindows = true
         pinHover.hideImmediately()
+        divider.hideAll()
         menuBar?.reloadMenu()
         return true
     }
@@ -509,6 +510,7 @@ final class AppRuntime {
     func finishWindowTransaction() {
         isOrganizingWindows = false
         menuBar?.reloadMenu()
+        divider.refresh()
     }
 
     func previewZones() {
