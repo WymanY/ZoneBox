@@ -128,6 +128,60 @@ final class ProfilePlanTests: XCTestCase {
         XCTAssertTrue(outcome.staleRules.isEmpty)
     }
 
+    func testRunningAppWithoutWindowsShouldReopenInsteadOfLaunch() {
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "com.alicloud.smartdrive",
+                missingBundleIDs: ["com.alicloud.smartdrive"],
+                runningBundleIDs: ["com.alicloud.smartdrive"],
+                launchMissingApps: true
+            ),
+            .reopen
+        )
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "com.openai.codex",
+                missingBundleIDs: ["com.openai.codex"],
+                runningBundleIDs: [],
+                launchMissingApps: true
+            ),
+            .launch
+        )
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "com.alicloud.smartdrive",
+                missingBundleIDs: ["com.alicloud.smartdrive"],
+                runningBundleIDs: ["com.alicloud.smartdrive"],
+                launchMissingApps: false
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            ProfilePlan.openAction(
+                bundleID: "present.app",
+                missingBundleIDs: ["other.app"],
+                runningBundleIDs: ["present.app"],
+                launchMissingApps: true
+            ),
+            .none
+        )
+    }
+
+    func testSuggestedWorkspaceNameJoinsCapturedAppsInOrder() {
+        XCTAssertEqual(
+            WorkspaceProfile.suggestedName(appNames: ["ChatGPT", "Notes", "阿里云盘"], fallback: "Workspace"),
+            "ChatGPT+Notes+阿里云盘"
+        )
+        XCTAssertEqual(
+            WorkspaceProfile.suggestedName(appNames: [" ChatGPT ", "chatgpt", "Notes"], fallback: "Workspace"),
+            "ChatGPT+Notes"
+        )
+        XCTAssertEqual(
+            WorkspaceProfile.suggestedName(appNames: ["", "  "], fallback: "Workspace"),
+            "Workspace"
+        )
+    }
+
     func testCaptureKeepsOnlyFrontmostWindowAssignedToOneZone() {
         let zone = ResolvedZone(
             zoneID: UUID(),

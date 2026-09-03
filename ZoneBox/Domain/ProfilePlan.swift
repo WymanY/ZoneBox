@@ -40,6 +40,25 @@ public enum ProfilePlan {
         }
     }
 
+    public enum AppOpenAction: Equatable, Sendable {
+        case none
+        case launch
+        case reopen
+    }
+
+    /// A saved app with no usable window still needs an open action.
+    /// If the process is already running, reopen its default window instead of
+    /// treating the running app as already restored.
+    public static func openAction(
+        bundleID: String,
+        missingBundleIDs: [String],
+        runningBundleIDs: Set<String>,
+        launchMissingApps: Bool
+    ) -> AppOpenAction {
+        guard launchMissingApps, missingBundleIDs.contains(bundleID) else { return .none }
+        return runningBundleIDs.contains(bundleID) ? .reopen : .launch
+    }
+
     public static func make(
         profile: WorkspaceProfile,
         zonesBySection: [DisplayIdentity.ID: [ResolvedZone]],

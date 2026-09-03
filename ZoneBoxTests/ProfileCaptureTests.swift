@@ -22,11 +22,11 @@ final class ProfileCaptureTests: XCTestCase {
 
     func testCoverageThresholdAndMissingBundleIDAreSkipped() {
         let zones = [ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100))]
-        let exactlyHalf = sample(pid: 1, number: 1, bundleID: "kept", frame: CGRect(x: 50, y: 0, width: 100, height: 100))
-        let below = sample(pid: 2, number: 2, bundleID: "skipped", frame: CGRect(x: 51, y: 0, width: 100, height: 100))
+        let filling = sample(pid: 1, number: 1, bundleID: "kept", frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+        let mostlyOutside = sample(pid: 2, number: 2, bundleID: "skipped", frame: CGRect(x: 51, y: 0, width: 100, height: 100))
         let anonymous = sample(pid: 3, number: 3, bundleID: nil, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
 
-        XCTAssertEqual(ProfileCapture.rules(windows: [exactlyHalf, below, anonymous], zones: zones).map(\.bundleID), ["kept"])
+        XCTAssertEqual(ProfileCapture.rules(windows: [filling, mostlyOutside, anonymous], zones: zones).map(\.bundleID), ["kept"])
     }
 
     func testHighestCoverageWinsWhenZonesOverlap() {
@@ -34,8 +34,23 @@ final class ProfileCaptureTests: XCTestCase {
             ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100)),
             ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 40, y: 0, width: 100, height: 100)),
         ]
-        let window = sample(pid: 1, number: 1, bundleID: "app", frame: CGRect(x: 20, y: 0, width: 160, height: 100))
-        XCTAssertEqual(ProfileCapture.rules(windows: [window], zones: zones).first?.zoneID, rightID)
+        let window = sample(pid: 1, number: 1, bundleID: "app", frame: CGRect(x: 40, y: 0, width: 100, height: 100))
+        XCTAssertEqual(ProfileCapture.rules(windows: [window], zones: zones).map(\.zoneID), [rightID])
+    }
+
+    func testFrontmostPairBeatsBackgroundFullscreenWindow() {
+        let zones = [
+            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 31, width: 709, height: 804)),
+            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 709, y: 31, width: 731, height: 804)),
+        ]
+        let chatGPT = sample(pid: 1, number: 1, bundleID: "com.openai.codex", frame: CGRect(x: 0, y: 31, width: 716, height: 804))
+        let notes = sample(pid: 2, number: 2, bundleID: "com.apple.Notes", frame: CGRect(x: 716, y: 31, width: 724, height: 804))
+        let aDrive = sample(pid: 3, number: 3, bundleID: "com.alicloud.smartdrive", frame: CGRect(x: 0, y: 31, width: 1440, height: 805))
+
+        let rules = ProfileCapture.rules(windows: [chatGPT, notes, aDrive], zones: zones)
+
+        XCTAssertEqual(rules.map(\.bundleID), ["com.openai.codex", "com.apple.Notes"])
+        XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2])
     }
 
     func testFullyCoveredBackWindowIsNotVisible() {
@@ -64,6 +79,39 @@ final class ProfileCaptureTests: XCTestCase {
         let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [front, back])
 
         XCTAssertEqual(visible, [front.identity])
+    }
+
+    func testAdjacentSnappedWindowsRemainVisibleAcrossASharedSeam() {
+        let left = visibility(pid: 1, number: 1, frame: CGRect(x: 0, y: 31, width: 709, height: 804))
+        let right = visibility(pid: 2, number: 2, frame: CGRect(x: 708, y: 31, width: 732, height: 804))
+
+        let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [left, right])
+
+        XCTAssertEqual(visible, [left.identity, right.identity])
+    }
+
+    func testAdjacentSnappedWindowsAreBothCaptured() {
+        let zones = [
+            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 31, width: 709, height: 804)),
+            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 709, y: 31, width: 731, height: 804)),
+        ]
+        let left = sample(
+            pid: 1,
+            number: 1,
+            bundleID: "com.openai.codex",
+            frame: CGRect(x: 0, y: 31, width: 709, height: 804)
+        )
+        let right = sample(
+            pid: 2,
+            number: 2,
+            bundleID: "com.apple.Notes",
+            frame: CGRect(x: 708, y: 31, width: 732, height: 804)
+        )
+
+        let rules = ProfileCapture.rules(windows: [left, right], zones: zones)
+
+        XCTAssertEqual(rules.map(\.bundleID), ["com.openai.codex", "com.apple.Notes"])
+        XCTAssertEqual(rules.map(\.zoneNumber), [1, 2])
     }
 
     func testTransparentFrontWindowDoesNotHideBackWindow() {

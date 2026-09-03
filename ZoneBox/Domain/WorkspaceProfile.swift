@@ -51,6 +51,21 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
     public var applicationCount: Int {
         Set(sections.flatMap(\.rules).map(\.bundleID)).count
     }
+
+    /// Capture order is zone number then z-order. Join unique app names with "+"
+    /// so the save sheet can offer ChatGPT+Notes instead of a generic "Workspace".
+    public static func suggestedName(appNames: [String], fallback: String) -> String {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for raw in appNames {
+            let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            let key = name.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            ordered.append(name)
+        }
+        return ordered.isEmpty ? fallback : ordered.joined(separator: "+")
+    }
 }
 
 public struct WorkspaceApplyFeedback: Equatable, Sendable {

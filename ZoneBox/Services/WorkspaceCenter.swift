@@ -78,6 +78,20 @@ final class WorkspaceCenter {
         }
     }
 
+    func suggestedCaptureName() -> String {
+        let fallback = L10n.text(.workspaceDefaultName)
+        let samples = collectVisibleSamples()
+        let names = captureSections(from: samples).flatMap { section in
+            section.rules.map { rule -> String in
+                if let sample = samples.first(where: { $0.identity.bundleID == rule.bundleID }) {
+                    return applicationName(for: sample.identity)
+                }
+                return applicationName(forBundleID: rule.bundleID)
+            }
+        }
+        return WorkspaceProfile.suggestedName(appNames: names, fallback: fallback)
+    }
+
     func apply(profileID: WorkspaceProfile.ID) {
         guard let profile = runtime.document.profiles.first(where: { $0.id == profileID }) else {
             NSSound.beep()
@@ -132,29 +146,7 @@ final class WorkspaceCenter {
             return
         }
         let candidates = await collectCandidates(visibleOnly: true)
-        var sections: [ProfileSection] = []
-        for area in runtime.displays.workAreas {
-            guard let layout = runtime.document.layout(for: area.display.id) else { continue }
-            let zones = runtime.resolvedZones(layout: layout, area: area)
-            let samples = candidates.compactMap { candidate -> ProfileCapture.WindowSample? in
-                guard let owner = DisplayTargetResolver.workArea(
-                    containingWindowFrameAX: candidate.sample.frameAX,
-                    from: runtime.displays.workAreas,
-                    primaryFlipHeight: runtime.displays.primaryFlipHeight
-                ), owner.display.id == area.display.id else { return nil }
-                return candidate.sample
-            }
-            let rules = ProfileCapture.rules(windows: samples, zones: zones)
-            if !rules.isEmpty {
-                sections.append(
-                    ProfileSection(
-                        space: SpaceKey(displayID: area.display.id),
-                        layoutID: layout.id,
-                        rules: rules
-                    )
-                )
-            }
-        }
+        let sections = captureSections(from: candidates.map(\.sample))
         guard !sections.isEmpty else {
             NSSound.beep()
             showFeedback(
@@ -341,6 +333,54 @@ final class WorkspaceCenter {
         }
     }
 
+    private func collectVisibleSamples() -> [ProfileCapture.WindowSample] {
+        let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
+        let visible = ProfileCapture.visibleWindowIdentities(
+            frontToBack: refs.map {
+                ProfileCapture.VisibilitySample(
+                    identity: $0.identity,
+                    frameAX: $0.boundsAX,
+                    opacity: $0.alpha,
+                    isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
+                )
+            }
+        )
+        return refs.compactMap { ref in
+            guard visible.contains(ref.identity),
+                  let bundleID = ref.bundleID,
+                  !bundleID.isEmpty,
+                  !runtime.settings.excludedBundleIDs.contains(bundleID)
+            else { return nil }
+            return ProfileCapture.WindowSample(identity: ref.identity, frameAX: ref.boundsAX)
+        }
+    }
+
+    private func captureSections(from samples: [ProfileCapture.WindowSample]) -> [ProfileSection] {
+        var sections: [ProfileSection] = []
+        for area in runtime.displays.workAreas {
+            guard let layout = runtime.document.layout(for: area.display.id) else { continue }
+            let zones = runtime.resolvedZones(layout: layout, area: area)
+            let owned = samples.filter { sample in
+                DisplayTargetResolver.workArea(
+                    containingWindowFrameAX: sample.frameAX,
+                    from: runtime.displays.workAreas,
+                    primaryFlipHeight: runtime.displays.primaryFlipHeight
+                )?.display.id == area.display.id
+            }
+            let rules = ProfileCapture.rules(windows: owned, zones: zones)
+            if !rules.isEmpty {
+                sections.append(
+                    ProfileSection(
+                        space: SpaceKey(displayID: area.display.id),
+                        layoutID: layout.id,
+                        rules: rules
+                    )
+                )
+            }
+        }
+        return sections
+    }
+
     private func collectCandidates(visibleOnly: Bool = false) async -> [WindowCandidate] {
         var seen = Set<WindowIdentity>()
         var candidates: [WindowCandidate] = []
@@ -382,6 +422,10 @@ final class WorkspaceCenter {
             by: { $0.identity.bundleID ?? "" }
         ).mapValues(\.count)
         let expiresAt = Date().addingTimeInterval(15)
+        var openActions: [String: ProfilePlan.AppOpenAction] = [:]
+        let runningBundleIDs = Set(
+            NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+        )
         for section in profile.sections {
             guard let zones = resolvedZones(for: section) else { continue }
             for rule in section.rules {
@@ -389,8 +433,13 @@ final class WorkspaceCenter {
                     consumed[rule.bundleID, default: 0] -= 1
                     continue
                 }
-                guard outcome.missingBundleIDs.contains(rule.bundleID),
-                      NSRunningApplication.runningApplications(withBundleIdentifier: rule.bundleID).isEmpty,
+                let action = ProfilePlan.openAction(
+                    bundleID: rule.bundleID,
+                    missingBundleIDs: outcome.missingBundleIDs,
+                    runningBundleIDs: runningBundleIDs,
+                    launchMissingApps: profile.launchMissingApps
+                )
+                guard action != .none,
                       let zone = zones.first(where: { $0.zoneID == rule.zoneID })
                         ?? zones.first(where: { $0.number == rule.zoneNumber })
                 else { continue }
@@ -404,14 +453,18 @@ final class WorkspaceCenter {
                         expiresAt: expiresAt
                     )
                 )
+                if openActions[rule.bundleID] == nil {
+                    openActions[rule.bundleID] = action
+                }
             }
         }
-        for bundleID in Set(pending.map(\.bundleID)) {
-            launch(bundleID: bundleID)
+        for (bundleID, action) in openActions {
+            open(bundleID: bundleID, action: action)
         }
     }
 
-    private func launch(bundleID: String) {
+    private func open(bundleID: String, action: ProfilePlan.AppOpenAction) {
+        guard action != .none else { return }
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
             pending.removeAll { $0.bundleID == bundleID }
             showFeedback(
@@ -421,8 +474,14 @@ final class WorkspaceCenter {
             )
             return
         }
+        if action == .reopen {
+            _ = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.activate()
+        }
         let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
+        // Reopening a windowless running app needs activation so it creates its
+        // default/initial window. A cold launch stays in the background.
+        configuration.activates = action == .reopen
+        configuration.createsNewApplicationInstance = false
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] _, error in
             guard let error else { return }
             Task { @MainActor in
@@ -554,6 +613,11 @@ final class WorkspaceCenter {
         NSRunningApplication(processIdentifier: identity.pid)?.localizedName
             ?? identity.bundleID
             ?? L10n.text(.organizeNoWindowsTitle)
+    }
+
+    private func applicationName(forBundleID bundleID: String) -> String {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.localizedName
+            ?? bundleID
     }
 
     private func acceptedDelayedFrame(_ target: CGRect, of window: AXWindow) async -> CGRect? {

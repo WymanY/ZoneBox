@@ -627,15 +627,20 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     @objc
     private func captureConsoleWorkspace(_ sender: NSMenuItem) {
+        let suggested = runtime.workspace.suggestedCaptureName()
         let alert = NSAlert()
         alert.messageText = L10n.text(.workspaceNameTitle)
         alert.informativeText = L10n.text(.workspaceNameMessage)
-        let field = NSTextField(string: "")
+        let field = NSTextField(string: suggested)
         field.placeholderString = L10n.text(.workspaceNamePlaceholder)
         field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
         alert.accessoryView = field
         alert.addButton(withTitle: L10n.text(.workspaceSave))
         alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.window.initialFirstResponder = field
+        if !suggested.isEmpty {
+            field.selectText(nil)
+        }
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue
         dismiss(handoff: { [runtime] in runtime.workspace.capture(name: name) })

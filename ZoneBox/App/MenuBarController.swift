@@ -482,7 +482,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc
     private func captureWorkspace(_ sender: NSMenuItem) {
-        guard let name = promptWorkspaceName() else { return }
+        guard let name = promptWorkspaceName(initial: runtime.workspace.suggestedCaptureName()) else { return }
         runtime.workspace.capture(name: name)
     }
 
@@ -505,6 +505,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         alert.accessoryView = field
         alert.addButton(withTitle: L10n.text(.workspaceSave))
         alert.addButton(withTitle: L10n.text(.editorCancel))
+        alert.window.initialFirstResponder = field
+        if !initial.isEmpty {
+            field.selectText(nil)
+        }
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         return field.stringValue
     }

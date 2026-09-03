@@ -35,23 +35,19 @@ public enum ProfileCapture {
         windows: [WindowSample],
         zones: [ResolvedZone]
     ) -> [AppPlacementRule] {
-        var occupiedZoneIDs = Set<UUID>()
-        var occupiedZoneNumbers = Set<Int>()
-        let indexed = windows.enumerated().compactMap { index, sample -> (Int, ResolvedZone, String)? in
-            guard let bundleID = sample.identity.bundleID, !bundleID.isEmpty,
-                  let zone = matchingZone(for: sample.frameAX, zones: zones),
-                  !occupiedZoneIDs.contains(zone.zoneID),
-                  !occupiedZoneNumbers.contains(zone.number)
-            else { return nil }
-            occupiedZoneIDs.insert(zone.zoneID)
-            occupiedZoneNumbers.insert(zone.number)
-            return (index, zone, bundleID)
-        }
-        return indexed.sorted { lhs, rhs in
-            if lhs.1.number != rhs.1.number { return lhs.1.number < rhs.1.number }
-            return lhs.0 < rhs.0
-        }.map { _, zone, bundleID in
-            AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
+        var used = Set<WindowIdentity>()
+        return zones.sorted { lhs, rhs in
+            if lhs.number != rhs.number { return lhs.number < rhs.number }
+            return lhs.zoneID.uuidString < rhs.zoneID.uuidString
+        }.compactMap { zone in
+            guard let sample = windows.first(where: { candidate in
+                guard !used.contains(candidate.identity),
+                      let bundleID = candidate.identity.bundleID, !bundleID.isEmpty
+                else { return false }
+                return occupies(candidate.frameAX, zone: zone.frameAX)
+            }), let bundleID = sample.identity.bundleID else { return nil }
+            used.insert(sample.identity)
+            return AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
         }
     }
 
@@ -93,31 +89,34 @@ public enum ProfileCapture {
         }
     }
 
-    private static func matchingZone(for frame: CGRect, zones: [ResolvedZone]) -> ResolvedZone? {
-        if let exact = zones.first(where: {
-            WindowOrganize.didApply(frame, to: $0.frameAX, sizeTolerance: 28, originTolerance: 28)
-        }) {
-            return exact
-        }
-        let area = max(frame.width, 0) * max(frame.height, 0)
-        guard area > 0 else { return nil }
-        return zones.enumerated().compactMap { index, zone -> (Int, ResolvedZone, CGFloat)? in
-            let intersection = frame.intersection(zone.frameAX)
-            guard !intersection.isNull else { return nil }
-            let ratio = max(intersection.width, 0) * max(intersection.height, 0) / area
-            guard ratio >= 0.5 else { return nil }
-            return (index, zone, ratio)
-        }.max { lhs, rhs in
-            if abs(lhs.2 - rhs.2) > 0.000_001 { return lhs.2 < rhs.2 }
-            return lhs.0 > rhs.0
-        }?.1
+    private static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
+        WindowOrganize.didApply(frame, to: zone, sizeTolerance: 28, originTolerance: 28)
+            || fills(frame, zone: zone)
     }
 
+    /// A window owns a zone only when it still covers most of that zone.
+    /// Background full-screen windows can fill a zone too, but each zone is
+    /// assigned to the frontmost occupant so ChatGPT+Notes beat aDrive behind them.
+    private static func fills(_ frame: CGRect, zone: CGRect) -> Bool {
+        let intersection = frame.intersection(zone)
+        guard !intersection.isNull, !intersection.isInfinite else { return false }
+        let overlap = max(intersection.width, 0) * max(intersection.height, 0)
+        let zoneArea = max(zone.width * zone.height, 1)
+        return overlap / zoneArea >= 0.62
+    }
+
+    /// Adjacent snapped windows commonly share a 1pt seam. That is not occlusion.
+    /// A window is hidden only when a front opaque window covers a meaningful
+    /// fraction of its surface.
+    private static let occlusionCoverage: CGFloat = 0.25
+
     private static func isFullyVisible(_ frame: CGRect, behind occluders: [CGRect]) -> Bool {
-        !occluders.contains { occluder in
+        let area = max(frame.width * frame.height, 1)
+        return !occluders.contains { occluder in
             guard isUsable(occluder) else { return false }
             let overlap = frame.intersection(occluder)
-            return !overlap.isNull && overlap.width * overlap.height > 0.5
+            guard !overlap.isNull, !overlap.isInfinite else { return false }
+            return (overlap.width * overlap.height) / area >= occlusionCoverage
         }
     }
 
