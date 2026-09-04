@@ -17,8 +17,8 @@ public struct SnapMouseEvent: Equatable, Sendable {
         case escape
         /// Overlay zone number 1...9. Hardware key, not a character.
         case digit(Int)
-        /// +1 / -1 from the scroll wheel or Tab / Shift+Tab while armed.
-        case cycleCandidate(Int)
+        /// +1 / -1 through adjacent layouts from the scroll wheel or Tab / Shift+Tab.
+        case cycleLayout(Int)
     }
 
     public var kind: Kind

@@ -18,10 +18,8 @@ final class SnapEngine {
     /// Overlay digit 1...9; hover must not replace it until mouse-up.
     private var lockedTarget: SnapTarget?
     private var startedOnMoveChrome = false
-    private var candidateIndex = 0
     private var sessionLayoutID: Layout.ID?
     private var lastCursorDisplayID: DisplayIdentity.ID?
-    private var lastCandidates: [ZoneCandidate] = []
     private var lastStrip: LayoutStripGeometry?
     private var lastPresentation = OverlayPresentation.empty
     private var quickSnapperLayoutID: Layout.ID?
@@ -66,10 +64,8 @@ final class SnapEngine {
             armOrigin = nil
             lockedTarget = nil
             startedOnMoveChrome = runtime.pendingStartedOnMoveChrome
-            candidateIndex = 0
             sessionLayoutID = nil
             lastCursorDisplayID = nil
-            lastCandidates = []
             lastStrip = nil
             layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
                 current: layoutAssignmentGeneration,
@@ -83,7 +79,6 @@ final class SnapEngine {
         }
         let session = sessionContext(at: event.locationAppKit, area: cursorArea)
         lastZones = session.zones
-        lastCandidates = session.candidates
         lastStrip = session.strip
         lastPresentation = session.presentation
         let grid = runtime.gridCoverage(for: cursorArea, layoutOverride: session.layoutID)
@@ -117,8 +112,7 @@ final class SnapEngine {
             magneticThreshold: CGFloat(runtime.settings.magneticThresholdPoints),
             lockedTarget: lockedTarget,
             startedOnMoveChrome: startedOnMoveChrome,
-            candidates: session.candidates,
-            candidateIndex: candidateIndex,
+            layoutIDs: session.layoutIDs,
             assignedLayoutID: session.assignedLayoutID,
             sessionLayoutID: session.layoutID,
             pointerInLayoutStrip: session.pointerInStrip,
@@ -172,10 +166,10 @@ final class SnapEngine {
         )
     }
 
-    func handleCycleCandidate(_ delta: Int) {
+    func handleCycleLayout(_ delta: Int) {
         handleMouse(
             SnapMouseEvent(
-                kind: .cycleCandidate(delta),
+                kind: .cycleLayout(delta),
                 locationAppKit: NSEvent.mouseLocation,
                 modifiers: []
             )
@@ -500,11 +494,8 @@ final class SnapEngine {
                 sessionLayoutID = layoutID
             case .clearLockedTarget:
                 lockedTarget = nil
-            case .selectCandidate(let index):
-                candidateIndex = index
-                if lastCandidates.indices.contains(index) {
-                    sessionLayoutID = lastCandidates[index].layoutID
-                }
+            case .selectLayout(let layoutID):
+                sessionLayoutID = layoutID
             }
         }
         if hideOverlay {
@@ -519,14 +510,27 @@ final class SnapEngine {
             let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID })
             let session = sessionContext(at: NSEvent.mouseLocation, area: area)
             lastZones = session.zones.isEmpty ? lastZones : session.zones
-            lastCandidates = session.candidates
             lastStrip = session.strip
             lastPresentation = session.presentation
             let zones = lastZones
+            var highlight = overlayHighlight ?? SnapTarget.none
+            if case .none = highlight {
+                if session.pointerInStrip {
+                    highlight = session.forcedTarget ?? .none
+                } else {
+                    highlight = HitTester(policy: runtime.settings.overlapPolicy).target(
+                        at: CoordinateConverter.axPoint(
+                            fromAppKit: NSEvent.mouseLocation,
+                            primaryFlipHeight: runtime.displays.primaryFlipHeight
+                        ),
+                        zones: zones
+                    )
+                }
+            }
             runtime.overlay.show(
                 displayID: overlayDisplayID,
                 zones: zones,
-                highlight: overlayHighlight ?? SnapTarget.none,
+                highlight: highlight,
                 presentation: lastPresentation
             )
             runtime.divider.refresh()
@@ -536,10 +540,8 @@ final class SnapEngine {
     }
 
     private func resetLayoutSession() {
-        candidateIndex = 0
         sessionLayoutID = nil
         lastCursorDisplayID = nil
-        lastCandidates = []
         lastStrip = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
@@ -575,8 +577,8 @@ final class SnapEngine {
     private struct SessionContext {
         var layoutID: Layout.ID?
         var assignedLayoutID: Layout.ID?
+        var layoutIDs: [Layout.ID]
         var zones: [ResolvedZone]
-        var candidates: [ZoneCandidate]
         var strip: LayoutStripGeometry?
         var pointerInStrip: Bool
         var forcedTarget: SnapTarget?
@@ -592,9 +594,7 @@ final class SnapEngine {
             currentSessionLayoutID: sessionLayoutID,
             lockedTarget: lockedTarget
         )
-        let crossedDisplay = session.crossedDisplay
-        if crossedDisplay {
-            candidateIndex = 0
+        if session.crossedDisplay {
             lastCursorDisplayID = area?.display.id
             sessionLayoutID = session.layoutID
         } else if lastCursorDisplayID == nil {
@@ -602,33 +602,7 @@ final class SnapEngine {
         }
 
         let layouts = runtime.allResolvedLayouts(for: area)
-        let pointAX = CoordinateConverter.axPoint(
-            fromAppKit: pointAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
-        )
-        let candidates = ZoneCandidateResolver.resolve(
-            layouts: layouts,
-            pointAX: pointAX,
-            assignedLayoutID: assignedID,
-            recentLayoutIDs: runtime.document.recentLayoutIDs,
-            overlapPolicy: runtime.settings.overlapPolicy
-        )
-        if !crossedDisplay,
-           let previous = lastCandidates.indices.contains(candidateIndex) ? lastCandidates[candidateIndex] : nil,
-           let match = candidates.firstIndex(where: {
-               $0.layoutID == previous.layoutID
-                   && ZoneCandidateResolver.approximatelyEqual($0.zone.frameAX, previous.zone.frameAX)
-           }) {
-            candidateIndex = match
-        } else {
-            candidateIndex = 0
-            sessionLayoutID = SnapLayoutSession.layoutIDAfterCandidateReset(
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: sessionLayoutID,
-                lockedTarget: lockedTarget
-            )
-        }
+        let layoutIDs = layouts.map(\.layout.id)
 
         var strip: LayoutStripGeometry?
         var pointerInStrip = false
@@ -663,8 +637,6 @@ final class SnapEngine {
 
         sessionLayoutID = SnapLayoutSession.sessionLayoutIDForPointer(
             forcedLayoutID: forcedTarget == nil ? nil : sessionLayoutID,
-            candidates: candidates,
-            candidateIndex: candidateIndex,
             currentSessionLayoutID: sessionLayoutID,
             assignedLayoutID: assignedID,
             lockedTarget: lockedTarget
@@ -685,17 +657,12 @@ final class SnapEngine {
         return SessionContext(
             layoutID: layoutID,
             assignedLayoutID: assignedID,
+            layoutIDs: layoutIDs,
             zones: zones,
-            candidates: candidates,
             strip: strip,
             pointerInStrip: pointerInStrip,
             forcedTarget: forcedTarget,
-            presentation: OverlayPresentation.snapSession(
-                candidates: candidates,
-                candidateIndex: candidateIndex,
-                localizedLayoutName: { L10n.layoutDisplayName($0) },
-                strip: stripModel
-            )
+            presentation: OverlayPresentation.snapSession(strip: stripModel)
         )
     }
 }

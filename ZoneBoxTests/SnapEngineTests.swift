@@ -248,37 +248,33 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertTrue(out.effects.contains(.cancel))
     }
 
-    func testCycleCandidateHighlightsNextZoneAndClearsLock() {
+    func testCycleLayoutSelectsAdjacentLayoutAndClearsLock() {
         let assigned = Layout(name: "Half", kind: .canvas, zones: [])
         let third = Layout(name: "Third", kind: .canvas, zones: [])
         let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
-        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
-        var input = armedReadyInput(phase: .highlighting(window, .zone(zoneA)), kind: .cycleCandidate(1))
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zoneA)), kind: .cycleLayout(1))
         input.resolvedZones = [zoneA]
-        input.candidates = [
-            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
-            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
-        ]
-        input.candidateIndex = 0
+        input.layoutIDs = [assigned.id, third.id]
         input.assignedLayoutID = assigned.id
         input.sessionLayoutID = assigned.id
         input.lockedTarget = .zone(zoneA)
         let out = SnapSessionReducer.reduce(input)
-        XCTAssertEqual(out.phase, .highlighting(window, .zone(zoneB)))
-        XCTAssertTrue(out.effects.contains(.selectCandidate(1)))
+        XCTAssertEqual(out.phase, .armed(window))
+        XCTAssertTrue(out.effects.contains(.selectLayout(third.id)))
         XCTAssertTrue(out.effects.contains(.clearLockedTarget))
-        XCTAssertTrue(out.effects.contains(.highlight(.zone(zoneB))))
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
     }
 
-    func testCycleCandidateIgnoredWhileIdleOrResizing() {
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
-        let candidate = ZoneCandidate(layoutID: UUID(), layoutName: "A", zone: zone)
-        var idle = base(phase: .idle, kind: .cycleCandidate(1))
-        idle.candidates = [candidate]
+    func testCycleLayoutIgnoredWhileIdleOrResizing() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
+        var idle = base(phase: .idle, kind: .cycleLayout(1))
+        idle.layoutIDs = [assigned.id]
+        idle.sessionLayoutID = assigned.id
         XCTAssertEqual(SnapSessionReducer.reduce(idle).effects, [])
 
-        var resizing = base(phase: .resizing, kind: .cycleCandidate(1))
-        resizing.candidates = [candidate]
+        var resizing = base(phase: .resizing, kind: .cycleLayout(1))
+        resizing.layoutIDs = [assigned.id]
+        resizing.sessionLayoutID = assigned.id
         XCTAssertEqual(SnapSessionReducer.reduce(resizing).phase, .resizing)
         XCTAssertEqual(SnapSessionReducer.reduce(resizing).effects, [])
     }
@@ -290,11 +286,7 @@ final class SnapEngineTests: XCTestCase {
         let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
         var input = armedReadyInput(phase: .highlighting(window, .zone(zoneB)), kind: .leftUp)
         input.resolvedZones = [zoneB]
-        input.candidates = [
-            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
-            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
-        ]
-        input.candidateIndex = 1
+        input.layoutIDs = [assigned.id, third.id]
         input.assignedLayoutID = assigned.id
         input.sessionLayoutID = third.id
         input.downFrameAX = frame
@@ -312,7 +304,7 @@ final class SnapEngineTests: XCTestCase {
         let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 16, y: 16, width: 668, height: 768))
         var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .leftUp)
         input.resolvedZones = [zone]
-        input.candidates = [ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zone)]
+        input.layoutIDs = [assigned.id]
         input.assignedLayoutID = assigned.id
         input.sessionLayoutID = assigned.id
         input.downFrameAX = frame
@@ -432,82 +424,77 @@ final class SnapEngineTests: XCTestCase {
         XCTAssertEqual(SnapLayoutAssignmentPolicy.generationAfterSessionReset(current: 4, startingNewDrag: true), 5)
     }
 
-    func testLeavingStripFollowsLiveCandidateLayout() {
-        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
-        let third = Layout(name: "Third", kind: .canvas, zones: [])
-        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
-        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
-        let candidates = [
-            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
-            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
-        ]
+    func testLeavingStripKeepsSelectedLayoutUntilStripOrCycle() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: []).id
+        let third = Layout(name: "Third", kind: .canvas, zones: []).id
         XCTAssertEqual(
             SnapLayoutSession.sessionLayoutIDForPointer(
-                forcedLayoutID: third.id,
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: third.id,
-                assignedLayoutID: assigned.id
+                forcedLayoutID: third,
+                currentSessionLayoutID: third,
+                assignedLayoutID: assigned
             ),
-            third.id
+            third
         )
         XCTAssertEqual(
             SnapLayoutSession.sessionLayoutIDForPointer(
                 forcedLayoutID: nil,
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: third.id,
-                assignedLayoutID: assigned.id
+                currentSessionLayoutID: third,
+                assignedLayoutID: assigned
             ),
-            assigned.id
+            third
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: nil,
+                currentSessionLayoutID: nil,
+                assignedLayoutID: assigned
+            ),
+            assigned
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.nextLayoutID(
+                layoutIDs: [assigned, third],
+                currentSessionLayoutID: assigned,
+                delta: 1
+            ),
+            third
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.nextLayoutID(
+                layoutIDs: [assigned, third],
+                currentSessionLayoutID: assigned,
+                delta: -1
+            ),
+            third
         )
     }
 
-    func testLeavingACycledCandidateResetsSessionLayoutToAssignedHit() {
-        let assigned = Layout(name: "Half", kind: .canvas, zones: [])
-        let third = Layout(name: "Third", kind: .canvas, zones: [])
-        let zoneA = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
-        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
-        let candidates = [
-            ZoneCandidate(layoutID: assigned.id, layoutName: assigned.name, zone: zoneA),
-            ZoneCandidate(layoutID: third.id, layoutName: third.name, zone: zoneB),
-        ]
-        XCTAssertEqual(
-            SnapLayoutSession.layoutIDAfterCandidateReset(
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: third.id
-            ),
-            assigned.id
-        )
-        XCTAssertEqual(
-            SnapLayoutSession.layoutIDAfterCandidateReset(
-                candidates: candidates,
-                candidateIndex: 1,
-                currentSessionLayoutID: third.id
-            ),
-            third.id
-        )
-        let locked = SnapTarget.zone(zoneB)
-        XCTAssertEqual(
-            SnapLayoutSession.layoutIDAfterCandidateReset(
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: third.id,
-                lockedTarget: locked
-            ),
-            third.id
+    func testDigitLockKeepsSelectedLayout() {
+        let assigned = Layout(name: "Half", kind: .canvas, zones: []).id
+        let third = Layout(name: "Third", kind: .canvas, zones: []).id
+        let locked = SnapTarget.zone(
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 333, height: 800))
         )
         XCTAssertEqual(
             SnapLayoutSession.sessionLayoutIDForPointer(
                 forcedLayoutID: nil,
-                candidates: candidates,
-                candidateIndex: 0,
-                currentSessionLayoutID: third.id,
-                assignedLayoutID: assigned.id,
+                currentSessionLayoutID: third,
+                assignedLayoutID: assigned,
                 lockedTarget: locked
             ),
-            third.id
+            third
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.wrappingIndex(current: 0, delta: 1, count: 3),
+            1
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.wrappingIndex(current: 2, delta: 1, count: 3),
+            0
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.wrappingIndex(current: 0, delta: -1, count: 3),
+            2
         )
     }
 

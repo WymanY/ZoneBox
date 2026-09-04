@@ -42,7 +42,7 @@ public enum SnapEffect: Equatable, Sendable {
     case cancel
     case assignLayout(Layout.ID)
     case clearLockedTarget
-    case selectCandidate(Int)
+    case selectLayout(Layout.ID)
 }
 
 public struct SnapReducerInput: Equatable, Sendable {
@@ -81,13 +81,11 @@ public struct SnapReducerInput: Equatable, Sendable {
     /// Content-area drags must not arm the zone overlay.
     public var startedOnMoveChrome: Bool
 
-    /// Cross-layout zone candidates under the pointer, assigned layout first.
-    public var candidates: [ZoneCandidate]
-    /// Index into `candidates` chosen by scroll/Tab. Engine-owned, like `lockedTarget`.
-    public var candidateIndex: Int
+    /// Adjacent layouts on the cursor display, current session layout first.
+    public var layoutIDs: [Layout.ID]
     /// Layout currently assigned to the cursor display, if any.
     public var assignedLayoutID: Layout.ID?
-    /// Layout belonging to the highlighted candidate or strip target.
+    /// Layout currently shown by the overlay or strip target.
     public var sessionLayoutID: Layout.ID?
     /// True while the pointer is inside the layout strip. Zones under the strip do not win.
     public var pointerInLayoutStrip: Bool
@@ -124,8 +122,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         magneticThreshold: CGFloat = MagneticResize.defaultThreshold,
         lockedTarget: SnapTarget? = nil,
         startedOnMoveChrome: Bool = true,
-        candidates: [ZoneCandidate] = [],
-        candidateIndex: Int = 0,
+        layoutIDs: [Layout.ID] = [],
         assignedLayoutID: Layout.ID? = nil,
         sessionLayoutID: Layout.ID? = nil,
         pointerInLayoutStrip: Bool = false,
@@ -160,8 +157,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         self.magneticThreshold = magneticThreshold
         self.lockedTarget = lockedTarget
         self.startedOnMoveChrome = startedOnMoveChrome
-        self.candidates = candidates
-        self.candidateIndex = candidateIndex
+        self.layoutIDs = layoutIDs
         self.assignedLayoutID = assignedLayoutID
         self.sessionLayoutID = sessionLayoutID
         self.pointerInLayoutStrip = pointerInLayoutStrip
@@ -218,55 +214,37 @@ public enum SnapLayoutSession {
         return crossed
     }
 
-    /// When the pointer leaves the previously cycled candidate, index 0 is the
-    /// assigned-layout hit. Keep `sessionLayoutID` on that candidate so overlay
-    /// zones and labels do not describe different layouts.
-    public static func layoutIDAfterCandidateReset(
-        candidates: [ZoneCandidate],
-        candidateIndex: Int,
-        currentSessionLayoutID: Layout.ID?
-    ) -> Layout.ID? {
-        if candidates.indices.contains(candidateIndex) {
-            return candidates[candidateIndex].layoutID
-        }
-        return currentSessionLayoutID
+    /// Tab / scroll walk adjacent layouts in display order.
+    public static func wrappingIndex(current: Int, delta: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        let step = delta == 0 ? 0 : (delta > 0 ? 1 : -1)
+        let next = current + step
+        return ((next % count) + count) % count
     }
 
-    /// A digit lock pins both the zone and its layout until the lock is cleared.
-    public static func layoutIDAfterCandidateReset(
-        candidates: [ZoneCandidate],
-        candidateIndex: Int,
+    public static func nextLayoutID(
+        layoutIDs: [Layout.ID],
         currentSessionLayoutID: Layout.ID?,
-        lockedTarget: SnapTarget?
+        delta: Int
     ) -> Layout.ID? {
-        if lockedTarget != nil { return currentSessionLayoutID }
-        return layoutIDAfterCandidateReset(
-            candidates: candidates,
-            candidateIndex: candidateIndex,
-            currentSessionLayoutID: currentSessionLayoutID
-        )
+        guard !layoutIDs.isEmpty else { return currentSessionLayoutID }
+        let current = currentSessionLayoutID.flatMap { layoutIDs.firstIndex(of: $0) } ?? 0
+        return layoutIDs[wrappingIndex(current: current, delta: delta, count: layoutIDs.count)]
     }
 
-    /// After leaving a strip mini-zone, follow the live candidate rather than
-    /// keeping the strip's layout. Index 0 is the assigned-layout hit.
+    /// Trigger-zone hits under the pointer must not change the selected layout.
+    /// Only a strip target, an explicit cycle, or a missing session layout may.
     public static func sessionLayoutIDForPointer(
         forcedLayoutID: Layout.ID?,
-        candidates: [ZoneCandidate],
-        candidateIndex: Int,
         currentSessionLayoutID: Layout.ID?,
         assignedLayoutID: Layout.ID?
     ) -> Layout.ID? {
         if let forcedLayoutID { return forcedLayoutID }
-        if candidates.indices.contains(candidateIndex) {
-            return candidates[candidateIndex].layoutID
-        }
         return currentSessionLayoutID ?? assignedLayoutID
     }
 
     public static func sessionLayoutIDForPointer(
         forcedLayoutID: Layout.ID?,
-        candidates: [ZoneCandidate],
-        candidateIndex: Int,
         currentSessionLayoutID: Layout.ID?,
         assignedLayoutID: Layout.ID?,
         lockedTarget: SnapTarget?
@@ -274,8 +252,6 @@ public enum SnapLayoutSession {
         if lockedTarget != nil { return currentSessionLayoutID }
         return sessionLayoutIDForPointer(
             forcedLayoutID: forcedLayoutID,
-            candidates: candidates,
-            candidateIndex: candidateIndex,
             currentSessionLayoutID: currentSessionLayoutID,
             assignedLayoutID: assignedLayoutID
         )
