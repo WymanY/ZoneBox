@@ -199,6 +199,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutsSectionApp
     case shortcutsVoiceOverNote
     case shortcutsSubtitle
+    case shortcutsCustomize
+    case shortcutsCloseHint
     case shortcutOpenEditor
     case shortcutSnapZone
     case shortcutSnapZones
@@ -719,6 +721,8 @@ public enum L10n {
         .shortcutsSectionApp: "ZoneBox",
         .shortcutsVoiceOverNote: "VoiceOver still pauses Control+Option global shortcuts. Other modifiers stay active.",
         .shortcutsSubtitle: "Customize global shortcuts in Settings",
+        .shortcutsCustomize: "Customize…",
+        .shortcutsCloseHint: "Press esc to close",
         .shortcutOpenEditor: "Open layout editor",
         .shortcutSnapZone: "Snap to zone %d",
         .shortcutSnapZones: "Snap to zone",
@@ -1091,6 +1095,8 @@ public enum L10n {
         .shortcutsSectionApp: "ZoneBox",
         .shortcutsVoiceOverNote: "开启 VoiceOver 时，仍会暂停 Control+Option 全局快捷键。其他修饰键组合保持可用。",
         .shortcutsSubtitle: "可在设置里自定义全局快捷键",
+        .shortcutsCustomize: "自定义…",
+        .shortcutsCloseHint: "按 esc 关闭",
         .shortcutOpenEditor: "打开布局编辑器",
         .shortcutSnapZone: "吸附到分区 %d",
         .shortcutSnapZones: "吸附到分区",
