@@ -44,7 +44,7 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> ShortcutWindow {
         let window = ShortcutWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 740, height: 600),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -53,7 +53,7 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
-        window.minSize = NSSize(width: 720, height: 480)
+        window.minSize = NSSize(width: 680, height: 480)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.isOpaque = false
@@ -106,9 +106,9 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
             clip.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             clip.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
 
-            document.topAnchor.constraint(equalTo: clip.topAnchor, constant: 14),
-            document.leadingAnchor.constraint(equalTo: clip.leadingAnchor, constant: 24),
-            document.trailingAnchor.constraint(equalTo: clip.trailingAnchor, constant: -24),
+            document.topAnchor.constraint(equalTo: clip.topAnchor, constant: 12),
+            document.leadingAnchor.constraint(equalTo: clip.leadingAnchor, constant: 22),
+            document.trailingAnchor.constraint(equalTo: clip.trailingAnchor, constant: -22),
             document.bottomAnchor.constraint(equalTo: clip.bottomAnchor, constant: -20),
         ])
         return window
@@ -130,7 +130,7 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         columns.orientation = .horizontal
         columns.alignment = .top
         columns.distribution = .fillEqually
-        columns.spacing = 16
+        columns.spacing = 14
         columns.translatesAutoresizingMaskIntoConstraints = false
 
         let leftColumn = makeColumn(surfaces: [.global, .application])
@@ -166,13 +166,13 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         let textStack = NSStackView(views: [title, subtitle])
         textStack.orientation = .vertical
         textStack.alignment = .leading
-        textStack.spacing = 2
+        textStack.spacing = 1
         textStack.translatesAutoresizingMaskIntoConstraints = false
 
         let leftGroup = NSStackView(views: [iconWell, textStack])
         leftGroup.orientation = .horizontal
         leftGroup.alignment = .centerY
-        leftGroup.spacing = 12
+        leftGroup.spacing = 10
         leftGroup.translatesAutoresizingMaskIntoConstraints = false
 
         let customizeButton = NSButton(
@@ -182,16 +182,14 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         )
         customizeButton.bezelStyle = .rounded
         customizeButton.controlSize = .small
-        customizeButton.font = .systemFont(ofSize: 12, weight: .medium)
-        customizeButton.image = NSImage(systemSymbolName: "slider.horizontal.3", accessibilityDescription: nil)
-        customizeButton.imagePosition = .imageLeading
+        customizeButton.font = .systemFont(ofSize: 11, weight: .regular)
 
-        let closeHint = CloseHintPill()
+        let esc = KeyCapView(symbol: "esc")
 
-        let rightGroup = NSStackView(views: [customizeButton, closeHint])
+        let rightGroup = NSStackView(views: [customizeButton, esc])
         rightGroup.orientation = .horizontal
         rightGroup.alignment = .centerY
-        rightGroup.spacing = 10
+        rightGroup.spacing = 8
         rightGroup.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(leftGroup)
@@ -214,14 +212,14 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 16
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let grouped = Dictionary(uniqueKeysWithValues: ShortcutCatalog.grouped(from: runtime.settings).map { ($0.surface, $0.items) })
         for surface in surfaces {
             let items = grouped[surface] ?? []
             guard !items.isEmpty else { continue }
-            let card = ShortcutSectionCard(
+            let card = ShortcutSectionView(
                 title: L10n.text(surface.titleKey),
                 symbol: surface.symbolName,
                 rows: displayRows(items)
@@ -249,11 +247,13 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
 
         let row = NSStackView(views: [icon, note])
         row.orientation = .horizontal
-        row.alignment = .centerY
+        row.alignment = .top
         row.spacing = 8
-        row.edgeInsets = NSEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+        row.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
 
-        let chrome = CardBackgroundView(cornerRadius: 10, fillAlpha: 0.04)
+        let chrome = RoundedFillView()
+        chrome.fillAlpha = 0.06
+        chrome.cornerRadius = 10
         chrome.addSubview(row)
         row.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -326,19 +326,18 @@ private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
 }
 
-private class CardBackgroundView: NSView {
-    var cornerRadius: CGFloat
-    var fillAlpha: CGFloat
+private class RoundedFillView: NSView {
+    var fillAlpha: CGFloat = 0.08
+    var cornerRadius: CGFloat = 12
 
-    init(cornerRadius: CGFloat = 14, fillAlpha: CGFloat = 0.06) {
-        self.cornerRadius = cornerRadius
-        self.fillAlpha = fillAlpha
-        super.init(frame: .zero)
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
         layer?.cornerRadius = cornerRadius
         layer?.cornerCurve = .continuous
-        layer?.masksToBounds = false
+        layer?.borderWidth = 1
+        layer?.masksToBounds = true
     }
 
     required init?(coder: NSCoder) { nil }
@@ -347,20 +346,11 @@ private class CardBackgroundView: NSView {
 
     override func updateLayer() {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        if dark {
-            layer?.backgroundColor = NSColor(white: 1.0, alpha: fillAlpha).cgColor
-            layer?.borderColor = NSColor(white: 1.0, alpha: 0.10).cgColor
-            layer?.borderWidth = 0.5
-            layer?.shadowOpacity = 0
-        } else {
-            layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.70).cgColor
-            layer?.borderColor = NSColor(white: 0.0, alpha: 0.08).cgColor
-            layer?.borderWidth = 0.5
-            layer?.shadowColor = NSColor.black.cgColor
-            layer?.shadowOpacity = 0.04
-            layer?.shadowOffset = CGSize(width: 0, height: -1)
-            layer?.shadowRadius = 3
-        }
+        let fill = dark ? NSColor.white.withAlphaComponent(fillAlpha) : NSColor.black.withAlphaComponent(fillAlpha)
+        let border = dark ? NSColor.white.withAlphaComponent(0.10) : NSColor.black.withAlphaComponent(0.08)
+        layer?.cornerRadius = cornerRadius
+        layer?.backgroundColor = fill.cgColor
+        layer?.borderColor = border.cgColor
     }
 }
 
@@ -369,18 +359,18 @@ private final class SymbolWell: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
-        layer?.cornerRadius = 9
+        layer?.cornerRadius = 8
         layer?.cornerCurve = .continuous
 
         let image = NSImageView()
         image.translatesAutoresizingMaskIntoConstraints = false
         image.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-        image.symbolConfiguration = .init(pointSize: 16, weight: .semibold)
+        image.symbolConfiguration = .init(pointSize: 15, weight: .semibold)
         image.contentTintColor = tint
         addSubview(image)
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 34),
-            heightAnchor.constraint(equalToConstant: 34),
+            widthAnchor.constraint(equalToConstant: 32),
+            heightAnchor.constraint(equalToConstant: 32),
             image.centerXAnchor.constraint(equalTo: centerXAnchor),
             image.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
@@ -391,80 +381,34 @@ private final class SymbolWell: NSView {
     override var wantsUpdateLayer: Bool { true }
 
     override func updateLayer() {
-        layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor
+        layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.16).cgColor
     }
 }
 
-private final class CloseHintPill: NSView {
-    init() {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        wantsLayer = true
-        layer?.cornerRadius = 6
-        layer?.cornerCurve = .continuous
-
-        let label = NSTextField(labelWithString: L10n.text(.shortcutsCloseHint))
-        label.font = .systemFont(ofSize: 11, weight: .regular)
-        label.textColor = .secondaryLabelColor
-        label.translatesAutoresizingMaskIntoConstraints = false
-
-        let esc = KeyCapView(symbol: "esc")
-        esc.translatesAutoresizingMaskIntoConstraints = false
-
-        let stack = NSStackView(views: [label, esc])
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 6
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 3),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-        ])
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        layer?.backgroundColor = dark ? NSColor(white: 1.0, alpha: 0.05).cgColor : NSColor(white: 0.0, alpha: 0.04).cgColor
-    }
-}
-
-private final class ShortcutSectionCard: CardBackgroundView {
+private final class ShortcutSectionView: RoundedFillView {
     init(title: String, symbol: String, rows: [(title: String, caps: [String])]) {
-        super.init(cornerRadius: 14, fillAlpha: 0.06)
+        super.init(frame: .zero)
+        fillAlpha = 0.05
+        cornerRadius = 14
 
         let icon = NSImageView()
         icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
         icon.symbolConfiguration = .init(pointSize: 12, weight: .semibold)
-        icon.contentTintColor = .controlAccentColor
+        icon.contentTintColor = .secondaryLabelColor
         icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.widthAnchor.constraint(equalToConstant: 15).isActive = true
-        icon.heightAnchor.constraint(equalToConstant: 15).isActive = true
+        icon.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 14).isActive = true
 
         let heading = NSTextField(labelWithString: title)
-        heading.font = .systemFont(ofSize: 13, weight: .semibold)
-        heading.textColor = .labelColor
+        heading.font = .systemFont(ofSize: 12, weight: .semibold)
+        heading.textColor = .secondaryLabelColor
 
-        let countBadge = CountBadgeView(count: rows.count)
-
-        let spacer = NSView()
-        spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let header = NSStackView(views: [icon, heading, spacer, countBadge])
+        let header = NSStackView(views: [icon, heading])
         header.orientation = .horizontal
         header.alignment = .centerY
-        header.spacing = 8
-        header.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 8, right: 14)
-
-        let divider = HairlineView(inset: 14)
+        header.spacing = 6
+        header.edgeInsets = NSEdgeInsets(top: 11, left: 12, bottom: 4, right: 12)
+        header.translatesAutoresizingMaskIntoConstraints = false
 
         let list = NSStackView()
         list.orientation = .vertical
@@ -474,7 +418,7 @@ private final class ShortcutSectionCard: CardBackgroundView {
 
         for (index, row) in rows.enumerated() {
             if index > 0 {
-                let sep = HairlineView(inset: 14)
+                let sep = HairlineView()
                 list.addArrangedSubview(sep)
                 sep.leadingAnchor.constraint(equalTo: list.leadingAnchor).isActive = true
                 sep.trailingAnchor.constraint(equalTo: list.trailingAnchor).isActive = true
@@ -485,7 +429,7 @@ private final class ShortcutSectionCard: CardBackgroundView {
             rowView.trailingAnchor.constraint(equalTo: list.trailingAnchor).isActive = true
         }
 
-        let column = NSStackView(views: [header, divider, list])
+        let column = NSStackView(views: [header, list])
         column.orientation = .vertical
         column.alignment = .leading
         column.spacing = 2
@@ -501,49 +445,12 @@ private final class ShortcutSectionCard: CardBackgroundView {
             header.leadingAnchor.constraint(equalTo: column.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: column.trailingAnchor),
 
-            divider.leadingAnchor.constraint(equalTo: column.leadingAnchor),
-            divider.trailingAnchor.constraint(equalTo: column.trailingAnchor),
-
             list.leadingAnchor.constraint(equalTo: column.leadingAnchor),
             list.trailingAnchor.constraint(equalTo: column.trailingAnchor),
         ])
     }
 
     required init?(coder: NSCoder) { nil }
-}
-
-private final class CountBadgeView: NSView {
-    init(count: Int) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        wantsLayer = true
-        layer?.cornerRadius = 8
-        layer?.cornerCurve = .continuous
-
-        let label = NSTextField(labelWithString: "\(count)")
-        label.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        label.alignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(label)
-
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            heightAnchor.constraint(equalToConstant: 16),
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 22),
-        ])
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        layer?.backgroundColor = dark ? NSColor(white: 1.0, alpha: 0.08).cgColor : NSColor(white: 0.0, alpha: 0.05).cgColor
-    }
 }
 
 private final class ShortcutRowView: NSView {
@@ -553,7 +460,7 @@ private final class ShortcutRowView: NSView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
-        layer?.cornerRadius = 7
+        layer?.cornerRadius = 6
         layer?.cornerCurve = .continuous
 
         let label = NSTextField(labelWithString: title)
@@ -581,14 +488,14 @@ private final class ShortcutRowView: NSView {
         addSubview(keys)
 
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: keys.leadingAnchor, constant: -10),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: keys.leadingAnchor, constant: -8),
 
-            keys.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            keys.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             keys.centerYAnchor.constraint(equalTo: centerYAnchor),
 
-            heightAnchor.constraint(equalToConstant: 33),
+            heightAnchor.constraint(equalToConstant: 32),
         ])
     }
 
@@ -618,20 +525,17 @@ private final class ShortcutRowView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         if hover {
             let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let fill = dark ? NSColor.white.withAlphaComponent(0.08) : NSColor.black.withAlphaComponent(0.05)
+            let fill = dark ? NSColor.white.withAlphaComponent(0.06) : NSColor.black.withAlphaComponent(0.04)
             fill.setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 7, yRadius: 7).fill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 6, yRadius: 6).fill()
         }
         super.draw(dirtyRect)
     }
 }
 
 private final class HairlineView: NSView {
-    private let inset: CGFloat
-
-    init(inset: CGFloat = 0) {
-        self.inset = inset
-        super.init(frame: .zero)
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
         heightAnchor.constraint(equalToConstant: 1).isActive = true
     }
@@ -639,43 +543,36 @@ private final class HairlineView: NSView {
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        let line = NSRect(x: inset, y: 0, width: max(0, bounds.width - (inset * 2)), height: 1)
-        NSColor.separatorColor.withAlphaComponent(0.35).setFill()
+        let line = NSRect(x: 12, y: 0, width: max(0, bounds.width - 24), height: 1)
+        NSColor.separatorColor.withAlphaComponent(0.7).setFill()
         line.fill()
     }
 }
 
 private final class KeyCapView: NSView {
-    private let isShortGlyph: Bool
-
     init(symbol: String) {
-        let isSingleOrSymbol = symbol.count <= 2 || ["esc", "tab", "del"].contains(symbol.lowercased())
-        self.isShortGlyph = isSingleOrSymbol && !symbol.contains(" ")
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
         layer?.cornerRadius = 5
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
-        layer?.masksToBounds = false
+        layer?.masksToBounds = true
 
-        let font = Self.capFont(isShort: isShortGlyph)
+        let font = Self.capFont
         let label = NSTextField(labelWithString: symbol)
         label.translatesAutoresizingMaskIntoConstraints = false
         label.font = font
         label.alignment = .center
         label.textColor = .labelColor
         label.isSelectable = false
+        label.isEditable = false
+        label.isBordered = false
+        label.drawsBackground = false
         addSubview(label)
 
         let textSize = (symbol as NSString).size(withAttributes: [.font: font])
-        let width: CGFloat
-        if symbol.count == 1 {
-            width = 24
-        } else {
-            width = max(24, ceil(textSize.width) + 10)
-        }
-
+        let width = max(22, ceil(textSize.width) + 10)
         setContentHuggingPriority(.required, for: .horizontal)
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -696,25 +593,19 @@ private final class KeyCapView: NSView {
     override func updateLayer() {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         if dark {
-            layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.12).cgColor
-            layer?.borderColor = NSColor(white: 1.0, alpha: 0.18).cgColor
-            layer?.shadowOpacity = 0
+            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.10).cgColor
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
         } else {
             layer?.backgroundColor = NSColor.white.cgColor
-            layer?.borderColor = NSColor(white: 0.0, alpha: 0.14).cgColor
-            layer?.shadowColor = NSColor.black.cgColor
-            layer?.shadowOpacity = 0.08
-            layer?.shadowOffset = CGSize(width: 0, height: -1)
-            layer?.shadowRadius = 0.6
+            layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
+            layer?.shadowOpacity = 0
         }
     }
 
-    private static func capFont(isShort: Bool) -> NSFont {
-        let size: CGFloat = isShort ? 11.5 : 11
-        let weight: NSFont.Weight = isShort ? .semibold : .medium
-        let base = NSFont.systemFont(ofSize: size, weight: weight)
+    private static var capFont: NSFont {
+        let base = NSFont.systemFont(ofSize: 11, weight: .semibold)
         if let rounded = base.fontDescriptor.withDesign(.rounded) {
-            return NSFont(descriptor: rounded, size: size) ?? base
+            return NSFont(descriptor: rounded, size: 11) ?? base
         }
         return base
     }
