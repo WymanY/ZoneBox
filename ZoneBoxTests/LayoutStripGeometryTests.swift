@@ -49,5 +49,80 @@ final class LayoutStripGeometryTests: XCTestCase {
         )
         XCTAssertEqual(geometry.cards.count, 6)
         XCTAssertNotNil(geometry.overflowFrameAppKit)
+        XCTAssertNil(geometry.leadingOverflowFrameAppKit)
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["L0", "L1", "L2", "L3", "L4", "L5"])
+    }
+
+    func testVisibleWindowFollowsFocusedLayoutPastTheFirstPage() {
+        XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 0), 0..<6)
+        XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 5), 0..<6)
+        XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 6), 1..<7)
+        XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 7), 2..<8)
+        XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 3, focusedIndex: 2), 0..<3)
+        XCTAssertEqual(
+            LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 1, previousStart: 2),
+            1..<7
+        )
+        XCTAssertEqual(
+            LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 6, previousStart: 1),
+            1..<7
+        )
+
+        let layouts = (0..<8).map { index -> (Layout, [ResolvedZone]) in
+            let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])
+            return (layout, [ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100))])
+        }
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            focusedLayoutID: layouts[7].0.id
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["L2", "L3", "L4", "L5", "L6", "L7"])
+        XCTAssertEqual(geometry.cards.last?.layoutID, layouts[7].0.id)
+        XCTAssertNotNil(geometry.leadingOverflowFrameAppKit)
+        XCTAssertNil(geometry.overflowFrameAppKit)
+
+        let backward = LayoutStripGeometry.make(
+            workAreaAppKit: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            focusedLayoutID: layouts[1].0.id,
+            previousStartLayoutID: layouts[2].0.id
+        )
+        XCTAssertEqual(backward.cards.map(\.layoutName), ["L1", "L2", "L3", "L4", "L5", "L6"])
+    }
+
+    func testOverflowChipsStayReservedWhilePaging() {
+        let layouts = (0..<8).map { index -> (Layout, [ResolvedZone]) in
+            let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])
+            return (layout, [ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100))])
+        }
+        let first = LayoutStripGeometry.make(
+            workAreaAppKit: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            focusedLayoutID: layouts[0].0.id
+        )
+        let last = LayoutStripGeometry.make(
+            workAreaAppKit: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            focusedLayoutID: layouts[7].0.id
+        )
+        XCTAssertEqual(first.frameAppKit, last.frameAppKit)
+        XCTAssertNil(first.leadingOverflowFrameAppKit)
+        XCTAssertNotNil(first.overflowFrameAppKit)
+        XCTAssertNotNil(last.leadingOverflowFrameAppKit)
+        XCTAssertNil(last.overflowFrameAppKit)
+        XCTAssertEqual(
+            LayoutStripGeometry.neighborLayoutID(of: layouts[5].0.id, in: layouts.map(\.0.id), delta: 1),
+            layouts[6].0.id
+        )
+        XCTAssertNil(LayoutStripGeometry.neighborLayoutID(of: layouts[7].0.id, in: layouts.map(\.0.id), delta: 1))
     }
 }
