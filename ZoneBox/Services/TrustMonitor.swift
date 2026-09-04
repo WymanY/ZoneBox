@@ -80,17 +80,34 @@ final class TrustMonitor {
     }
 
     func relaunchApp() {
+        relaunchApp(arguments: [])
+    }
+
+    func relaunchApp(arguments: [String]) {
         let path = Bundle.main.bundlePath
         let escaped = path.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.7; /usr/bin/open -n \"\(escaped)\""]
+        task.arguments = ["-c", Self.relaunchCommand(escapedPath: escaped, arguments: arguments)]
         do {
             try task.run()
         } catch {
             Log.trust.error("Relaunch spawn failed: \(error.localizedDescription, privacy: .public)")
         }
         NSApp.terminate(nil)
+    }
+
+    private static func relaunchCommand(escapedPath: String, arguments: [String]) -> String {
+        guard !arguments.isEmpty else {
+            return "sleep 0.7; /usr/bin/open -n \"\(escapedPath)\""
+        }
+        let escapedArgs = arguments.map { argument in
+            argument
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+        }
+        let joined = escapedArgs.map { "\"\($0)\"" }.joined(separator: " ")
+        return "sleep 0.7; /usr/bin/open -n \"\(escapedPath)\" --args \(joined)"
     }
 }

@@ -215,6 +215,15 @@ final class L10nTests: XCTestCase {
         }
     }
 
+    func testWelcomeTourCopy() {
+        XCTAssertEqual(L10n.text(.welcomeIntroTitle, language: .english), "Welcome to ZoneBox")
+        XCTAssertEqual(L10n.text(.welcomeIntroTitle, language: .chineseSimplified), "欢迎使用 ZoneBox")
+        XCTAssertEqual(L10n.text(.menuWelcomeTour, language: .english), "Welcome Tour…")
+        XCTAssertEqual(L10n.text(.menuWelcomeTour, language: .chineseSimplified), "欢迎引导…")
+        XCTAssertEqual(L10n.welcomeStepOf(2, 6, language: .english), "Step 2 of 6")
+        XCTAssertEqual(L10n.welcomeStepOf(2, 6, language: .chineseSimplified), "第 2 步，共 6 步")
+    }
+
     func testOnboardingCopyDoesNotMentionXcode() {
         XCTAssertEqual(
             L10n.text(.onboardingStep2Title, language: .english),

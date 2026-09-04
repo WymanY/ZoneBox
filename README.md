@@ -28,12 +28,13 @@ make test
 
 ## Use it
 
-1. Open `ZoneBox.xcodeproj` and Run the **ZoneBox** scheme. The app is signed with a stable Apple Development identity, so the Accessibility grant survives rebuilds — grant it once and ordinary Xcode Run/debug works for snapping too.
-2. If snapping is unavailable, ZoneBox shows a **step-by-step Accessibility guide** (orange warning icon in the menu bar). Click **Open Accessibility Settings**, turn on the **ZoneBox** switch that matches the path in the guide, then return. If the switch is on but snapping still fails, use **Quit & Relaunch**.
+1. Open `ZoneBox.xcodeproj` and Run the **ZoneBox** scheme. The first launch opens a **Welcome Tour** that explains where ZoneBox lives, lets you pick a starting layout, and walks through Accessibility if it is not granted yet. The app is signed with a stable Apple Development identity, so the Accessibility grant survives rebuilds.
+2. If you skip the tour or later revoke Accessibility, ZoneBox shows a **step-by-step Accessibility guide** (orange warning icon in the menu bar). Click **Open Accessibility Settings**, turn on the **ZoneBox** switch, then return. If the switch is on but snapping still fails, use **Quit & Relaunch**. Reopen the tour anytime from the menu-bar menu (**Welcome Tour…**) or **Settings → General**.
 3. Menu extra (`rectangle.split.3x1`, near the clock):
    - **Preview Zones** — flash the current layout
    - **Open Layout Editor** — pick Columns/Rows/2×2 or draw zones, then Save
    - **Layouts** — switch the layout for the display under the mouse
+   - **Welcome Tour…** — replay the first-launch walkthrough
    - **Settings…** — Shift-drag, gutter, hotkeys notes
 4. Snap a window: drag it by the title bar, hold **Shift** (or right-click while dragging), drop on a numbered zone. Dragging inside the window content does not show the zone overlay. While the overlay is visible, press **1…9** to snap to that zone.
 5. After two or more neighboring grid zones each contain one snapped window, a divider handle appears in the seam. Drag it to resize those windows together; the new ratio is saved to the current layout.

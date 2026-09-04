@@ -79,6 +79,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         console?.close()
     }
 
+    func pulseStatusItem() {
+        guard let button = statusItem?.button else { return }
+        button.alphaValue = 1
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            button.animator().alphaValue = 0.2
+        }, completionHandler: {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                button.animator().alphaValue = 1
+            }, completionHandler: {
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.2
+                    button.animator().alphaValue = 0.2
+                }, completionHandler: {
+                    NSAnimationContext.runAnimationGroup({ context in
+                        context.duration = 0.2
+                        button.animator().alphaValue = 1
+                    }, completionHandler: {
+                        NSAnimationContext.runAnimationGroup({ context in
+                            context.duration = 0.2
+                            button.animator().alphaValue = 0.2
+                        }, completionHandler: {
+                            NSAnimationContext.runAnimationGroup { context in
+                                context.duration = 0.2
+                                button.animator().alphaValue = 1
+                            }
+                        })
+                    })
+                })
+            })
+        })
+    }
+
     var isConsoleVisible: Bool { console?.isShown == true }
 
     func reloadMenu() {
@@ -183,6 +217,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         shortcuts.target = self
         appMenu.addItem(shortcuts)
 
+        let welcome = NSMenuItem(
+            title: L10n.text(.menuWelcomeTour),
+            action: #selector(openWelcomeTour(_:)),
+            keyEquivalent: ""
+        )
+        welcome.target = self
+        appMenu.addItem(welcome)
+
         appMenu.addItem(.separator())
 
         let quit = NSMenuItem(
@@ -281,6 +323,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         shortcuts.target = self
         menu.addItem(shortcuts)
+
+        let welcome = NSMenuItem(
+            title: L10n.text(.menuWelcomeTour),
+            action: #selector(openWelcomeTour(_:)),
+            keyEquivalent: ""
+        )
+        welcome.target = self
+        menu.addItem(welcome)
 
         menu.addItem(.separator())
 
@@ -428,6 +478,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc
     private func openShortcuts(_ sender: NSMenuItem) {
         runtime.openShortcutPanel()
+    }
+
+    @objc
+    private func openWelcomeTour(_ sender: NSMenuItem) {
+        runtime.openWelcomeTour()
     }
 
     @objc

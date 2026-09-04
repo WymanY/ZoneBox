@@ -277,6 +277,49 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case onboardingIveTurnedItOn
     case onboardingStepAccessibility
 
+    case welcomeWindowTitle
+    case welcomeSkip
+    case welcomeBack
+    case welcomeContinue
+    case welcomeSkipForNow
+    case welcomeDone
+    case welcomeStepOf
+    case welcomeIntroTitle
+    case welcomeIntroSubtitle
+    case welcomeIntroMenuBar
+    case welcomeIntroLocate
+    case welcomeLayoutsTitle
+    case welcomeLayoutsBody
+    case welcomeLayoutsPerDisplay
+    case welcomeLayoutsCurrent
+    case welcomeAccessTitle
+    case welcomeSnapTitle
+    case welcomeSnapBody
+    case welcomeSnapShiftDrag
+    case welcomeSnapRightClick
+    case welcomeSnapKeyboard
+    case welcomeSnapWhileArmed
+    case welcomeSnapShake
+    case welcomeSnapShowZones
+    case welcomeSnapNeedsAccess
+    case welcomeSnapGoToAccess
+    case welcomeSnapWaiting
+    case welcomeSnapDone
+    case welcomeMoreTitle
+    case welcomeMoreEditor
+    case welcomeMoreDivider
+    case welcomeMoreWorkspaces
+    case welcomeMoreQuickAndPin
+    case welcomeMoreOpenEditor
+    case welcomeFinishTitle
+    case welcomeFinishBody
+    case welcomeFinishReopen
+    case welcomeFinishOpenSettings
+    case menuWelcomeTour
+    case settingsWelcomeTour
+    case settingsWelcomeTourDetail
+    case settingsShowWelcomeTour
+
     case editorColumns2
     case editorColumns3
     case editorRows2
@@ -412,6 +455,34 @@ public enum L10n {
 
     public static func stepAccessibility(_ number: Int, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.onboardingStepAccessibility, language: language), locale: language.locale, number)
+    }
+
+    public static func welcomeStepOf(_ current: Int, _ total: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeStepOf, language: language), locale: language.locale, current, total)
+    }
+
+    public static func welcomeLayoutsCurrent(_ name: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeLayoutsCurrent, language: language), locale: language.locale, name)
+    }
+
+    public static func welcomeSnapKeyboard(_ shortcut: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeSnapKeyboard, language: language), locale: language.locale, shortcut)
+    }
+
+    public static func welcomeSnapDone(_ shortcut: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeSnapDone, language: language), locale: language.locale, shortcut)
+    }
+
+    public static func welcomeMoreEditor(_ shortcut: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeMoreEditor, language: language), locale: language.locale, shortcut)
+    }
+
+    public static func welcomeMoreWorkspaces(_ shortcut: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeMoreWorkspaces, language: language), locale: language.locale, shortcut)
+    }
+
+    public static func welcomeMoreQuickAndPin(_ shortcut: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.welcomeMoreQuickAndPin, language: language), locale: language.locale, shortcut)
     }
 
     public static func organizeNeedsSpace(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
@@ -725,6 +796,49 @@ public enum L10n {
         .onboardingOpenSettingsAgainShort: "Open Settings again",
         .onboardingIveTurnedItOn: "I've turned it on",
         .onboardingStepAccessibility: "Step %d",
+
+        .welcomeWindowTitle: "Welcome to ZoneBox",
+        .welcomeSkip: "Skip Tour",
+        .welcomeBack: "Back",
+        .welcomeContinue: "Continue",
+        .welcomeSkipForNow: "Skip for Now",
+        .welcomeDone: "Done",
+        .welcomeStepOf: "Step %d of %d",
+        .welcomeIntroTitle: "Welcome to ZoneBox",
+        .welcomeIntroSubtitle: "Draw zones on your screen, then snap windows into them with a drag or a keystroke.",
+        .welcomeIntroMenuBar: "ZoneBox lives in the menu bar, next to the clock. There is no Dock icon. Left-click the icon for the panel, right-click for the menu.",
+        .welcomeIntroLocate: "Show Me",
+        .welcomeLayoutsTitle: "Zones are where windows land",
+        .welcomeLayoutsBody: "A layout is a set of numbered zones for one display. Pick a starting layout. You can change it or draw your own later.",
+        .welcomeLayoutsPerDisplay: "Each display keeps its own layout.",
+        .welcomeLayoutsCurrent: "Current: %@",
+        .welcomeAccessTitle: "Allow ZoneBox to move windows",
+        .welcomeSnapTitle: "Snap your first window",
+        .welcomeSnapBody: "Pick any of these and try placing a window in a zone.",
+        .welcomeSnapShiftDrag: "Drag a window by its title bar, hold Shift, and drop it on a zone.",
+        .welcomeSnapRightClick: "Right-click once while dragging to show the zones.",
+        .welcomeSnapKeyboard: "Click another window first, then press %@.",
+        .welcomeSnapWhileArmed: "While zones are showing, press 1–9 to pick one.",
+        .welcomeSnapShake: "Shaking the title bar while dragging also shows the zones.",
+        .welcomeSnapShowZones: "Show Zones on This Display",
+        .welcomeSnapNeedsAccess: "Snapping is paused until Accessibility is on.",
+        .welcomeSnapGoToAccess: "Turn It On",
+        .welcomeSnapWaiting: "Waiting for your first snap…",
+        .welcomeSnapDone: "Snapped! Press %@ to put the window back.",
+        .welcomeMoreTitle: "Beyond snapping",
+        .welcomeMoreEditor: "Layout Editor: columns, rows, 2×2, or draw zones freely. Open with %@.",
+        .welcomeMoreDivider: "Divider handles: snap two neighbors, then drag the seam between them to resize both and save the ratio.",
+        .welcomeMoreWorkspaces: "Workspaces: remember which app lives in which zone, then bring them all back with %@.",
+        .welcomeMoreQuickAndPin: "%@ shows zone numbers for the focused window. Hover a title bar to pin a window on top.",
+        .welcomeMoreOpenEditor: "Open Layout Editor",
+        .welcomeFinishTitle: "You're all set",
+        .welcomeFinishBody: "These are the shortcuts you'll use most. Change any of them in Settings → Keyboard.",
+        .welcomeFinishReopen: "To see this tour again: right-click the menu bar icon → Welcome Tour.",
+        .welcomeFinishOpenSettings: "Open Settings",
+        .menuWelcomeTour: "Welcome Tour…",
+        .settingsWelcomeTour: "Welcome tour",
+        .settingsWelcomeTourDetail: "Replay the first-launch walkthrough.",
+        .settingsShowWelcomeTour: "Show Tour",
 
         .editorColumns2: "Columns 2",
         .editorColumns3: "Columns 3",
@@ -1054,6 +1168,49 @@ public enum L10n {
         .onboardingOpenSettingsAgainShort: "再次打开设置",
         .onboardingIveTurnedItOn: "我已打开开关",
         .onboardingStepAccessibility: "第 %d 步",
+
+        .welcomeWindowTitle: "欢迎使用 ZoneBox",
+        .welcomeSkip: "跳过引导",
+        .welcomeBack: "上一步",
+        .welcomeContinue: "继续",
+        .welcomeSkipForNow: "暂时跳过",
+        .welcomeDone: "完成",
+        .welcomeStepOf: "第 %d 步，共 %d 步",
+        .welcomeIntroTitle: "欢迎使用 ZoneBox",
+        .welcomeIntroSubtitle: "在屏幕上划出分区，拖一下或按个快捷键，窗口就吸附进去。",
+        .welcomeIntroMenuBar: "ZoneBox 常驻菜单栏（时钟旁边），没有 Dock 图标。左键点图标打开面板，右键打开菜单。",
+        .welcomeIntroLocate: "指给我看",
+        .welcomeLayoutsTitle: "分区就是窗口的落点",
+        .welcomeLayoutsBody: "一套布局就是一个显示器上的一组带编号分区。先选一个起始布局，之后随时可以改，或者自己画。",
+        .welcomeLayoutsPerDisplay: "每个显示器各自记住一套布局。",
+        .welcomeLayoutsCurrent: "当前：%@",
+        .welcomeAccessTitle: "允许 ZoneBox 移动窗口",
+        .welcomeSnapTitle: "吸附第一个窗口",
+        .welcomeSnapBody: "三种方式任选一种，试试把任意窗口放进一个分区。",
+        .welcomeSnapShiftDrag: "按住标题栏拖动窗口，同时按住 Shift，放到分区上。",
+        .welcomeSnapRightClick: "拖动时按一下右键，也会显示分区。",
+        .welcomeSnapKeyboard: "先点一下别的窗口，再按 %@。",
+        .welcomeSnapWhileArmed: "分区显示时，按 1–9 直接落到对应编号。",
+        .welcomeSnapShake: "拖动时左右晃动标题栏也能呼出分区。",
+        .welcomeSnapShowZones: "在这个屏幕上显示分区",
+        .welcomeSnapNeedsAccess: "辅助功能未开启，吸附暂时不可用。",
+        .welcomeSnapGoToAccess: "去开启",
+        .welcomeSnapWaiting: "等待你的第一次吸附…",
+        .welcomeSnapDone: "成功！按 %@ 可以把窗口放回原处。",
+        .welcomeMoreTitle: "吸附之外，还能做这些",
+        .welcomeMoreEditor: "布局编辑器：列、行、2×2，或自由画分区。%@ 打开。",
+        .welcomeMoreDivider: "分隔杆：相邻两个分区各放一个窗口后，拖动它们之间的缝，一次改两边比例并保存回布局。",
+        .welcomeMoreWorkspaces: "工作区方案：记住每个应用住在哪个分区，%@ 一键全部归位。",
+        .welcomeMoreQuickAndPin: "%@ 为当前窗口呼出分区编号；悬停标题栏出现置顶按钮，可把窗口固定在最前。",
+        .welcomeMoreOpenEditor: "打开布局编辑器",
+        .welcomeFinishTitle: "一切就绪",
+        .welcomeFinishBody: "以下是最常用的快捷键，都可以在设置 → 键盘里改。",
+        .welcomeFinishReopen: "想再看一遍：右键菜单栏图标 → 欢迎引导。",
+        .welcomeFinishOpenSettings: "打开设置",
+        .menuWelcomeTour: "欢迎引导…",
+        .settingsWelcomeTour: "欢迎引导",
+        .settingsWelcomeTourDetail: "重看首次启动的分步引导。",
+        .settingsShowWelcomeTour: "查看引导",
 
         .editorColumns2: "两列",
         .editorColumns3: "三列",

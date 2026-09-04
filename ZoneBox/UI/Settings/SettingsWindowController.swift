@@ -283,6 +283,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 badgeKey: .settingsBeta
             ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
+            makeSettingRow(
+                symbol: "questionmark.circle",
+                titleKey: .settingsWelcomeTour,
+                detailKey: .settingsWelcomeTourDetail,
+                trailing: localizedButton(.settingsShowWelcomeTour, action: #selector(showWelcomeTour))
+            ),
         ])
     }
 
@@ -1207,6 +1213,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         accessButton?.title = L10n.text(.settingsManageAccess)
     }
 
+    func refreshLoginSwitch() {
+        loginSwitch?.state = runtime.settings.launchAtLogin ? .on : .off
+    }
+
+    @objc private func showWelcomeTour() {
+        runtime.openWelcomeTour()
+    }
+
     func applyLanguage() {
         window?.title = L10n.text(.settingsTitle)
         for (label, key) in localizedLabels { label.stringValue = L10n.text(key) }
@@ -1226,6 +1240,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
+        refreshLoginSwitch()
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
         shakeIntensitySlider?.setAccessibilityLabel(L10n.text(.settingsShakeIntensityHint))
@@ -1443,15 +1458,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func toggleLogin(_ sender: NSSwitch) {
-        runtime.settings.launchAtLogin = sender.state == .on
-        runtime.persistSettings()
-        do {
-            if runtime.settings.launchAtLogin { try SMAppService.mainApp.register() }
-            else { try SMAppService.mainApp.unregister() }
-        } catch {
-            Log.app.error("Login item failed: \(error.localizedDescription, privacy: .public)")
-            if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
-        }
+        LoginItemController.set(enabled: sender.state == .on, runtime: runtime)
     }
 }
 
