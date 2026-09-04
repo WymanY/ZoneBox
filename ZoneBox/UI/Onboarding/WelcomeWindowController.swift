@@ -24,6 +24,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
     private var didLeaveSession = false
     private var isClosing = false
     private var didMarkCompleted = false
+    private var sessionHeld = false
     private var pages: [OnboardingPage: any WelcomePage] = [:]
     private var state: OnboardingFlowState
     private var screenObserver: NSObjectProtocol?
@@ -43,9 +44,12 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
         if window == nil {
             window = makeWindow()
         }
-        didLeaveSession = false
         isClosing = false
-        runtime.uiSession.enterRegular()
+        if didLeaveSession || !sessionHeld {
+            didLeaveSession = false
+            sessionHeld = true
+            runtime.uiSession.enterRegular()
+        }
         applyWindowLevel()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -54,10 +58,12 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
         Log.onboarding.info("Welcome tour shown page=\(self.state.page.rawValue, privacy: .public)")
     }
 
-    func close() {
+    func close(markCompleted: Bool = true) {
         guard !isClosing else { return }
         isClosing = true
-        markCompletedIfNeeded()
+        if markCompleted {
+            markCompletedIfNeeded()
+        }
         currentPageView?.willDisappear()
         currentPageView = nil
         removeScreenObserver()
@@ -168,8 +174,10 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
             created = WelcomeMorePage(runtime: runtime)
         case .finish:
             created = WelcomeFinishPage(runtime: runtime) { [weak self] in
-                self?.handle(.finish)
-                self?.runtime.openSettings()
+                guard let self else { return }
+                let runtime = self.runtime
+                self.handle(.finish)
+                runtime.openSettings()
             }
         }
         pages[page] = created
@@ -209,6 +217,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
     private func leaveSessionIfNeeded() {
         guard !didLeaveSession else { return }
         didLeaveSession = true
+        sessionHeld = false
         runtime.uiSession.leaveRegular()
     }
 

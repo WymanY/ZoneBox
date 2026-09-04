@@ -126,7 +126,7 @@ final class AppRuntime {
         previewHideWorkItem?.cancel()
         editor = nil
         shortcutPanel?.close()
-        welcome?.close()
+        welcome?.close(markCompleted: false)
         accessibilityGuide?.close()
         settingsWindow?.close()
         menuBar?.remove()
