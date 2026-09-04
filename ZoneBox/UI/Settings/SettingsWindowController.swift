@@ -72,6 +72,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         updatePreview()
     }
 
+    func showKeyboard() {
+        selectedCategory = .keyboard
+        showWindow()
+        categoryControl?.selectedSegment = SettingsCategory.keyboard.rawValue
+        for (candidate, page) in pageViews { page.isHidden = candidate != .keyboard }
+        updatePreview()
+    }
+
     private func applyPresentation() {
         guard let window else { return }
         applyPresentation(to: window)

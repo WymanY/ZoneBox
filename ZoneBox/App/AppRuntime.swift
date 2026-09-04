@@ -163,6 +163,16 @@ final class AppRuntime {
         settingsWindow?.showWorkspaces()
     }
 
+    func openKeyboardSettings() {
+        menuBar?.closeConsole()
+        if settingsWindow == nil {
+            settingsWindow = SettingsWindowController(runtime: self)
+            uiSession.enterRegular()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.showKeyboard()
+    }
+
     func settingsDidClose() {
         guard settingsWindow != nil else { return }
         settingsWindow = nil
