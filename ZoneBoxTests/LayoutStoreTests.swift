@@ -214,6 +214,38 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(document, before)
     }
 
+    func testSettingsProfileOrderStaysPutWhenActiveProfileChanges() {
+        let layout = LayoutTemplates.columns(2)
+        let displayID = UUID()
+        let older = Date(timeIntervalSince1970: 1)
+        let newer = Date(timeIntervalSince1970: 2)
+        func profile(name: String, createdAt: Date, updatedAt: Date) -> WorkspaceProfile {
+            WorkspaceProfile(
+                name: name,
+                sections: [
+                    ProfileSection(
+                        space: SpaceKey(displayID: displayID),
+                        layoutID: layout.id,
+                        rules: [AppPlacementRule(bundleID: "app.\(name)", zoneID: layout.zones[0].id, zoneNumber: 1)]
+                    )
+                ],
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+        let first = profile(name: "First", createdAt: older, updatedAt: older)
+        let second = profile(name: "Second", createdAt: newer, updatedAt: newer)
+        var document = StoreDocument(layouts: [layout], profiles: [first, second], activeProfileID: first.id)
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second"])
+
+        document.activeProfileID = second.id
+        var recaptured = second
+        recaptured.updatedAt = Date(timeIntervalSince1970: 99)
+        document.upsertProfile(recaptured)
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second"])
+        XCTAssertEqual(document.activeProfileID, second.id)
+    }
+
     func testDeleteLayoutCascadesProfileSectionsAndActiveProfile() {
         let first = LayoutTemplates.columns(2)
         let second = LayoutTemplates.rows(2)

@@ -189,6 +189,12 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         return ordered
     }
 
+    /// Settings list keeps stored insertion order. Apply, recapture, and
+    /// rename update activeProfileID / updatedAt without moving cards.
+    public func orderedProfilesForSettings() -> [WorkspaceProfile] {
+        profiles
+    }
+
     public mutating func markLayoutUsed(_ id: Layout.ID) {
         guard layouts.contains(where: { $0.id == id }) else { return }
         recentLayoutIDs.removeAll { $0 == id }
