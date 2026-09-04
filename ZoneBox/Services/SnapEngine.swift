@@ -22,6 +22,8 @@ final class SnapEngine {
     private var lastCursorDisplayID: DisplayIdentity.ID?
     private var lastStrip: LayoutStripGeometry?
     private var lastPresentation = OverlayPresentation.empty
+    private var stripWindowLayoutID: Layout.ID?
+    private var stripOverflowLatch: Int?
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
     private var layoutAssignmentGeneration = 0
@@ -67,6 +69,8 @@ final class SnapEngine {
             sessionLayoutID = nil
             lastCursorDisplayID = nil
             lastStrip = nil
+            stripWindowLayoutID = nil
+            stripOverflowLatch = nil
             layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
                 current: layoutAssignmentGeneration,
                 startingNewDrag: true
@@ -502,6 +506,8 @@ final class SnapEngine {
                 lockedTarget = nil
             case .selectLayout(let layoutID):
                 sessionLayoutID = layoutID
+                stripWindowLayoutID = layoutID
+                stripOverflowLatch = nil
             }
         }
         if hideOverlay {
@@ -553,6 +559,8 @@ final class SnapEngine {
         sessionLayoutID = nil
         lastCursorDisplayID = nil
         lastStrip = nil
+        stripWindowLayoutID = nil
+        stripOverflowLatch = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
     }
@@ -632,20 +640,46 @@ final class SnapEngine {
                 workAreaAppKit: area.visibleFrameAppKit,
                 layouts: layouts,
                 assignedLayoutID: assignedID,
-                workAreaAX: workAX
+                workAreaAX: workAX,
+                focusedLayoutID: stripWindowLayoutID ?? sessionLayoutID ?? assignedID
             )
-            if let strip, strip.contains(pointAppKit) {
+            if var visibleStrip = strip, visibleStrip.contains(pointAppKit) {
                 pointerInStrip = true
-                if let hit = strip.hitZone(at: pointAppKit),
-                   let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
-                   let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
-                    forcedTarget = .zone(zone)
-                    highlightedLayoutID = hit.layoutID
-                    highlightedZoneNumber = hit.zoneNumber
+                let overflowDelta = visibleStrip.hitOverflow(at: pointAppKit)
+                if let overflowDelta {
+                    let visibleIDs = visibleStrip.cards.map { $0.layoutID }
+                    let edgeID = overflowDelta > 0 ? visibleIDs.last : visibleIDs.first
+                    let neighborID = LayoutStripGeometry.neighborLayoutID(of: edgeID, in: layoutIDs, delta: overflowDelta)
+                    if let neighborID, stripOverflowLatch != overflowDelta {
+                        stripOverflowLatch = overflowDelta
+                        stripWindowLayoutID = neighborID
+                        visibleStrip = LayoutStripGeometry.make(
+                            workAreaAppKit: area.visibleFrameAppKit,
+                            layouts: layouts,
+                            assignedLayoutID: assignedID,
+                            workAreaAX: workAX,
+                            focusedLayoutID: neighborID
+                        )
+                    }
+                    if let revealed = overflowDelta > 0 ? visibleStrip.cards.last : visibleStrip.cards.first {
+                        highlightedLayoutID = revealed.layoutID
+                    }
                 } else {
-                    highlightedLayoutID = strip.hitCard(at: pointAppKit)
+                    stripOverflowLatch = nil
+                    if let hit = visibleStrip.hitZone(at: pointAppKit),
+                       let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
+                       let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
+                        forcedTarget = .zone(zone)
+                        highlightedLayoutID = hit.layoutID
+                        highlightedZoneNumber = hit.zoneNumber
+                    } else {
+                        highlightedLayoutID = visibleStrip.hitCard(at: pointAppKit)
+                    }
                 }
+                strip = visibleStrip
             }
+        } else {
+            stripOverflowLatch = nil
         }
 
         sessionLayoutID = SnapLayoutSession.sessionLayoutIDForPointer(
