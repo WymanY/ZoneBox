@@ -125,7 +125,7 @@ public enum QuickSnapperReducer {
                 )
             }
             let current = input.selectedLayoutID.flatMap { input.layoutIDs.firstIndex(of: $0) } ?? 0
-            let next = ZoneCandidateResolver.wrappingIndex(current: current, delta: delta, count: input.layoutIDs.count)
+            let next = SnapLayoutSession.wrappingIndex(current: current, delta: delta, count: input.layoutIDs.count)
             return QuickSnapperOutput(
                 phase: .showing(target: target),
                 effects: [.showOverlay],

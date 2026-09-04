@@ -525,10 +525,10 @@ public enum ShortcutCatalog {
                 binding: .gesture(.shortcutGestureOverlayDigit)
             ),
             ShortcutSpec(
-                id: "cycleCandidate",
+                id: "cycleLayout",
                 surface: .snap,
-                titleKey: .shortcutSnapCycleCandidate,
-                binding: .gesture(.shortcutGestureCycleCandidate)
+                titleKey: .shortcutSnapCycleLayout,
+                binding: .gesture(.shortcutGestureCycleLayout)
             ),
             ShortcutSpec(
                 id: "layoutStrip",

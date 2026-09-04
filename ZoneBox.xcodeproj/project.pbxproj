@@ -47,7 +47,6 @@
 		427B4801CC62A81E05E5FA4A /* LayoutEditTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C1B716187BE54A3ED0E847 /* LayoutEditTransactionTests.swift */; };
 		4314A6CA7011C119E05455E6 /* DividerPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E1179F5E0E9E644378B45AB /* DividerPlan.swift */; };
 		4340CD9A1CCE724BAEBCCE86 /* LanguageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */; };
-		4486D67D1C15BF0826156B7F /* ZoneCandidateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */; };
 		457858D9720581855722618D /* CanvasEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1EA11777D94206C972FF4E /* CanvasEditingTests.swift */; };
 		49F9AC68D4CAAFBF0E18ADFB /* SnapMouseEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */; };
 		49F9E503E8F1FFCFCCEB454A /* HotkeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */; };
@@ -70,7 +69,6 @@
 		74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */; };
 		76DE2B669838946FAD679A93 /* TrustMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8DD396BB015BFEE717CE2 /* TrustMonitor.swift */; };
 		775201FBBC324013DDD98061 /* FakeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */; };
-		7B2D001699C111D82410A278 /* ZoneCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */; };
 		7BC21BF4AF4EE4442B79AADC /* DisplayIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */; };
 		7D146F5B0C3E6D474F17D1DA /* GutterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE004EFD8BDD601307B109C /* GutterTests.swift */; };
 		7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC86D4F33A13C702790BA31 /* CGWindowQuery.swift */; };
@@ -236,7 +234,6 @@
 		9A2957655E620023F8101FFC /* WindowIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowIdentity.swift; sourceTree = "<group>"; };
 		9ACCDB3D7C46B37845495D75 /* ShortcutBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBinding.swift; sourceTree = "<group>"; };
 		9C17F30BC95D5A464046FA95 /* LayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutKind.swift; sourceTree = "<group>"; };
-		9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneCandidates.swift; sourceTree = "<group>"; };
 		A04638ED5862F7E46C3E052F /* QuickSnapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickSnapperTests.swift; sourceTree = "<group>"; };
 		A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneSplitTests.swift; sourceTree = "<group>"; };
 		A2F3783F6B2A2618E6285C4C /* LayoutStripGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStripGeometryTests.swift; sourceTree = "<group>"; };
@@ -256,7 +253,6 @@
 		B7FE0911F56CC8CD3AA4FDBA /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		B9EAE7A248496492835F307F /* GridCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridCoverage.swift; sourceTree = "<group>"; };
 		BA9D165C2B155D2E12A803AB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
-		BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneCandidateResolverTests.swift; sourceTree = "<group>"; };
 		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChrome.swift; sourceTree = "<group>"; };
@@ -378,7 +374,6 @@
 				ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */,
 				144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */,
 				DD96966B883ED6C884EED18A /* Zone.swift */,
-				9E195172AAC10C1AAD44D036 /* ZoneCandidates.swift */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -539,7 +534,6 @@
 				769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */,
 				059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */,
 				1D6AB5C2E2A6651D73D15795 /* WorkspaceApplyFeedbackTests.swift */,
-				BCA76D3119EF6A71AFAB5DE5 /* ZoneCandidateResolverTests.swift */,
 				10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */,
 				B4546B3FE9E7369528AC055E /* ZoneScrollZoomTests.swift */,
 				A246689C54BA85D2FE9BAA5E /* ZoneSplitTests.swift */,
@@ -820,7 +814,6 @@
 				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
 				58EA885B537AFB39EB3EFBE4 /* WorkspaceProfile.swift in Sources */,
 				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,
-				7B2D001699C111D82410A278 /* ZoneCandidates.swift in Sources */,
 				4AB77606F6D8AC3F650AC143 /* ZonePixelMetrics.swift in Sources */,
 				995766F02B819432FF9C392F /* ZoneScrollZoom.swift in Sources */,
 				BD2D0A8C43FC68AB98404BCF /* ZoneSplit.swift in Sources */,
@@ -861,7 +854,6 @@
 				68AAC6FA693112B8729E97B3 /* WindowMoveChromeTests.swift in Sources */,
 				0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */,
 				51F10BF1A00BFD058A23EF33 /* WorkspaceApplyFeedbackTests.swift in Sources */,
-				4486D67D1C15BF0826156B7F /* ZoneCandidateResolverTests.swift in Sources */,
 				000A7ABBCA4988EA1D84C8DF /* ZonePixelMetricsTests.swift in Sources */,
 				3761FFE0F6F96EA078AAF2C8 /* ZoneScrollZoomTests.swift in Sources */,
 				74E895C621737F62BEFDCDFA /* ZoneSplitTests.swift in Sources */,

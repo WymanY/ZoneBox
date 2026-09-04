@@ -231,7 +231,7 @@ final class HotkeyCenter {
            !flags.contains(.option)
         {
             if !event.isARepeat {
-                runtime.engine.handleCycleCandidate(flags.contains(.shift) ? -1 : 1)
+                runtime.engine.handleCycleLayout(flags.contains(.shift) ? -1 : 1)
             }
             return consume ? nil : event
         }

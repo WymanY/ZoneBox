@@ -25,8 +25,8 @@ public enum SnapSessionReducer {
             return reduceFlags(input)
         case .digit(let number):
             return reduceDigit(input, number: number)
-        case .cycleCandidate(let delta):
-            return reduceCycleCandidate(input, delta: delta)
+        case .cycleLayout(let delta):
+            return reduceCycleLayout(input, delta: delta)
         }
     }
 
@@ -231,9 +231,6 @@ public enum SnapSessionReducer {
            let gridTarget = gridTarget(input, currentAX: point) {
             return gridTarget
         }
-        if input.candidateIndex != 0, let candidate = selectedCandidate(input) {
-            return .zone(candidate.zone)
-        }
         if let gridTarget = gridTarget(input, currentAX: point) {
             return gridTarget
         }
@@ -341,50 +338,32 @@ public enum SnapSessionReducer {
         }
     }
 
-    private static func reduceCycleCandidate(_ input: SnapReducerInput, delta: Int) -> SnapReducerOutput {
+    private static func reduceCycleLayout(_ input: SnapReducerInput, delta: Int) -> SnapReducerOutput {
         switch input.phase {
         case .armed, .highlighting:
             break
         default:
             return SnapReducerOutput(phase: input.phase, effects: [])
         }
-        guard let window = currentWindow(input.phase), !input.candidates.isEmpty else {
+        guard let window = currentWindow(input.phase),
+              let nextID = SnapLayoutSession.nextLayoutID(
+                layoutIDs: input.layoutIDs,
+                currentSessionLayoutID: input.sessionLayoutID,
+                delta: delta
+              )
+        else {
             return SnapReducerOutput(phase: input.phase, effects: [])
         }
-        let nextIndex = ZoneCandidateResolver.wrappingIndex(
-            current: input.candidateIndex,
-            delta: delta,
-            count: input.candidates.count
-        )
-        let candidate = input.candidates[nextIndex]
-        let target = SnapTarget.zone(candidate.zone)
-        var effects: [SnapEffect] = [.selectCandidate(nextIndex), .clearLockedTarget]
+        var effects: [SnapEffect] = [.selectLayout(nextID), .clearLockedTarget]
         if let displayID = cursorDisplayID(input) {
             effects.append(.showOverlay(displayID: displayID))
         }
-        effects.append(.highlight(target))
-        return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
-    }
-
-    private static func selectedCandidate(_ input: SnapReducerInput) -> ZoneCandidate? {
-        guard input.candidates.indices.contains(input.candidateIndex) else { return nil }
-        return input.candidates[input.candidateIndex]
+        return SnapReducerOutput(phase: .armed(window), effects: effects)
     }
 
     private static func layoutID(for target: SnapTarget, input: SnapReducerInput) -> Layout.ID? {
-        if let forced = input.forcedTarget, forced == target {
-            return input.sessionLayoutID
-        }
-        if case .zone(let zone) = target {
-            if let candidate = input.candidates.first(where: { $0.zone.zoneID == zone.zoneID }) {
-                return candidate.layoutID
-            }
-            if input.resolvedZones.contains(where: { $0.zoneID == zone.zoneID }) {
-                return input.sessionLayoutID ?? input.assignedLayoutID
-            }
-        }
-        if case .span = target {
-            return input.sessionLayoutID ?? input.assignedLayoutID
+        if case .none = target {
+            return nil
         }
         return input.sessionLayoutID ?? input.assignedLayoutID
     }

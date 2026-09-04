@@ -233,7 +233,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutSnapGridDraw
     case shortcutSnapMagneticResize
     case shortcutSnapOverlayDigit
-    case shortcutSnapCycleCandidate
+    case shortcutSnapCycleLayout
     case shortcutSnapLayoutStrip
     case shortcutSettings
     case shortcutQuit
@@ -246,7 +246,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutGestureMagneticResize
     case shortcutGestureOverlayDigit
     case shortcutGestureDrag
-    case shortcutGestureCycleCandidate
+    case shortcutGestureCycleLayout
     case shortcutGestureLayoutStrip
     case shortcutGestureClickEmpty
     case shortcutGestureArrowKeys
@@ -682,7 +682,7 @@ public enum L10n {
         .shortcutSnapGridDraw: "Draw a rectangle across grid cells",
         .shortcutSnapMagneticResize: "Magnetic resize to zone edges",
         .shortcutSnapOverlayDigit: "Snap to a numbered zone while the overlay is showing",
-        .shortcutSnapCycleCandidate: "Cycle zones under the pointer while the overlay is showing",
+        .shortcutSnapCycleLayout: "Switch to the next layout while the overlay is showing",
         .shortcutSnapLayoutStrip: "Drop onto a candidate-layout thumbnail",
         .shortcutSettings: "Settings",
         .shortcutQuit: "Quit ZoneBox",
@@ -695,7 +695,7 @@ public enum L10n {
         .shortcutGestureMagneticResize: "Drag a window edge",
         .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "Drag",
-        .shortcutGestureCycleCandidate: "Scroll or ⇥",
+        .shortcutGestureCycleLayout: "Scroll or ⇥",
         .shortcutGestureLayoutStrip: "Drop on candidate list",
         .shortcutGestureClickEmpty: "Click empty space",
         .shortcutGestureArrowKeys: "← → ↑ ↓",
@@ -1011,7 +1011,7 @@ public enum L10n {
         .shortcutSnapGridDraw: "在网格上画矩形吸附",
         .shortcutSnapMagneticResize: "缩放时磁性对齐分区边缘",
         .shortcutSnapOverlayDigit: "覆盖层显示时按分区编号吸附",
-        .shortcutSnapCycleCandidate: "覆盖层显示时轮换光标处的分区",
+        .shortcutSnapCycleLayout: "覆盖层显示时切换到相邻布局",
         .shortcutSnapLayoutStrip: "拖到候选布局缩略图上松手",
         .shortcutSettings: "设置",
         .shortcutQuit: "退出 ZoneBox",
@@ -1024,7 +1024,7 @@ public enum L10n {
         .shortcutGestureMagneticResize: "拖动窗口边缘",
         .shortcutGestureOverlayDigit: "1–9",
         .shortcutGestureDrag: "拖动",
-        .shortcutGestureCycleCandidate: "滚轮或 ⇥",
+        .shortcutGestureCycleLayout: "滚轮或 ⇥",
         .shortcutGestureLayoutStrip: "拖到候选布局列表",
         .shortcutGestureClickEmpty: "点击空白处",
         .shortcutGestureArrowKeys: "← → ↑ ↓",

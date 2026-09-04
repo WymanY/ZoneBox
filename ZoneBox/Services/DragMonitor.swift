@@ -169,10 +169,10 @@ final class DragMonitor {
         scrollAccumulator += event.scrollingDeltaY
         let threshold: CGFloat = 10
         if scrollAccumulator >= threshold {
-            runtime.engine.handleCycleCandidate(-1)
+            runtime.engine.handleCycleLayout(-1)
             scrollAccumulator = 0
         } else if scrollAccumulator <= -threshold {
-            runtime.engine.handleCycleCandidate(1)
+            runtime.engine.handleCycleLayout(1)
             scrollAccumulator = 0
         }
     }

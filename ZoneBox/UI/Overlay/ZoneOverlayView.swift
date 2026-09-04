@@ -55,48 +55,8 @@ final class ZoneOverlayView: NSView {
             path.lineWidth = 4
             path.stroke()
         }
-        drawCandidateOutlines()
-        drawCandidateLabel()
         drawStrip()
         drawLayoutName()
-    }
-
-    private func drawCandidateOutlines() {
-        for frameAX in presentation.candidateOutlinesAX {
-            let rect = CoordinateConverter.appKitRect(fromAX: frameAX, primaryFlipHeight: primaryFlipHeight)
-            let local = convertFromScreen(rect).insetBy(dx: 3, dy: 3)
-            guard local.width > 4, local.height > 4 else { continue }
-            let path = NSBezierPath(roundedRect: local, xRadius: 10, yRadius: 10)
-            NSColor.white.withAlphaComponent(0.85).setStroke()
-            path.lineWidth = 1.5
-            path.setLineDash([4, 3], count: 2, phase: 0)
-            path.stroke()
-        }
-    }
-
-    private func drawCandidateLabel() {
-        guard let label = presentation.candidateLabel else { return }
-        let rect = CoordinateConverter.appKitRect(fromAX: label.anchorAX, primaryFlipHeight: primaryFlipHeight)
-        let local = convertFromScreen(rect)
-        let text = label.text as NSString
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: NSColor.white,
-        ]
-        let size = text.size(withAttributes: attrs)
-        let pad = NSSize(width: 8, height: 5)
-        let bubble = CGRect(
-            x: local.minX + 10,
-            y: local.maxY - size.height - pad.height * 2 - 10,
-            width: size.width + pad.width * 2,
-            height: size.height + pad.height * 2
-        )
-        NSColor.black.withAlphaComponent(0.72).setFill()
-        NSBezierPath(roundedRect: bubble, xRadius: 6, yRadius: 6).fill()
-        text.draw(
-            at: NSPoint(x: bubble.minX + pad.width, y: bubble.minY + pad.height),
-            withAttributes: attrs
-        )
     }
 
     private func drawStrip() {
