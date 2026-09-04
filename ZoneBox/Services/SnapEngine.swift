@@ -77,7 +77,11 @@ final class SnapEngine {
                 pointerTrace.removeFirst(pointerTrace.count - 64)
             }
         }
-        let session = sessionContext(at: event.locationAppKit, area: cursorArea)
+        let session = sessionContext(
+            at: event.locationAppKit,
+            area: cursorArea,
+            committingStripSelection: event.kind == .leftUp
+        )
         lastZones = session.zones
         lastStrip = session.strip
         lastPresentation = session.presentation
@@ -508,7 +512,11 @@ final class SnapEngine {
             runtime.overlay.settings = runtime.settings
             runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
             let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID })
-            let session = sessionContext(at: NSEvent.mouseLocation, area: area)
+            let session = sessionContext(
+                at: NSEvent.mouseLocation,
+                area: area,
+                committingStripSelection: false
+            )
             lastZones = session.zones.isEmpty ? lastZones : session.zones
             lastStrip = session.strip
             lastPresentation = session.presentation
@@ -585,7 +593,11 @@ final class SnapEngine {
         var presentation: OverlayPresentation
     }
 
-    private func sessionContext(at pointAppKit: CGPoint, area: WorkArea?) -> SessionContext {
+    private func sessionContext(
+        at pointAppKit: CGPoint,
+        area: WorkArea?,
+        committingStripSelection: Bool = false
+    ) -> SessionContext {
         let assignedID = area.flatMap { runtime.document.layout(for: $0.display.id)?.id }
         let session = SnapLayoutSession.sessionLayoutID(
             previousDisplayID: lastCursorDisplayID,
@@ -628,7 +640,6 @@ final class SnapEngine {
                     forcedTarget = .zone(zone)
                     highlightedLayoutID = hit.layoutID
                     highlightedZoneNumber = hit.zoneNumber
-                    sessionLayoutID = hit.layoutID
                 } else {
                     highlightedLayoutID = strip.hitCard(at: pointAppKit)
                 }
@@ -636,10 +647,11 @@ final class SnapEngine {
         }
 
         sessionLayoutID = SnapLayoutSession.sessionLayoutIDForPointer(
-            forcedLayoutID: forcedTarget == nil ? nil : sessionLayoutID,
+            forcedLayoutID: forcedTarget == nil ? nil : highlightedLayoutID,
             currentSessionLayoutID: sessionLayoutID,
             assignedLayoutID: assignedID,
-            lockedTarget: lockedTarget
+            lockedTarget: lockedTarget,
+            preferForcedLayout: committingStripSelection
         )
 
         let layoutID = sessionLayoutID ?? assignedID

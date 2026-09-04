@@ -437,6 +437,24 @@ final class SnapEngineTests: XCTestCase {
         )
         XCTAssertEqual(
             SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: assigned,
+                currentSessionLayoutID: third,
+                assignedLayoutID: assigned,
+                preferForcedLayout: false
+            ),
+            third
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: assigned,
+                currentSessionLayoutID: third,
+                assignedLayoutID: assigned,
+                preferForcedLayout: true
+            ),
+            assigned
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.sessionLayoutIDForPointer(
                 forcedLayoutID: nil,
                 currentSessionLayoutID: third,
                 assignedLayoutID: assigned

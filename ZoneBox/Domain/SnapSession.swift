@@ -233,13 +233,15 @@ public enum SnapLayoutSession {
     }
 
     /// Trigger-zone hits under the pointer must not change the selected layout.
-    /// Only a strip target, an explicit cycle, or a missing session layout may.
+    /// An explicit Tab/scroll selection stays selected even while the pointer
+    /// remains over a strip mini-zone; dropping still uses the strip target.
     public static func sessionLayoutIDForPointer(
         forcedLayoutID: Layout.ID?,
         currentSessionLayoutID: Layout.ID?,
-        assignedLayoutID: Layout.ID?
+        assignedLayoutID: Layout.ID?,
+        preferForcedLayout: Bool = true
     ) -> Layout.ID? {
-        if let forcedLayoutID { return forcedLayoutID }
+        if preferForcedLayout, let forcedLayoutID { return forcedLayoutID }
         return currentSessionLayoutID ?? assignedLayoutID
     }
 
@@ -247,13 +249,15 @@ public enum SnapLayoutSession {
         forcedLayoutID: Layout.ID?,
         currentSessionLayoutID: Layout.ID?,
         assignedLayoutID: Layout.ID?,
-        lockedTarget: SnapTarget?
+        lockedTarget: SnapTarget?,
+        preferForcedLayout: Bool = true
     ) -> Layout.ID? {
         if lockedTarget != nil { return currentSessionLayoutID }
         return sessionLayoutIDForPointer(
             forcedLayoutID: forcedLayoutID,
             currentSessionLayoutID: currentSessionLayoutID,
-            assignedLayoutID: assignedLayoutID
+            assignedLayoutID: assignedLayoutID,
+            preferForcedLayout: preferForcedLayout
         )
     }
 }
