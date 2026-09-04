@@ -15,4 +15,5 @@ public enum Log {
     public static let pin = Logger(subsystem: subsystem, category: "pin")
     public static let divider = Logger(subsystem: subsystem, category: "divider")
     public static let workspace = Logger(subsystem: subsystem, category: "workspace")
+    public static let onboarding = Logger(subsystem: subsystem, category: "onboarding")
 }

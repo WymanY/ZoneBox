@@ -62,6 +62,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(legacy.previewLayoutOnSelect)
     }
 
+    func testOnboardingCompletedVersionDefaultsToZeroAndRoundTrips() throws {
+        XCTAssertEqual(AppSettings.default.onboardingCompletedVersion, 0)
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertEqual(legacy.onboardingCompletedVersion, 0)
+
+        var settings = AppSettings.default
+        settings.onboardingCompletedVersion = 1
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: data).onboardingCompletedVersion, 1)
+    }
+
     func testWorkspaceHotkeyRoundTripsAndLegacyDefaultsToControlOptionP() throws {
         var settings = AppSettings.default
         settings.applyWorkspaceHotkey = KeyChord(

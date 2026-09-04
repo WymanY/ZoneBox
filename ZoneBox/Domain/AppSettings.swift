@@ -48,6 +48,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var organizeHotkey: KeyChord
     public var applyWorkspaceHotkey: KeyChord
     public var settingsHotkey: KeyChord
+    public var onboardingCompletedVersion: Int
 
     public static let controlOption: UInt32 = CarbonModifier.controlOption
 
@@ -101,7 +102,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         unsnapHotkey: KeyChord(keyCode: 32, carbonModifiers: controlOption),
         organizeHotkey: KeyChord(keyCode: HardwareKeyCode.o, carbonModifiers: controlOption),
         applyWorkspaceHotkey: KeyChord(keyCode: HardwareKeyCode.p, carbonModifiers: controlOption),
-        settingsHotkey: KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command)
+        settingsHotkey: KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command),
+        onboardingCompletedVersion: 0
     )
 
     public static let zoneKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
@@ -156,6 +158,8 @@ extension AppSettings {
         applyWorkspaceHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .applyWorkspaceHotkey)
             ?? defaults.applyWorkspaceHotkey
         settingsHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .settingsHotkey) ?? defaults.settingsHotkey
+        onboardingCompletedVersion = try c.decodeIfPresent(Int.self, forKey: .onboardingCompletedVersion)
+            ?? defaults.onboardingCompletedVersion
     }
 
     static func includingOwnIdentities(_ bundleIDs: [String]) -> [String] {

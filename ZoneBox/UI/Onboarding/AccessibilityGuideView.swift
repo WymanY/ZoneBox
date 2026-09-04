@@ -1,7 +1,7 @@
 import AppKit
 import ZoneBoxCore
 
-final class OnboardingView: NSView {
+final class AccessibilityGuideView: NSView {
     enum Phase {
         case needsPermission
         case waiting
@@ -13,6 +13,7 @@ final class OnboardingView: NSView {
     var onConfirmEnabled: (() -> Void)?
     var onRelaunch: (() -> Void)?
     var onContinue: (() -> Void)?
+    let showsHeader: Bool
 
     private let statusLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
@@ -31,8 +32,9 @@ final class OnboardingView: NSView {
     private var step3Detail: NSTextField?
     private var mockHeaderLabel: NSTextField?
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
+    init(showsHeader: Bool = true) {
+        self.showsHeader = showsHeader
+        super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
         build()
@@ -42,6 +44,7 @@ final class OnboardingView: NSView {
     required init?(coder: NSCoder) { nil }
 
     func applyLanguage() {
+        titleLabel?.isHidden = !showsHeader
         titleLabel?.stringValue = L10n.text(.onboardingTitle)
         subtitleLabel?.stringValue = L10n.text(.onboardingSubtitle)
         step1Title?.stringValue = L10n.text(.onboardingStep1Title)
@@ -119,8 +122,14 @@ final class OnboardingView: NSView {
         subtitleLabel = subtitle
 
         let guide = mockList()
-        let stack = NSStackView(views: [
-            icon, title, subtitle,
+        var views: [NSView] = []
+        icon.isHidden = !showsHeader
+        title.isHidden = !showsHeader
+        if showsHeader {
+            views.append(contentsOf: [icon, title])
+        }
+        views.append(contentsOf: [
+            subtitle,
             makeStep(1, titleKey: .onboardingStep1Title, detailKey: .onboardingStep1Detail),
             makeStep(2, titleKey: .onboardingStep2Title, detailKey: .onboardingStep2Detail),
             makeStep(3, titleKey: .onboardingStep3Title, detailKey: .onboardingStep3Detail),
@@ -128,6 +137,7 @@ final class OnboardingView: NSView {
             statusRow(),
             buttonRow(),
         ])
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12

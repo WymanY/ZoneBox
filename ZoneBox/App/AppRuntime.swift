@@ -32,7 +32,8 @@ final class AppRuntime {
     private let settingsStore = SettingsStore()
     var menuBar: MenuBarController?
     private var settingsWindow: SettingsWindowController?
-    private var onboarding: OnboardingWindowController?
+    var welcome: WelcomeWindowController?
+    private var accessibilityGuide: AccessibilityGuideWindowController?
     private var editor: LayoutEditorController?
     private var shortcutPanel: ShortcutPanelController?
     private var quickSnapperUIActive = false
@@ -52,7 +53,7 @@ final class AppRuntime {
         )
     }
 
-    func start() {
+    func start(resume: OnboardingPage? = nil, forceTour: Bool = false, suppressTour: Bool = false) {
         isEditorOpen = false
         settings = (try? settingsStore.load()) ?? .default
         document = (try? layoutStore.load()) ?? StoreDocument()
@@ -99,10 +100,7 @@ final class AppRuntime {
         Log.trust.info(
             "Trust trusted=\(self.trust.isTrusted(), privacy: .public) path=\(TrustMonitor.currentBuildPath, privacy: .public)"
         )
-        if !trust.isTrusted() {
-            onboarding = OnboardingWindowController(runtime: self)
-            onboarding?.show()
-        }
+        presentLaunchOnboarding(resume: resume, forceTour: forceTour, suppressTour: suppressTour)
 
         Log.app.info("ZoneBox started")
     }
@@ -128,7 +126,8 @@ final class AppRuntime {
         previewHideWorkItem?.cancel()
         editor = nil
         shortcutPanel?.close()
-        onboarding?.close()
+        welcome?.close(markCompleted: false)
+        accessibilityGuide?.close()
         settingsWindow?.close()
         menuBar?.remove()
         menuBar = nil
@@ -317,7 +316,7 @@ final class AppRuntime {
 
     var shortcutPanelIsKey: Bool { shortcutPanel?.isKey == true }
     var settingsIsKey: Bool { settingsWindow?.isKey == true }
-    var onboardingIsKey: Bool { onboarding?.isKey == true }
+    var onboardingIsKey: Bool { welcome?.isKey == true || accessibilityGuide?.isKey == true }
     var consoleIsVisible: Bool { menuBar?.isConsoleVisible == true }
     var isRecordingHotkey: Bool { settingsWindow?.isRecordingHotkey == true }
 
@@ -337,9 +336,15 @@ final class AppRuntime {
 
     @discardableResult
     func closeOnboardingIfOpen() -> Bool {
-        guard onboarding != nil else { return false }
-        onboarding?.close()
-        return true
+        if welcome?.isKey == true {
+            welcome?.close()
+            return true
+        }
+        if accessibilityGuide?.isKey == true {
+            accessibilityGuide?.close()
+            return true
+        }
+        return false
     }
 
     @discardableResult
@@ -380,7 +385,17 @@ final class AppRuntime {
             Log.overlay.error("Layout preview skipped because no active display was available")
             return
         }
-        document.assign(layoutID: layout.id, to: area.display.id)
+        selectLayout(layout, on: area.display.id)
+    }
+
+    func selectLayout(_ layout: Layout, on displayID: DisplayIdentity.ID) {
+        guard displays.isActive(displayID: displayID),
+              let area = displays.workAreas.first(where: { $0.display.id == displayID })
+        else {
+            Log.overlay.error("Layout preview skipped because no active display was available")
+            return
+        }
+        document.assign(layoutID: layout.id, to: displayID)
         document.markLayoutUsed(layout.id)
         persist()
         menuBar?.reloadMenu()
@@ -516,6 +531,13 @@ final class AppRuntime {
     func previewZones() {
         guard let area = displays.area(containingAppKit: NSEvent.mouseLocation),
               let layout = document.layout(for: area.display.id)
+        else { return }
+        flashZones(area: area, layout: layout, duration: 1.6)
+    }
+
+    func previewZones(on displayID: DisplayIdentity.ID) {
+        guard let area = displays.workAreas.first(where: { $0.display.id == displayID }),
+              let layout = document.layout(for: displayID)
         else { return }
         flashZones(area: area, layout: layout, duration: 1.6)
     }
@@ -968,10 +990,15 @@ final class AppRuntime {
     }
 
     func openAccessibility() {
-        if onboarding == nil {
-            onboarding = OnboardingWindowController(runtime: self)
+        if welcome != nil {
+            if welcome?.jumpToAccessibilityPage() == true {
+                return
+            }
         }
-        onboarding?.show()
+        if accessibilityGuide == nil {
+            accessibilityGuide = AccessibilityGuideWindowController(runtime: self)
+        }
+        accessibilityGuide?.show()
     }
 
     func accessibilityGranted() {
@@ -983,7 +1010,7 @@ final class AppRuntime {
     }
 
     func accessibilityGuideClosed() {
-        onboarding = nil
+        accessibilityGuide = nil
         refreshTrustChrome()
     }
 
@@ -1121,6 +1148,62 @@ final class AppRuntime {
         settingsWindow?.refreshPreview()
     }
 
+    func presentLaunchOnboarding(
+        resume: OnboardingPage? = nil,
+        forceTour: Bool = false,
+        suppressTour: Bool = false
+    ) {
+        let decision = OnboardingPolicy.launchDecision(
+            OnboardingLaunchInput(
+                completedVersion: settings.onboardingCompletedVersion,
+                currentVersion: OnboardingPolicy.currentVersion,
+                trusted: trust.isTrusted(),
+                forceTour: forceTour,
+                suppressTour: suppressTour,
+                resumePage: resume
+            )
+        )
+        switch decision {
+        case .welcomeTour:
+            openWelcomeTour(resume: resume)
+        case .accessibilityGuide:
+            openAccessibility()
+        case .none:
+            break
+        }
+    }
+
+    func openWelcomeTour(resume: OnboardingPage? = nil) {
+        accessibilityGuide?.close()
+        if let welcome {
+            welcome.show()
+            return
+        }
+        welcome = WelcomeWindowController(runtime: self, resume: resume)
+        welcome?.show()
+    }
+
+    func welcomeDidClose() {
+        welcome = nil
+    }
+
+    func markOnboardingCompleted() {
+        settings.onboardingCompletedVersion = OnboardingPolicy.currentVersion
+        persistSettings()
+    }
+
+    func noteUserSnapCompleted() {
+        welcome?.handle(.snapCompleted)
+    }
+
+    func welcomeDisplayID() -> DisplayIdentity.ID? {
+        welcome?.targetDisplayID()
+    }
+
+    func settingsWindowDidChangeLoginItem() {
+        settingsWindow?.refreshLoginSwitch()
+    }
+
     func setHoverPinEnabled(_ enabled: Bool) {
         settings.hoverPinEnabled = enabled
         persistSettings()
@@ -1160,7 +1243,8 @@ final class AppRuntime {
         pins.refreshAppearance()
         pinHover.refreshAppearance()
         settingsWindow?.applyLanguage()
-        onboarding?.applyLanguage()
+        welcome?.applyLanguage()
+        accessibilityGuide?.applyLanguage()
         editor?.applyLanguage()
         shortcutPanel?.applyLanguage()
     }

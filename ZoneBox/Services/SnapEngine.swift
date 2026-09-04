@@ -384,6 +384,7 @@ final class SnapEngine {
                 ),
                 displayID: target.area.display.id
             )
+            runtime.noteUserSnapCompleted()
             runtime.divider.refresh()
             return applied
         }
@@ -487,6 +488,7 @@ final class SnapEngine {
                     primaryFlipHeight: runtime.displays.primaryFlipHeight
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
+                runtime.noteUserSnapCompleted()
                 runtime.divider.refresh()
             case .assignLayout(let layoutID):
                 let pending = PendingLayoutAssignment(
