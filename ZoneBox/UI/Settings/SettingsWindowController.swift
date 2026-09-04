@@ -279,7 +279,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 customIcon: PinIconArtwork.image(state: .pin, size: 17),
                 titleKey: .settingsHoverPin,
                 detailKey: .settingsHoverPinDetail,
-                trailing: hoverPin
+                trailing: hoverPin,
+                badgeKey: .settingsBeta
             ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
         ])
@@ -371,7 +372,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             list.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
-        let profiles = runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt })
+        let profiles = runtime.document.orderedProfilesForSettings()
         expandedWorkspaceIDs.formIntersection(profiles.map(\.id))
         if !profiles.isEmpty, !didInitializeWorkspaceExpansion {
             let initialID = runtime.document.activeProfileID ?? profiles[0].id
@@ -1067,12 +1068,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func makeScrollablePage(_ stack: NSView) -> NSView {
         let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
+        scroll.automaticallyAdjustsContentInsets = false
         scroll.contentView.drawsBackground = false
         let document = SettingsFlippedView()
         document.translatesAutoresizingMaskIntoConstraints = false
@@ -1170,6 +1172,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         if selectedCategory == .overlay {
             overlayPreview?.showNumbers = runtime.settings.showZoneNumbers
             overlayPreview?.gutterPoints = runtime.settings.gutterPoints
+            overlayPreview?.showCandidateLayouts = runtime.settings.showLayoutStrip
+            overlayPreview?.candidateLayouts = runtime.document.orderedLayouts(
+                assignedID: runtime.document.layouts.first?.id
+            )
         } else if selectedCategory == .snapping, let image = NSImage(named: "SnapPreview") {
             imageView.image = image
             imageView.contentTintColor = nil
@@ -1272,8 +1278,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
     @objc private func toggleQuickSnapper(_ sender: NSSwitch) { runtime.settings.quickSnapperEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleMagnetic(_ sender: NSSwitch) { runtime.settings.magneticResizeEnabled = sender.state == .on; runtime.persistSettings() }
-    @objc private func toggleNumbers(_ sender: NSSwitch) { runtime.settings.showZoneNumbers = sender.state == .on; runtime.persistSettings() }
-    @objc private func toggleLayoutStrip(_ sender: NSSwitch) { runtime.setShowLayoutStrip(sender.state == .on) }
+    @objc private func toggleNumbers(_ sender: NSSwitch) {
+        runtime.settings.showZoneNumbers = sender.state == .on
+        runtime.persistSettings()
+        updatePreview()
+    }
+    @objc private func toggleLayoutStrip(_ sender: NSSwitch) {
+        runtime.setShowLayoutStrip(sender.state == .on)
+        updatePreview()
+    }
     @objc private func togglePreviewLayoutOnSelect(_ sender: NSSwitch) { runtime.setPreviewLayoutOnSelect(sender.state == .on) }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleHoverPin(_ sender: NSSwitch) { runtime.setHoverPinEnabled(sender.state == .on) }
@@ -1576,6 +1589,8 @@ private final class SettingsPreferenceRowView: NSView {
 
 private final class SettingsFlippedView: NSView { override var isFlipped: Bool { true } }
 
+
+
     private final class SettingsOverlayPreviewView: NSView {
         var showNumbers = true {
             didSet { needsDisplay = true }
@@ -1585,55 +1600,193 @@ private final class SettingsFlippedView: NSView { override var isFlipped: Bool {
             didSet { needsDisplay = true }
         }
 
-    override var isFlipped: Bool { true }
+        var showCandidateLayouts = true {
+            didSet { needsDisplay = true }
+        }
+
+        var candidateLayouts: [Layout] = [] {
+            didSet { needsDisplay = true }
+        }
+
+        override var isFlipped: Bool { true }
 
         override func draw(_ dirtyRect: NSRect) {
             super.draw(dirtyRect)
             guard !bounds.isEmpty else { return }
 
-            let outer = bounds.insetBy(dx: 18, dy: 18)
+            let tileColor = NSColor.systemTeal
+            let borderColor = NSColor.white.withAlphaComponent(0.65)
+            effectiveAppearance.performAsCurrentDrawingAppearance {
+                if showCandidateLayouts {
+                    drawCandidateList(tileColor: tileColor, borderColor: borderColor)
+                } else {
+                    drawZoneGrid(in: bounds.insetBy(dx: 18, dy: 18), tileColor: tileColor, borderColor: borderColor)
+                }
+            }
+        }
+
+        private func drawZoneGrid(in outer: CGRect, tileColor: NSColor, borderColor: NSColor) {
             let gap = CGFloat(gutterPoints)
             let tileWidth = max(0, (outer.width - gap) / 2)
             let tileHeight = max(0, (outer.height - gap) / 2)
             guard tileWidth > 0, tileHeight > 0 else { return }
-
-            let tileColor = NSColor.systemTeal
-        let borderColor = NSColor.white.withAlphaComponent(0.65)
-        let tiles = [
-            CGRect(x: outer.minX, y: outer.minY, width: tileWidth, height: tileHeight),
-            CGRect(x: outer.minX + tileWidth + gap, y: outer.minY, width: tileWidth, height: tileHeight),
-            CGRect(x: outer.minX, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
-            CGRect(x: outer.minX + tileWidth + gap, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
-        ]
-
-        effectiveAppearance.performAsCurrentDrawingAppearance {
+            let tiles = [
+                CGRect(x: outer.minX, y: outer.minY, width: tileWidth, height: tileHeight),
+                CGRect(x: outer.minX + tileWidth + gap, y: outer.minY, width: tileWidth, height: tileHeight),
+                CGRect(x: outer.minX, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
+                CGRect(x: outer.minX + tileWidth + gap, y: outer.minY + tileHeight + gap, width: tileWidth, height: tileHeight),
+            ]
             for (index, rect) in tiles.enumerated() {
-                let rounded = NSBezierPath(roundedRect: rect, xRadius: 18, yRadius: 18)
-                tileColor.withAlphaComponent(0.96).setFill()
-                rounded.fill()
-                borderColor.setStroke()
-                rounded.lineWidth = 1.5
-                rounded.stroke()
+                drawZoneTile(rect, number: index + 1, tileColor: tileColor, borderColor: borderColor, corner: 18)
+            }
+        }
 
-                guard showNumbers else { continue }
-                let label = "\(index + 1)" as NSString
+        private func drawCandidateList(tileColor: NSColor, borderColor: NSColor) {
+            let layouts = Array(candidateLayouts.prefix(LayoutStripGeometry.maxVisibleCards))
+            guard !layouts.isEmpty else {
+                drawZoneGrid(in: bounds.insetBy(dx: 18, dy: 18), tileColor: tileColor, borderColor: borderColor)
+                return
+            }
+
+            let visibleCount = min(layouts.count, 4)
+            let cardWidth: CGFloat = 54
+            let cardHeight: CGFloat = 36
+            let cardSpacing: CGFloat = 6
+            let stripPadding: CGFloat = 7
+            let overflowWidth: CGFloat = layouts.count > visibleCount ? 18 : 0
+            let overflowGap: CGFloat = overflowWidth > 0 ? cardSpacing : 0
+            let stripWidth = min(
+                bounds.width - 16,
+                CGFloat(visibleCount) * cardWidth
+                    + CGFloat(max(0, visibleCount - 1)) * cardSpacing
+                    + overflowGap
+                    + overflowWidth
+                    + stripPadding * 2
+            )
+            let stripHeight = cardHeight + stripPadding * 2
+            let stripGap: CGFloat = 10
+            let strip = CGRect(
+                x: bounds.midX - stripWidth / 2,
+                y: bounds.minY + 8,
+                width: stripWidth,
+                height: stripHeight
+            )
+            let zoneOuter = CGRect(
+                x: bounds.minX + 16,
+                y: strip.maxY + stripGap,
+                width: bounds.width - 32,
+                height: max(64, bounds.maxY - 12 - (strip.maxY + stripGap))
+            )
+            drawZoneGrid(in: zoneOuter, tileColor: tileColor, borderColor: borderColor)
+
+            NSColor.controlBackgroundColor.withAlphaComponent(0.92).setFill()
+            let stripPath = NSBezierPath(roundedRect: strip, xRadius: 11, yRadius: 11)
+            stripPath.fill()
+            NSColor.separatorColor.withAlphaComponent(0.45).setStroke()
+            stripPath.lineWidth = 1
+            stripPath.stroke()
+
+            let fittedCardWidth = max(
+                36,
+                (strip.width - stripPadding * 2 - overflowGap - overflowWidth - CGFloat(max(0, visibleCount - 1)) * cardSpacing) / CGFloat(visibleCount)
+            )
+            for (index, layout) in layouts.prefix(visibleCount).enumerated() {
+                let card = CGRect(
+                    x: strip.minX + stripPadding + CGFloat(index) * (fittedCardWidth + cardSpacing),
+                    y: strip.minY + stripPadding,
+                    width: fittedCardWidth,
+                    height: cardHeight
+                )
+                let selected = index == 0
+                NSColor.white.withAlphaComponent(selected ? 0.96 : 0.72).setFill()
+                let cardPath = NSBezierPath(roundedRect: card, xRadius: 7, yRadius: 7)
+                cardPath.fill()
+                (selected ? NSColor.controlAccentColor : NSColor.separatorColor.withAlphaComponent(0.7)).setStroke()
+                cardPath.lineWidth = selected ? 1.6 : 1
+                cardPath.stroke()
+                drawLayoutThumbnail(layout, in: card.insetBy(dx: 4, dy: 4), tileColor: tileColor)
+            }
+
+            if overflowWidth > 0 {
+                let overflow = CGRect(
+                    x: strip.maxX - stripPadding - overflowWidth,
+                    y: strip.minY + stripPadding,
+                    width: overflowWidth,
+                    height: cardHeight
+                )
+                NSColor.separatorColor.withAlphaComponent(0.18).setFill()
+                NSBezierPath(roundedRect: overflow, xRadius: 6, yRadius: 6).fill()
+                let dots = "⋯" as NSString
                 let attrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: min(rect.width, rect.height) * 0.32, weight: .semibold),
-                    .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+                    .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+                    .foregroundColor: NSColor.secondaryLabelColor,
                 ]
-                let size = label.size(withAttributes: attrs)
-                label.draw(
-                    at: CGPoint(
-                        x: rect.midX - size.width / 2,
-                        y: rect.midY - size.height / 2
-                    ),
+                let size = dots.size(withAttributes: attrs)
+                dots.draw(
+                    at: CGPoint(x: overflow.midX - size.width / 2, y: overflow.midY - size.height / 2),
                     withAttributes: attrs
                 )
             }
+        }
 
+        private func drawLayoutThumbnail(_ layout: Layout, in canvas: CGRect, tileColor: NSColor) {
+            let zones = LayoutTemplates.thumbnailGeometry(for: layout)
+            guard canvas.width > 1, canvas.height > 1, !zones.isEmpty else { return }
+            let panes = zones.map { zone in
+                CGRect(
+                    x: canvas.minX + zone.rect.x * canvas.width,
+                    y: canvas.minY + zone.rect.y * canvas.height,
+                    width: max(1, zone.rect.width * canvas.width),
+                    height: max(1, zone.rect.height * canvas.height)
+                )
+            }
+            let maximumGutter = min(canvas.width, canvas.height) * 0.18
+            let effectiveGutter = min(max(0, CGFloat(gutterPoints) * 0.18), maximumGutter)
+            let guttered = Gutter.apply(panes, gutter: effectiveGutter, workAreaAX: canvas)
+            for (zone, pane) in zip(zones, guttered) {
+                let inset = pane.insetBy(dx: 0.5, dy: 0.5)
+                guard inset.width > 0.8, inset.height > 0.8 else { continue }
+                drawZoneTile(
+                    inset,
+                    number: zone.number,
+                    tileColor: tileColor,
+                    borderColor: NSColor.white.withAlphaComponent(0.55),
+                    corner: 2.5,
+                    showNumber: false
+                )
+            }
+        }
+
+        private func drawZoneTile(
+            _ rect: CGRect,
+            number: Int,
+            tileColor: NSColor,
+            borderColor: NSColor,
+            corner: CGFloat,
+            showNumber: Bool? = nil
+        ) {
+            let rounded = NSBezierPath(roundedRect: rect, xRadius: corner, yRadius: corner)
+            tileColor.withAlphaComponent(0.96).setFill()
+            rounded.fill()
+            borderColor.setStroke()
+            rounded.lineWidth = corner >= 10 ? 1.5 : 0.8
+            rounded.stroke()
+            guard showNumber ?? showNumbers else { return }
+            let label = "\(number)" as NSString
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: min(22, min(rect.width, rect.height) * 0.28), weight: .semibold),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+            ]
+            let size = label.size(withAttributes: attrs)
+            label.draw(
+                at: CGPoint(
+                    x: rect.midX - size.width / 2,
+                    y: rect.midY - size.height / 2
+                ),
+                withAttributes: attrs
+            )
         }
     }
-}
 
 private final class SettingsRowIconView: NSView {
     private let tint: NSColor

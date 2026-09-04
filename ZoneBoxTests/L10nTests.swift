@@ -120,11 +120,11 @@ final class L10nTests: XCTestCase {
         )
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .english),
-            "Keep a window above other apps. The original window stays clickable and scrollable. macOS Screen Recording permission is required."
+            "Keep a window above other apps. This feature is still unstable. The original window stays clickable and scrollable. macOS Screen Recording permission is required."
         )
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .chineseSimplified),
-            "让窗口保持在其他应用上方。原窗口仍可点击和滚动。需要 macOS 录屏权限。"
+            "让窗口保持在其他应用上方。该功能仍不稳定。原窗口仍可点击和滚动。需要 macOS 录屏权限。"
         )
     }
 
