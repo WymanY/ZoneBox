@@ -64,13 +64,21 @@ public struct LayoutStripGeometry: Equatable, Sendable {
         layouts: [(layout: Layout, zones: [ResolvedZone])],
         assignedLayoutID: Layout.ID?,
         workAreaAX: CGRect,
-        focusedLayoutID: Layout.ID? = nil
+        focusedLayoutID: Layout.ID? = nil,
+        previousStartLayoutID: Layout.ID? = nil
     ) -> LayoutStripGeometry {
         let focusedID = focusedLayoutID ?? assignedLayoutID
         let focusedIndex = focusedID.flatMap { id in
             layouts.firstIndex(where: { $0.layout.id == id })
         } ?? 0
-        let visibleRange = visibleCardRange(layoutCount: layouts.count, focusedIndex: focusedIndex)
+        let previousStart = previousStartLayoutID.flatMap { id in
+            layouts.firstIndex(where: { $0.layout.id == id })
+        }
+        let visibleRange = visibleCardRange(
+            layoutCount: layouts.count,
+            focusedIndex: focusedIndex,
+            previousStart: previousStart
+        )
         let visible = Array(layouts[visibleRange])
         let hiddenLeading = visibleRange.lowerBound
         let hiddenTrailing = layouts.count - visibleRange.upperBound
@@ -155,12 +163,25 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     public static func visibleCardRange(
         layoutCount: Int,
         focusedIndex: Int,
-        maxVisible: Int = maxVisibleCards
+        maxVisible: Int = maxVisibleCards,
+        previousStart: Int? = nil
     ) -> Range<Int> {
         guard layoutCount > 0 else { return 0..<0 }
         let window = min(maxVisible, layoutCount)
         let focused = min(max(focusedIndex, 0), layoutCount - 1)
-        let start = min(max(0, focused - window + 1), layoutCount - window)
+        let maxStart = layoutCount - window
+        var start: Int
+        if let previousStart {
+            start = min(max(previousStart, 0), maxStart)
+            if focused < start {
+                start = focused
+            } else if focused >= start + window {
+                start = focused - window + 1
+            }
+        } else {
+            start = min(max(0, focused - window + 1), maxStart)
+        }
+        start = min(max(start, 0), maxStart)
         return start..<(start + window)
     }
 

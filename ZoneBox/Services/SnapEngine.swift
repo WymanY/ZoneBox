@@ -23,6 +23,7 @@ final class SnapEngine {
     private var lastStrip: LayoutStripGeometry?
     private var lastPresentation = OverlayPresentation.empty
     private var stripWindowLayoutID: Layout.ID?
+    private var stripWindowStartID: Layout.ID?
     private var stripOverflowLatch: Int?
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
@@ -70,6 +71,7 @@ final class SnapEngine {
             lastCursorDisplayID = nil
             lastStrip = nil
             stripWindowLayoutID = nil
+            stripWindowStartID = nil
             stripOverflowLatch = nil
             layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
                 current: layoutAssignmentGeneration,
@@ -560,6 +562,7 @@ final class SnapEngine {
         lastCursorDisplayID = nil
         lastStrip = nil
         stripWindowLayoutID = nil
+        stripWindowStartID = nil
         stripOverflowLatch = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
@@ -619,6 +622,9 @@ final class SnapEngine {
         if session.crossedDisplay {
             lastCursorDisplayID = area?.display.id
             sessionLayoutID = session.layoutID
+            stripWindowLayoutID = nil
+            stripWindowStartID = nil
+            stripOverflowLatch = nil
         } else if lastCursorDisplayID == nil {
             lastCursorDisplayID = area?.display.id
         }
@@ -641,8 +647,10 @@ final class SnapEngine {
                 layouts: layouts,
                 assignedLayoutID: assignedID,
                 workAreaAX: workAX,
-                focusedLayoutID: stripWindowLayoutID ?? sessionLayoutID ?? assignedID
+                focusedLayoutID: stripWindowLayoutID ?? sessionLayoutID ?? assignedID,
+                previousStartLayoutID: stripWindowStartID
             )
+            stripWindowStartID = strip?.cards.first?.layoutID
             if var visibleStrip = strip, visibleStrip.contains(pointAppKit) {
                 pointerInStrip = true
                 let overflowDelta = visibleStrip.hitOverflow(at: pointAppKit)
@@ -658,7 +666,8 @@ final class SnapEngine {
                             layouts: layouts,
                             assignedLayoutID: assignedID,
                             workAreaAX: workAX,
-                            focusedLayoutID: neighborID
+                            focusedLayoutID: neighborID,
+                            previousStartLayoutID: visibleStrip.cards.first?.layoutID
                         )
                     }
                     if let revealed = overflowDelta > 0 ? visibleStrip.cards.last : visibleStrip.cards.first {
@@ -677,6 +686,9 @@ final class SnapEngine {
                     }
                 }
                 strip = visibleStrip
+                stripWindowStartID = visibleStrip.cards.first?.layoutID
+            } else {
+                stripOverflowLatch = nil
             }
         } else {
             stripOverflowLatch = nil

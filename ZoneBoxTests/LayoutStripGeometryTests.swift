@@ -59,6 +59,14 @@ final class LayoutStripGeometryTests: XCTestCase {
         XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 6), 1..<7)
         XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 7), 2..<8)
         XCTAssertEqual(LayoutStripGeometry.visibleCardRange(layoutCount: 3, focusedIndex: 2), 0..<3)
+        XCTAssertEqual(
+            LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 1, previousStart: 2),
+            1..<7
+        )
+        XCTAssertEqual(
+            LayoutStripGeometry.visibleCardRange(layoutCount: 8, focusedIndex: 6, previousStart: 1),
+            1..<7
+        )
 
         let layouts = (0..<8).map { index -> (Layout, [ResolvedZone]) in
             let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])
@@ -75,6 +83,16 @@ final class LayoutStripGeometryTests: XCTestCase {
         XCTAssertEqual(geometry.cards.last?.layoutID, layouts[7].0.id)
         XCTAssertNotNil(geometry.leadingOverflowFrameAppKit)
         XCTAssertNil(geometry.overflowFrameAppKit)
+
+        let backward = LayoutStripGeometry.make(
+            workAreaAppKit: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: CGRect(x: 0, y: 0, width: 1600, height: 900),
+            focusedLayoutID: layouts[1].0.id,
+            previousStartLayoutID: layouts[2].0.id
+        )
+        XCTAssertEqual(backward.cards.map(\.layoutName), ["L1", "L2", "L3", "L4", "L5", "L6"])
     }
 
     func testOverflowChipsStayReservedWhilePaging() {
