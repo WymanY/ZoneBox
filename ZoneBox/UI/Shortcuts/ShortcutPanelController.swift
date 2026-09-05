@@ -38,7 +38,6 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
     }
 
     @objc private func handleCustomizeClicked() {
-        close()
         runtime.openKeyboardSettings()
     }
 
@@ -154,7 +153,7 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        let iconWell = HeaderIconWell(symbol: "keyboard.fill", tint: .systemOrange)
+        let iconWell = HeaderIconWell(symbol: "keyboard.fill", tint: .controlAccentColor)
 
         let title = NSTextField(labelWithString: L10n.text(.shortcutsTitle))
         title.font = .systemFont(ofSize: 17, weight: .semibold)
@@ -183,7 +182,8 @@ final class ShortcutPanelController: NSObject, NSWindowDelegate {
         )
         customizeButton.bezelStyle = .rounded
         customizeButton.controlSize = .small
-        customizeButton.font = .systemFont(ofSize: 12, weight: .regular)
+        customizeButton.font = .systemFont(ofSize: 12, weight: .medium)
+        customizeButton.contentTintColor = .controlAccentColor
 
         let esc = KeyCapView(symbol: "esc")
 
@@ -360,11 +360,14 @@ private class AppGroupSurfaceView: NSVisualEffectView {
 }
 
 private final class HeaderIconWell: NSView {
+    private let tint: NSColor
+
     init(symbol: String, tint: NSColor) {
+        self.tint = tint
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 9
         layer?.cornerCurve = .continuous
 
         let image = NSImageView()
@@ -391,7 +394,9 @@ private final class HeaderIconWell: NSView {
 
     private func updateColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.16).cgColor
+            layer?.backgroundColor = tint.withAlphaComponent(0.12).cgColor
+            layer?.borderColor = tint.withAlphaComponent(0.08).cgColor
+            layer?.borderWidth = 0.5
         }
     }
 }
@@ -403,7 +408,7 @@ private final class ShortcutSectionCard: AppGroupSurfaceView {
         let icon = NSImageView()
         icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
         icon.symbolConfiguration = .init(pointSize: 12, weight: .semibold)
-        icon.contentTintColor = .secondaryLabelColor
+        icon.contentTintColor = .controlAccentColor
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.widthAnchor.constraint(equalToConstant: 14).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 14).isActive = true
@@ -532,8 +537,7 @@ private final class ShortcutRowView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         if hover {
             let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let fill = dark ? NSColor.white.withAlphaComponent(0.06) : NSColor.black.withAlphaComponent(0.04)
-            fill.setFill()
+            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.14 : 0.08).setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 6, yRadius: 6).fill()
         }
         super.draw(dirtyRect)
@@ -573,7 +577,7 @@ private final class KeyCapView: NSView {
         label.translatesAutoresizingMaskIntoConstraints = false
         label.font = font
         label.alignment = .center
-        label.textColor = .labelColor
+        label.textColor = .controlAccentColor
         label.isSelectable = false
         label.isEditable = false
         label.isBordered = false
@@ -607,18 +611,15 @@ private final class KeyCapView: NSView {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if dark {
-                layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.12).cgColor
-                layer?.borderColor = NSColor(white: 1.0, alpha: 0.16).cgColor
-                layer?.borderWidth = 0.5
+                layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.28).cgColor
+                layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.46).cgColor
+                layer?.borderWidth = 1
                 layer?.shadowOpacity = 0
             } else {
-                layer?.backgroundColor = NSColor.white.cgColor
-                layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.65).cgColor
-                layer?.borderWidth = 0.5
-                layer?.shadowColor = NSColor.black.cgColor
-                layer?.shadowOpacity = 0.04
-                layer?.shadowOffset = CGSize(width: 0, height: -0.5)
-                layer?.shadowRadius = 0.5
+                layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.16).cgColor
+                layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.28).cgColor
+                layer?.borderWidth = 1
+                layer?.shadowOpacity = 0
             }
         }
     }

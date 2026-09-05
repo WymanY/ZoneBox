@@ -359,7 +359,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         let hotkeys = localizedWrappingLabel(.settingsHotkeyCaptureHint, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         hotkeysLabel = hotkeys
-        stack.addArrangedSubview(makeInfoRow(label: hotkeys))
+        let hint = makeInfoRow(label: hotkeys)
+        stack.addArrangedSubview(hint)
+        hint.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -(stack.edgeInsets.left + stack.edgeInsets.right)).isActive = true
         stack.addArrangedSubview(makeSeparator())
         stack.addArrangedSubview(makeHotkeyList())
         stack.addArrangedSubview(makeHotkeyErrorLabel())
@@ -923,18 +925,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeInfoRow(label: NSTextField) -> NSView {
-        let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-        icon.symbolConfiguration = .init(pointSize: 13, weight: .medium)
-        icon.contentTintColor = .secondaryLabelColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        icon.widthAnchor.constraint(equalToConstant: 18).isActive = true
-        let row = NSStackView(views: [icon, label])
-        row.orientation = .horizontal
-        row.alignment = .top
-        row.spacing = 8
-        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        return row
+        SettingsInfoHintRow(label: label)
     }
 
     private func makeActionRow() -> NSView {
@@ -1600,6 +1591,61 @@ private final class SettingsPreferenceRowView: NSView {
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+private final class SettingsInfoHintRow: NSView {
+    private let icon = NSImageView()
+    private let label: NSTextField
+
+    init(label: NSTextField) {
+        self.label = label
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
+        icon.symbolConfiguration = .init(pointSize: 13, weight: .medium)
+        icon.contentTintColor = .secondaryLabelColor
+        icon.imageScaling = .scaleNone
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        icon.setContentHuggingPriority(.required, for: .vertical)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .vertical)
+
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.maximumNumberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+        label.alignment = .left
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.required, for: .vertical)
+
+        addSubview(icon)
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor),
+            icon.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.heightAnchor.constraint(equalToConstant: 16),
+            label.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
+            label.topAnchor.constraint(equalTo: topAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layout() {
+        super.layout()
+        let width = max(0, floor(label.bounds.width))
+        if label.preferredMaxLayoutWidth != width {
+            label.preferredMaxLayoutWidth = width
+            needsUpdateConstraints = true
+        }
+    }
 }
 
 private final class SettingsFlippedView: NSView { override var isFlipped: Bool { true } }

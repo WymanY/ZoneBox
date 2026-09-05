@@ -354,6 +354,7 @@ final class WelcomeKeyCapView: NSView {
         layer?.borderWidth = 1
         let label = NSTextField(labelWithString: symbol)
         label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .controlAccentColor
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         let width = max(22, ceil((symbol as NSString).size(withAttributes: [.font: label.font!]).width) + 10)
@@ -371,7 +372,7 @@ final class WelcomeKeyCapView: NSView {
 
     override func updateLayer() {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        layer?.backgroundColor = (dark ? NSColor.white.withAlphaComponent(0.10) : NSColor.white).cgColor
-        layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.16) : NSColor.black.withAlphaComponent(0.12)).cgColor
+        layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(dark ? 0.28 : 0.16).cgColor
+        layer?.borderColor = NSColor.controlAccentColor.withAlphaComponent(dark ? 0.46 : 0.28).cgColor
     }
 }
