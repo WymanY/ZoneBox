@@ -386,7 +386,9 @@ final class PinCenter {
         }
         mirrorsSuspended = false
         if pointerIsDraggingPin() {
-            _ = runtime.begin(.pinFollow)
+            if runtime.mode == .idle {
+                _ = runtime.begin(.pinFollow)
+            }
         } else if runtime.mode == .pinningFollow {
             runtime.end(.pinFollow)
         }

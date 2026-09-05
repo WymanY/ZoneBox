@@ -56,6 +56,7 @@ final class SnapEngine {
     }
 
     private var snapWriteSession = UUID()
+    private var outstandingSnapWrites = 0
 
     func handleMouse(_ event: SnapMouseEvent) {
         if event.kind == .leftDown, isQuickSnapperShowing {
@@ -63,7 +64,9 @@ final class SnapEngine {
         }
         if event.kind == .leftDown {
             snapWriteSession = UUID()
-            guard runtime.begin(.snap) else { return }
+            if runtime.mode != .snapping {
+                guard runtime.begin(.snap) else { return }
+            }
         }
         let cursorArea = runtime.area(containingAppKit: event.locationAppKit)
         let window = activeWindow ?? runtime.pendingWindow?.identity ?? runtime.pendingIdentity
@@ -168,9 +171,7 @@ final class SnapEngine {
             runtime.pendingFrame = nil
             runtime.pendingStartedOnMoveChrome = false
             startedOnMoveChrome = false
-            if !isQuickSnapperShowing {
-                runtime.end(.snap)
-            }
+            releaseSnapOwnershipIfIdle()
             runtime.noteSnapSessionBecameIdle()
         }
     }
@@ -423,6 +424,8 @@ final class SnapEngine {
 
     func cancelSession() {
         phase = .idle
+        outstandingSnapWrites = 0
+        runtime.cancelMutations(sessionID: snapWriteSession)
         runtime.end(.snap)
         runtime.overlay.hideSessionOverlay()
         runtime.refreshDivider()
@@ -441,6 +444,18 @@ final class SnapEngine {
         runtime.pendingFrame = nil
         runtime.pendingStartedOnMoveChrome = false
         startedOnMoveChrome = false
+    }
+
+    private func finishSnapWrite() {
+        if outstandingSnapWrites > 0 {
+            outstandingSnapWrites -= 1
+        }
+        releaseSnapOwnershipIfIdle()
+    }
+
+    private func releaseSnapOwnershipIfIdle() {
+        guard phase == .idle, outstandingSnapWrites == 0, !isQuickSnapperShowing else { return }
+        runtime.end(.snap)
     }
 
     private func isArmed(_ phase: SnapSessionPhase) -> Bool {
@@ -479,7 +494,9 @@ final class SnapEngine {
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
                 let generation = layoutAssignmentGeneration
+                outstandingSnapWrites += 1
                 Task { @MainActor in
+                    defer { self.finishSnapWrite() }
                     let window = captured?.identity == identity
                         ? captured
                         : await runtime.ax.window(matching: identity)

@@ -13,6 +13,7 @@ final class FakeWindowMutator: WindowMutating, @unchecked Sendable {
     private(set) var appliedFrames: [FrameWrite] = []
     private(set) var raised: [WindowIdentity] = []
     var delayNanoseconds: UInt64 = 0
+    var hangUntilCancelled = false
     var failUntilCount = 0
     private var applyCount = 0
 
@@ -27,6 +28,12 @@ final class FakeWindowMutator: WindowMutating, @unchecked Sendable {
     }
 
     func applyFrame(_ frame: CGRect, of identity: WindowIdentity) async -> CGRect? {
+        if hangUntilCancelled {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            return nil
+        }
         if delayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: delayNanoseconds)
         }

@@ -63,19 +63,9 @@ public struct RuntimeModeGate: Equatable, Sendable {
     }
 
     public mutating func begin(_ request: RuntimeModeRequest) -> Bool {
-        switch (mode, request) {
-        case (.idle, _):
-            mode = request.mode
-            return true
-        case (.snapping, .snap),
-             (.dividing, .divide),
-             (.pinningFollow, .pinFollow),
-             (.organizing, .organize),
-             (.editing, .edit):
-            return true
-        default:
-            return false
-        }
+        guard mode == .idle else { return false }
+        mode = request.mode
+        return true
     }
 
     public mutating func end(_ request: RuntimeModeRequest) {

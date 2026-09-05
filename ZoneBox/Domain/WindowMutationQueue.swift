@@ -188,35 +188,56 @@ public final class WindowMutationQueue {
     }
 
     private func perform(_ request: WindowMutationRequest, lane: Lane) async -> WindowMutationRecord {
+        let timeoutRecord = WindowMutationRecord(request: request, appliedFrameAX: nil, succeeded: false)
         let work = Task { () -> WindowMutationRecord in
             if Task.isCancelled {
-                return WindowMutationRecord(request: request, appliedFrameAX: nil, succeeded: false)
+                return timeoutRecord
             }
             switch request.kind {
             case .applyFrame:
                 guard let frame = request.frameAX else {
-                    return WindowMutationRecord(request: request, appliedFrameAX: nil, succeeded: false)
+                    return timeoutRecord
                 }
                 let applied = await mutator.applyFrame(frame, of: request.identity)
+                if Task.isCancelled {
+                    return timeoutRecord
+                }
                 return WindowMutationRecord(request: request, appliedFrameAX: applied, succeeded: applied != nil)
             case .raise:
                 let succeeded = await mutator.raise(request.identity)
+                if Task.isCancelled {
+                    return timeoutRecord
+                }
                 return WindowMutationRecord(request: request, appliedFrameAX: request.frameAX, succeeded: succeeded)
             }
         }
         inflight = (lane, request.generation, work)
-        let timeout = Task {
-            try? await Task.sleep(nanoseconds: configuration.timeoutNanoseconds)
-            work.cancel()
-        }
-        let result = await work.value
-        timeout.cancel()
+        let result = await race(work, timeoutRecord: timeoutRecord)
         if inflight?.lane == lane, inflight?.generation == request.generation {
             inflight = nil
         }
-        if work.isCancelled, result.appliedFrameAX == nil {
-            return WindowMutationRecord(request: request, appliedFrameAX: nil, succeeded: false)
-        }
         return result
+    }
+
+    private func race(
+        _ work: Task<WindowMutationRecord, Never>,
+        timeoutRecord: WindowMutationRecord
+    ) async -> WindowMutationRecord {
+        await withCheckedContinuation { continuation in
+            var resumed = false
+            func finish(_ record: WindowMutationRecord) {
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: record)
+            }
+            Task { @MainActor in
+                finish(await work.value)
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: configuration.timeoutNanoseconds)
+                work.cancel()
+                finish(timeoutRecord)
+            }
+        }
     }
 }

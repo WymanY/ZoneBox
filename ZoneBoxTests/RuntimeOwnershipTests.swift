@@ -120,6 +120,41 @@ final class RuntimeOwnershipTests: XCTestCase {
         XCTAssertTrue(mutator.appliedFrames.isEmpty)
     }
 
+    func testBeginRejectsDuplicateOwnership() {
+        var gate = RuntimeModeGate()
+        XCTAssertTrue(gate.begin(.organize))
+        XCTAssertFalse(gate.begin(.organize))
+        XCTAssertFalse(gate.begin(.snap))
+        XCTAssertEqual(gate.mode, .organizing)
+        gate.end(.organize)
+        XCTAssertTrue(gate.begin(.organize))
+    }
+
+    func testTimeoutDoesNotBlockLaterWrite() async {
+        let mutator = FakeWindowMutator(frames: [left: CGRect(x: 0, y: 0, width: 100, height: 100)])
+        mutator.hangUntilCancelled = true
+        let engine = WindowMutationEngine(mutator: mutator, timeoutNanoseconds: 40_000_000)
+        XCTAssertTrue(engine.begin(.snap))
+        let session = UUID()
+        async let hung = engine.applyFrame(
+            CGRect(x: 0, y: 0, width: 200, height: 100),
+            of: left,
+            sessionID: session,
+            generation: 1
+        )
+        let hungResult = await hung
+        XCTAssertNil(hungResult)
+        mutator.hangUntilCancelled = false
+        let latest = await engine.applyFrame(
+            CGRect(x: 0, y: 0, width: 320, height: 100),
+            of: left,
+            sessionID: session,
+            generation: 2
+        )
+        XCTAssertEqual(latest, CGRect(x: 0, y: 0, width: 320, height: 100))
+        XCTAssertEqual(mutator.frame(of: left), CGRect(x: 0, y: 0, width: 320, height: 100))
+    }
+
     func testCancelledSessionDoesNotWrite() async {
         let mutator = FakeWindowMutator(frames: [left: CGRect(x: 0, y: 0, width: 100, height: 100)])
         mutator.delayNanoseconds = 40_000_000
