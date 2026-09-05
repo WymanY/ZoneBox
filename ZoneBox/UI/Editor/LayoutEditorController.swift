@@ -73,7 +73,6 @@ final class LayoutEditorController: NSObject {
     }
 
     func show(on screen: NSScreen) {
-        runtime.isEditorOpen = true
         runtime.overlay.hideAll()
         runtime.uiSession.enterRegular()
 
@@ -1440,7 +1439,6 @@ final class LayoutEditorController: NSObject {
         lockAspectButton = nil
         metricsHintLabel = nil
         transaction = nil
-        runtime.isEditorOpen = false
         runtime.uiSession.leaveRegular()
         runtime.editorDidClose()
     }

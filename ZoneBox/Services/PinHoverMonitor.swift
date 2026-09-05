@@ -3,7 +3,7 @@ import ZoneBoxCore
 
 @MainActor
 final class PinHoverMonitor {
-    unowned var runtime: AppRuntime!
+    unowned var runtime: PinHoverRuntimeHosting!
 
     private let query = CGWindowQuery()
     private let panel = PinButtonPanel(size: 24)
@@ -66,15 +66,13 @@ final class PinHoverMonitor {
         guard running, !monitors.isEmpty else { return }
         guard NSEvent.pressedMouseButtons == 0,
               runtime.settings.hoverPinEnabled,
-              runtime.trust.isTrusted(),
-              !runtime.isEditorOpen,
-              !runtime.isOrganizingWindows,
-              !runtime.engine.isSessionActive
+              runtime.isTrusted(),
+              runtime.allows(.presentPinHover)
         else { return }
 
         let axPoint = CoordinateConverter.axPoint(
             fromAppKit: NSEvent.mouseLocation,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         let ownPID = ProcessInfo.processInfo.processIdentifier
         guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: ownPID),
@@ -104,7 +102,7 @@ final class PinHoverMonitor {
 
     private func reconcile() {
         guard running else { return }
-        let eligible = runtime.settings.hoverPinEnabled && runtime.trust.isTrusted()
+        let eligible = runtime.settings.hoverPinEnabled && runtime.isTrusted()
         if eligible, monitors.isEmpty {
             installEventMonitors()
         } else if !eligible, !monitors.isEmpty {
@@ -179,10 +177,8 @@ final class PinHoverMonitor {
     private func handleMouseMoved(at pointAppKit: CGPoint) {
         guard NSEvent.pressedMouseButtons == 0,
               runtime.settings.hoverPinEnabled,
-              runtime.trust.isTrusted(),
-              !runtime.isEditorOpen,
-              !runtime.isOrganizingWindows,
-              !runtime.engine.isSessionActive
+              runtime.isTrusted(),
+              runtime.allows(.presentPinHover)
         else {
             hideImmediately()
             return
@@ -198,7 +194,7 @@ final class PinHoverMonitor {
 
         let axPoint = CoordinateConverter.axPoint(
             fromAppKit: pointAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         let ownPID = ProcessInfo.processInfo.processIdentifier
         guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: ownPID),
@@ -281,7 +277,7 @@ final class PinHoverMonitor {
         let rectAppKit = PinPanelPlacement.appKitRect(
             fromAX: rectAX,
             windowFrameAX: ref.boundsAX,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight,
+            primaryFlipHeight: runtime.primaryFlipHeight,
             clampToVisibleScreen: true
         )
         panel.show(frame: rectAppKit)
@@ -300,7 +296,7 @@ final class PinHoverMonitor {
         guard let ref = candidate else { return false }
         let axPoint = CoordinateConverter.axPoint(
             fromAppKit: pointAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         return WindowMoveChrome.titleBarBand(ref.boundsAX)
             .insetBy(dx: -8, dy: -8)

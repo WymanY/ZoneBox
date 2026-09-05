@@ -37,7 +37,7 @@ enum KeyEventBridge {
 
 @MainActor
 final class HotkeyCenter {
-    unowned var runtime: AppRuntime!
+    unowned var runtime: HotkeyRuntimeHosting!
     private var eventHandler: EventHandlerRef?
     private var hotKeys: [UInt32: EventHotKeyRef] = [:]
     private var monitors: [Any] = []
@@ -89,7 +89,7 @@ final class HotkeyCenter {
         rebuildChordIndex()
         registerAll()
         installKeyMonitors()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
     }
 
     func setRecordingPaused(_ paused: Bool) {
@@ -98,7 +98,7 @@ final class HotkeyCenter {
     }
 
     private func rebuildChordIndex() {
-        let trusted = runtime.trust.isTrusted()
+        let trusted = runtime.isTrusted()
         chordIndex = ShortcutCatalog.carbonHotkeys(from: runtime.settings).filter { pair in
             (trusted || ShortcutCatalog.trustExemptIDs.contains(pair.id))
                 && !recordingPaused
@@ -123,7 +123,7 @@ final class HotkeyCenter {
     }
 
     private func registerAll() {
-        let trusted = runtime.trust.isTrusted()
+        let trusted = runtime.isTrusted()
         var registered = 0
         for pair in ShortcutCatalog.carbonHotkeys(from: runtime.settings) {
             if !trusted && !ShortcutCatalog.trustExemptIDs.contains(pair.id) { continue }
@@ -344,10 +344,10 @@ final class HotkeyCenter {
         }
         lastHandled = (id, now)
 
-        guard runtime.trust.isTrusted() || ShortcutCatalog.trustExemptIDs.contains(id) else { return }
+        guard runtime.isTrusted() || ShortcutCatalog.trustExemptIDs.contains(id) else { return }
         switch id {
         case ShortcutCatalog.editorHotkeyID:
-            Log.hotkey.info("Editor shortcut received trusted=\(self.runtime.trust.isTrusted(), privacy: .public)")
+            Log.hotkey.info("Editor shortcut received trusted=\(self.runtime.isTrusted(), privacy: .public)")
             runtime.openEditorForFocusedWindow()
         case ShortcutCatalog.previousZoneHotkeyID:
             runtime.engine.snapAdjacent(delta: -1)
