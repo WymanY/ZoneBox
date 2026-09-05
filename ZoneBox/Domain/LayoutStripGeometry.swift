@@ -196,7 +196,12 @@ public struct LayoutStripGeometry: Equatable, Sendable {
                 return (card.layoutID, zone.number)
             }
         }
-        return nil
+        guard let card = cards.first(where: { $0.frameAppKit.contains(pointAppKit) }),
+              let zone = Self.nearestZone(in: card.zones, to: pointAppKit)
+        else {
+            return nil
+        }
+        return (card.layoutID, zone.number)
     }
 
     public func hitCard(at pointAppKit: CGPoint) -> Layout.ID? {
@@ -222,6 +227,18 @@ public struct LayoutStripGeometry: Equatable, Sendable {
         let next = index + delta
         guard layoutIDs.indices.contains(next) else { return nil }
         return layoutIDs[next]
+    }
+
+    private static func nearestZone(in zones: [LayoutStripZone], to pointAppKit: CGPoint) -> LayoutStripZone? {
+        zones.min { lhs, rhs in
+            distanceSquared(lhs.frameAppKit, to: pointAppKit) < distanceSquared(rhs.frameAppKit, to: pointAppKit)
+        }
+    }
+
+    private static func distanceSquared(_ rect: CGRect, to point: CGPoint) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return dx * dx + dy * dy
     }
 
     private static func mapZone(_ zoneAX: CGRect, from workAreaAX: CGRect, onto inner: CGRect) -> CGRect {
