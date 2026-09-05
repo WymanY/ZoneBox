@@ -47,6 +47,7 @@ final class AppRuntime {
     private var organizeBehaviorCache: [WindowIdentity: WindowOrganizeWindowBehavior] = [:]
     private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
     private var resolvedLayoutCache: [ResolvedLayoutCacheKey: [ResolvedZone]] = [:]
+    private let snappableOwnWindowAllowlist = WindowNumberAllowlist()
 
     init() {
         ax = AccessibilityClientLive(
@@ -114,12 +115,13 @@ final class AppRuntime {
     }
 
     private func rebindAX() -> AccessibilityClientLive {
+        let allowlist = snappableOwnWindowAllowlist
         let client = AccessibilityClientLive(
             query: query,
             excluded: { [weak self] in self?.settings.excludedBundleIDs ?? AppSettings.default.excludedBundleIDs },
             snapDialogs: { [weak self] in self?.settings.snapDialogs ?? false },
             trusted: { TrustMonitor.hasAccessibilityAccess() },
-            allowedWindowNumbers: { [weak self] in self?.snappableOwnWindowNumbers() ?? [] }
+            allowedWindowNumbers: { allowlist.current() }
         )
         mutationAdapter.ax = client
         mutationAdapter.runtime = self
@@ -350,7 +352,7 @@ final class AppRuntime {
     var isRecordingHotkey: Bool { settingsWindow?.isRecordingHotkey == true }
 
     func snappableOwnWindowNumbers() -> Set<CGWindowID> {
-        Set([welcome?.windowNumber].compactMap { $0 })
+        snappableOwnWindowAllowlist.current()
     }
 
     func isSnappableOwnWindow(_ number: CGWindowID) -> Bool {
@@ -359,6 +361,10 @@ final class AppRuntime {
 
     func ownNSWindow(matching number: CGWindowID) -> NSWindow? {
         welcome?.nsWindow(matching: number)
+    }
+
+    func refreshSnappableOwnWindows() {
+        snappableOwnWindowAllowlist.replace(Set([welcome?.windowNumber].compactMap { $0 }))
     }
 
     @discardableResult
@@ -1266,6 +1272,7 @@ final class AppRuntime {
 
     func welcomeDidClose() {
         welcome = nil
+        refreshSnappableOwnWindows()
     }
 
     func markOnboardingCompleted() {

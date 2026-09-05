@@ -63,6 +63,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         showPage(state.page, animated: false)
         observeScreens()
+        runtime.refreshSnappableOwnWindows()
         Log.onboarding.info("Welcome tour shown page=\(self.state.page.rawValue, privacy: .public)")
     }
 
