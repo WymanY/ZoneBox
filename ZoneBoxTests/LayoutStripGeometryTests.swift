@@ -36,6 +36,34 @@ final class LayoutStripGeometryTests: XCTestCase {
         XCTAssertTrue(geometry.contains(CGPoint(x: geometry.frameAppKit.midX, y: geometry.frameAppKit.midY)))
     }
 
+    func testCardInteriorHitsNearestMiniZone() {
+        let workAppKit = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let left = Layout(name: "Left", kind: .canvas, zones: [])
+        let right = Layout(name: "Right", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: workAppKit,
+            layouts: [
+                (left, [
+                    ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800)),
+                    ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800)),
+                ]),
+                (right, [
+                    ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 1000, height: 800)),
+                ]),
+            ],
+            assignedLayoutID: left.id,
+            workAreaAX: workAX
+        )
+
+        let card = geometry.cards[1]
+        let gap = CGPoint(x: card.frameAppKit.minX + 3, y: card.frameAppKit.midY)
+        XCTAssertFalse(card.zones.contains { $0.frameAppKit.contains(gap) })
+        let hit = geometry.hitZone(at: gap)
+        XCTAssertEqual(hit?.layoutID, right.id)
+        XCTAssertEqual(hit?.zoneNumber, 1)
+    }
+
     func testOverflowTruncatesToSixCards() {
         let layouts = (0..<8).map { index -> (Layout, [ResolvedZone]) in
             let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])

@@ -63,9 +63,11 @@ final class SnapEngine {
             handleQuickSnapper(.dismiss)
         }
         if event.kind == .leftDown {
-            snapWriteSession = UUID()
             if runtime.mode != .snapping {
                 guard runtime.begin(.snap) else { return }
+            }
+            if outstandingSnapWrites == 0 {
+                snapWriteSession = UUID()
             }
         }
         let cursorArea = runtime.area(containingAppKit: event.locationAppKit)
@@ -733,7 +735,7 @@ final class SnapEngine {
             preferForcedLayout: committingStripSelection
         )
 
-        let layoutID = sessionLayoutID ?? assignedID
+        let layoutID = highlightedLayoutID ?? sessionLayoutID ?? assignedID
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         let stripModel: OverlayStripRenderModel?
         if let strip, runtime.settings.showLayoutStrip {

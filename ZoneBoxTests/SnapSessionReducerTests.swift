@@ -572,7 +572,7 @@ final class SnapSessionReducerTests: XCTestCase {
         let out = SnapSessionReducer.reduce(input)
         XCTAssertEqual(out.phase, .highlighting(window, .zone(zone1)))
         XCTAssertTrue(out.effects.contains(.highlight(.zone(zone1))))
-        XCTAssertTrue(out.effects.contains(.applyFrame(window, zone1.frameAX)))
+        XCTAssertFalse(out.effects.contains(.applyFrame(window, zone1.frameAX)))
         XCTAssertFalse(out.effects.contains(.highlight(.zone(zone2))))
     }
 

@@ -197,9 +197,6 @@ public enum SnapSessionReducer {
             effects.append(.showOverlay(displayID: displayID))
         }
         effects.append(.highlight(target))
-        if input.lockedTarget != nil, let frame = target.frameAX {
-            effects.append(.applyFrame(window, frame))
-        }
         if case .none = target {
             return SnapReducerOutput(phase: .armed(window), effects: effects)
         }
