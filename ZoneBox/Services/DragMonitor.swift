@@ -221,21 +221,21 @@ final class DragMonitor {
     )? {
         let flip = runtime.primaryFlipHeight
         let axPoint = CoordinateConverter.axPoint(fromAppKit: location, primaryFlipHeight: flip)
-        let ourPID = ProcessInfo.processInfo.processIdentifier
-        guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: ourPID),
+        guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: -1),
               runtime.ax.isSnappable(ref)
         else {
             Log.snap.debug("No snappable window captured for pointer hold")
             return nil
         }
         let identity = WindowIdentity(pid: ref.pid, windowNumber: ref.windowNumber, bundleID: ref.bundleID)
-        let startedOnMoveChrome = WindowMoveChrome.contains(
-            axPoint: axPoint,
-            windowFrameAX: ref.boundsAX,
-            hitRole: nil,
-            hitSubrole: nil,
-            ancestorRoles: []
-        )
+        let startedOnMoveChrome = runtime.isSnappableOwnWindow(ref.windowNumber)
+            || WindowMoveChrome.contains(
+                axPoint: axPoint,
+                windowFrameAX: ref.boundsAX,
+                hitRole: nil,
+                hitSubrole: nil,
+                ancestorRoles: []
+            )
         Log.snap.debug(
             "Window capture pid=\(ref.pid, privacy: .public) id=\(ref.windowNumber, privacy: .public) moveChrome=\(startedOnMoveChrome, privacy: .public)"
         )

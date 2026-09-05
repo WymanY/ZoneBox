@@ -39,6 +39,14 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
     }
 
     var isKey: Bool { window?.isKeyWindow == true }
+    var windowNumber: CGWindowID? {
+        window.flatMap { OwnWindowFrameMutation.cgWindowID(fromAppKitWindowNumber: $0.windowNumber) }
+    }
+
+    func nsWindow(matching number: CGWindowID) -> NSWindow? {
+        guard windowNumber == number else { return nil }
+        return window
+    }
 
     func show() {
         if window == nil {
@@ -55,6 +63,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         showPage(state.page, animated: false)
         observeScreens()
+        runtime.refreshSnappableOwnWindows()
         Log.onboarding.info("Welcome tour shown page=\(self.state.page.rawValue, privacy: .public)")
     }
 
@@ -245,7 +254,7 @@ final class WelcomeWindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
