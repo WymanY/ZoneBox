@@ -181,6 +181,12 @@ final class AppRuntime {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.showKeyboard()
+        // Close after this action returns. The shortcut panel currently owns
+        // the click; tearing it down first drops the controller and can skip
+        // the settings handoff.
+        DispatchQueue.main.async { [weak self] in
+            self?.shortcutPanel?.close()
+        }
     }
 
     func settingsDidClose() {
@@ -384,7 +390,10 @@ final class AppRuntime {
         guard shortcutPanel != nil else { return }
         shortcutPanel = nil
         uiSession.leaveRegular()
-        if isEditorOpen {
+        if settingsWindow != nil {
+            NSApp.activate(ignoringOtherApps: true)
+            settingsWindow?.showWindow()
+        } else if isEditorOpen {
             editor?.activate()
         }
     }
