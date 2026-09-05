@@ -24,7 +24,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
         NSApp.setActivationPolicy(.accessory)
-        runtime.isEditorOpen = false
         let arguments = ProcessInfo.processInfo.arguments
         let resume = Self.welcomePage(from: arguments)
         var forceTour = false

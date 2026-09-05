@@ -50,7 +50,15 @@ final class PinCenter {
         }
     }
 
-    unowned var runtime: AppRuntime!
+    unowned var runtime: PinRuntimeHosting!
+    private var raiseGeneration = 0
+    private func pinSessionID(for identity: WindowIdentity) -> UUID {
+        UUID(uuidString: String(format: "AAAAAAAA-0000-4000-8000-%012x", Int(identity.windowNumber))) ?? UUID()
+    }
+    private func nextRaiseGeneration() -> Int {
+        raiseGeneration += 1
+        return raiseGeneration
+    }
 
     private let query = CGWindowQuery()
     private var records: [Record] = []
@@ -106,7 +114,7 @@ final class PinCenter {
     }
 
     func toggle(ref: WindowRef) {
-        guard runtime.trust.isTrusted(), runtime.ax.isSnappable(ref) else { return }
+        guard runtime.isTrusted(), runtime.ax.isSnappable(ref) else { return }
         let identity = ref.identity
         if isPinned(identity) {
             unpin(identity)
@@ -185,7 +193,7 @@ final class PinCenter {
     /// unpinning only removes the "always on top" behaviour rather than dropping
     /// the window back down the stack.
     private func raiseSourceWindow(_ identity: WindowIdentity, frameAX: CGRect) async {
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.isTrusted() else { return }
         let ref = WindowRef(
             pid: identity.pid,
             windowNumber: identity.windowNumber,
@@ -194,7 +202,7 @@ final class PinCenter {
             layer: 0
         )
         guard let window = await runtime.ax.resolveAsync(ref: ref) else { return }
-        await runtime.ax.raise(window)
+        _ = await runtime.raise(window, sessionID: pinSessionID(for: identity), generation: nextRaiseGeneration())
     }
 
     func drop(pid: pid_t) {
@@ -233,7 +241,7 @@ final class PinCenter {
         guard !showingPermissionGuide else { return }
         showingPermissionGuide = true
         runtime.pinHover.hideImmediately()
-        runtime.menuBar?.closeConsole()
+        runtime.closeConsole()
         runtime.uiSession.enterRegular()
         defer {
             runtime.uiSession.leaveRegular()
@@ -309,7 +317,7 @@ final class PinCenter {
                 self.makeBadge(for: identity)
                 session.show(
                     frameAX: ref.boundsAX,
-                    primaryFlipHeight: self.runtime.displays.primaryFlipHeight,
+                    primaryFlipHeight: self.runtime.primaryFlipHeight,
                     reorder: true
                 )
                 self.updateBadge(identity: identity, frameAX: ref.boundsAX, reorder: true)
@@ -367,15 +375,23 @@ final class PinCenter {
         lastTickAt = now
 
         let suppressed = !ScreenRecordingAccess.isGranted
-            || runtime.isEditorOpen
-            || runtime.isOrganizingWindows
-            || runtime.engine.isSessionActive
+            || !runtime.allows(.followPinnedWindows)
         guard !suppressed else {
+            if runtime.mode == .pinningFollow {
+                runtime.end(.pinFollow)
+            }
             suspendMirrors()
             setWatchdogInterval(Watchdog.idleInterval)
             return
         }
         mirrorsSuspended = false
+        if pointerIsDraggingPin() {
+            if runtime.mode == .idle {
+                _ = runtime.begin(.pinFollow)
+            }
+        } else if runtime.mode == .pinningFollow {
+            runtime.end(.pinFollow)
+        }
 
         if now.timeIntervalSince(lastFullScanAt) >= Watchdog.fullScanInterval {
             lastFullScanAt = now
@@ -403,7 +419,7 @@ final class PinCenter {
             records[index].lastKnownFrameAX = frame
             records[index].session.show(
                 frameAX: frame,
-                primaryFlipHeight: runtime.displays.primaryFlipHeight,
+                primaryFlipHeight: runtime.primaryFlipHeight,
                 reorder: false
             )
             updateBadge(identity: identity, frameAX: frame, reorder: false)
@@ -417,7 +433,7 @@ final class PinCenter {
         guard NSEvent.pressedMouseButtons != 0 else { return false }
         let axPoint = CoordinateConverter.axPoint(
             fromAppKit: NSEvent.mouseLocation,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         return records.contains { $0.lastKnownFrameAX.insetBy(dx: -12, dy: -12).contains(axPoint) }
     }
@@ -475,7 +491,7 @@ final class PinCenter {
             record.session.setCapturePaused(false)
             record.session.show(
                 frameAX: frame,
-                primaryFlipHeight: runtime.displays.primaryFlipHeight,
+                primaryFlipHeight: runtime.primaryFlipHeight,
                 reorder: reorder
             )
         }
@@ -490,7 +506,7 @@ final class PinCenter {
     }
 
     private func raiseVisiblePins(now: Date) {
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.isTrusted() else { return }
         for index in records.indices {
             let identity = records[index].identity
             guard lastVisibleOrder.contains(identity) else { continue }
@@ -554,7 +570,7 @@ final class PinCenter {
 
     private func updateBadge(identity: WindowIdentity, frameAX: CGRect, reorder: Bool) {
         guard let panel = badges[identity] else { return }
-        guard !runtime.isEditorOpen, !unpinning.contains(identity) else {
+        guard runtime.allows(.followPinnedWindows), !unpinning.contains(identity) else {
             panel.orderOut(nil)
             return
         }
@@ -562,7 +578,7 @@ final class PinCenter {
         let rectAppKit = PinPanelPlacement.appKitRect(
             fromAX: rectAX,
             windowFrameAX: frameAX,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight,
+            primaryFlipHeight: runtime.primaryFlipHeight,
             clampToVisibleScreen: true
         )
         panel.show(frame: rectAppKit, reorder: reorder)
@@ -588,7 +604,7 @@ final class PinCenter {
     }
 
     private func notifyCountChanged() {
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
     }
 
     private func index(of identity: WindowIdentity) -> Int? {

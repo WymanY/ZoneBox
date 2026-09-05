@@ -1,7 +1,7 @@
 import XCTest
 @testable import ZoneBoxCore
 
-final class SnapEngineTests: XCTestCase {
+final class SnapSessionReducerTests: XCTestCase {
     private let window = WindowIdentity(pid: 42, windowNumber: 7, bundleID: "com.apple.Terminal")
     private let frame = CGRect(x: 10, y: 10, width: 400, height: 300)
 

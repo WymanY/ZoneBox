@@ -1,3 +1,5 @@
+> Historical MVP decision log. Current live-runtime ownership is documented in docs/runtime-architecture.md.
+
 # ZoneBox for macOS — Design Document
 
 | Field | Value |

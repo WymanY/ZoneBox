@@ -3,7 +3,7 @@ import ZoneBoxCore
 
 @MainActor
 final class DividerController {
-    unowned var runtime: AppRuntime!
+    unowned var runtime: DividerRuntimeHosting!
 
     private var panels: [UUID: [DividerPanel]] = [:]
     private var views: [UUID: [DividerOverlayView]] = [:]
@@ -67,19 +67,17 @@ final class DividerController {
 
     func refresh() {
         guard !isDragging else { return }
-        guard runtime.trust.isTrusted(),
-              !runtime.isEditorOpen,
-              !runtime.isOrganizingWindows,
-              !runtime.engine.isSessionActive
+        guard runtime.isTrusted(),
+              runtime.allows(.presentDivider)
         else {
             hidePanels()
             return
         }
 
-        let flip = runtime.displays.primaryFlipHeight
+        let flip = runtime.primaryFlipHeight
         var nextHandles: [UUID: [DividerHandleSpec]] = [:]
         var activeDisplayIDs = Set<UUID>()
-        for area in runtime.displays.workAreas {
+        for area in runtime.workAreas {
             activeDisplayIDs.insert(area.display.id)
             let handles = handles(for: area)
             nextHandles[area.display.id] = handles
@@ -93,7 +91,7 @@ final class DividerController {
 
     func consumesPoint(_ pointAppKit: CGPoint) -> Bool {
         if isDragging { return true }
-        let flip = runtime.displays.primaryFlipHeight
+        let flip = runtime.primaryFlipHeight
         for (displayID, handles) in handlesByDisplay {
             guard panels[displayID]?.contains(where: { $0.isVisible }) == true else { continue }
             if handles.contains(where: { DividerPlan.hitRect(for: $0, primaryFlipHeight: flip).contains(pointAppKit) }) {
@@ -125,6 +123,10 @@ final class DividerController {
         windowResolutionTask = nil
         writeTask?.cancel()
         writeTask = nil
+        if let drag {
+            runtime.cancelMutations(sessionID: drag.id)
+            runtime.end(.divide)
+        }
         writeTaskID = nil
         latestDragLayout = nil
         drag = nil
@@ -140,7 +142,7 @@ final class DividerController {
         }
         let workAX = CoordinateConverter.axRect(
             fromAppKit: area.visibleFrameAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         let resolved = runtime.resolvedZones(for: area)
         let targetFrames = Dictionary(uniqueKeysWithValues: resolved.map { ($0.zoneID, $0.frameAX) })
@@ -208,12 +210,16 @@ final class DividerController {
         view: DividerOverlayView
     ) {
         guard drag == nil else { return }
-        guard let area = runtime.displays.workAreas.first(where: { $0.display.id == displayID }),
+        guard runtime.begin(.divide) else { return }
+        guard let area = runtime.workAreas.first(where: { $0.display.id == displayID }),
               let layout = runtime.document.layout(for: displayID)
-        else { return }
+        else {
+            runtime.end(.divide)
+            return
+        }
         let workAX = CoordinateConverter.axRect(
             fromAppKit: area.visibleFrameAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         let dragID = UUID()
         drag = DragState(
@@ -298,7 +304,7 @@ final class DividerController {
         guard var current = drag else { return }
         let pointAX = CoordinateConverter.axPoint(
             fromAppKit: locationAppKit,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight
+            primaryFlipHeight: runtime.primaryFlipHeight
         )
         guard let t = DividerPlan.normalizedPosition(
             of: pointAX,
@@ -334,7 +340,7 @@ final class DividerController {
         }) {
             let hitRect = DividerPlan.hitRect(
                 for: nextHandle,
-                primaryFlipHeight: runtime.displays.primaryFlipHeight
+                primaryFlipHeight: runtime.primaryFlipHeight
             )
             current.panel.setFrame(hitRect, display: true)
             current.view.handles = [nextHandle]
@@ -363,11 +369,15 @@ final class DividerController {
         }
     }
 
+    private var writeGeneration = 0
+
     private func drainWrites(dragID: UUID, taskID: UUID) async {
         while !Task.isCancelled {
             guard let current = drag, current.id == dragID, let layout = latestDragLayout else { break }
             guard !current.windows.isEmpty else { break }
             latestDragLayout = nil
+            writeGeneration += 1
+            let generation = writeGeneration
             let resolved = (try? resolveLayout(
                 layout,
                 workAreaAX: current.workAreaAX,
@@ -378,7 +388,7 @@ final class DividerController {
                 guard let window = current.windows[slot.identity],
                       let frame = frames[slot.zoneID]
                 else { continue }
-                _ = await runtime.ax.setFrame(frame, of: window)
+                _ = await runtime.applyFrame(frame, of: window, sessionID: current.id, generation: generation)
             }
             guard !Task.isCancelled, let latest = drag, latest.id == dragID else { break }
             previewHandle(from: latest)
@@ -443,6 +453,8 @@ final class DividerController {
                 displayID: current.displayID
             )
         }
+        runtime.finishMutations(sessionID: current.id)
+        runtime.end(.divide)
         drag = nil
         latestDragLayout = nil
         writeTask = nil

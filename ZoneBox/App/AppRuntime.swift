@@ -4,13 +4,16 @@ import ZoneBoxCore
 
 @MainActor
 final class AppRuntime {
-    var isEditorOpen = false
     var settings: AppSettings = .default
     var document = StoreDocument()
     var pendingWindow: AXWindow?
     var pendingFrame: CGRect?
     var pendingStartedOnMoveChrome = false
     var pendingIdentity: WindowIdentity?
+
+    var mode: RuntimeMode { mutations.mode }
+    var isEditorOpen: Bool { mutations.mode == .editing }
+    var isOrganizingWindows: Bool { mutations.mode == .organizing }
 
     let uiSession = UISession()
     let trust = TrustMonitor()
@@ -39,7 +42,8 @@ final class AppRuntime {
     private var quickSnapperUIActive = false
     private var previewHideWorkItem: DispatchWorkItem?
     private var pendingLayoutPreview: PendingLayoutPreview?
-    private(set) var isOrganizingWindows = false
+    private let mutations: WindowMutationEngine
+    private let mutationAdapter: AXWindowMutator
     private var organizeBehaviorCache: [WindowIdentity: WindowOrganizeWindowBehavior] = [:]
     private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
     private var resolvedLayoutCache: [ResolvedLayoutCacheKey: [ResolvedZone]] = [:]
@@ -51,10 +55,13 @@ final class AppRuntime {
             snapDialogs: { false },
             trusted: { TrustMonitor.hasAccessibilityAccess() }
         )
+        mutationAdapter = AXWindowMutator()
+        mutations = WindowMutationEngine(mutator: mutationAdapter)
+        mutationAdapter.runtime = self
     }
 
     func start(resume: OnboardingPage? = nil, forceTour: Bool = false, suppressTour: Bool = false) {
-        isEditorOpen = false
+        mutations.force(.idle)
         settings = (try? settingsStore.load()) ?? .default
         document = (try? layoutStore.load()) ?? StoreDocument()
         ax = rebindAX()
@@ -106,12 +113,15 @@ final class AppRuntime {
     }
 
     private func rebindAX() -> AccessibilityClientLive {
-        AccessibilityClientLive(
+        let client = AccessibilityClientLive(
             query: query,
             excluded: { [weak self] in self?.settings.excludedBundleIDs ?? AppSettings.default.excludedBundleIDs },
             snapDialogs: { [weak self] in self?.settings.snapDialogs ?? false },
             trusted: { TrustMonitor.hasAccessibilityAccess() }
         )
+        mutationAdapter.ax = client
+        mutationAdapter.runtime = self
+        return client
     }
 
     func teardown() {
@@ -238,6 +248,7 @@ final class AppRuntime {
 
     func editorDidClose() {
         editor = nil
+        end(.edit)
         menuBar?.reloadMenu()
         divider.refresh()
     }
@@ -482,6 +493,7 @@ final class AppRuntime {
     }
 
     private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
+        guard begin(.edit) else { return }
         pinHover.hideImmediately()
         pins.hideBadges()
         divider.hideAll()
@@ -521,11 +533,10 @@ final class AppRuntime {
     }
 
     func beginWindowTransaction() -> Bool {
-        guard !isOrganizingWindows else {
+        guard begin(.organize) else {
             Log.ax.info("Organize ignored because another transaction is running")
             return false
         }
-        isOrganizingWindows = true
         pinHover.hideImmediately()
         divider.hideAll()
         menuBar?.reloadMenu()
@@ -533,7 +544,7 @@ final class AppRuntime {
     }
 
     func finishWindowTransaction() {
-        isOrganizingWindows = false
+        end(.organize)
         menuBar?.reloadMenu()
         divider.refresh()
     }
@@ -774,8 +785,8 @@ final class AppRuntime {
         return organizeAttemptPlan(for: ranked, using: plan, avoiding: fixed, on: area)
     }
 
-    private func applyOrganizeFrame(_ target: CGRect, to window: AXWindow) async -> WindowOrganizeApplication {
-        _ = await ax.setFrame(target, of: window)
+    private func applyOrganizeFrame(_ target: CGRect, to window: AXWindow, sessionID: UUID = UUID(), generation: Int = 1) async -> WindowOrganizeApplication {
+        _ = await applyFrame(target, of: window, sessionID: sessionID, generation: generation)
         try? await Task.sleep(nanoseconds: 120_000_000)
         let first = await ax.frame(of: window)
         try? await Task.sleep(nanoseconds: 120_000_000)
@@ -787,8 +798,45 @@ final class AppRuntime {
         )
     }
 
-    func applyWorkspaceFrame(_ target: CGRect, to window: AXWindow) async -> WindowOrganizeApplication {
-        await applyOrganizeFrame(target, to: window)
+    func applyWorkspaceFrame(_ target: CGRect, to window: AXWindow, sessionID: UUID = UUID(), generation: Int = 1) async -> WindowOrganizeApplication {
+        await applyOrganizeFrame(target, to: window, sessionID: sessionID, generation: generation)
+    }
+
+    func applyFrame(_ frame: CGRect, of window: AXWindow, sessionID: UUID, generation: Int) async -> CGRect? {
+        mutationAdapter.remember(window)
+        mutationAdapter.ax = ax
+        return await mutations.applyFrame(frame, of: window.identity, sessionID: sessionID, generation: generation)
+    }
+
+    func raise(_ window: AXWindow, sessionID: UUID, generation: Int) async -> AXError {
+        mutationAdapter.remember(window)
+        mutationAdapter.ax = ax
+        let succeeded = await mutations.raise(window.identity, sessionID: sessionID, generation: generation)
+        return succeeded ? .success : .cannotComplete
+    }
+
+    func cancelMutations(sessionID: UUID) {
+        mutations.cancel(sessionID: sessionID)
+    }
+
+    func finishMutations(sessionID: UUID) {
+        mutations.finish(sessionID: sessionID)
+    }
+
+    func hideLiveOverlays() {
+        hideAllOverlays()
+    }
+
+    func refreshDivider() {
+        divider.refresh()
+    }
+
+    func reloadMenu() {
+        menuBar?.reloadMenu()
+    }
+
+    func closeConsole() {
+        menuBar?.closeConsole()
     }
 
     func cachedOrganizeBehavior(for identity: WindowIdentity) -> WindowOrganizeWindowBehavior? {
@@ -1376,3 +1424,31 @@ private struct PendingLayoutPreview {
     var layout: Layout
     var area: WorkArea
 }
+
+
+extension AppRuntime: SnapRuntimeHosting {}
+extension AppRuntime: DragRuntimeHosting {}
+extension AppRuntime: DividerRuntimeHosting {}
+extension AppRuntime: PinRuntimeHosting {}
+extension AppRuntime: PinHoverRuntimeHosting {}
+extension AppRuntime: WorkspaceRuntimeHosting {}
+extension AppRuntime: HotkeyRuntimeHosting {}
+
+extension AppRuntime: RuntimeModeOwning {
+    func allows(_ capability: RuntimeCapability) -> Bool { mutations.allows(capability) }
+    func begin(_ request: RuntimeModeRequest) -> Bool { mutations.begin(request) }
+    func end(_ request: RuntimeModeRequest) { mutations.end(request) }
+}
+
+extension AppRuntime: RuntimeTrusting {
+    func isTrusted() -> Bool { trust.isTrusted() }
+}
+
+extension AppRuntime: RuntimeDisplayCatalog {
+    var workAreas: [WorkArea] { displays.workAreas }
+    var primaryFlipHeight: CGFloat { displays.primaryFlipHeight }
+    func area(containingAppKit point: CGPoint) -> WorkArea? { displays.area(containingAppKit: point) }
+    func isActive(displayID: DisplayIdentity.ID) -> Bool { displays.isActive(displayID: displayID) }
+    func screen(for displayID: DisplayIdentity.ID) -> NSScreen? { displays.screen(for: displayID) }
+}
+

@@ -3,7 +3,7 @@ import ZoneBoxCore
 
 @MainActor
 final class WorkspaceCenter {
-    unowned var runtime: AppRuntime!
+    unowned var runtime: WorkspaceRuntimeHosting!
 
     private struct WindowCandidate {
         var sample: ProfileCapture.WindowSample
@@ -141,7 +141,7 @@ final class WorkspaceCenter {
         copy.updatedAt = Date()
         runtime.document.upsertProfile(copy)
         runtime.persist()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
         runtime.refreshWorkspaceSettings()
         updateCensus()
     }
@@ -151,17 +151,17 @@ final class WorkspaceCenter {
         pending.removeAll()
         observed.removeAll()
         runtime.persist()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
         runtime.refreshWorkspaceSettings()
         updateCensus()
     }
 
     private func captureNow(name: String, replacing profileID: WorkspaceProfile.ID?) async {
-        guard !runtime.isEditorOpen, !runtime.isOrganizingWindows, !runtime.engine.isSessionActive else {
+        guard runtime.allows(.censusWindows), runtime.mode == .idle else {
             NSSound.beep()
             return
         }
-        guard runtime.trust.isTrusted() else {
+        guard runtime.isTrusted() else {
             runtime.openAccessibility()
             return
         }
@@ -205,7 +205,7 @@ final class WorkspaceCenter {
         runtime.document.upsertProfile(profile)
         runtime.document.activeProfileID = profile.id
         runtime.persist()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
         runtime.refreshWorkspaceSettings()
         resetBaseline()
         updateCensus()
@@ -217,11 +217,11 @@ final class WorkspaceCenter {
     }
 
     private func applyNow(_ profile: WorkspaceProfile) async {
-        if runtime.isEditorOpen || runtime.engine.isSessionActive {
+        if !runtime.allows(.mutateWindows) || runtime.isEditorOpen || runtime.mode == .snapping {
             NSSound.beep()
             return
         }
-        guard runtime.trust.isTrusted() else {
+        guard runtime.isTrusted() else {
             runtime.openAccessibility()
             return
         }
@@ -242,7 +242,7 @@ final class WorkspaceCenter {
         observed.removeAll()
         var zonesBySection: [DisplayIdentity.ID: [ResolvedZone]] = [:]
         for section in profile.sections {
-            guard let area = runtime.displays.workAreas.first(where: { $0.display.id == section.space.displayID }),
+            guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }),
                   let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
             else { continue }
             zonesBySection[section.space.displayID] = runtime.resolvedZones(layout: layout, area: area)
@@ -272,8 +272,8 @@ final class WorkspaceCenter {
         var movedWindows: [WindowIdentity] = []
 
         for sectionPlan in outcome.sections {
-            guard runtime.displays.isActive(displayID: sectionPlan.displayID),
-                  let area = runtime.displays.workAreas.first(where: { $0.display.id == sectionPlan.displayID }),
+            guard runtime.isActive(displayID: sectionPlan.displayID),
+                  let area = runtime.workAreas.first(where: { $0.display.id == sectionPlan.displayID }),
                   let layout = runtime.document.layouts.first(where: { $0.id == sectionPlan.layoutID })
             else { continue }
             let initialSkipped = sectionPlan.placements.map(\.identity).filter { handles[$0] == nil }
@@ -283,7 +283,7 @@ final class WorkspaceCenter {
             let placements = Dictionary(uniqueKeysWithValues: sectionPlan.placements.map { ($0.identity, $0) })
             let workAX = CoordinateConverter.axRect(
                 fromAppKit: area.visibleFrameAppKit,
-                primaryFlipHeight: runtime.displays.primaryFlipHeight
+                primaryFlipHeight: runtime.primaryFlipHeight
             )
             runtime.document.assign(layoutID: layout.id, to: sectionPlan.displayID)
             runtime.document.markLayoutUsed(layout.id)
@@ -301,7 +301,7 @@ final class WorkspaceCenter {
                     guard let self else {
                         return WindowOrganizeApplication(actualFrameAX: nil, behavior: .immutable)
                     }
-                    return await self.runtime.applyWorkspaceFrame(frame, to: window)
+                    return await self.runtime.applyWorkspaceFrame(frame, to: window, sessionID: UUID(), generation: 1)
                 },
                 onIssues: { observedIssues in
                     for issue in observedIssues {
@@ -357,12 +357,12 @@ final class WorkspaceCenter {
         // untouched by the profile cannot continue covering the result. AXRaise
         // changes stacking without activating the application or stealing focus.
         for window in restoredWindows {
-            _ = await runtime.ax.raise(window)
+            _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
         }
 
         runtime.document.activeProfileID = profile.id
         runtime.persist()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
         runtime.refreshWorkspaceSettings()
         resetBaseline()
         prepareMissingPlacements(
@@ -417,14 +417,14 @@ final class WorkspaceCenter {
 
     private func captureSections(from samples: [ProfileCapture.WindowSample]) -> [ProfileSection] {
         var sections: [ProfileSection] = []
-        for area in runtime.displays.workAreas {
+        for area in runtime.workAreas {
             guard let layout = runtime.document.layout(for: area.display.id) else { continue }
             let zones = runtime.resolvedZones(layout: layout, area: area)
             let owned = samples.filter { sample in
                 DisplayTargetResolver.workArea(
                     containingWindowFrameAX: sample.frameAX,
-                    from: runtime.displays.workAreas,
-                    primaryFlipHeight: runtime.displays.primaryFlipHeight
+                    from: runtime.workAreas,
+                    primaryFlipHeight: runtime.primaryFlipHeight
                 )?.display.id == area.display.id
             }
             let rules = ProfileCapture.rules(windows: owned, zones: zones)
@@ -818,7 +818,7 @@ final class WorkspaceCenter {
                 error: true
             )
         }
-        guard !runtime.engine.isSessionActive, !runtime.isEditorOpen else { return }
+        guard runtime.allows(.censusWindows) else { return }
 
         let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
         let current = Dictionary(uniqueKeysWithValues: refs.map { ($0.identity, $0) })
@@ -961,14 +961,14 @@ final class WorkspaceCenter {
     }
 
     private func resolvedZones(for section: ProfileSection) -> [ResolvedZone]? {
-        guard let area = runtime.displays.workAreas.first(where: { $0.display.id == section.space.displayID }),
+        guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }),
               let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
         else { return nil }
         return runtime.resolvedZones(layout: layout, area: area)
     }
 
     private func resolvedZone(for placement: PendingPlacement) -> ResolvedZone? {
-        guard let area = runtime.displays.workAreas.first(where: { $0.display.id == placement.displayID }),
+        guard let area = runtime.workAreas.first(where: { $0.display.id == placement.displayID }),
               let layout = runtime.document.layouts.first(where: { $0.id == placement.layoutID })
         else { return nil }
         let zones = runtime.resolvedZones(layout: layout, area: area)
@@ -995,7 +995,7 @@ final class WorkspaceCenter {
     }
 
     private func acceptedDelayedFrame(_ target: CGRect, of window: AXWindow) async -> CGRect? {
-        let application = await runtime.applyWorkspaceFrame(target, to: window)
+        let application = await runtime.applyWorkspaceFrame(target, to: window, sessionID: UUID(), generation: 1)
         switch application.behavior {
         case .compliant, .sizeConstrained:
             return application.actualFrameAX
@@ -1005,9 +1005,9 @@ final class WorkspaceCenter {
     }
 
     private func showFeedback(title: String, detail: String, error: Bool) {
-        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-            ?? runtime.displays.workAreas.first
-        guard let area, let screen = runtime.displays.screen(for: area.display.id) else { return }
+        let area = runtime.area(containingAppKit: NSEvent.mouseLocation)
+            ?? runtime.workAreas.first
+        guard let area, let screen = runtime.screen(for: area.display.id) else { return }
         runtime.organizeFeedback.show(
             OrganizeFeedback(tone: error ? .error : .warning, title: title, detail: detail),
             on: screen

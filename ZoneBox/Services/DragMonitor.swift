@@ -3,7 +3,7 @@ import ZoneBoxCore
 
 @MainActor
 final class DragMonitor {
-    unowned var runtime: AppRuntime!
+    unowned var runtime: DragRuntimeHosting!
     private var monitors: [Any] = []
     private let query = CGWindowQuery()
     private var bufferedDrags: [SnapMouseEvent] = []
@@ -54,8 +54,8 @@ final class DragMonitor {
     }
 
     private func handle(_ event: NSEvent) {
-        guard !runtime.isEditorOpen else { return }
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.allows(.capturePointer) else { return }
+        guard runtime.isTrusted() else { return }
 
         if event.type == .mouseMoved {
             guard (NSEvent.pressedMouseButtons & 1) != 0 else { return }
@@ -99,8 +99,8 @@ final class DragMonitor {
 
     private func beginHold(_ mouse: SnapMouseEvent) {
         guard !leftButtonHeld else { return }
-        guard !runtime.isEditorOpen else { return }
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.allows(.capturePointer) else { return }
+        guard runtime.isTrusted() else { return }
         guard !runtime.pinHover.consumesPoint(mouse.locationAppKit) else { return }
         guard !runtime.divider.consumesPoint(mouse.locationAppKit) else { return }
         Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
@@ -207,8 +207,8 @@ final class DragMonitor {
             finishHold(mouse)
             return
         }
-        guard !runtime.isEditorOpen else { return }
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.allows(.capturePointer) else { return }
+        guard runtime.isTrusted() else { return }
         ensureHold(at: location, modifiers: modifiers)
         ingestDrag(at: location, modifiers: modifiers)
     }
@@ -219,7 +219,7 @@ final class DragMonitor {
         frame: CGRect,
         startedOnMoveChrome: Bool
     )? {
-        let flip = runtime.displays.primaryFlipHeight
+        let flip = runtime.primaryFlipHeight
         let axPoint = CoordinateConverter.axPoint(fromAppKit: location, primaryFlipHeight: flip)
         let ourPID = ProcessInfo.processInfo.processIdentifier
         guard let ref = query.topmostWindow(atAXPoint: axPoint, excludingPID: ourPID),

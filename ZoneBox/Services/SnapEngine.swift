@@ -30,7 +30,7 @@ final class SnapEngine {
     private var layoutAssignmentGeneration = 0
     private var quickSnapperArea: WorkArea?
 
-    unowned var runtime: AppRuntime!
+    unowned var runtime: SnapRuntimeHosting!
 
     var isQuickSnapperShowing: Bool {
         if quickSnapperPending { return true }
@@ -55,11 +55,20 @@ final class SnapEngine {
         }
     }
 
+    private var snapWriteSession = UUID()
+    private var outstandingSnapWrites = 0
+
     func handleMouse(_ event: SnapMouseEvent) {
         if event.kind == .leftDown, isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
         }
-        let cursorArea = runtime.displays.area(containingAppKit: event.locationAppKit)
+        if event.kind == .leftDown {
+            snapWriteSession = UUID()
+            if runtime.mode != .snapping {
+                guard runtime.begin(.snap) else { return }
+            }
+        }
+        let cursorArea = runtime.area(containingAppKit: event.locationAppKit)
         let window = activeWindow ?? runtime.pendingWindow?.identity ?? runtime.pendingIdentity
         if event.kind == .leftDown {
             pointerTrace = [event.locationAppKit]
@@ -95,15 +104,15 @@ final class SnapEngine {
         let input = SnapReducerInput(
             phase: phase,
             event: event,
-            workAreas: runtime.displays.workAreas,
-            primaryFlipHeight: runtime.displays.primaryFlipHeight,
+            workAreas: runtime.workAreas,
+            primaryFlipHeight: runtime.primaryFlipHeight,
             window: window,
             downFrameAX: downFrame,
             currentFrameAX: runtime.pendingFrame,
             downLocationAppKit: downLocation,
             resolvedZones: session.zones,
             unsnapRecord: window.flatMap { runtime.catalog.record(for: $0) },
-            trusted: runtime.trust.isTrusted(),
+            trusted: runtime.isTrusted(),
             snapEnabled: true,
             isEditorOpen: runtime.isEditorOpen,
             restoreSizeOnUnsnap: runtime.settings.restoreSizeOnUnsnap,
@@ -162,6 +171,7 @@ final class SnapEngine {
             runtime.pendingFrame = nil
             runtime.pendingStartedOnMoveChrome = false
             startedOnMoveChrome = false
+            releaseSnapOwnershipIfIdle()
             runtime.noteSnapSessionBecameIdle()
         }
     }
@@ -188,6 +198,7 @@ final class SnapEngine {
 
     func handleQuickSnapper(_ event: QuickSnapperEvent) {
         if case .invoke = event {
+            guard runtime.begin(.snap) else { return }
             quickSnapperPending = true
         }
         let previous = quickSnapperSerial
@@ -206,15 +217,15 @@ final class SnapEngine {
         } else {
             invokeFocus = nil
         }
-        var area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-            ?? runtime.displays.workAreas.first
+        var area = runtime.area(containingAppKit: NSEvent.mouseLocation)
+            ?? runtime.workAreas.first
         if case .invoke = event, let invokeFocus,
            let window = await runtime.ax.window(matching: invokeFocus),
            let frameAX = await runtime.ax.frame(of: window),
            let windowArea = DisplayTargetResolver.workArea(
                containingWindowFrameAX: frameAX,
-               from: runtime.displays.workAreas,
-               primaryFlipHeight: runtime.displays.primaryFlipHeight
+               from: runtime.workAreas,
+               primaryFlipHeight: runtime.primaryFlipHeight
            ) {
             area = QuickSnapperReducer.displayArea(pointerArea: area, targetWindowArea: windowArea)
         }
@@ -238,7 +249,7 @@ final class SnapEngine {
             phase: quickSnapperPhase,
             event: event,
             zoneNumbers: Set(zones.map(\.number)),
-            trusted: runtime.trust.isTrusted(),
+            trusted: runtime.isTrusted(),
             snapEnabled: true,
             isEditorOpen: runtime.isEditorOpen,
             enabled: runtime.settings.quickSnapperEnabled,
@@ -253,6 +264,9 @@ final class SnapEngine {
             quickSnapperPending = false
             quickSnapperLayoutID = nil
             quickSnapperArea = nil
+            if phase == .idle {
+                runtime.end(.snap)
+            }
         }
         for effect in output.effects {
             switch effect {
@@ -260,7 +274,7 @@ final class SnapEngine {
                 guard let area else { break }
                 runtime.noteQuickSnapperUI(showing: true)
                 runtime.overlay.settings = runtime.settings
-                runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
+                runtime.overlay.primaryFlipHeight = runtime.primaryFlipHeight
                 let overlayZones = runtime.resolvedZones(for: area, layoutOverride: output.selectedLayoutID)
                 runtime.overlay.show(
                     displayID: area.display.id,
@@ -268,11 +282,11 @@ final class SnapEngine {
                     highlight: .none,
                     captureKeys: true
                 )
-                runtime.divider.refresh()
+                runtime.refreshDivider()
             case .hideOverlay:
                 runtime.overlay.hideSessionOverlay()
                 runtime.noteQuickSnapperUI(showing: false)
-                runtime.divider.refresh()
+                runtime.refreshDivider()
             case .snap(let identity, let number):
                 await snap(identity, to: number, layoutID: output.selectedLayoutID)
             }
@@ -281,7 +295,7 @@ final class SnapEngine {
 
     func snapFocused(to zoneNumber: Int) {
         Task { @MainActor in
-            guard runtime.trust.isTrusted() else { return }
+            guard runtime.isTrusted() else { return }
             guard let target = await runtime.focusedWindowTarget() else { return }
             let zones = runtime.resolvedZones(for: target.area)
             guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
@@ -294,15 +308,15 @@ final class SnapEngine {
     }
 
     private func snap(_ identity: WindowIdentity, to zoneNumber: Int, layoutID: Layout.ID?) async {
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.isTrusted() else { return }
         guard let window = await runtime.ax.window(matching: identity),
               let frameAX = await runtime.ax.frame(of: window),
               let area = DisplayTargetResolver.workArea(
                   containingWindowFrameAX: frameAX,
-                  from: runtime.displays.workAreas,
-                  primaryFlipHeight: runtime.displays.primaryFlipHeight
+                  from: runtime.workAreas,
+                  primaryFlipHeight: runtime.primaryFlipHeight
               ),
-              runtime.displays.isActive(displayID: area.display.id)
+              runtime.isActive(displayID: area.display.id)
         else { return }
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
@@ -312,14 +326,14 @@ final class SnapEngine {
             layoutID: layoutID,
             pointAppKit: CoordinateConverter.appKitPoint(
                 fromAX: CGPoint(x: zone.frameAX.midX, y: zone.frameAX.midY),
-                primaryFlipHeight: runtime.displays.primaryFlipHeight
+                primaryFlipHeight: runtime.primaryFlipHeight
             )
         )
         commitPendingLayoutAssignmentIfNeeded()
     }
 
     func snapAdjacent(delta: Int) {
-        guard runtime.trust.isTrusted() else { return }
+        guard runtime.isTrusted() else { return }
         Task { @MainActor in
             guard let target = await runtime.focusedWindowTarget() else { return }
             let zones = runtime.resolvedZones(for: target.area).sorted { $0.number < $1.number }
@@ -358,8 +372,8 @@ final class SnapEngine {
                 guard let window, let frameAX,
                       DisplayTargetResolver.workArea(
                           containingWindowFrameAX: frameAX,
-                          from: runtime.displays.workAreas,
-                          primaryFlipHeight: runtime.displays.primaryFlipHeight
+                          from: runtime.workAreas,
+                          primaryFlipHeight: runtime.primaryFlipHeight
                       )?.display.id == target.area.display.id
                 else { continue }
                 ring.append((identity, window))
@@ -369,8 +383,8 @@ final class SnapEngine {
                   let index = ring.firstIndex(where: { $0.identity == target.window.identity })
             else { return }
             let next = ring[(index + delta + ring.count) % ring.count]
-            guard runtime.displays.isActive(displayID: target.area.display.id) else { return }
-            await runtime.ax.raise(next.window)
+            guard runtime.isActive(displayID: target.area.display.id) else { return }
+            _ = await runtime.raise(next.window, sessionID: UUID(), generation: 1)
             NSRunningApplication(processIdentifier: next.identity.pid)?.activate()
         }
     }
@@ -379,8 +393,8 @@ final class SnapEngine {
         _ target: (window: AXWindow, frameAX: CGRect, area: WorkArea),
         to zone: ResolvedZone
     ) async -> CGRect? {
-        guard runtime.displays.isActive(displayID: target.area.display.id) else { return nil }
-        if let applied = await runtime.ax.setFrame(zone.frameAX, of: target.window) {
+        guard runtime.isActive(displayID: target.area.display.id) else { return nil }
+        if let applied = await runtime.applyFrame(zone.frameAX, of: target.window, sessionID: UUID(), generation: layoutAssignmentGeneration) {
             runtime.catalog.record(
                 UnsnapRecord(
                     identity: target.window.identity,
@@ -391,7 +405,7 @@ final class SnapEngine {
                 displayID: target.area.display.id
             )
             runtime.noteUserSnapCompleted()
-            runtime.divider.refresh()
+            runtime.refreshDivider()
             return applied
         }
         return nil
@@ -402,16 +416,19 @@ final class SnapEngine {
             guard let window = await runtime.ax.focusedWindow(),
                   let record = runtime.catalog.record(for: window.identity)
             else { return }
-            _ = await runtime.ax.setFrame(record.originalFrameAX, of: window)
+            _ = await runtime.applyFrame(record.originalFrameAX, of: window, sessionID: UUID(), generation: 1)
             runtime.catalog.drop(identity: window.identity)
-            runtime.divider.refresh()
+            runtime.refreshDivider()
         }
     }
 
     func cancelSession() {
         phase = .idle
+        outstandingSnapWrites = 0
+        runtime.cancelMutations(sessionID: snapWriteSession)
+        runtime.end(.snap)
         runtime.overlay.hideSessionOverlay()
-        runtime.divider.refresh()
+        runtime.refreshDivider()
         activeWindow = nil
         pointerTrace = []
         stickyArm = false
@@ -427,6 +444,18 @@ final class SnapEngine {
         runtime.pendingFrame = nil
         runtime.pendingStartedOnMoveChrome = false
         startedOnMoveChrome = false
+    }
+
+    private func finishSnapWrite() {
+        if outstandingSnapWrites > 0 {
+            outstandingSnapWrites -= 1
+        }
+        releaseSnapOwnershipIfIdle()
+    }
+
+    private func releaseSnapOwnershipIfIdle() {
+        guard phase == .idle, outstandingSnapWrites == 0, !isQuickSnapperShowing else { return }
+        runtime.end(.snap)
     }
 
     private func isArmed(_ phase: SnapSessionPhase) -> Bool {
@@ -465,12 +494,14 @@ final class SnapEngine {
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
                 let generation = layoutAssignmentGeneration
+                outstandingSnapWrites += 1
                 Task { @MainActor in
+                    defer { self.finishSnapWrite() }
                     let window = captured?.identity == identity
                         ? captured
                         : await runtime.ax.window(matching: identity)
                     let applied = if let window {
-                        await runtime.ax.setFrame(rect, of: window) != nil
+                        await runtime.applyFrame(rect, of: window, sessionID: self.snapWriteSession, generation: generation) != nil
                     } else {
                         false
                     }
@@ -490,12 +521,12 @@ final class SnapEngine {
             case .recordUnsnap(let record):
                 let area = DisplayTargetResolver.workArea(
                     containingWindowFrameAX: record.snappedFrameAX,
-                    from: runtime.displays.workAreas,
-                    primaryFlipHeight: runtime.displays.primaryFlipHeight
+                    from: runtime.workAreas,
+                    primaryFlipHeight: runtime.primaryFlipHeight
                 )
                 runtime.catalog.record(record, displayID: area?.display.id)
                 runtime.noteUserSnapCompleted()
-                runtime.divider.refresh()
+                runtime.refreshDivider()
             case .assignLayout(let layoutID):
                 let pending = PendingLayoutAssignment(
                     layoutID: layoutID,
@@ -514,14 +545,14 @@ final class SnapEngine {
         }
         if hideOverlay {
             runtime.overlay.hideSessionOverlay()
-            runtime.divider.refresh()
+            runtime.refreshDivider()
             return
         }
         if let overlayDisplayID {
-            runtime.menuBar?.closeConsole()
+            runtime.closeConsole()
             runtime.overlay.settings = runtime.settings
-            runtime.overlay.primaryFlipHeight = runtime.displays.primaryFlipHeight
-            let area = runtime.displays.workAreas.first(where: { $0.display.id == overlayDisplayID })
+            runtime.overlay.primaryFlipHeight = runtime.primaryFlipHeight
+            let area = runtime.workAreas.first(where: { $0.display.id == overlayDisplayID })
             let session = sessionContext(
                 at: NSEvent.mouseLocation,
                 area: area,
@@ -539,7 +570,7 @@ final class SnapEngine {
                     highlight = HitTester(policy: runtime.settings.overlapPolicy).target(
                         at: CoordinateConverter.axPoint(
                             fromAppKit: NSEvent.mouseLocation,
-                            primaryFlipHeight: runtime.displays.primaryFlipHeight
+                            primaryFlipHeight: runtime.primaryFlipHeight
                         ),
                         zones: zones
                     )
@@ -551,7 +582,7 @@ final class SnapEngine {
                 highlight: highlight,
                 presentation: lastPresentation
             )
-            runtime.divider.refresh()
+            runtime.refreshDivider()
         } else if let overlayHighlight {
             runtime.overlay.highlight(overlayHighlight)
         }
@@ -585,13 +616,13 @@ final class SnapEngine {
             currentGeneration: layoutAssignmentGeneration
         ) else { return }
         pendingLayoutAssignment = nil
-        let area = runtime.displays.area(containingAppKit: pending.pointAppKit)
-            ?? runtime.displays.workAreas.first
+        let area = runtime.area(containingAppKit: pending.pointAppKit)
+            ?? runtime.workAreas.first
         guard let area else { return }
         runtime.document.assign(layoutID: pending.layoutID, to: area.display.id)
         runtime.markLayoutUsed(pending.layoutID)
         runtime.persist()
-        runtime.menuBar?.reloadMenu()
+        runtime.reloadMenu()
         sessionLayoutID = pending.layoutID
     }
 
@@ -640,7 +671,7 @@ final class SnapEngine {
         if runtime.settings.showLayoutStrip, let area, isArmed(phase) {
             let workAX = CoordinateConverter.axRect(
                 fromAppKit: area.visibleFrameAppKit,
-                primaryFlipHeight: runtime.displays.primaryFlipHeight
+                primaryFlipHeight: runtime.primaryFlipHeight
             )
             strip = LayoutStripGeometry.make(
                 workAreaAppKit: area.visibleFrameAppKit,
