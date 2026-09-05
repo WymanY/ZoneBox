@@ -253,7 +253,7 @@ public enum OnboardingNavigation {
 - 三张方式卡片（图标 + 一句话，文案里的快捷键从 `runtime.settings` 现算）：
   1. `hand.draw` — `welcomeSnapShiftDrag`："按住标题栏拖动窗口，同时按住 Shift，放到分区上。"（`snapOnShiftDrag` 关闭时隐藏此卡）
   2. `computermouse.fill` — `welcomeSnapRightClick`："拖动时按一下右键，也会显示分区。"（`snapOnRightClickDrag` 关闭时隐藏）
-  3. `keyboard` — `welcomeSnapKeyboard`："先点一下别的窗口，再按 %@。" 参数 = `KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: settings.zoneHotkeyModifiers).displayCaps` 拼成 "⌃⌥1"（`snapZoneHotkeysEnabled` 关闭时隐藏）
+  3. `keyboard` — `welcomeSnapKeyboard`："按 %@ 把这个引导窗口吸附进分区，也可以先点别的窗口再按。" 参数 = `KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: settings.zoneHotkeyModifiers).displayCaps` 拼成 "⌃⌥1"（`snapZoneHotkeysEnabled` 关闭时隐藏）
   - 脚注 `welcomeSnapWhileArmed`："分区显示时按 1–9 可直接落到对应编号；拖动时左右晃动标题栏也能呼出分区。"（后半句仅 `shakeToSnapEnabled` 时显示）
 - 按钮 `welcomeSnapShowZones`（"在这个屏幕上显示分区"）→ `runtime.previewZones(on: displayID)`。
 - 状态行：
@@ -261,7 +261,7 @@ public enum OnboardingNavigation {
   - 已授权、未吸附：小 spinner + `welcomeSnapWaiting`（"等待你的第一次吸附…"）。
   - `didSnap`：绿色对勾 + `welcomeSnapDone`（"成功！按 %@ 可以把窗口放回原处。" 参数 = `settings.unsnapHotkey.displayCaps`）。
 - 检测源：`runtime.noteUserSnapCompleted()`（§6.5）→ 状态机 `.snapCompleted`。**不轮询 `WindowCatalog`。**
-- 已知限制（写进文案而不是绕过）：引导窗口是 key window 时按 `⌃⌥1`，`ax.focusedWindow()` 会因自家 bundle 在 `excludedBundleIDs` 里返回 nil，什么都不会发生——所以键盘卡片明确写"先点一下别的窗口"。Shift-drag 不受影响，是本页的主推路径。
+- 引导窗口本身可以成为吸附目标：`⌃⌥1` 在它是 key window 时把它放进当前布局；Shift-drag 标题栏或窗口背景同样可以。设置窗口和其他 ZoneBox 窗口仍排除。
 
 **P5 更多能力（`.more`）**
 
@@ -336,7 +336,7 @@ func noteUserSnapCompleted() { welcome?.handle(.snapCompleted) }
 | Escape | `escapeAction` 顺序：录制快捷键 → 快捷键面板 → 编辑器 → QuickSnapper → 分隔杆 → 设置 → **onboarding** → 面板 → 取消吸附 | `runtime.onboardingIsKey = welcome?.isKey == true \|\| accessibilityGuide?.isKey == true`；`closeOnboardingIfOpen()` 关闭是 key 的那一个。引导上按 Escape = 关闭并标记完成（决策 D-4）。Core 不改。 |
 | 同时出现两个引导窗口 | `openAccessibility()`（菜单"Enable Accessibility"、设置页"管理权限"、组织/工作区的未授权兜底）会新建独立权限引导 | 引导窗口打开期间：若页序含 `.accessibility` → 跳到该页并 `makeKeyAndOrderFront`；否则才开独立引导。反向：独立引导打开时用户从菜单点"欢迎引导" → 先 `accessibilityGuide?.close()` 再开引导。 |
 | 全局快捷键 | Carbon 热键不看 key window | 引导期间全部照常工作。`⌃⌥Z` 打开编辑器、`⌃⌥/` 打开快捷键面板都允许，两者关闭后引导原地不动（它们各自的 `didClose` 只处理自己）。 |
-| 吸附目标 | 自家 bundle 在 `AppSettings.default.excludedBundleIDs` | 引导窗口永不成为吸附目标；`PinHoverMonitor` / `PinCenter` 用 `excludingPID: ownPID`，也不会在引导标题栏上出置顶按钮。 |
+| 吸附目标 | 自家 bundle 在 `AppSettings.default.excludedBundleIDs` | 默认仍排除 ZoneBox 自己；欢迎窗口通过 `allowedWindowNumbers` 成为唯一例外，可被快捷键和拖拽吸附。`PinHoverMonitor` / `PinCenter` 继续用 `excludingPID: ownPID`，不在引导标题栏出置顶按钮。 |
 | Overlay 层级 | `OverlayPanel.level = .screenSaver` | 闪现的分区始终盖在引导窗口（`.normal` / `.floating`）之上，用户在 P2/P4 能看到完整预览。 |
 | 权限轮询 | 独立引导 0.5s `Timer` 只在窗口存活期间 | 引导里只在权限页可见期间轮询（`willAppear/willDisappear`）；离开权限页后不再消耗。 |
 | 语言切换 | `AppRuntime.applyLanguage()` 分发 | 加 `welcome?.applyLanguage()`；当前页 `applyLanguage()` + 导航按钮 + 步骤点 accessibility label 重算。 |
@@ -423,7 +423,7 @@ public var onboardingCompletedVersion: Int      // default 0；decodeIfPresent ?
 | `welcomeSnapBody` | Pick any of these and try placing a window in a zone. | 三种方式任选一种，试试把任意窗口放进一个分区。 |
 | `welcomeSnapShiftDrag` | Drag a window by its title bar, hold Shift, and drop it on a zone. | 按住标题栏拖动窗口，同时按住 Shift，放到分区上。 |
 | `welcomeSnapRightClick` | Right-click once while dragging to show the zones. | 拖动时按一下右键，也会显示分区。 |
-| `welcomeSnapKeyboard` | Click another window first, then press %@. | 先点一下别的窗口，再按 %@。 |
+| `welcomeSnapKeyboard` | Press %@ to snap this welcome window, or click another window first. | 按 %@ 把这个引导窗口吸附进分区，也可以先点别的窗口再按。 |
 | `welcomeSnapWhileArmed` | While zones are showing, press 1–9 to pick one. | 分区显示时，按 1–9 直接落到对应编号。 |
 | `welcomeSnapShake` | Shaking the title bar while dragging also shows the zones. | 拖动时左右晃动标题栏也能呼出分区。 |
 | `welcomeSnapShowZones` | Show Zones on This Display | 在这个屏幕上显示分区 |
@@ -503,7 +503,7 @@ Core（无 AppKit，进 `ZoneBoxTests`）：
 - P3 打开系统设置并授权 → 5 秒内状态行变绿、菜单栏警告三角消失、主按钮变"继续"；不自动翻页。
 - P3 "退出并重新打开" → 重启后直接落在 P4，页序无 P3，步骤点显示 3/5。
 - P4 Shift-drag 任意窗口进分区 → 状态行 1 秒内变"成功"；`⌃⌥U` 后成功状态保留。
-- P4 引导窗口为 key 时按 `⌃⌥1` → 无动作（预期）；点别的窗口再按 → 吸附成功。
+- P4 引导窗口为 key 时按 `⌃⌥1` → 引导窗口吸附进当前布局，状态行变"成功"。点别的窗口再按仍吸附那个窗口。
 - P5 "打开布局编辑器" → 编辑器覆盖出现；Escape 关闭编辑器后引导仍在。
 - P6 打开"登录时启动" → 系统设置 → 通用 → 登录项 中出现 ZoneBox；设置页 General 的开关同步为开。
 - 任意页按 Escape → 引导关闭；重启不再弹出；右键菜单 "欢迎引导…" 与 设置 → 通用 → "查看引导" 都能重新打开。

@@ -88,6 +88,7 @@ protocol DragRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayC
     var engine: SnapEngine { get }
     var pinHover: PinHoverMonitor { get }
     var divider: DividerController { get }
+    func isSnappableOwnWindow(_ number: CGWindowID) -> Bool
 }
 
 @MainActor

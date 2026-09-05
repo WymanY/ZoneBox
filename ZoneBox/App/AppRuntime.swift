@@ -53,7 +53,8 @@ final class AppRuntime {
             query: query,
             excluded: { AppSettings.default.excludedBundleIDs },
             snapDialogs: { false },
-            trusted: { TrustMonitor.hasAccessibilityAccess() }
+            trusted: { TrustMonitor.hasAccessibilityAccess() },
+            allowedWindowNumbers: { [] }
         )
         mutationAdapter = AXWindowMutator()
         mutations = WindowMutationEngine(mutator: mutationAdapter)
@@ -117,7 +118,8 @@ final class AppRuntime {
             query: query,
             excluded: { [weak self] in self?.settings.excludedBundleIDs ?? AppSettings.default.excludedBundleIDs },
             snapDialogs: { [weak self] in self?.settings.snapDialogs ?? false },
-            trusted: { TrustMonitor.hasAccessibilityAccess() }
+            trusted: { TrustMonitor.hasAccessibilityAccess() },
+            allowedWindowNumbers: { [weak self] in self?.snappableOwnWindowNumbers() ?? [] }
         )
         mutationAdapter.ax = client
         mutationAdapter.runtime = self
@@ -346,6 +348,18 @@ final class AppRuntime {
     var onboardingIsKey: Bool { welcome?.isKey == true || accessibilityGuide?.isKey == true }
     var consoleIsVisible: Bool { menuBar?.isConsoleVisible == true }
     var isRecordingHotkey: Bool { settingsWindow?.isRecordingHotkey == true }
+
+    func snappableOwnWindowNumbers() -> Set<CGWindowID> {
+        Set([welcome?.windowNumber].compactMap { $0 })
+    }
+
+    func isSnappableOwnWindow(_ number: CGWindowID) -> Bool {
+        snappableOwnWindowNumbers().contains(number)
+    }
+
+    func ownNSWindow(matching number: CGWindowID) -> NSWindow? {
+        welcome?.nsWindow(matching: number)
+    }
 
     @discardableResult
     func closeShortcutPanelIfOpen() -> Bool {
@@ -1460,4 +1474,3 @@ extension AppRuntime: RuntimeDisplayCatalog {
     func isActive(displayID: DisplayIdentity.ID) -> Bool { displays.isActive(displayID: displayID) }
     func screen(for displayID: DisplayIdentity.ID) -> NSScreen? { displays.screen(for: displayID) }
 }
-

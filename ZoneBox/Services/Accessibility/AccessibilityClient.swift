@@ -41,17 +41,20 @@ final class AccessibilityClientLive: AccessibilityClient {
     private let excluded: () -> [String]
     private let snapDialogs: () -> Bool
     private let trusted: () -> Bool
+    private let allowedWindowNumbers: () -> Set<CGWindowID>
 
     init(
         query: WindowQuerying,
         excluded: @escaping () -> [String],
         snapDialogs: @escaping () -> Bool,
-        trusted: @escaping () -> Bool
+        trusted: @escaping () -> Bool,
+        allowedWindowNumbers: @escaping () -> Set<CGWindowID> = { [] }
     ) {
         self.query = query
         self.excluded = excluded
         self.snapDialogs = snapDialogs
         self.trusted = trusted
+        self.allowedWindowNumbers = allowedWindowNumbers
     }
 
     func focusedWindow() async -> AXWindow? {
@@ -140,7 +143,7 @@ final class AccessibilityClientLive: AccessibilityClient {
     }
 
     func setFrame(_ frame: CGRect, of window: AXWindow) async -> CGRect? {
-        await onAX { [self] in
+        await onAX(pid: window.identity.pid) { [self] in
             guard trusted() else { return nil }
             return AXFrameMutator.setFrame(frame, of: window.element)
         }
@@ -148,20 +151,23 @@ final class AccessibilityClientLive: AccessibilityClient {
 
     @discardableResult
     func raise(_ window: AXWindow) async -> AXError {
-        await onAX { [self] in
+        await onAX(pid: window.identity.pid) { [self] in
             guard trusted() else { return .apiDisabled }
             return AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
         }
     }
 
     func isSnappable(_ ref: WindowRef) -> Bool {
-        guard ref.layer == 0,
-              ref.boundsAX.width >= 80,
-              ref.boundsAX.height >= 80,
-              ref.pid != ProcessInfo.processInfo.processIdentifier
-        else { return false }
-        if let bundle = ref.bundleID, excluded().contains(bundle) { return false }
-        return true
+        SnapWindowEligibility.isSnappable(
+            layer: ref.layer,
+            size: ref.boundsAX.size,
+            pid: ref.pid,
+            ownPID: ProcessInfo.processInfo.processIdentifier,
+            windowNumber: ref.windowNumber,
+            bundleID: ref.bundleID,
+            excludedBundleIDs: excluded(),
+            allowedWindowNumbers: allowedWindowNumbers()
+        )
     }
 
     func resolveAsync(ref: WindowRef) async -> AXWindow? {
@@ -211,8 +217,12 @@ final class AccessibilityClientLive: AccessibilityClient {
             if minimized { return nil }
         }
         let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        let number = windowNumber(of: element, pid: pid)
+        if let number, allowedWindowNumbers().contains(number) {
+            return AXWindow(identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID), element: element)
+        }
         if let bundleID, excluded().contains(bundleID) { return nil }
-        guard let number = windowNumber(of: element, pid: pid) else { return nil }
+        guard let number else { return nil }
         return AXWindow(identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID), element: element)
     }
 
@@ -250,6 +260,20 @@ final class AccessibilityClientLive: AccessibilityClient {
     private func onAX<T>(_ work: @escaping () -> T) async -> T {
         await withCheckedContinuation { continuation in
             queue.async { continuation.resume(returning: work()) }
+        }
+    }
+
+    /// AX writes against this process bounce onto AppKit's window coordinator.
+    /// Those mutations must run on the main thread; foreign windows stay on the
+    /// dedicated AX queue so a hung target cannot stall the UI.
+    private func onAX<T>(pid: pid_t, _ work: @escaping () -> T) async -> T {
+        if OwnWindowFrameMutation.usesMainThreadAppKit(
+            pid: pid,
+            ownPID: ProcessInfo.processInfo.processIdentifier
+        ) {
+            await MainActor.run { work() }
+        } else {
+            await onAX(work)
         }
     }
 }
