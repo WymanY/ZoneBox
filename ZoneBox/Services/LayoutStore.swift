@@ -23,9 +23,10 @@ public struct LayoutStore: Sendable {
             }
             return document
         } catch {
-            let corrupt = fileURL.deletingLastPathComponent()
-                .appendingPathComponent("store.json.corrupt-\(Int(Date().timeIntervalSince1970))")
-            try? fm.moveItem(at: fileURL, to: corrupt)
+            Log.store.error(
+                "Store decode failed; starting empty path=\(self.fileURL.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            JSONCoding.quarantineCorruptFile(at: fileURL)
             let document = StoreDocument()
             try save(document)
             return document

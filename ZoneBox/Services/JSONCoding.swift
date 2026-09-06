@@ -26,4 +26,26 @@ enum JSONCoding {
             try fm.moveItem(at: tmp, to: url)
         }
     }
+
+    /// Moves an undecodable file aside as `<name>.corrupt-<unix time>` so the
+    /// replacement written on the next save does not destroy the user's data.
+    /// Best effort: a failed move is logged, never thrown, because the caller
+    /// is already on the fallback path.
+    @discardableResult
+    static func quarantineCorruptFile(at url: URL) -> URL? {
+        let quarantined = url.deletingLastPathComponent()
+            .appendingPathComponent(url.lastPathComponent + ".corrupt-\(Int(Date().timeIntervalSince1970))")
+        do {
+            try FileManager.default.moveItem(at: url, to: quarantined)
+            Log.store.error(
+                "Quarantined corrupt file path=\(url.lastPathComponent, privacy: .public) as=\(quarantined.lastPathComponent, privacy: .public)"
+            )
+            return quarantined
+        } catch {
+            Log.store.error(
+                "Failed to quarantine corrupt file path=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
 }

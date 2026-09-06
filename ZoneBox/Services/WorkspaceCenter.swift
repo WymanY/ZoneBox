@@ -25,6 +25,21 @@ final class WorkspaceCenter {
     /// longer than 15s before their first standard window appears.
     static let launchTimeout: TimeInterval = 30
 
+    /// After `NSRunningApplication.unhide()` the app's windows re-enter the
+    /// CGWindowList a frame or two later; re-querying immediately misses them.
+    private static let unhideSettleNanoseconds: UInt64 = 300_000_000
+
+    /// Unminimize animates; the AX frame is not final until it lands.
+    private static let unminimizeSettleNanoseconds: UInt64 = 400_000_000
+
+    /// A cold Simulator launch starts its device boot on its own. Give it
+    /// time to appear as Booting before deciding whether to boot one ourselves.
+    private static let simulatorBootProbeNanoseconds: UInt64 = 1_500_000_000
+
+    /// Census cadence while placements are pending. One second keeps AX
+    /// traffic low but still catches a window within a launch's first frames.
+    private static let censusIntervalNanoseconds: UInt64 = 1_000_000_000
+
     private struct PendingPlacement: Identifiable {
         var id = UUID()
         var bundleID: String
@@ -499,7 +514,7 @@ final class WorkspaceCenter {
             }
         }
         if revealedRunning {
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: Self.unhideSettleNanoseconds)
             let refreshed = runtime.query.windows(excludingPID: ownPID)
             pidOrder = []
             refsByPID = [:]
@@ -620,7 +635,7 @@ final class WorkspaceCenter {
             }
         }
         if revealed > 0 {
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(nanoseconds: Self.unminimizeSettleNanoseconds)
         }
     }
 
@@ -739,7 +754,7 @@ final class WorkspaceCenter {
     /// starts that boot on its own; the delay lets it show up as Booting so
     /// the check below leaves it alone.
     private func bootSimulatorDeviceIfNeeded(simulatorAppURL: URL) async {
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        try? await Task.sleep(nanoseconds: Self.simulatorBootProbeNanoseconds)
         guard pending.contains(where: { $0.bundleID == SimulatorDevicePlan.bundleID }) else { return }
         let booter = SimulatorDeviceBooter(
             developerDirectory: SimulatorDeviceBooter.developerDirectory(simulatorAppURL: simulatorAppURL)
@@ -790,7 +805,7 @@ final class WorkspaceCenter {
             censusTask = Task { @MainActor [weak self] in
                 while let self, !Task.isCancelled {
                     await self.poll()
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    try? await Task.sleep(nanoseconds: Self.censusIntervalNanoseconds)
                 }
             }
         } else if !needed {

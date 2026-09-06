@@ -18,6 +18,14 @@ public struct SettingsStore: Sendable {
         do {
             return try JSONCoding.decoder().decode(AppSettings.self, from: data)
         } catch {
+            // Fall back to defaults so a bad file never blocks launch, but
+            // keep the original beside it: the next save would otherwise
+            // overwrite the user's only copy without a trace.
+            Log.store.error(
+                "Settings decode failed; using defaults path=\(self.fileURL.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            JSONCoding.quarantineCorruptFile(at: fileURL)
+            try save(.default)
             return .default
         }
     }

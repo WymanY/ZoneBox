@@ -115,7 +115,7 @@ final class SnapEngine {
             resolvedZones: session.zones,
             unsnapRecord: window.flatMap { runtime.catalog.record(for: $0) },
             trusted: runtime.isTrusted(),
-            snapEnabled: true,
+            snapEnabled: runtime.settings.snapEnabled,
             isEditorOpen: runtime.isEditorOpen,
             restoreSizeOnUnsnap: runtime.settings.restoreSizeOnUnsnap,
             overlapPolicy: runtime.settings.overlapPolicy,
@@ -252,7 +252,7 @@ final class SnapEngine {
             event: event,
             zoneNumbers: Set(zones.map(\.number)),
             trusted: runtime.isTrusted(),
-            snapEnabled: true,
+            snapEnabled: runtime.settings.snapEnabled,
             isEditorOpen: runtime.isEditorOpen,
             enabled: runtime.settings.quickSnapperEnabled,
             focusedWindow: invokeFocus,
@@ -297,7 +297,7 @@ final class SnapEngine {
 
     func snapFocused(to zoneNumber: Int) {
         Task { @MainActor in
-            guard runtime.isTrusted() else { return }
+            guard runtime.isTrusted(), runtime.settings.snapEnabled else { return }
             guard let target = await runtime.focusedWindowTarget() else { return }
             let zones = runtime.resolvedZones(for: target.area)
             guard let zone = zones.first(where: { $0.number == zoneNumber }) else { return }
@@ -335,7 +335,7 @@ final class SnapEngine {
     }
 
     func snapAdjacent(delta: Int) {
-        guard runtime.isTrusted() else { return }
+        guard runtime.isTrusted(), runtime.settings.snapEnabled else { return }
         Task { @MainActor in
             guard let target = await runtime.focusedWindowTarget() else { return }
             let zones = runtime.resolvedZones(for: target.area).sorted { $0.number < $1.number }

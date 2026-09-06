@@ -19,6 +19,26 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(loaded.layouts.last?.name, "Focus")
     }
 
+    func testCorruptStoreFileIsQuarantinedAndReplacedWithEmptyDocument() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = LayoutStore(directory: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("{not json".utf8).write(to: store.fileURL)
+
+        let loaded = try store.load()
+        let fresh = StoreDocument()
+        XCTAssertEqual(loaded.schemaVersion, fresh.schemaVersion)
+        XCTAssertEqual(loaded.layouts.map(\.name), fresh.layouts.map(\.name))
+        XCTAssertTrue(loaded.displays.isEmpty)
+        XCTAssertTrue(loaded.assignments.isEmpty)
+        XCTAssertTrue(loaded.profiles.isEmpty)
+        XCTAssertNil(loaded.activeProfileID)
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertTrue(names.contains("store.json"), "fresh document should be rewritten: \(names)")
+        XCTAssertTrue(names.contains { $0.hasPrefix("store.json.corrupt-") }, "original should be kept: \(names)")
+    }
+
     func testGridWeights() throws {
         let layout = LayoutTemplates.columns(3)
         XCTAssertEqual(layout.grid?.columnWeights.reduce(0, +), 10_000)

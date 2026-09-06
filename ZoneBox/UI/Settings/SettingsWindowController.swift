@@ -22,6 +22,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var localizedLabels: [(NSTextField, L10nKey)] = []
     private var localizedButtons: [(NSButton, L10nKey)] = []
 
+    private var snapEnabledSwitch: NSSwitch?
     private var shiftSwitch: NSSwitch?
     private var rightSwitch: NSSwitch?
     private var shakeSwitch: NSSwitch?
@@ -301,6 +302,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeSnappingGroup() -> NSView {
+        let enabled = settingSwitch(titleKey: .settingsEnableSnapping, on: runtime.settings.snapEnabled, action: #selector(toggleSnapEnabled(_:)))
+        snapEnabledSwitch = enabled
         let shift = settingSwitch(titleKey: .settingsShiftDrag, on: runtime.settings.snapOnShiftDrag, action: #selector(toggleShift(_:)))
         let right = settingSwitch(titleKey: .settingsRightClick, on: runtime.settings.snapOnRightClickDrag, action: #selector(toggleRight(_:)))
         let shake = settingSwitch(titleKey: .settingsShakeToSnap, on: runtime.settings.shakeToSnapEnabled, action: #selector(toggleShake(_:)))
@@ -318,6 +321,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             (
                 .settingsSnappingTriggersSection,
                 [
+                    makeSettingRow(symbol: "power.circle.fill", fallbackSymbol: "power", titleKey: .settingsEnableSnapping, detailKey: .settingsEnableSnappingDetail, trailing: enabled),
                     makeSettingRow(symbol: "arrow.up.right.square", titleKey: .settingsShiftDrag, detailKey: .settingsShiftDragDetail, trailing: shift),
                     makeSettingRow(symbol: "computermouse.fill", fallbackSymbol: "cursorarrow.click.2", titleKey: .settingsRightClick, detailKey: .settingsRightClickDetail, trailing: right),
                     makeShakeSettingRow(switchControl: shake),
@@ -1228,6 +1232,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             categoryControl?.setLabel(L10n.text(category.titleKey), forSegment: category.rawValue)
         }
         categoryControl?.setAccessibilityLabel(L10n.text(.settingsTitle))
+        snapEnabledSwitch?.setAccessibilityLabel(L10n.text(.settingsEnableSnapping))
         shiftSwitch?.setAccessibilityLabel(L10n.text(.settingsShiftDrag))
         rightSwitch?.setAccessibilityLabel(L10n.text(.settingsRightClick))
         shakeSwitch?.setAccessibilityLabel(L10n.text(.settingsShakeToSnap))
@@ -1277,6 +1282,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         runtime.setUILanguage(preference)
     }
 
+    @objc private func toggleSnapEnabled(_ sender: NSSwitch) { runtime.setSnapEnabled(sender.state == .on) }
     @objc private func toggleShift(_ sender: NSSwitch) { runtime.settings.snapOnShiftDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleRight(_ sender: NSSwitch) { runtime.settings.snapOnRightClickDrag = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleShake(_ sender: NSSwitch) {

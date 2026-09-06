@@ -219,25 +219,42 @@ public final class WindowMutationQueue {
         return result
     }
 
+    /// Resumes with the writer's result, or with `timeoutRecord` once the
+    /// timeout elapses. The timeout task is cancelled as soon as the writer
+    /// finishes so a fast write does not leave a sleeping task behind.
     private func race(
         _ work: Task<WindowMutationRecord, Never>,
         timeoutRecord: WindowMutationRecord
     ) async -> WindowMutationRecord {
-        await withCheckedContinuation { continuation in
-            var resumed = false
-            func finish(_ record: WindowMutationRecord) {
-                guard !resumed else { return }
-                resumed = true
-                continuation.resume(returning: record)
-            }
-            Task { @MainActor in
-                finish(await work.value)
-            }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: configuration.timeoutNanoseconds)
+        let timeoutNanoseconds = configuration.timeoutNanoseconds
+        return await withCheckedContinuation { continuation in
+            let arbiter = RaceArbiter(continuation: continuation)
+            let timeout = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                guard !Task.isCancelled else { return }
                 work.cancel()
-                finish(timeoutRecord)
+                arbiter.finish(timeoutRecord)
+            }
+            Task { @MainActor in
+                let record = await work.value
+                timeout.cancel()
+                arbiter.finish(record)
             }
         }
+    }
+}
+
+@MainActor
+private final class RaceArbiter {
+    private var continuation: CheckedContinuation<WindowMutationRecord, Never>?
+
+    init(continuation: CheckedContinuation<WindowMutationRecord, Never>) {
+        self.continuation = continuation
+    }
+
+    func finish(_ record: WindowMutationRecord) {
+        guard let continuation else { return }
+        self.continuation = nil
+        continuation.resume(returning: record)
     }
 }

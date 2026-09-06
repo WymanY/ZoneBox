@@ -25,6 +25,26 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(SnapSessionReducer.reduce(input).phase, .idle)
     }
 
+    func testSnapDisabledFailsClosedAndCancelsLiveSession() {
+        let live = SnapReducerInput(
+            phase: .dragging(window),
+            event: SnapMouseEvent(kind: .leftDragged, locationAppKit: .zero, modifiers: [.shift]),
+            snapEnabled: false
+        )
+        let out = SnapSessionReducer.reduce(live)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.hideOverlay))
+        XCTAssertTrue(out.effects.contains(.cancel))
+
+        var idle = base(phase: .idle, kind: .leftDown)
+        idle.snapEnabled = false
+        idle.window = window
+        idle.currentFrameAX = frame
+        let stillIdle = SnapSessionReducer.reduce(idle)
+        XCTAssertEqual(stillIdle.phase, .idle)
+        XCTAssertTrue(stillIdle.effects.isEmpty)
+    }
+
     func testClickWithoutMoveStaysIdleOnUp() {
         var input = base(phase: .idle, kind: .leftDown)
         input.window = window
