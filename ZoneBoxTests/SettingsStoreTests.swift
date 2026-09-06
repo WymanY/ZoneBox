@@ -8,6 +8,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.fileURL.lastPathComponent, "settings.json")
     }
 
+    func testCorruptSettingsFileIsQuarantinedAndReplacedWithDefaults() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = SettingsStore(directory: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("{not json".utf8).write(to: store.fileURL)
+
+        XCTAssertEqual(try store.load(), .default)
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertTrue(names.contains("settings.json"), "defaults should be rewritten: \(names)")
+        XCTAssertTrue(names.contains { $0.hasPrefix("settings.json.corrupt-") }, "original should be kept: \(names)")
+        XCTAssertEqual(try store.load(), .default)
+    }
+
     func testDecodingPersistedExclusionsAddsMissingAppIdentities() throws {
         let json = """
         {"schemaVersion":1,"excludedBundleIDs":["com.apple.dock","com.fancyzone.app","com.example.keep"]}

@@ -142,6 +142,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsLanguageDetail
     case settingsLaunchAtLoginDetail
     case settingsHoverPinDetail
+    case settingsEnableSnappingDetail
     case settingsShiftDragDetail
     case settingsRightClickDetail
     case settingsShakeToSnapDetail
@@ -664,6 +665,7 @@ public enum L10n {
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
         .settingsHoverPinDetail: "Shows a Screen Recording mirror above other apps. Clicks and scrolling go to the original window. Raise is best-effort, not a private always-on-top window level.",
+        .settingsEnableSnappingDetail: "Pause every snap trigger and shortcut without changing your layouts.",
         .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
         .settingsRightClickDetail: "Use the secondary button without changing your drag.",
         .settingsShakeToSnapDetail: "Reveal zones after a short left-right motion.",
@@ -1038,6 +1040,7 @@ public enum L10n {
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
         .settingsHoverPinDetail: "用录屏权限做一层镜像画面。点击和滚动落到原窗口。前置是尽力而为，不是私有窗口层级置顶。",
+        .settingsEnableSnappingDetail: "暂停所有吸附触发方式和快捷键，布局保持不变。",
         .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",
         .settingsRightClickDetail: "拖动时按下鼠标右键即可显示分区。",
         .settingsShakeToSnapDetail: "短距离左右晃动标题栏即可显示分区。",

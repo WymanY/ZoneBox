@@ -19,6 +19,31 @@ final class QuickSnapperTests: XCTestCase {
         XCTAssertFalse(out.effects.contains { if case .snap = $0 { return true }; return false })
     }
 
+    func testSnapDisabledHidesOverlayAndIgnoresInvoke() {
+        let hidden = QuickSnapperReducer.reduce(
+            QuickSnapperInput(
+                phase: .hidden,
+                event: .invoke,
+                zoneNumbers: [1, 2, 3],
+                snapEnabled: false,
+                focusedWindow: terminal
+            )
+        )
+        XCTAssertEqual(hidden.phase, .hidden)
+        XCTAssertTrue(hidden.effects.isEmpty)
+
+        let showing = QuickSnapperReducer.reduce(
+            QuickSnapperInput(
+                phase: .showing(target: terminal),
+                event: .digit(2),
+                zoneNumbers: [1, 2, 3],
+                snapEnabled: false
+            )
+        )
+        XCTAssertEqual(showing.phase, .hidden)
+        XCTAssertEqual(showing.effects, [.hideOverlay])
+    }
+
     func testDigitSnapsExistingZone() {
         let out = QuickSnapperReducer.reduce(
             QuickSnapperInput(

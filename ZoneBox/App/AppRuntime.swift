@@ -83,9 +83,8 @@ final class AppRuntime {
         overlay.primaryFlipHeight = displays.primaryFlipHeight
         persist()
 
-        LanguageCenter.preference = settings.uiLanguage
         LanguageCenter.shared.start()
-        LanguageCenter.shared.refresh(force: true)
+        LanguageCenter.shared.applyPreference(settings.uiLanguage)
         NotificationCenter.default.addObserver(
             forName: LanguageCenter.didChangeNotification,
             object: nil,
@@ -155,42 +154,38 @@ final class AppRuntime {
         divider.hideAll()
     }
 
-    var snapEnabled: Bool { true }
-
     func openSettings() {
-        menuBar?.closeConsole()
-        if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(runtime: self)
-            uiSession.enterRegular()
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.showWindow()
+        presentSettings { $0.showWindow() }
     }
 
     func openWorkspaceSettings() {
-        menuBar?.closeConsole()
-        if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(runtime: self)
-            uiSession.enterRegular()
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.showWorkspaces()
+        presentSettings { $0.showWorkspaces() }
     }
 
     func openKeyboardSettings() {
-        menuBar?.closeConsole()
-        if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(runtime: self)
-            uiSession.enterRegular()
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.showKeyboard()
+        presentSettings { $0.showKeyboard() }
         // Close after this action returns. The shortcut panel currently owns
         // the click; tearing it down first drops the controller and can skip
         // the settings handoff.
         DispatchQueue.main.async { [weak self] in
             self?.shortcutPanel?.close()
         }
+    }
+
+    /// Lazily creates the settings window, enters the regular UI session on
+    /// first open, then hands the controller to `show` for page selection.
+    private func presentSettings(_ show: (SettingsWindowController) -> Void) {
+        menuBar?.closeConsole()
+        let controller: SettingsWindowController
+        if let existing = settingsWindow {
+            controller = existing
+        } else {
+            controller = SettingsWindowController(runtime: self)
+            settingsWindow = controller
+            uiSession.enterRegular()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        show(controller)
     }
 
     func settingsDidClose() {
@@ -1166,6 +1161,18 @@ final class AppRuntime {
     func setShowLayoutStrip(_ enabled: Bool) {
         settings.showLayoutStrip = enabled
         persistSettings()
+    }
+
+    /// Master switch for every snap entry point (drag, Quick Snapper, hotkeys).
+    /// Turning it off mid-drag cancels the live session so no overlay or
+    /// pending write outlives the setting.
+    func setSnapEnabled(_ enabled: Bool) {
+        guard settings.snapEnabled != enabled else { return }
+        settings.snapEnabled = enabled
+        persistSettings()
+        if !enabled, engine.isSessionActive {
+            engine.cancelSession()
+        }
     }
 
     func setPreviewLayoutOnSelect(_ enabled: Bool) {

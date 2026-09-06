@@ -1,4 +1,5 @@
 import Foundation
+import os
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -10,9 +11,31 @@ public final class LanguageCenter: NSObject {
     public static let shared = LanguageCenter()
     public static let didChangeNotification = Notification.Name("ZoneBoxLanguageDidChange")
 
-    /// Read from any isolation. Updated on the main actor when the system language changes.
-    nonisolated(unsafe) public static var language: AppLanguage = LanguageCenter.resolveEffective()
-    nonisolated(unsafe) public static var preference: AppLanguagePreference = .system
+    private struct State: Sendable {
+        var preference: AppLanguagePreference = .system
+        var language: AppLanguage = LanguageCenter.resolveEffective(preference: .system)
+    }
+
+    /// `L10n` reads the effective language from any isolation (menu building,
+    /// AX callbacks, tests); writes happen on the main actor. A lock keeps the
+    /// pair consistent without `nonisolated(unsafe)`.
+    private static let state = OSAllocatedUnfairLock(initialState: State())
+
+    public static var language: AppLanguage {
+        state.withLock { $0.language }
+    }
+
+    public static var preference: AppLanguagePreference {
+        state.withLock { $0.preference }
+    }
+
+    @MainActor
+    private static func store(preference: AppLanguagePreference? = nil, language: AppLanguage? = nil) {
+        state.withLock { current in
+            if let preference { current.preference = preference }
+            if let language { current.language = language }
+        }
+    }
 
     private var observers: [NSObjectProtocol] = []
 
@@ -46,7 +69,7 @@ public final class LanguageCenter: NSObject {
 
     @MainActor
     public func applyPreference(_ preference: AppLanguagePreference) {
-        Self.preference = preference
+        Self.store(preference: preference)
         refresh(force: true)
     }
 
@@ -102,7 +125,7 @@ public final class LanguageCenter: NSObject {
     public func refresh(force: Bool = false) {
         let next = Self.resolveEffective()
         guard force || next != Self.language else { return }
-        Self.language = next
+        Self.store(language: next)
         NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
     }
 }
