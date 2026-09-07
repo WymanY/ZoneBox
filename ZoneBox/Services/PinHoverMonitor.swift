@@ -67,6 +67,7 @@ final class PinHoverMonitor {
         guard NSEvent.pressedMouseButtons == 0,
               runtime.settings.hoverPinEnabled,
               runtime.isTrusted(),
+              runtime.allowsProFeatures,
               runtime.allows(.presentPinHover)
         else { return }
 
@@ -102,7 +103,7 @@ final class PinHoverMonitor {
 
     private func reconcile() {
         guard running else { return }
-        let eligible = runtime.settings.hoverPinEnabled && runtime.isTrusted()
+        let eligible = runtime.settings.hoverPinEnabled && runtime.isTrusted() && runtime.allowsProFeatures
         if eligible, monitors.isEmpty {
             installEventMonitors()
         } else if !eligible, !monitors.isEmpty {
@@ -178,6 +179,7 @@ final class PinHoverMonitor {
         guard NSEvent.pressedMouseButtons == 0,
               runtime.settings.hoverPinEnabled,
               runtime.isTrusted(),
+              runtime.allowsProFeatures,
               runtime.allows(.presentPinHover)
         else {
             hideImmediately()

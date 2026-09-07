@@ -108,6 +108,7 @@ final class WorkspaceCenter {
     }
 
     func capture(name: String, replacing profileID: WorkspaceProfile.ID? = nil) {
+        guard runtime.requestProAccess(for: .workspace) else { return }
         Task { @MainActor [weak self] in
             await self?.captureNow(name: name, replacing: profileID)
         }
@@ -128,6 +129,7 @@ final class WorkspaceCenter {
     }
 
     func apply(profileID: WorkspaceProfile.ID) {
+        guard runtime.requestProAccess(for: .workspace) else { return }
         guard let profile = runtime.document.profiles.first(where: { $0.id == profileID }) else {
             NSSound.beep()
             return

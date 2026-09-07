@@ -49,6 +49,12 @@ make test
 | Minimum OS | macOS 14.0 |
 | Distribution | Developer ID + notarization (not Mac App Store) |
 
+## License
+
+Snapping, layouts, numbered hotkeys, and divider handles stay free. ZoneBox Pro is a US$14.99 lifetime license (US$9.99 for the first 30 days) sold through [Creem](https://www.creem.io): workspaces, hover pin, and Quick Snapper. One key activates 2 Macs. New installs include a 14-day Pro trial. Buy from the [product site](https://zonebox-site.vercel.app/buy), then activate in **Settings -> License**.
+
+See [docs/license.md](docs/license.md).
+
 ## Design
 
 See [docs/design.md](docs/design.md) and [docs/runtime-divider-design.md](docs/runtime-divider-design.md).

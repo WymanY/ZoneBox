@@ -35,5 +35,16 @@
 	<string>NSApplication</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>ZoneBox mirrors only windows you choose to pin so they can remain visible above other apps.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.fancyzone.app.license</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zonebox</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

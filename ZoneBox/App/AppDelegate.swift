@@ -47,6 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return OnboardingPage(rawValue: arguments[arguments.index(after: index)])
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        runtime.handleOpenURLs(urls)
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         runtime.hideAllOverlays()
         runtime.teardown()

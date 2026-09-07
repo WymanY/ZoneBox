@@ -362,6 +362,7 @@ final class HotkeyCenter {
         case ShortcutCatalog.shortcutsPanelHotkeyID:
             runtime.toggleShortcutPanel()
         case ShortcutCatalog.quickSnapperHotkeyID:
+            guard runtime.requestProAccess(for: .quickSnapper) else { return }
             runtime.engine.handleQuickSnapper(.invoke)
         case ShortcutCatalog.organizeHotkeyID:
             runtime.organizeWindowsFromHotkey()

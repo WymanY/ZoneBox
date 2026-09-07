@@ -239,6 +239,25 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         appItem.submenu = appMenu
         let main = NSMenu()
         main.addItem(appItem)
+
+        // Standard responder-chain actions keep field editors usable in this
+        // menu-bar app, including the license key field.
+        let edit = NSMenu(title: L10n.text(.menuEdit))
+        let editingCommands: [(L10nKey, Selector, String)] = [
+            (.menuCut, #selector(NSText.cut(_:)), "x"),
+            (.menuCopy, #selector(NSText.copy(_:)), "c"),
+            (.menuPaste, #selector(NSText.paste(_:)), "v"),
+            (.menuSelectAll, #selector(NSText.selectAll(_:)), "a"),
+        ]
+        for (title, action, key) in editingCommands {
+            let item = NSMenuItem(title: L10n.text(title), action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = .command
+            // A nil target routes to the focused text editor.
+            edit.addItem(item)
+        }
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        main.addItem(editItem)
         NSApp.mainMenu = main
     }
 
@@ -311,6 +330,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let language = NSMenuItem(title: L10n.text(.settingsLanguage), action: nil, keyEquivalent: "")
         language.submenu = makeLanguageMenu()
         menu.addItem(language)
+
+        let license = NSMenuItem(title: L10n.text(.menuLicense), action: #selector(openLicense(_:)), keyEquivalent: "")
+        license.target = self
+        menu.addItem(license)
 
         let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: "")
         settings.target = self
@@ -468,6 +491,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc
     private func openSettings(_ sender: NSMenuItem) {
         runtime.openSettings()
+    }
+
+    @objc
+    private func openLicense(_ sender: NSMenuItem) {
+        runtime.openLicenseSettings()
     }
 
     @objc

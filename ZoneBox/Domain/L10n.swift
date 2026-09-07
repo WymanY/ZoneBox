@@ -51,6 +51,12 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuDeleteLayoutMessage
     case menuDeleteLayoutConfirm
     case menuSettings
+    case menuLicense
+    case menuEdit
+    case menuCut
+    case menuCopy
+    case menuPaste
+    case menuSelectAll
     case menuKeyboardShortcuts
     case menuQuit
     case menuUnpinAllWindows
@@ -134,6 +140,55 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSectionOverlay
     case settingsSectionKeyboard
     case settingsSectionWorkspaces
+    case settingsSectionLicense
+    case settingsLicenseSubtitle
+    case settingsLicensePreviewTitle
+    case settingsLicensePreviewDescription
+    case licenseStatusTrial
+    case licenseStatusLicensed
+    case licenseStatusOffline
+    case licenseStatusExpired
+    case licenseKeyPlaceholder
+    case licenseActivate
+    case licenseBuy
+    case licenseDeactivate
+    case licenseFeatureList
+    case licensePaywallTitle
+    case licensePaywallWorkspace
+    case licensePaywallPin
+    case licensePaywallQuickSnapper
+    case licensePaywallBuy
+    case licensePaywallEnter
+    case licensePaywallLater
+    case licenseErrorNotConfigured
+    case licenseErrorInvalid
+    case licenseErrorActivationLimit
+    case licenseErrorNetwork
+    case licenseErrorServer
+    case licensePriceNote
+    case licenseActivating
+    case licenseEntryRequired
+    case licenseEntryInvalid
+    case licenseEntryNetwork
+    case licenseEntryUnavailable
+    case licenseActiveBadge
+    case licenseOfflineBadge
+    case licenseIncludedHeading
+    case licenseWorkspaceTitle
+    case licenseWorkspaceDetail
+    case licensePinTitle
+    case licensePinDetail
+    case licenseQuickTitle
+    case licenseQuickDetail
+    case licenseActiveTitle
+    case licenseActiveDetail
+    case licenseOfflineTitle
+    case licenseOfflineDetail
+    case licenseMaskedKey
+    case licenseUnlockedHeading
+    case licenseUnlockedList
+    case settingsLicenseSubtitleActive
+    case settingsLicensePreviewDescriptionActive
     case settingsGeneralSubtitle
     case settingsSnappingSubtitle
     case settingsOverlaySubtitle
@@ -410,6 +465,10 @@ public enum L10n {
         table(language)[key] ?? table(.english)[key] ?? key.rawValue
     }
 
+    public static func licenseTrialDays(_ days: Int, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.licenseStatusTrial, language: language), locale: language.locale, days)
+    }
+
     public static func gutter(_ points: Int, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.settingsGutter, language: language), locale: language.locale, points)
     }
@@ -574,6 +633,12 @@ public enum L10n {
         .menuDeleteLayoutMessage: "This layout is removed from every display that uses it. ZoneBox keeps at least one layout.",
         .menuDeleteLayoutConfirm: "Delete",
         .menuSettings: "Settings…",
+        .menuLicense: "ZoneBox Pro…",
+        .menuEdit: "Edit",
+        .menuCut: "Cut",
+        .menuCopy: "Copy",
+        .menuPaste: "Paste",
+        .menuSelectAll: "Select All",
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
         .menuUnpinAllWindows: "Unpin All Windows (%d)",
@@ -657,6 +722,55 @@ public enum L10n {
         .settingsSectionOverlay: "Overlay",
         .settingsSectionKeyboard: "Keyboard",
         .settingsSectionWorkspaces: "Workspaces",
+        .settingsSectionLicense: "License",
+        .settingsLicenseSubtitle: "Activate a lifetime license or start the 14-day trial.",
+        .settingsLicensePreviewTitle: "ZoneBox Pro",
+        .settingsLicensePreviewDescription: "Workspaces, hover pin, and Quick Snapper stay in the trial, then need a license.",
+        .licenseStatusTrial: "Trial: %d days left. Core snapping stays free after that.",
+        .licenseStatusLicensed: "Licensed on this Mac (%@).",
+        .licenseStatusOffline: "License is cached while this Mac is offline.",
+        .licenseStatusExpired: "Trial ended. Enter a license key to unlock Pro features.",
+        .licenseKeyPlaceholder: "Paste license key",
+        .licenseActivate: "Activate",
+        .licenseBuy: "Buy License…",
+        .licenseDeactivate: "Deactivate This Mac",
+        .licenseFeatureList: "Pro includes workspaces, title-bar pin, and Quick Snapper. Layouts and Shift-drag snapping stay free.",
+        .licensePaywallTitle: "ZoneBox Pro",
+        .licensePaywallWorkspace: "Workspaces are part of ZoneBox Pro. Buy a license or keep using snapping for free.",
+        .licensePaywallPin: "Hover pin is part of ZoneBox Pro. Buy a license or keep using snapping for free.",
+        .licensePaywallQuickSnapper: "Quick Snapper is part of ZoneBox Pro. Buy a license or keep using numbered hotkeys for free.",
+        .licensePaywallBuy: "Buy License",
+        .licensePaywallEnter: "Enter Key…",
+        .licensePaywallLater: "Not Now",
+        .licenseErrorNotConfigured: "Purchasing is not connected yet. Try again after checkout is enabled.",
+        .licenseErrorInvalid: "That license key could not be activated on this Mac.",
+        .licenseErrorActivationLimit: "This license is already used on 2 Macs. Deactivate one first.",
+        .licenseErrorNetwork: "Could not reach the license server. Check the network and retry.",
+        .licenseErrorServer: "The license server returned an error.",
+        .licensePriceNote: "US$14.99, or US$9.99 for the first 30 days. Works on 2 Macs. Core snapping stays free after the 14-day trial.",
+        .licenseActivating: "Activating…",
+        .licenseEntryRequired: "Enter a license key.",
+        .licenseEntryInvalid: "Invalid license key. Check that you copied the entire key, or copy it again from your purchase email.",
+        .licenseEntryNetwork: "Could not connect to the license server. Check your connection and try again.",
+        .licenseEntryUnavailable: "The license service is temporarily unavailable. Please try again later.",
+        .licenseActiveBadge: "Activated",
+        .licenseOfflineBadge: "Offline access",
+        .licenseIncludedHeading: "Included with Pro",
+        .licenseWorkspaceTitle: "Workspaces",
+        .licenseWorkspaceDetail: "Save window arrangements and restore them together.",
+        .licensePinTitle: "Hover Pin",
+        .licensePinDetail: "Keep a window in view while you work.",
+        .licenseQuickTitle: "Quick Snapper",
+        .licenseQuickDetail: "Choose a numbered zone to place a window quickly.",
+        .licenseActiveTitle: "ZoneBox Pro is active",
+        .licenseActiveDetail: "This Mac has a lifetime license for the purchased version. It can be used on 2 Macs.",
+        .licenseOfflineTitle: "ZoneBox Pro is active offline",
+        .licenseOfflineDetail: "This Mac is using a cached license until the next online check.",
+        .licenseMaskedKey: "License %@",
+        .licenseUnlockedHeading: "Unlocked on this Mac",
+        .licenseUnlockedList: "Workspaces, hover pin, and Quick Snapper.",
+        .settingsLicenseSubtitleActive: "This Mac is licensed. Pro features stay unlocked.",
+        .settingsLicensePreviewDescriptionActive: "Workspaces, hover pin, and Quick Snapper are included with this license.",
         .settingsGeneralSubtitle: "Choose the language and how ZoneBox starts.",
         .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
         .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
@@ -949,6 +1063,12 @@ public enum L10n {
         .menuDeleteLayoutMessage: "使用这个布局的显示器都会改用剩余布局。ZoneBox 至少会保留一个布局。",
         .menuDeleteLayoutConfirm: "删除",
         .menuSettings: "设置…",
+        .menuLicense: "ZoneBox Pro…",
+        .menuEdit: "编辑",
+        .menuCut: "剪切",
+        .menuCopy: "复制",
+        .menuPaste: "粘贴",
+        .menuSelectAll: "全选",
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
         .menuUnpinAllWindows: "取消所有窗口置顶（%d）",
@@ -1032,6 +1152,55 @@ public enum L10n {
         .settingsSectionOverlay: "覆盖层",
         .settingsSectionKeyboard: "键盘",
         .settingsSectionWorkspaces: "工作区",
+        .settingsSectionLicense: "许可",
+        .settingsLicenseSubtitle: "激活终身授权，或使用 14 天试用。",
+        .settingsLicensePreviewTitle: "ZoneBox Pro",
+        .settingsLicensePreviewDescription: "工作区、悬停置顶和快速吸附在试用期内可用，之后需要授权。",
+        .licenseStatusTrial: "试用剩余 %d 天。试用结束后，核心吸附仍然免费。",
+        .licenseStatusLicensed: "已在这台 Mac 上激活（%@）。",
+        .licenseStatusOffline: "当前离线，使用本机缓存的授权。",
+        .licenseStatusExpired: "试用已结束。输入授权码即可解锁 Pro 功能。",
+        .licenseKeyPlaceholder: "粘贴授权码",
+        .licenseActivate: "激活",
+        .licenseBuy: "购买授权…",
+        .licenseDeactivate: "停用这台 Mac",
+        .licenseFeatureList: "Pro 包含工作区、标题栏置顶和快速吸附。布局和 Shift 拖拽吸附保持免费。",
+        .licensePaywallTitle: "ZoneBox Pro",
+        .licensePaywallWorkspace: "工作区属于 ZoneBox Pro。购买授权，或继续免费使用吸附。",
+        .licensePaywallPin: "悬停置顶属于 ZoneBox Pro。购买授权，或继续免费使用吸附。",
+        .licensePaywallQuickSnapper: "快速吸附属于 ZoneBox Pro。购买授权，或继续免费使用数字快捷键。",
+        .licensePaywallBuy: "购买授权",
+        .licensePaywallEnter: "输入授权码…",
+        .licensePaywallLater: "以后再说",
+        .licenseErrorNotConfigured: "购买通道还没接好。等结账启用后再试。",
+        .licenseErrorInvalid: "这台 Mac 无法激活该授权码。",
+        .licenseErrorActivationLimit: "这枚授权码已在 2 台 Mac 上激活。请先在其中一台停用。",
+        .licenseErrorNetwork: "连不上授权服务器。请检查网络后重试。",
+        .licenseErrorServer: "授权服务器返回了错误。",
+        .licensePriceNote: "14.99 美元，前 30 天 9.99 美元。同一授权可用于 2 台 Mac。14 天试用结束后，核心吸附仍然免费。",
+        .licenseActivating: "正在激活…",
+        .licenseEntryRequired: "请输入授权码。",
+        .licenseEntryInvalid: "授权码无效。请检查是否复制完整，或从购买邮件中重新复制。",
+        .licenseEntryNetwork: "暂时无法连接授权服务器。请检查网络后重试。",
+        .licenseEntryUnavailable: "授权服务暂时不可用，请稍后重试。",
+        .licenseActiveBadge: "已激活",
+        .licenseOfflineBadge: "离线有效",
+        .licenseIncludedHeading: "Pro 包含以下功能",
+        .licenseWorkspaceTitle: "工作区",
+        .licenseWorkspaceDetail: "保存窗口排布，一次恢复整桌工作环境。",
+        .licensePinTitle: "悬停置顶",
+        .licensePinDetail: "让需要参考的窗口保持可见。",
+        .licenseQuickTitle: "快速吸附",
+        .licenseQuickDetail: "按数字选择分区，快速安放窗口。",
+        .licenseActiveTitle: "ZoneBox Pro 已激活",
+        .licenseActiveDetail: "这台 Mac 已获得当前版本的终身授权，同一授权可用于 2 台 Mac。",
+        .licenseOfflineTitle: "ZoneBox Pro 离线有效",
+        .licenseOfflineDetail: "当前离线，先使用本机缓存的授权，连上网后会再校验。",
+        .licenseMaskedKey: "授权码 %@",
+        .licenseUnlockedHeading: "这台 Mac 已解锁",
+        .licenseUnlockedList: "工作区方案、标题栏置顶、快速吸附。",
+        .settingsLicenseSubtitleActive: "这台 Mac 已授权，Pro 功能保持可用。",
+        .settingsLicensePreviewDescriptionActive: "工作区、悬停置顶和快速吸附已包含在当前授权里。",
         .settingsGeneralSubtitle: "设置界面语言，以及 ZoneBox 的启动方式。",
         .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
         .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",
