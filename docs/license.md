@@ -1,6 +1,6 @@
 # ZoneBox Pro licensing
 
-ZoneBox sells a lifetime Pro license through Creem. Core snapping stays free.
+ZoneBox sells a lifetime Pro license through Creem. Core snapping stays free. One key activates 2 Macs.
 
 ## What is free
 
@@ -20,7 +20,9 @@ New installs get a **14-day Pro trial**. After that, Pro features ask for a lice
 ## Purchase
 
 - Product: ZoneBox Pro
-- Price: **US$29**, one-time
+- Price: **US$14.99**, one-time for the purchased version
+- Launch price: **US$9.99** for 30 days (Creem code `LAUNCH30`)
+- Devices: **2 Macs** per key
 - Provider: [Creem](https://www.creem.io) (Merchant of Record)
 - Checkout: https://zonebox-site.vercel.app/buy
 - After payment, Creem emails a license key and the site shows it on /success

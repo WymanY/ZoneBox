@@ -239,6 +239,25 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         appItem.submenu = appMenu
         let main = NSMenu()
         main.addItem(appItem)
+
+        // Standard responder-chain actions keep field editors usable in this
+        // menu-bar app, including the license key field.
+        let edit = NSMenu(title: L10n.text(.menuEdit))
+        let editingCommands: [(L10nKey, Selector, String)] = [
+            (.menuCut, #selector(NSText.cut(_:)), "x"),
+            (.menuCopy, #selector(NSText.copy(_:)), "c"),
+            (.menuPaste, #selector(NSText.paste(_:)), "v"),
+            (.menuSelectAll, #selector(NSText.selectAll(_:)), "a"),
+        ]
+        for (title, action, key) in editingCommands {
+            let item = NSMenuItem(title: L10n.text(title), action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = .command
+            // A nil target routes to the focused text editor.
+            edit.addItem(item)
+        }
+        let editItem = NSMenuItem()
+        editItem.submenu = edit
+        main.addItem(editItem)
         NSApp.mainMenu = main
     }
 

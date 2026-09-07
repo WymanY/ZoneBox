@@ -52,6 +52,11 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuDeleteLayoutConfirm
     case menuSettings
     case menuLicense
+    case menuEdit
+    case menuCut
+    case menuCopy
+    case menuPaste
+    case menuSelectAll
     case menuKeyboardShortcuts
     case menuQuit
     case menuUnpinAllWindows
@@ -161,6 +166,20 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case licenseErrorNetwork
     case licenseErrorServer
     case licensePriceNote
+    case licenseActivating
+    case licenseEntryRequired
+    case licenseEntryInvalid
+    case licenseEntryNetwork
+    case licenseEntryUnavailable
+    case licenseActiveBadge
+    case licenseOfflineBadge
+    case licenseIncludedHeading
+    case licenseWorkspaceTitle
+    case licenseWorkspaceDetail
+    case licensePinTitle
+    case licensePinDetail
+    case licenseQuickTitle
+    case licenseQuickDetail
     case licenseActiveTitle
     case licenseActiveDetail
     case licenseOfflineTitle
@@ -615,6 +634,11 @@ public enum L10n {
         .menuDeleteLayoutConfirm: "Delete",
         .menuSettings: "Settings…",
         .menuLicense: "ZoneBox Pro…",
+        .menuEdit: "Edit",
+        .menuCut: "Cut",
+        .menuCopy: "Copy",
+        .menuPaste: "Paste",
+        .menuSelectAll: "Select All",
         .menuKeyboardShortcuts: "Keyboard Shortcuts",
         .menuQuit: "Quit ZoneBox",
         .menuUnpinAllWindows: "Unpin All Windows (%d)",
@@ -720,12 +744,26 @@ public enum L10n {
         .licensePaywallLater: "Not Now",
         .licenseErrorNotConfigured: "Purchasing is not connected yet. Try again after checkout is enabled.",
         .licenseErrorInvalid: "That license key could not be activated on this Mac.",
-        .licenseErrorActivationLimit: "This license is already used on the allowed number of Macs. Deactivate one first.",
+        .licenseErrorActivationLimit: "This license is already used on 2 Macs. Deactivate one first.",
         .licenseErrorNetwork: "Could not reach the license server. Check the network and retry.",
         .licenseErrorServer: "The license server returned an error.",
-        .licensePriceNote: "Lifetime license, US$29. Core snapping stays free after the 14-day trial.",
+        .licensePriceNote: "US$14.99, or US$9.99 for the first 30 days. Works on 2 Macs. Core snapping stays free after the 14-day trial.",
+        .licenseActivating: "Activating…",
+        .licenseEntryRequired: "Enter a license key.",
+        .licenseEntryInvalid: "Invalid license key. Check that you copied the entire key, or copy it again from your purchase email.",
+        .licenseEntryNetwork: "Could not connect to the license server. Check your connection and try again.",
+        .licenseEntryUnavailable: "The license service is temporarily unavailable. Please try again later.",
+        .licenseActiveBadge: "Activated",
+        .licenseOfflineBadge: "Offline access",
+        .licenseIncludedHeading: "Included with Pro",
+        .licenseWorkspaceTitle: "Workspaces",
+        .licenseWorkspaceDetail: "Save window arrangements and restore them together.",
+        .licensePinTitle: "Hover Pin",
+        .licensePinDetail: "Keep a window in view while you work.",
+        .licenseQuickTitle: "Quick Snapper",
+        .licenseQuickDetail: "Choose a numbered zone to place a window quickly.",
         .licenseActiveTitle: "ZoneBox Pro is active",
-        .licenseActiveDetail: "This Mac has a lifetime license. Workspaces, hover pin, and Quick Snapper are unlocked.",
+        .licenseActiveDetail: "This Mac has a lifetime license for the purchased version. It can be used on 2 Macs.",
         .licenseOfflineTitle: "ZoneBox Pro is active offline",
         .licenseOfflineDetail: "This Mac is using a cached license until the next online check.",
         .licenseMaskedKey: "License %@",
@@ -1026,6 +1064,11 @@ public enum L10n {
         .menuDeleteLayoutConfirm: "删除",
         .menuSettings: "设置…",
         .menuLicense: "ZoneBox Pro…",
+        .menuEdit: "编辑",
+        .menuCut: "剪切",
+        .menuCopy: "复制",
+        .menuPaste: "粘贴",
+        .menuSelectAll: "全选",
         .menuKeyboardShortcuts: "键盘快捷键",
         .menuQuit: "退出 ZoneBox",
         .menuUnpinAllWindows: "取消所有窗口置顶（%d）",
@@ -1131,12 +1174,26 @@ public enum L10n {
         .licensePaywallLater: "以后再说",
         .licenseErrorNotConfigured: "购买通道还没接好。等结账启用后再试。",
         .licenseErrorInvalid: "这台 Mac 无法激活该授权码。",
-        .licenseErrorActivationLimit: "这枚授权码已达到可激活的 Mac 数量。请先在另一台设备上停用。",
+        .licenseErrorActivationLimit: "这枚授权码已在 2 台 Mac 上激活。请先在其中一台停用。",
         .licenseErrorNetwork: "连不上授权服务器。请检查网络后重试。",
         .licenseErrorServer: "授权服务器返回了错误。",
-        .licensePriceNote: "终身授权 29 美元。14 天试用结束后，核心吸附仍然免费。",
+        .licensePriceNote: "14.99 美元，前 30 天 9.99 美元。同一授权可用于 2 台 Mac。14 天试用结束后，核心吸附仍然免费。",
+        .licenseActivating: "正在激活…",
+        .licenseEntryRequired: "请输入授权码。",
+        .licenseEntryInvalid: "授权码无效。请检查是否复制完整，或从购买邮件中重新复制。",
+        .licenseEntryNetwork: "暂时无法连接授权服务器。请检查网络后重试。",
+        .licenseEntryUnavailable: "授权服务暂时不可用，请稍后重试。",
+        .licenseActiveBadge: "已激活",
+        .licenseOfflineBadge: "离线有效",
+        .licenseIncludedHeading: "Pro 包含以下功能",
+        .licenseWorkspaceTitle: "工作区",
+        .licenseWorkspaceDetail: "保存窗口排布，一次恢复整桌工作环境。",
+        .licensePinTitle: "悬停置顶",
+        .licensePinDetail: "让需要参考的窗口保持可见。",
+        .licenseQuickTitle: "快速吸附",
+        .licenseQuickDetail: "按数字选择分区，快速安放窗口。",
         .licenseActiveTitle: "ZoneBox Pro 已激活",
-        .licenseActiveDetail: "这台 Mac 已有终身授权。工作区、悬停置顶和快速吸附都已解锁。",
+        .licenseActiveDetail: "这台 Mac 已获得当前版本的终身授权，同一授权可用于 2 台 Mac。",
         .licenseOfflineTitle: "ZoneBox Pro 离线有效",
         .licenseOfflineDetail: "当前离线，先使用本机缓存的授权，连上网后会再校验。",
         .licenseMaskedKey: "授权码 %@",
