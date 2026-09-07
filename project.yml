@@ -37,6 +37,7 @@ targets:
       - path: ZoneBox/Services/JSONCoding.swift
       - path: ZoneBox/Services/LayoutStore.swift
       - path: ZoneBox/Services/SettingsStore.swift
+      - path: ZoneBox/Services/LicenseStore.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -51,6 +52,7 @@ targets:
           - Geometry/**
           - Services/LayoutStore.swift
           - Services/SettingsStore.swift
+          - Services/LicenseStore.swift
           - Services/Logging.swift
           - Services/JSONCoding.swift
           - Resources/Info.plist

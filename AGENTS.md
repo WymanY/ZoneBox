@@ -27,3 +27,7 @@ The product site is a separate project. Do not add website files to this app rep
 | Live site | https://zonebox-site.vercel.app |
 
 For site copy and feature explanations, read this app's `README.md`, `docs/onboarding-design.md`, and `ZoneBox/Domain/L10n.swift`, then edit the site repo.
+
+## Project status
+
+When asked to analyze this project's status, including worktrees, git state, stashes, running ZoneBox processes, or PR state, spawn the `zonebox_status` custom agent, wait for its report, and return it. Keep that pass read-only: do not implement, create PRs, merge, touch Linear, or clean worktrees unless the user explicitly asks for that separate work.

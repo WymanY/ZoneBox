@@ -31,6 +31,12 @@ protocol RuntimeSettingsReading: AnyObject {
 }
 
 @MainActor
+protocol RuntimeLicenseGating: AnyObject {
+    var allowsProFeatures: Bool { get }
+    func requestProAccess(for feature: LicenseFeature) -> Bool
+}
+
+@MainActor
 protocol RuntimeWindowCataloging: AnyObject {
     var catalog: WindowCatalog { get }
 }
@@ -101,12 +107,12 @@ protocol PinRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCa
 }
 
 @MainActor
-protocol PinHoverRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeWindowMutating {
+protocol PinHoverRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeLicenseGating, RuntimeWindowMutating {
     var pins: PinCenter { get }
 }
 
 @MainActor
-protocol WorkspaceRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeWindowCataloging, RuntimeLayoutMutating, RuntimeWindowMutating, RuntimeChromeNotifying {
+protocol WorkspaceRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeLicenseGating, RuntimeWindowCataloging, RuntimeLayoutMutating, RuntimeWindowMutating, RuntimeChromeNotifying {
     var query: CGWindowQuery { get }
     var organizeFeedback: OrganizeFeedbackController { get }
     func openAccessibility()
@@ -118,7 +124,7 @@ protocol WorkspaceRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDis
 }
 
 @MainActor
-protocol HotkeyRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeSettingsReading {
+protocol HotkeyRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeSettingsReading, RuntimeLicenseGating {
     var engine: SnapEngine { get }
     var divider: DividerController { get }
     var workspace: WorkspaceCenter { get }

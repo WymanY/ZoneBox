@@ -42,6 +42,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
     private var hoverPinSwitch: NSSwitch?
+    private var licenseStatusLabel: NSTextField?
+    private var licenseKeyField: NSTextField?
+    private var licenseActivateButton: NSButton?
+    private var licenseBuyButton: NSButton?
+    private var licenseDeactivateButton: NSButton?
     private var languagePopup: NSPopUpButton?
     private var hotkeyList: NSStackView?
     private var workspaceList: NSStackView?
@@ -78,6 +83,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         showWindow()
         categoryControl?.selectedSegment = SettingsCategory.keyboard.rawValue
         for (candidate, page) in pageViews { page.isHidden = candidate != .keyboard }
+        updatePreview()
+    }
+
+    func showLicense() {
+        selectedCategory = .license
+        showWindow()
+        categoryControl?.selectedSegment = SettingsCategory.license.rawValue
+        for (candidate, page) in pageViews { page.isHidden = candidate != .license }
+        refreshLicenseStatus()
         updatePreview()
     }
 
@@ -189,7 +203,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         NSLayoutConstraint.activate([
             categories.topAnchor.constraint(equalTo: content.topAnchor, constant: 52),
             categories.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            categories.widthAnchor.constraint(equalToConstant: 540),
+            categories.widthAnchor.constraint(equalToConstant: 640),
             body.topAnchor.constraint(equalTo: categories.bottomAnchor, constant: 20),
             body.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
             body.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
@@ -235,6 +249,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         case .overlay: group = makeOverlayGroup()
         case .keyboard: group = makeKeyboardGroup()
         case .workspaces: group = makeWorkspacesGroup()
+        case .license: group = makeLicenseGroup()
         }
         group.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(title)
@@ -384,6 +399,110 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         workspaceList = stack
         reloadWorkspaceProfiles()
         return stack
+    }
+
+    private func makeLicenseGroup() -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .width
+        stack.spacing = 12
+        stack.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18)
+
+        let status = localizedWrappingLabel(.licenseStatusExpired, font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
+        licenseStatusLabel = status
+        stack.addArrangedSubview(status)
+
+        let field = NSTextField()
+        field.placeholderString = L10n.text(.licenseKeyPlaceholder)
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        licenseKeyField = field
+        stack.addArrangedSubview(field)
+
+        let buttons = NSStackView()
+        buttons.orientation = .horizontal
+        buttons.alignment = .centerY
+        buttons.spacing = 8
+        let activate = localizedButton(.licenseActivate, action: #selector(activateLicense))
+        let buy = localizedButton(.licenseBuy, action: #selector(buyLicense))
+        let deactivate = localizedButton(.licenseDeactivate, action: #selector(deactivateLicense))
+        licenseActivateButton = activate
+        licenseBuyButton = buy
+        licenseDeactivateButton = deactivate
+        buttons.addArrangedSubview(activate)
+        buttons.addArrangedSubview(buy)
+        buttons.addArrangedSubview(deactivate)
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        buttons.addArrangedSubview(spacer)
+        stack.addArrangedSubview(buttons)
+
+        let price = localizedWrappingLabel(.licensePriceNote, font: .systemFont(ofSize: 12, weight: .medium), color: .labelColor)
+        stack.addArrangedSubview(price)
+        let features = localizedWrappingLabel(.licenseFeatureList, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+        stack.addArrangedSubview(makeInfoRow(label: features))
+        refreshLicenseStatus()
+        return SettingsGroupSurfaceView(content: stack)
+    }
+
+    func refreshLicenseStatus() {
+        let snap = runtime.license.snapshot
+        switch snap.kind {
+        case .trial:
+            licenseStatusLabel?.stringValue = L10n.licenseTrialDays(snap.trialDaysRemaining)
+        case .licensed:
+            let key = snap.maskedKey ?? ""
+            licenseStatusLabel?.stringValue = String(format: L10n.text(.licenseStatusLicensed), locale: LanguageCenter.language.locale, key)
+        case .offlineGrace:
+            licenseStatusLabel?.stringValue = L10n.text(.licenseStatusOffline)
+        case .expired:
+            licenseStatusLabel?.stringValue = L10n.text(.licenseStatusExpired)
+        }
+        licenseKeyField?.placeholderString = L10n.text(.licenseKeyPlaceholder)
+        licenseActivateButton?.title = L10n.text(.licenseActivate)
+        licenseBuyButton?.title = L10n.text(.licenseBuy)
+        licenseDeactivateButton?.title = L10n.text(.licenseDeactivate)
+        licenseDeactivateButton?.isHidden = runtime.license.record.licenseKey == nil
+        if let key = runtime.license.record.licenseKey, licenseKeyField?.stringValue.isEmpty != false {
+            licenseKeyField?.stringValue = key
+        }
+    }
+
+    @objc private func activateLicense() {
+        let key = licenseKeyField?.stringValue ?? ""
+        licenseActivateButton?.isEnabled = false
+        Task { @MainActor in
+            defer { licenseActivateButton?.isEnabled = true }
+            do {
+                try await runtime.license.activate(key: key)
+                refreshLicenseStatus()
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = L10n.text(.licenseActivate)
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
+    }
+
+    @objc private func buyLicense() {
+        NSWorkspace.shared.open(LicenseConfig.checkoutURL)
+    }
+
+    @objc private func deactivateLicense() {
+        Task { @MainActor in
+            do {
+                try await runtime.license.deactivate()
+                licenseKeyField?.stringValue = ""
+                refreshLicenseStatus()
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = L10n.text(.licenseDeactivate)
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
+        }
     }
 
     func reloadWorkspaceProfiles() {
@@ -1244,6 +1363,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
+        refreshLicenseStatus()
         refreshLoginSwitch()
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
@@ -1296,7 +1416,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         runtime.persistSettings()
     }
-    @objc private func toggleQuickSnapper(_ sender: NSSwitch) { runtime.settings.quickSnapperEnabled = sender.state == .on; runtime.persistSettings() }
+    @objc private func toggleQuickSnapper(_ sender: NSSwitch) {
+        if sender.state == .on, !runtime.requestProAccess(for: .quickSnapper) {
+            sender.state = .off
+            return
+        }
+        runtime.settings.quickSnapperEnabled = sender.state == .on
+        runtime.persistSettings()
+    }
     @objc private func toggleMagnetic(_ sender: NSSwitch) { runtime.settings.magneticResizeEnabled = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleNumbers(_ sender: NSSwitch) {
         runtime.settings.showZoneNumbers = sender.state == .on
@@ -1309,7 +1436,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
     @objc private func togglePreviewLayoutOnSelect(_ sender: NSSwitch) { runtime.setPreviewLayoutOnSelect(sender.state == .on) }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
-    @objc private func toggleHoverPin(_ sender: NSSwitch) { runtime.setHoverPinEnabled(sender.state == .on) }
+    @objc private func toggleHoverPin(_ sender: NSSwitch) {
+        if sender.state == .on, !runtime.requestProAccess(for: .pin) {
+            sender.state = .off
+            return
+        }
+        runtime.setHoverPinEnabled(sender.state == .on)
+    }
     @objc private func openAccess() { runtime.openAccessibility() }
     @objc private func openShortcuts() { runtime.openShortcutPanel() }
 
@@ -1473,6 +1606,7 @@ private enum SettingsCategory: Int, CaseIterable {
     case overlay
     case keyboard
     case workspaces
+    case license
 
     var titleKey: L10nKey {
         switch self {
@@ -1481,6 +1615,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: .settingsSectionOverlay
         case .keyboard: .settingsSectionKeyboard
         case .workspaces: .settingsSectionWorkspaces
+        case .license: .settingsSectionLicense
         }
     }
     var subtitleKey: L10nKey {
@@ -1490,6 +1625,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: .settingsOverlaySubtitle
         case .keyboard: .settingsKeyboardSubtitle
         case .workspaces: .settingsWorkspacesSubtitle
+        case .license: .settingsLicenseSubtitle
         }
     }
     var previewTitleKey: L10nKey {
@@ -1499,6 +1635,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: .settingsOverlayPreviewTitle
         case .keyboard: .settingsKeyboardPreviewTitle
         case .workspaces: .settingsWorkspacesPreviewTitle
+        case .license: .settingsLicensePreviewTitle
         }
     }
     var previewDescriptionKey: L10nKey {
@@ -1508,6 +1645,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: .settingsOverlayPreviewDescription
         case .keyboard: .settingsKeyboardPreviewDescription
         case .workspaces: .settingsWorkspacesPreviewDescription
+        case .license: .settingsLicensePreviewDescription
         }
     }
     var symbolName: String {
@@ -1517,6 +1655,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: "square.grid.2x2.fill"
         case .keyboard: "keyboard.fill"
         case .workspaces: "square.grid.3x3.square"
+        case .license: "checkmark.seal.fill"
         }
     }
     var tint: NSColor {
@@ -1526,6 +1665,7 @@ private enum SettingsCategory: Int, CaseIterable {
         case .overlay: .systemMint
         case .keyboard: .systemOrange
         case .workspaces: .systemIndigo
+        case .license: .systemPurple
         }
     }
 }

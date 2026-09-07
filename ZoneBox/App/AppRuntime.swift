@@ -28,6 +28,7 @@ final class AppRuntime {
     let workspace = WorkspaceCenter()
     let pins = PinCenter()
     let pinHover = PinHoverMonitor()
+    let license = LicenseCenter()
     var ax: AccessibilityClientLive
     let query = CGWindowQuery()
 
@@ -82,6 +83,12 @@ final class AppRuntime {
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
         persist()
+        license.onChange = { [weak self] in
+            self?.settingsWindow?.refreshLicenseStatus()
+            self?.reloadMenu()
+            self?.pinHover.settingsChanged()
+        }
+        license.start()
 
         LanguageCenter.shared.start()
         LanguageCenter.shared.applyPreference(settings.uiLanguage)
@@ -160,6 +167,10 @@ final class AppRuntime {
 
     func openWorkspaceSettings() {
         presentSettings { $0.showWorkspaces() }
+    }
+
+    func openLicenseSettings() {
+        presentSettings { $0.showLicense() }
     }
 
     func openKeyboardSettings() {
@@ -1222,6 +1233,46 @@ final class AppRuntime {
 
     func resolvedZones(layout: Layout, area: WorkArea) -> [ResolvedZone] {
         cachedResolvedZones(layout: layout, area: area)
+    }
+
+    var allowsProFeatures: Bool { license.allowsPro }
+
+    @discardableResult
+    func requestProAccess(for feature: LicenseFeature) -> Bool {
+        if license.allowsPro { return true }
+        presentProPaywall(for: feature)
+        return false
+    }
+
+    func handleOpenURLs(_ urls: [URL]) {
+        for url in urls {
+            license.handleOpenURL(url)
+        }
+        if urls.contains(where: { $0.scheme?.lowercased() == "zonebox" }) {
+            openLicenseSettings()
+        }
+    }
+
+    private func presentProPaywall(for feature: LicenseFeature) {
+        let alert = NSAlert()
+        alert.messageText = L10n.text(.licensePaywallTitle)
+        switch feature {
+        case .workspace: alert.informativeText = L10n.text(.licensePaywallWorkspace)
+        case .pin: alert.informativeText = L10n.text(.licensePaywallPin)
+        case .quickSnapper: alert.informativeText = L10n.text(.licensePaywallQuickSnapper)
+        }
+        alert.addButton(withTitle: L10n.text(.licensePaywallBuy))
+        alert.addButton(withTitle: L10n.text(.licensePaywallEnter))
+        alert.addButton(withTitle: L10n.text(.licensePaywallLater))
+        let response = alert.runModal()
+        switch response {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.open(LicenseConfig.checkoutURL)
+        case .alertSecondButtonReturn:
+            openLicenseSettings()
+        default:
+            break
+        }
     }
 
     func persist() {

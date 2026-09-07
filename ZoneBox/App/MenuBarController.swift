@@ -312,6 +312,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         language.submenu = makeLanguageMenu()
         menu.addItem(language)
 
+        let license = NSMenuItem(title: L10n.text(.menuLicense), action: #selector(openLicense(_:)), keyEquivalent: "")
+        license.target = self
+        menu.addItem(license)
+
         let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
@@ -468,6 +472,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc
     private func openSettings(_ sender: NSMenuItem) {
         runtime.openSettings()
+    }
+
+    @objc
+    private func openLicense(_ sender: NSMenuItem) {
+        runtime.openLicenseSettings()
     }
 
     @objc
