@@ -161,6 +161,15 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case licenseErrorNetwork
     case licenseErrorServer
     case licensePriceNote
+    case licenseActiveTitle
+    case licenseActiveDetail
+    case licenseOfflineTitle
+    case licenseOfflineDetail
+    case licenseMaskedKey
+    case licenseUnlockedHeading
+    case licenseUnlockedList
+    case settingsLicenseSubtitleActive
+    case settingsLicensePreviewDescriptionActive
     case settingsGeneralSubtitle
     case settingsSnappingSubtitle
     case settingsOverlaySubtitle
@@ -715,6 +724,15 @@ public enum L10n {
         .licenseErrorNetwork: "Could not reach the license server. Check the network and retry.",
         .licenseErrorServer: "The license server returned an error.",
         .licensePriceNote: "Lifetime license, US$29. Core snapping stays free after the 14-day trial.",
+        .licenseActiveTitle: "ZoneBox Pro is active",
+        .licenseActiveDetail: "This Mac has a lifetime license. Workspaces, hover pin, and Quick Snapper are unlocked.",
+        .licenseOfflineTitle: "ZoneBox Pro is active offline",
+        .licenseOfflineDetail: "This Mac is using a cached license until the next online check.",
+        .licenseMaskedKey: "License %@",
+        .licenseUnlockedHeading: "Unlocked on this Mac",
+        .licenseUnlockedList: "Workspaces, hover pin, and Quick Snapper.",
+        .settingsLicenseSubtitleActive: "This Mac is licensed. Pro features stay unlocked.",
+        .settingsLicensePreviewDescriptionActive: "Workspaces, hover pin, and Quick Snapper are included with this license.",
         .settingsGeneralSubtitle: "Choose the language and how ZoneBox starts.",
         .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
         .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
@@ -1117,6 +1135,15 @@ public enum L10n {
         .licenseErrorNetwork: "连不上授权服务器。请检查网络后重试。",
         .licenseErrorServer: "授权服务器返回了错误。",
         .licensePriceNote: "终身授权 29 美元。14 天试用结束后，核心吸附仍然免费。",
+        .licenseActiveTitle: "ZoneBox Pro 已激活",
+        .licenseActiveDetail: "这台 Mac 已有终身授权。工作区、悬停置顶和快速吸附都已解锁。",
+        .licenseOfflineTitle: "ZoneBox Pro 离线有效",
+        .licenseOfflineDetail: "当前离线，先使用本机缓存的授权，连上网后会再校验。",
+        .licenseMaskedKey: "授权码 %@",
+        .licenseUnlockedHeading: "这台 Mac 已解锁",
+        .licenseUnlockedList: "工作区方案、标题栏置顶、快速吸附。",
+        .settingsLicenseSubtitleActive: "这台 Mac 已授权，Pro 功能保持可用。",
+        .settingsLicensePreviewDescriptionActive: "工作区、悬停置顶和快速吸附已包含在当前授权里。",
         .settingsGeneralSubtitle: "设置界面语言，以及 ZoneBox 的启动方式。",
         .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
         .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",

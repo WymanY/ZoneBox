@@ -42,11 +42,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
     private var hoverPinSwitch: NSSwitch?
+    private var licensePageSubtitle: NSTextField?
     private var licenseStatusLabel: NSTextField?
     private var licenseKeyField: NSTextField?
     private var licenseActivateButton: NSButton?
     private var licenseBuyButton: NSButton?
     private var licenseDeactivateButton: NSButton?
+    private var licenseEntryStack: NSStackView?
+    private var licenseActiveStack: NSStackView?
+    private var licenseActiveIcon: NSImageView?
+    private var licenseActiveTitle: NSTextField?
+    private var licenseActiveDetail: NSTextField?
+    private var licenseMaskedKeyLabel: NSTextField?
+    private var licenseUnlockedHeading: NSTextField?
+    private var licenseUnlockedList: NSTextField?
+    private var licensePriceLabel: NSTextField?
+    private var licenseFeaturesLabel: NSTextField?
     private var languagePopup: NSPopUpButton?
     private var hotkeyList: NSStackView?
     private var workspaceList: NSStackView?
@@ -241,6 +252,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         )
         subtitle.alignment = .left
         subtitle.translatesAutoresizingMaskIntoConstraints = false
+        if category == .license {
+            licensePageSubtitle = subtitle
+        }
 
         let group: NSView
         switch category {
@@ -405,12 +419,115 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = 12
+        stack.spacing = 14
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18)
 
-        let status = localizedWrappingLabel(.licenseStatusExpired, font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
+        let active = makeLicenseActiveBlock()
+        licenseActiveStack = active
+        stack.addArrangedSubview(active)
+
+        let entry = makeLicenseEntryBlock()
+        licenseEntryStack = entry
+        stack.addArrangedSubview(entry)
+
+        let buttons = NSStackView()
+        buttons.orientation = .horizontal
+        buttons.alignment = .centerY
+        buttons.spacing = 8
+        let activate = localizedButton(.licenseActivate, action: #selector(activateLicense))
+        activate.bezelStyle = .rounded
+        let buy = localizedButton(.licenseBuy, action: #selector(buyLicense))
+        buy.bezelStyle = .rounded
+        let deactivate = localizedButton(.licenseDeactivate, action: #selector(deactivateLicense))
+        deactivate.bezelStyle = .rounded
+        licenseActivateButton = activate
+        licenseBuyButton = buy
+        licenseDeactivateButton = deactivate
+        buttons.addArrangedSubview(activate)
+        buttons.addArrangedSubview(buy)
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        buttons.addArrangedSubview(spacer)
+        buttons.addArrangedSubview(deactivate)
+        stack.addArrangedSubview(buttons)
+
+        let price = localizedWrappingLabel(.licensePriceNote, font: .systemFont(ofSize: 12, weight: .medium), color: .labelColor)
+        licensePriceLabel = price
+        stack.addArrangedSubview(price)
+        let features = localizedWrappingLabel(.licenseFeatureList, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+        licenseFeaturesLabel = features
+        stack.addArrangedSubview(makeInfoRow(label: features))
+        refreshLicenseStatus()
+        return SettingsGroupSurfaceView(content: stack)
+    }
+
+    private func makeLicenseActiveBlock() -> NSStackView {
+        let icon = NSImageView()
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
+        icon.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        licenseActiveIcon = icon
+
+        let title = NSTextField(labelWithString: L10n.text(.licenseActiveTitle))
+        title.font = .systemFont(ofSize: 17, weight: .semibold)
+        title.textColor = .labelColor
+        title.alignment = .left
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        licenseActiveTitle = title
+
+        let detail = NSTextField(wrappingLabelWithString: L10n.text(.licenseActiveDetail))
+        detail.font = .systemFont(ofSize: 13)
+        detail.textColor = .secondaryLabelColor
+        detail.alignment = .left
+        detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        licenseActiveDetail = detail
+
+        let titles = NSStackView(views: [title, detail])
+        titles.orientation = .vertical
+        titles.alignment = .leading
+        titles.spacing = 3
+
+        let header = NSStackView(views: [icon, titles])
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.spacing = 12
+
+        let masked = NSTextField(labelWithString: "")
+        masked.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
+        masked.textColor = .secondaryLabelColor
+        masked.alignment = .left
+        licenseMaskedKeyLabel = masked
+
+        let unlockedHeading = localizedLabel(
+            .licenseUnlockedHeading,
+            font: .systemFont(ofSize: 12, weight: .semibold),
+            color: .labelColor
+        )
+        licenseUnlockedHeading = unlockedHeading
+        let unlockedList = localizedWrappingLabel(
+            .licenseUnlockedList,
+            font: .systemFont(ofSize: 12),
+            color: .secondaryLabelColor
+        )
+        licenseUnlockedList = unlockedList
+
+        let block = NSStackView(views: [header, masked, unlockedHeading, unlockedList])
+        block.orientation = .vertical
+        block.alignment = .leading
+        block.spacing = 10
+        return block
+    }
+
+    private func makeLicenseEntryBlock() -> NSStackView {
+        let status = localizedWrappingLabel(
+            .licenseStatusExpired,
+            font: .systemFont(ofSize: 13, weight: .medium),
+            color: .labelColor
+        )
         licenseStatusLabel = status
-        stack.addArrangedSubview(status)
 
         let field = NSTextField()
         field.placeholderString = L10n.text(.licenseKeyPlaceholder)
@@ -418,55 +535,75 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         field.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
         licenseKeyField = field
-        stack.addArrangedSubview(field)
 
-        let buttons = NSStackView()
-        buttons.orientation = .horizontal
-        buttons.alignment = .centerY
-        buttons.spacing = 8
-        let activate = localizedButton(.licenseActivate, action: #selector(activateLicense))
-        let buy = localizedButton(.licenseBuy, action: #selector(buyLicense))
-        let deactivate = localizedButton(.licenseDeactivate, action: #selector(deactivateLicense))
-        licenseActivateButton = activate
-        licenseBuyButton = buy
-        licenseDeactivateButton = deactivate
-        buttons.addArrangedSubview(activate)
-        buttons.addArrangedSubview(buy)
-        buttons.addArrangedSubview(deactivate)
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        buttons.addArrangedSubview(spacer)
-        stack.addArrangedSubview(buttons)
-
-        let price = localizedWrappingLabel(.licensePriceNote, font: .systemFont(ofSize: 12, weight: .medium), color: .labelColor)
-        stack.addArrangedSubview(price)
-        let features = localizedWrappingLabel(.licenseFeatureList, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-        stack.addArrangedSubview(makeInfoRow(label: features))
-        refreshLicenseStatus()
-        return SettingsGroupSurfaceView(content: stack)
+        let block = NSStackView(views: [status, field])
+        block.orientation = .vertical
+        block.alignment = .width
+        block.spacing = 10
+        return block
     }
 
     func refreshLicenseStatus() {
         let snap = runtime.license.snapshot
-        switch snap.kind {
-        case .trial:
-            licenseStatusLabel?.stringValue = L10n.licenseTrialDays(snap.trialDaysRemaining)
-        case .licensed:
-            let key = snap.maskedKey ?? ""
-            licenseStatusLabel?.stringValue = String(format: L10n.text(.licenseStatusLicensed), locale: LanguageCenter.language.locale, key)
-        case .offlineGrace:
-            licenseStatusLabel?.stringValue = L10n.text(.licenseStatusOffline)
-        case .expired:
-            licenseStatusLabel?.stringValue = L10n.text(.licenseStatusExpired)
-        }
+        let licensed = snap.kind == .licensed || snap.kind == .offlineGrace
+        licenseActiveStack?.isHidden = !licensed
+        licenseEntryStack?.isHidden = licensed
+        licenseActivateButton?.isHidden = licensed
+        licenseBuyButton?.isHidden = licensed
+        licenseDeactivateButton?.isHidden = !licensed
+        licensePriceLabel?.isHidden = licensed
+        licenseFeaturesLabel?.superview?.isHidden = licensed
+
         licenseKeyField?.placeholderString = L10n.text(.licenseKeyPlaceholder)
         licenseActivateButton?.title = L10n.text(.licenseActivate)
         licenseBuyButton?.title = L10n.text(.licenseBuy)
         licenseDeactivateButton?.title = L10n.text(.licenseDeactivate)
-        licenseDeactivateButton?.isHidden = runtime.license.record.licenseKey == nil
-        if let key = runtime.license.record.licenseKey, licenseKeyField?.stringValue.isEmpty != false {
-            licenseKeyField?.stringValue = key
+
+        if licensed {
+            licensePageSubtitle?.stringValue = L10n.text(.settingsLicenseSubtitleActive)
+            let offline = snap.kind == .offlineGrace
+            licenseActiveTitle?.stringValue = L10n.text(offline ? .licenseOfflineTitle : .licenseActiveTitle)
+            licenseActiveDetail?.stringValue = L10n.text(offline ? .licenseOfflineDetail : .licenseActiveDetail)
+            let masked = snap.maskedKey ?? ""
+            licenseMaskedKeyLabel?.stringValue = String(
+                format: L10n.text(.licenseMaskedKey),
+                locale: LanguageCenter.language.locale,
+                masked
+            )
+            licenseUnlockedHeading?.stringValue = L10n.text(.licenseUnlockedHeading)
+            licenseUnlockedList?.stringValue = L10n.text(.licenseUnlockedList)
+            licenseKeyField?.stringValue = ""
+            applyLicenseActiveIcon(offline: offline)
+        } else {
+            licensePageSubtitle?.stringValue = L10n.text(.settingsLicenseSubtitle)
+            switch snap.kind {
+            case .trial:
+                licenseStatusLabel?.stringValue = L10n.licenseTrialDays(snap.trialDaysRemaining)
+                licenseStatusLabel?.textColor = .labelColor
+            case .expired:
+                licenseStatusLabel?.stringValue = L10n.text(.licenseStatusExpired)
+                licenseStatusLabel?.textColor = .systemOrange
+            case .licensed, .offlineGrace:
+                break
+            }
+            licensePriceLabel?.stringValue = L10n.text(.licensePriceNote)
+            licenseFeaturesLabel?.stringValue = L10n.text(.licenseFeatureList)
         }
+        if selectedCategory == .license {
+            updatePreview()
+        }
+    }
+
+    private func applyLicenseActiveIcon(offline: Bool) {
+        let tint: NSColor = offline ? .systemOrange : .systemGreen
+        let name = offline ? "checkmark.seal" : "checkmark.seal.fill"
+        let configuration = NSImage.SymbolConfiguration(pointSize: 28, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [tint]))
+        licenseActiveIcon?.image = NSImage(
+            systemSymbolName: availableSymbol(name, fallback: "checkmark.circle.fill"),
+            accessibilityDescription: L10n.text(offline ? .licenseOfflineTitle : .licenseActiveTitle)
+        )?.withSymbolConfiguration(configuration)
+        licenseActiveIcon?.contentTintColor = tint
     }
 
     @objc private func activateLicense() {
@@ -1290,7 +1427,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func updatePreview() {
         previewTitle?.stringValue = L10n.text(selectedCategory.previewTitleKey)
-        previewDescription?.stringValue = L10n.text(selectedCategory.previewDescriptionKey)
+        if selectedCategory == .license, runtime.license.snapshot.kind == .licensed || runtime.license.snapshot.kind == .offlineGrace {
+            previewDescription?.stringValue = L10n.text(.settingsLicensePreviewDescriptionActive)
+        } else {
+            previewDescription?.stringValue = L10n.text(selectedCategory.previewDescriptionKey)
+        }
         guard let imageView = previewImageView else { return }
         let overlayPreview = overlayPreviewView
 
