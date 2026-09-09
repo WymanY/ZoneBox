@@ -1,6 +1,16 @@
 import CoreGraphics
 import Foundation
 
+public struct StripDropLatch: Equatable, Sendable {
+    public var layoutID: Layout.ID
+    public var zone: ResolvedZone
+
+    public init(layoutID: Layout.ID, zone: ResolvedZone) {
+        self.layoutID = layoutID
+        self.zone = zone
+    }
+}
+
 public struct UnsnapRecord: Sendable, Equatable {
     public var identity: WindowIdentity
     public var originalFrameAX: CGRect
@@ -259,6 +269,44 @@ public enum SnapLayoutSession {
             assignedLayoutID: assignedLayoutID,
             preferForcedLayout: preferForcedLayout
         )
+    }
+
+    /// A strip mini-zone stays selected until the pointer leaves both the strip
+    /// and that layout's real zones. A new mini-zone hit replaces it.
+    public static func stripDropLatch(
+        pointerInStrip: Bool,
+        hit: StripDropLatch?,
+        previous: StripDropLatch?,
+        liveZoneInLatchedLayout: ResolvedZone?
+    ) -> StripDropLatch? {
+        if let hit { return hit }
+        if pointerInStrip { return previous }
+        guard let previous, let live = liveZoneInLatchedLayout else { return nil }
+        return StripDropLatch(layoutID: previous.layoutID, zone: live)
+    }
+
+    /// A successful overlay digit replaces the strip drop target. Keep the
+    /// latched layout as the session layout so later numbers stay on it.
+    public static func stripDropLatchAfterDigit(
+        previous: StripDropLatch?,
+        currentSessionLayoutID: Layout.ID?
+    ) -> (latch: StripDropLatch?, sessionLayoutID: Layout.ID?) {
+        (nil, previous?.layoutID ?? currentSessionLayoutID)
+    }
+
+    /// After a digit or Tab/scroll selection, ignore strip hits until the
+    /// pointer leaves the strip so overlay refresh cannot rebuild the latch.
+    public static func acceptingStripHit(
+        suppressStripLatch: Bool,
+        pointerInStrip: Bool
+    ) -> (acceptHit: Bool, suppressStripLatch: Bool) {
+        if !suppressStripLatch {
+            return (true, false)
+        }
+        if pointerInStrip {
+            return (false, true)
+        }
+        return (true, false)
     }
 }
 
