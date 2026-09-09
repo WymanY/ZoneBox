@@ -8,6 +8,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var sessionActive = false
     private var currentDisplayLabel: NSTextField?
     private var displayLabel: NSTextField?
+    private weak var headerTitleStack: NSStackView?
     private var warningButton: NSButton?
     private var featuredLayoutHost: NSView?
     private var otherLayoutsHeader: NSView?
@@ -165,10 +166,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         titleStack.distribution = .fill
         titleStack.spacing = 1
         titleStack.translatesAutoresizingMaskIntoConstraints = false
-        titleStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         titleStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        titleStack.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         titleStack.setHuggingPriority(.defaultLow, for: .horizontal)
-        titleStack.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        titleStack.setClippingResistancePriority(.defaultHigh, for: .horizontal)
+        headerTitleStack = titleStack
 
         let create = NSButton(title: L10n.text(.consoleNew), target: self, action: #selector(newLayout))
         create.bezelStyle = .rounded
@@ -201,16 +203,17 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeTruncatingLabel(font: NSFont, color: NSColor) -> NSTextField {
-        let field = NSTextField(labelWithString: "")
+        let field = ConsoleSingleLineLabel(labelWithString: "")
         field.font = font
         field.textColor = color
         field.alignment = .left
         field.lineBreakMode = .byTruncatingTail
         field.maximumNumberOfLines = 1
-        field.usesSingleLineMode = true
+        field.usesSingleLineMode = false
+        field.preferredMaxLayoutWidth = 0
         field.cell?.truncatesLastVisibleLine = true
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         field.setContentHuggingPriority(.required, for: .vertical)
         field.setContentCompressionResistancePriority(.required, for: .vertical)
         return field
@@ -336,6 +339,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
         currentDisplayLabel?.stringValue = L10n.text(.consoleCurrentDisplay)
         displayLabel?.stringValue = displayTitle(for: area)
+        currentDisplayLabel?.invalidateIntrinsicContentSize()
+        displayLabel?.invalidateIntrinsicContentSize()
+        headerTitleStack?.invalidateIntrinsicContentSize()
         otherLayoutsLabel?.stringValue = L10n.text(.consoleOtherLayouts)
         let warning = runtime.trust.showsMenuBarWarning()
         warningButton?.title = L10n.text(.menuEnableAccessibility)
@@ -717,6 +723,17 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     @objc
     private func quit() {
         dismiss(handoff: { NSApp.terminate(nil) })
+    }
+}
+
+private final class ConsoleSingleLineLabel: NSTextField {
+    override var intrinsicContentSize: NSSize {
+        let vertical = super.intrinsicContentSize.height
+        guard !stringValue.isEmpty else {
+            return NSSize(width: NSView.noIntrinsicMetric, height: vertical)
+        }
+        let textWidth = ceil(attributedStringValue.size().width) + 2
+        return NSSize(width: textWidth, height: vertical)
     }
 }
 
