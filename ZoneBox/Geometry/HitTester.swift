@@ -8,6 +8,37 @@ public struct HitTester: Sendable {
     }
 
     public func target(at pointAX: CGPoint, zones: [ResolvedZone]) -> SnapTarget {
+        target(at: pointAX, zones: zones, windowFrameAX: nil)
+    }
+
+    public func target(
+        at pointAX: CGPoint,
+        zones: [ResolvedZone],
+        windowFrameAX: CGRect?,
+        occupancyStickyInset: CGFloat = ZoneOccupancy.seamInset
+    ) -> SnapTarget {
+        let cursor = cursorTarget(at: pointAX, zones: zones)
+        guard let windowFrameAX,
+              let occupied = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones)
+        else {
+            return cursor
+        }
+        switch cursor {
+        case .none:
+            return .zone(occupied)
+        case .zone(let zone) where zone.zoneID == occupied.zoneID:
+            return .zone(occupied)
+        case .zone(let zone):
+            if ZoneOccupancy.containsInterior(pointAX, zone: zone.frameAX, inset: occupancyStickyInset) {
+                return .zone(zone)
+            }
+            return .zone(occupied)
+        case .span:
+            return cursor
+        }
+    }
+
+    private func cursorTarget(at pointAX: CGPoint, zones: [ResolvedZone]) -> SnapTarget {
         let hits = zones.filter { $0.frameAX.contains(pointAX) }
         let chosen: ResolvedZone?
         switch policy {

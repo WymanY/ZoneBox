@@ -95,8 +95,7 @@ public enum ProfileCapture {
     /// Whether a window currently counts as living in `zone`: either snapped
     /// there within tolerance or covering most of it.
     public static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
-        WindowOrganize.didApply(frame, to: zone, sizeTolerance: 28, originTolerance: 28)
-            || fills(frame, zone: zone)
+        ZoneOccupancy.occupies(frame, zone: zone)
     }
 
     /// Pick the unoccupied zone this window belongs to. Prefer the zone the
@@ -124,15 +123,6 @@ public enum ProfileCapture {
             if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
             return lhs.0.number > rhs.0.number
         }?.0
-    }
-
-    /// A window fills a zone when it still covers most of that zone.
-    private static func fills(_ frame: CGRect, zone: CGRect) -> Bool {
-        let intersection = frame.intersection(zone)
-        guard !intersection.isNull, !intersection.isInfinite else { return false }
-        let overlap = max(intersection.width, 0) * max(intersection.height, 0)
-        let zoneArea = max(zone.width * zone.height, 1)
-        return overlap / zoneArea >= 0.62
     }
 
     /// Adjacent snapped windows commonly share a 1pt seam. That is not occlusion.

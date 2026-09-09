@@ -231,7 +231,11 @@ public enum SnapSessionReducer {
         if let gridTarget = gridTarget(input, currentAX: point) {
             return gridTarget
         }
-        return HitTester(policy: input.overlapPolicy).target(at: point, zones: input.resolvedZones)
+        return HitTester(policy: input.overlapPolicy).target(
+            at: point,
+            zones: input.resolvedZones,
+            windowFrameAX: input.currentFrameAX
+        )
     }
 
     /// Grid layouts prefer the cell under the pointer. Traveling from the
