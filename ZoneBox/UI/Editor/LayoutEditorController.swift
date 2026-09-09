@@ -140,7 +140,7 @@ final class LayoutEditorController: NSObject {
         panel.onSplitHorizontal = { [weak self] in self?.splitSelected(.horizontal) }
         canvas.onMenuWillOpen = { [weak self] in self?.canCancelOnAppSwitch = false }
         canvas.onMenuDidClose = { [weak self] in
-            DispatchQueue.main.async { self?.canCancelOnAppSwitch = true }
+            DispatchQueue.main.async { self?.armCancelOnAppSwitchIfReady() }
         }
         panel.delegate = self
         self.panel = panel
@@ -267,6 +267,7 @@ final class LayoutEditorController: NSObject {
             panel.makeKeyAndOrderFront(nil)
             panel.makeFirstResponder(canvas)
             self.layoutToolbar()
+            self.scheduleArmCancelOnAppSwitch()
         }
     }
 
@@ -1362,9 +1363,7 @@ final class LayoutEditorController: NSObject {
             Task { @MainActor in controller.handleOtherAppActivated(app) }
         }
         appSwitchObservations = [resign, switchApp]
-        DispatchQueue.main.async { [weak self] in
-            self?.canCancelOnAppSwitch = true
-        }
+        scheduleArmCancelOnAppSwitch()
     }
 
     private func stopObservingAppSwitch() {
@@ -1374,6 +1373,24 @@ final class LayoutEditorController: NSObject {
             NSWorkspace.shared.notificationCenter.removeObserver(observation)
         }
         appSwitchObservations.removeAll()
+    }
+
+    private func scheduleArmCancelOnAppSwitch() {
+        DispatchQueue.main.async { [weak self] in
+            self?.armCancelOnAppSwitchIfReady()
+        }
+    }
+
+    private func armCancelOnAppSwitchIfReady() {
+        guard panel != nil, !canCancelOnAppSwitch else { return }
+        guard NSApp.isActive, panel?.isKeyWindow == true else { return }
+        // Drain console-close / activation notifications already queued on this
+        // turn before treating an app switch as Cancel.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.panel != nil, !self.canCancelOnAppSwitch else { return }
+            guard NSApp.isActive, self.panel?.isKeyWindow == true else { return }
+            self.canCancelOnAppSwitch = true
+        }
     }
 
     private func handleAppResign() {
@@ -1388,7 +1405,12 @@ final class LayoutEditorController: NSObject {
     private func handleOtherAppActivated(_ app: NSRunningApplication?) {
         guard canCancelOnAppSwitch, panel != nil else { return }
         guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
-        cancel()
+        DispatchQueue.main.async { [weak self] in
+            guard let controller = self else { return }
+            guard controller.canCancelOnAppSwitch, controller.panel != nil else { return }
+            guard !NSApp.isActive else { return }
+            controller.cancel()
+        }
     }
 
     private func dismiss() {
@@ -1459,6 +1481,7 @@ extension LayoutEditorController: NSWindowDelegate {
         if !isEditingMetrics {
             panel?.makeFirstResponder(canvas)
         }
+        scheduleArmCancelOnAppSwitch()
     }
 
     func windowDidResize(_ notification: Notification) {
