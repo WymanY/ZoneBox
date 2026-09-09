@@ -473,8 +473,29 @@ final class SnapSessionReducerTests: XCTestCase {
             previous: StripDropLatch(layoutID: oldLayout, zone: oldZone),
             liveZoneInLatchedLayout: oldZone
         )
-        XCTAssertEqual(next?.layoutID, newLayout)
-        XCTAssertEqual(next?.zone, newZone)
+       XCTAssertEqual(next?.layoutID, newLayout)
+       XCTAssertEqual(next?.zone, newZone)
+   }
+
+    func testDigitClearsStripLatchAndKeepsLatchedLayout() {
+        let layoutID = UUID()
+        let assigned = UUID()
+        let previous = StripDropLatch(
+            layoutID: layoutID,
+            zone: ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 400, y: 0, width: 400, height: 800))
+        )
+        let next = SnapLayoutSession.stripDropLatchAfterDigit(
+            previous: previous,
+            currentSessionLayoutID: assigned
+        )
+        XCTAssertNil(next.latch)
+        XCTAssertEqual(next.sessionLayoutID, layoutID)
+        let empty = SnapLayoutSession.stripDropLatchAfterDigit(
+            previous: nil,
+            currentSessionLayoutID: assigned
+        )
+        XCTAssertNil(empty.latch)
+        XCTAssertEqual(empty.sessionLayoutID, assigned)
     }
 
     func testForcedStripTargetSnapsOutsideStrip() {

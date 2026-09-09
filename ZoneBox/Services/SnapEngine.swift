@@ -157,6 +157,14 @@ final class SnapEngine {
             stickyArm = true
             if case .highlighting(_, let target) = output.phase {
                 lockedTarget = target
+                if output.effects.contains(where: { if case .applyFrame = $0 { return true }; return false }) {
+                    let next = SnapLayoutSession.stripDropLatchAfterDigit(
+                        previous: stripDropLatch,
+                        currentSessionLayoutID: sessionLayoutID
+                    )
+                    stripDropLatch = next.latch
+                    sessionLayoutID = next.sessionLayoutID
+                }
             }
         }
         phase = output.phase

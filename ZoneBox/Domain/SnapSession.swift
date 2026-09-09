@@ -284,6 +284,15 @@ public enum SnapLayoutSession {
         guard let previous, let live = liveZoneInLatchedLayout else { return nil }
         return StripDropLatch(layoutID: previous.layoutID, zone: live)
     }
+
+    /// A successful overlay digit replaces the strip drop target. Keep the
+    /// latched layout as the session layout so later numbers stay on it.
+    public static func stripDropLatchAfterDigit(
+        previous: StripDropLatch?,
+        currentSessionLayoutID: Layout.ID?
+    ) -> (latch: StripDropLatch?, sessionLayoutID: Layout.ID?) {
+        (nil, previous?.layoutID ?? currentSessionLayoutID)
+    }
 }
 
 public enum SnapLayoutAssignmentPolicy {
