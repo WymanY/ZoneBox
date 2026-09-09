@@ -25,6 +25,7 @@ final class SnapEngine {
     private var stripWindowLayoutID: Layout.ID?
     private var stripWindowStartID: Layout.ID?
     private var stripOverflowLatch: Int?
+    private var stripDropLatch: StripDropLatch?
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
     private var layoutAssignmentGeneration = 0
@@ -84,6 +85,7 @@ final class SnapEngine {
             stripWindowLayoutID = nil
             stripWindowStartID = nil
             stripOverflowLatch = nil
+            stripDropLatch = nil
             layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
                 current: layoutAssignmentGeneration,
                 startingNewDrag: true
@@ -543,6 +545,7 @@ final class SnapEngine {
                 sessionLayoutID = layoutID
                 stripWindowLayoutID = layoutID
                 stripOverflowLatch = nil
+                stripDropLatch = nil
             }
         }
         if hideOverlay {
@@ -566,8 +569,10 @@ final class SnapEngine {
             let zones = lastZones
             var highlight = overlayHighlight ?? SnapTarget.none
             if case .none = highlight {
-                if session.pointerInStrip {
-                    highlight = session.forcedTarget ?? .none
+                if let forced = session.forcedTarget {
+                    highlight = forced
+                } else if session.pointerInStrip {
+                    highlight = .none
                 } else {
                     highlight = HitTester(policy: runtime.settings.overlapPolicy).target(
                         at: CoordinateConverter.axPoint(
@@ -598,6 +603,7 @@ final class SnapEngine {
         stripWindowLayoutID = nil
         stripWindowStartID = nil
         stripOverflowLatch = nil
+        stripDropLatch = nil
         lastPresentation = .empty
         quickSnapperLayoutID = nil
     }
@@ -659,6 +665,7 @@ final class SnapEngine {
             stripWindowLayoutID = nil
             stripWindowStartID = nil
             stripOverflowLatch = nil
+            stripDropLatch = nil
         } else if lastCursorDisplayID == nil {
             lastCursorDisplayID = area?.display.id
         }
@@ -671,6 +678,10 @@ final class SnapEngine {
         var forcedTarget: SnapTarget?
         var highlightedLayoutID: Layout.ID?
         var highlightedZoneNumber: Int?
+        var hitLatch: StripDropLatch?
+        if !isArmed(phase) {
+            stripDropLatch = nil
+        }
         if runtime.settings.showLayoutStrip, let area, isArmed(phase) {
             let workAX = CoordinateConverter.axRect(
                 fromAppKit: area.visibleFrameAppKit,
@@ -712,9 +723,7 @@ final class SnapEngine {
                     if let hit = visibleStrip.hitZone(at: pointAppKit),
                        let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
                        let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
-                        forcedTarget = .zone(zone)
-                        highlightedLayoutID = hit.layoutID
-                        highlightedZoneNumber = hit.zoneNumber
+                        hitLatch = StripDropLatch(layoutID: hit.layoutID, zone: zone)
                     } else {
                         highlightedLayoutID = visibleStrip.hitCard(at: pointAppKit)
                     }
@@ -728,15 +737,45 @@ final class SnapEngine {
             stripOverflowLatch = nil
         }
 
+        let liveZone: ResolvedZone?
+        if let previous = stripDropLatch,
+           let layout = layouts.first(where: { $0.layout.id == previous.layoutID }) {
+            let pointAX = CoordinateConverter.axPoint(
+                fromAppKit: pointAppKit,
+                primaryFlipHeight: runtime.primaryFlipHeight
+            )
+            if case .zone(let zone) = HitTester(policy: runtime.settings.overlapPolicy).target(
+                at: pointAX,
+                zones: layout.zones
+            ) {
+                liveZone = zone
+            } else {
+                liveZone = nil
+            }
+        } else {
+            liveZone = nil
+        }
+        stripDropLatch = SnapLayoutSession.stripDropLatch(
+            pointerInStrip: pointerInStrip,
+            hit: hitLatch,
+            previous: stripDropLatch,
+            liveZoneInLatchedLayout: liveZone
+        )
+        if let latch = stripDropLatch {
+            forcedTarget = .zone(latch.zone)
+            highlightedLayoutID = latch.layoutID
+            highlightedZoneNumber = latch.zone.number
+        }
+
         sessionLayoutID = SnapLayoutSession.sessionLayoutIDForPointer(
-            forcedLayoutID: forcedTarget == nil ? nil : highlightedLayoutID,
+            forcedLayoutID: stripDropLatch?.layoutID,
             currentSessionLayoutID: sessionLayoutID,
             assignedLayoutID: assignedID,
             lockedTarget: lockedTarget,
             preferForcedLayout: committingStripSelection
         )
 
-        let layoutID = highlightedLayoutID ?? sessionLayoutID ?? assignedID
+        let layoutID = stripDropLatch?.layoutID ?? highlightedLayoutID ?? sessionLayoutID ?? assignedID
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         let stripModel: OverlayStripRenderModel?
         if let strip, runtime.settings.showLayoutStrip {
