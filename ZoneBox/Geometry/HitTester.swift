@@ -71,11 +71,17 @@ public struct HitTester: Sendable {
         at pointAX: CGPoint,
         in zones: [ResolvedZone]
     ) -> ResolvedZone? {
+        let nearWindow = pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX)
+        // Containment of the window beats how much of a zone the window covers.
+        // A small window can sit entirely in pane 2 while covering little of
+        // pane 2 and a large fraction of a neighboring pane.
+        if nearWindow, let belonging = ZoneOccupancy.preferredBelongingZone(for: windowFrameAX, in: zones) {
+            return belonging
+        }
         if let filled = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones) {
             return filled
         }
-        guard pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX) else { return nil }
-        return ZoneOccupancy.preferredBelongingZone(for: windowFrameAX, in: zones)
+        return nil
     }
 
     private func zone(for target: SnapTarget, in zones: [ResolvedZone]) -> ResolvedZone? {

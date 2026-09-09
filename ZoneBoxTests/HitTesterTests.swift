@@ -108,6 +108,26 @@ final class HitTesterTests: XCTestCase {
         )
     }
 
+    func testWindowContainmentBeatsFillingANeighborZone() {
+        let narrowLeft = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 800))
+        let wideRight = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 200, y: 0, width: 800, height: 800))
+        let window = CGRect(x: 20, y: 50, width: 680, height: 700)
+        XCTAssertTrue(ZoneOccupancy.fills(window, zone: narrowLeft.frameAX))
+        XCTAssertTrue(ZoneOccupancy.belongs(window, zone: wideRight.frameAX))
+        XCTAssertGreaterThan(
+            ZoneOccupancy.windowCoverage(window, zone: wideRight.frameAX),
+            ZoneOccupancy.windowCoverage(window, zone: narrowLeft.frameAX)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 80, y: 80),
+                zones: [narrowLeft, wideRight],
+                windowFrameAX: window
+            ),
+            .zone(wideRight)
+        )
+    }
+
     func testPointerFarFromWindowCanRetargetAwayFromMajorityZone() {
         let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
         let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
