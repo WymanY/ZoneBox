@@ -14,3 +14,6 @@ DerivedData/
 *.xcscmblueprint
 .codex/config.toml
 .codex/worktrees/
+
+# Wrangler local cache (account metadata, not source)
+.wrangler/
