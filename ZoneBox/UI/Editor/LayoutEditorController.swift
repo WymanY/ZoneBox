@@ -52,6 +52,7 @@ final class LayoutEditorController: NSObject {
     private var transaction: LayoutEditTransaction?
     private var appSwitchObservations: [Any] = []
     private var canCancelOnAppSwitch = false
+    private var appSwitchPendingBeforeArm = false
     private var toolbarHasCustomPosition = false
 
     private enum SaveNamePromptKind {
@@ -138,7 +139,10 @@ final class LayoutEditorController: NSObject {
         panel.onSelectAll = { [weak self] in _ = self?.canvas?.perform(.selectAll) }
         panel.onSplitVertical = { [weak self] in self?.splitSelected(.vertical) }
         panel.onSplitHorizontal = { [weak self] in self?.splitSelected(.horizontal) }
-        canvas.onMenuWillOpen = { [weak self] in self?.canCancelOnAppSwitch = false }
+        canvas.onMenuWillOpen = { [weak self] in
+            self?.canCancelOnAppSwitch = false
+            self?.appSwitchPendingBeforeArm = false
+        }
         canvas.onMenuDidClose = { [weak self] in
             DispatchQueue.main.async { self?.armCancelOnAppSwitchIfReady() }
         }
@@ -1345,6 +1349,7 @@ final class LayoutEditorController: NSObject {
     private func observeAppSwitchToCancel() {
         stopObservingAppSwitch()
         canCancelOnAppSwitch = false
+        appSwitchPendingBeforeArm = false
         let resign = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: NSApp,
@@ -1368,6 +1373,7 @@ final class LayoutEditorController: NSObject {
 
     private func stopObservingAppSwitch() {
         canCancelOnAppSwitch = false
+        appSwitchPendingBeforeArm = false
         for observation in appSwitchObservations {
             NotificationCenter.default.removeObserver(observation)
             NSWorkspace.shared.notificationCenter.removeObserver(observation)
@@ -1383,18 +1389,34 @@ final class LayoutEditorController: NSObject {
 
     private func armCancelOnAppSwitchIfReady() {
         guard panel != nil, !canCancelOnAppSwitch else { return }
-        guard NSApp.isActive, panel?.isKeyWindow == true else { return }
+        guard NSApp.isActive, panel?.isKeyWindow == true else {
+            if appSwitchPendingBeforeArm, !NSApp.isActive {
+                cancel()
+            }
+            return
+        }
         // Drain console-close / activation notifications already queued on this
         // turn before treating an app switch as Cancel.
         DispatchQueue.main.async { [weak self] in
             guard let self, self.panel != nil, !self.canCancelOnAppSwitch else { return }
-            guard NSApp.isActive, self.panel?.isKeyWindow == true else { return }
+            guard NSApp.isActive, self.panel?.isKeyWindow == true else {
+                if self.appSwitchPendingBeforeArm, !NSApp.isActive {
+                    self.cancel()
+                }
+                return
+            }
             self.canCancelOnAppSwitch = true
+            self.appSwitchPendingBeforeArm = false
         }
     }
 
     private func handleAppResign() {
-        guard canCancelOnAppSwitch, panel != nil else { return }
+        guard panel != nil else { return }
+        guard canCancelOnAppSwitch else {
+            appSwitchPendingBeforeArm = true
+            scheduleArmCancelOnAppSwitch()
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             guard let controller = self else { return }
             guard controller.canCancelOnAppSwitch, controller.panel != nil, !NSApp.isActive else { return }
@@ -1403,8 +1425,13 @@ final class LayoutEditorController: NSObject {
     }
 
     private func handleOtherAppActivated(_ app: NSRunningApplication?) {
-        guard canCancelOnAppSwitch, panel != nil else { return }
+        guard panel != nil else { return }
         guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        guard canCancelOnAppSwitch else {
+            appSwitchPendingBeforeArm = true
+            scheduleArmCancelOnAppSwitch()
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             guard let controller = self else { return }
             guard controller.canCancelOnAppSwitch, controller.panel != nil else { return }
