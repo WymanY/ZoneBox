@@ -55,4 +55,16 @@ final class ZoneOccupancyTests: XCTestCase {
             1
         )
     }
+
+    func testWindowMostlyInsideZoneIsOccupiedEvenIfItDoesNotFillTheZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        XCTAssertGreaterThan(ZoneOccupancy.windowCoverage(window, zone: right.frameAX), 0.7)
+        XCTAssertFalse(ZoneOccupancy.fills(window, zone: right.frameAX))
+        XCTAssertFalse(ZoneOccupancy.occupies(window, zone: right.frameAX))
+        XCTAssertTrue(ZoneOccupancy.belongs(window, zone: right.frameAX))
+        XCTAssertFalse(ZoneOccupancy.belongs(window, zone: left.frameAX))
+        XCTAssertEqual(ZoneOccupancy.preferredBelongingZone(for: window, in: [left, right])?.number, 2)
+    }
 }

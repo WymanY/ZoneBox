@@ -5,6 +5,7 @@ import CoreGraphics
 /// leave that occupancy.
 public enum ZoneOccupancy {
     public static let fillRatio: CGFloat = 0.62
+    public static let windowBelongRatio: CGFloat = 0.62
     public static let seamInset: CGFloat = 24
     public static let applyTolerance: CGFloat = 28
 
@@ -16,9 +17,24 @@ public enum ZoneOccupancy {
         return overlap / zoneArea
     }
 
+    /// How much of the window sits inside the zone, as opposed to how much of
+    /// the zone the window covers.
+    public static func windowCoverage(_ frame: CGRect, zone: CGRect) -> CGFloat {
+        let intersection = frame.intersection(zone)
+        guard !intersection.isNull, !intersection.isInfinite else { return 0 }
+        let overlap = max(intersection.width, 0) * max(intersection.height, 0)
+        let windowArea = max(frame.width * frame.height, 1)
+        return overlap / windowArea
+    }
+
     /// A window fills a zone when it still covers most of that zone.
     public static func fills(_ frame: CGRect, zone: CGRect) -> Bool {
         coverage(frame, zone: zone) >= fillRatio
+    }
+
+    /// A window belongs to a zone when most of the window itself sits there.
+    public static func belongs(_ frame: CGRect, zone: CGRect) -> Bool {
+        windowCoverage(frame, zone: zone) >= windowBelongRatio
     }
 
     public static func isApplied(_ actual: CGRect, to target: CGRect) -> Bool {
@@ -48,6 +64,20 @@ public enum ZoneOccupancy {
             if abs(lhs.coverage - rhs.coverage) > 0.000_001 { return lhs.coverage < rhs.coverage }
             return lhs.zone.number > rhs.zone.number
         }?.zone
+    }
+
+    /// The zone that contains most of the window, even when the window is too
+    /// small to fill that zone.
+    public static func preferredBelongingZone(for frame: CGRect, in zones: [ResolvedZone]) -> ResolvedZone? {
+        let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat)? in
+            let ratio = windowCoverage(frame, zone: zone.frameAX)
+            guard ratio >= windowBelongRatio else { return nil }
+            return (zone, ratio)
+        }
+        return ranked.max { lhs, rhs in
+            if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
+            return lhs.0.number > rhs.0.number
+        }?.0
     }
 
     public static func containsInterior(_ point: CGPoint, zone: CGRect, inset: CGFloat = seamInset) -> Bool {

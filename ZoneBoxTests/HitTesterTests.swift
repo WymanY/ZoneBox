@@ -73,4 +73,21 @@ final class HitTesterTests: XCTestCase {
             .zone(right)
         )
     }
+
+    func testPointerOnWindowKeepsMajorityZoneInsteadOfTitleBarZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        let titleBarInLeft = CGPoint(x: 400, y: 100)
+        XCTAssertTrue(left.frameAX.contains(titleBarInLeft))
+        XCTAssertTrue(window.contains(titleBarInLeft))
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: titleBarInLeft,
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(right)
+        )
+    }
 }

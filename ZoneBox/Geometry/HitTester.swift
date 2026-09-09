@@ -27,7 +27,9 @@ public struct HitTester: Sendable {
     }
 
     /// Keep a window that already occupies a zone unless the pointer has
-    /// clearly entered another zone. Multi-zone grid spans stay untouched.
+    /// clearly entered another zone outside the window. A pointer on the
+    /// dragged window itself is not a zone choice. Multi-zone grid spans stay
+    /// untouched.
     public func preferringOccupancy(
         _ cursor: SnapTarget,
         at pointAX: CGPoint,
@@ -39,7 +41,7 @@ public struct HitTester: Sendable {
             return cursor
         }
         guard let windowFrameAX,
-              let occupied = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones)
+              let occupied = Self.occupiedZone(for: windowFrameAX, at: pointAX, in: zones)
         else {
             return cursor
         }
@@ -49,10 +51,29 @@ public struct HitTester: Sendable {
         if cursorZone.zoneID == occupied.zoneID {
             return cursor
         }
+        if Self.pointerIsOnWindow(pointAX, windowFrameAX: windowFrameAX) {
+            return .zone(occupied)
+        }
         if ZoneOccupancy.containsInterior(pointAX, zone: cursorZone.frameAX, inset: occupancyStickyInset) {
             return cursor
         }
         return .zone(occupied)
+    }
+
+    private static func pointerIsOnWindow(_ pointAX: CGPoint, windowFrameAX: CGRect) -> Bool {
+        windowFrameAX.insetBy(dx: -8, dy: -8).contains(pointAX)
+    }
+
+    private static func occupiedZone(
+        for windowFrameAX: CGRect,
+        at pointAX: CGPoint,
+        in zones: [ResolvedZone]
+    ) -> ResolvedZone? {
+        if let filled = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones) {
+            return filled
+        }
+        guard pointerIsOnWindow(pointAX, windowFrameAX: windowFrameAX) else { return nil }
+        return ZoneOccupancy.preferredBelongingZone(for: windowFrameAX, in: zones)
     }
 
     private func zone(for target: SnapTarget, in zones: [ResolvedZone]) -> ResolvedZone? {
