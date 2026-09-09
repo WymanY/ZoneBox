@@ -8,6 +8,66 @@ public struct HitTester: Sendable {
     }
 
     public func target(at pointAX: CGPoint, zones: [ResolvedZone]) -> SnapTarget {
+        target(at: pointAX, zones: zones, windowFrameAX: nil)
+    }
+
+    public func target(
+        at pointAX: CGPoint,
+        zones: [ResolvedZone],
+        windowFrameAX: CGRect?,
+        occupancyStickyInset: CGFloat = ZoneOccupancy.seamInset
+    ) -> SnapTarget {
+        preferringOccupancy(
+            cursorTarget(at: pointAX, zones: zones),
+            at: pointAX,
+            windowFrameAX: windowFrameAX,
+            zones: zones,
+            occupancyStickyInset: occupancyStickyInset
+        )
+    }
+
+    /// Keep a window that already occupies a zone unless the pointer has
+    /// clearly entered another zone. Multi-zone grid spans stay untouched.
+    public func preferringOccupancy(
+        _ cursor: SnapTarget,
+        at pointAX: CGPoint,
+        windowFrameAX: CGRect?,
+        zones: [ResolvedZone],
+        occupancyStickyInset: CGFloat = ZoneOccupancy.seamInset
+    ) -> SnapTarget {
+        if case .span(_, let ids) = cursor, Set(ids).count > 1 {
+            return cursor
+        }
+        guard let windowFrameAX,
+              let occupied = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones)
+        else {
+            return cursor
+        }
+        guard let cursorZone = zone(for: cursor, in: zones) else {
+            return cursor == .none ? .zone(occupied) : cursor
+        }
+        if cursorZone.zoneID == occupied.zoneID {
+            return cursor
+        }
+        if ZoneOccupancy.containsInterior(pointAX, zone: cursorZone.frameAX, inset: occupancyStickyInset) {
+            return cursor
+        }
+        return .zone(occupied)
+    }
+
+    private func zone(for target: SnapTarget, in zones: [ResolvedZone]) -> ResolvedZone? {
+        switch target {
+        case .none:
+            return nil
+        case .zone(let zone):
+            return zones.first(where: { $0.zoneID == zone.zoneID }) ?? zone
+        case .span(_, let ids):
+            guard ids.count == 1, let id = ids.first else { return nil }
+            return zones.first(where: { $0.zoneID == id })
+        }
+    }
+
+    private func cursorTarget(at pointAX: CGPoint, zones: [ResolvedZone]) -> SnapTarget {
         let hits = zones.filter { $0.frameAX.contains(pointAX) }
         let chosen: ResolvedZone?
         switch policy {

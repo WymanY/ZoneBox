@@ -28,35 +28,54 @@ final class ZoneOverlayView: NSView {
             let rect = CoordinateConverter.appKitRect(fromAX: zone.frameAX, primaryFlipHeight: primaryFlipHeight)
             let local = convertFromScreen(rect)
             let highlighted = displayedHighlightFrame == nil && zone.zoneID == highlightID
-            let fill = fillColor.withAlphaComponent(highlighted ? previewActiveOpacity : previewInactiveOpacity)
-            fill.setFill()
-            let path = NSBezierPath(roundedRect: local.insetBy(dx: 2, dy: 2), xRadius: 10, yRadius: 10)
-            path.fill()
-            borderColor.withAlphaComponent(highlighted ? 0.9 : 0.5).setStroke()
-            path.lineWidth = highlighted ? 4 : 2
-            path.stroke()
-            if showNumbers {
-                let label = "\(zone.number)" as NSString
-                let attrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 42, weight: .semibold),
-                    .foregroundColor: NSColor.white.withAlphaComponent(0.85),
-                ]
-                let size = label.size(withAttributes: attrs)
-                label.draw(at: NSPoint(x: local.midX - size.width / 2, y: local.midY - size.height / 2), withAttributes: attrs)
-            }
+            drawPane(local, highlighted: highlighted, number: showNumbers ? zone.number : nil)
         }
         if let highlightAX = displayedHighlightFrame ?? highlightFrameAX {
             let rect = CoordinateConverter.appKitRect(fromAX: highlightAX, primaryFlipHeight: primaryFlipHeight)
             let local = convertFromScreen(rect)
-            fillColor.withAlphaComponent(activeOpacity).setFill()
-            let path = NSBezierPath(roundedRect: local.insetBy(dx: 2, dy: 2), xRadius: 10, yRadius: 10)
-            path.fill()
-            borderColor.withAlphaComponent(0.9).setStroke()
-            path.lineWidth = 4
-            path.stroke()
+            drawPane(local, highlighted: true, number: nil)
         }
         drawStrip()
         drawLayoutName()
+    }
+
+    private func drawPane(_ local: CGRect, highlighted: Bool, number: Int?) {
+        let inset = local.insetBy(dx: 2, dy: 2)
+        let path = NSBezierPath(roundedRect: inset, xRadius: 10, yRadius: 10)
+        fillColor.withAlphaComponent(highlighted ? highlightedFillOpacity : previewInactiveOpacity).setFill()
+        path.fill()
+        if highlighted {
+            fillColor.withAlphaComponent(0.95).setStroke()
+            path.lineWidth = 7
+            path.stroke()
+            borderColor.setStroke()
+            let inner = NSBezierPath(
+                roundedRect: inset.insetBy(dx: 3, dy: 3),
+                xRadius: 8,
+                yRadius: 8
+            )
+            inner.lineWidth = 2.6
+            inner.stroke()
+        } else {
+            borderColor.withAlphaComponent(0.38).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+        }
+        guard let number else { return }
+        let label = "\(number)" as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: highlighted ? 48 : 42, weight: highlighted ? .bold : .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(highlighted ? 1 : 0.55),
+        ]
+        let size = label.size(withAttributes: attrs)
+        label.draw(
+            at: NSPoint(x: local.midX - size.width / 2, y: local.midY - size.height / 2),
+            withAttributes: attrs
+        )
+    }
+
+    private var highlightedFillOpacity: CGFloat {
+        max(previewActiveOpacity, presentation.layoutName == nil ? 0.56 : 0.62)
     }
 
     private func drawStrip() {

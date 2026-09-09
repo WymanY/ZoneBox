@@ -574,7 +574,8 @@ final class SnapEngine {
                             fromAppKit: NSEvent.mouseLocation,
                             primaryFlipHeight: runtime.primaryFlipHeight
                         ),
-                        zones: zones
+                        zones: zones,
+                        windowFrameAX: runtime.pendingFrame
                     )
                 }
             }

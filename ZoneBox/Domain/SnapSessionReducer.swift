@@ -224,14 +224,20 @@ public enum SnapSessionReducer {
             fromAppKit: input.event.locationAppKit,
             primaryFlipHeight: input.primaryFlipHeight
         )
-        if input.event.modifiers.contains(.control),
-           let gridTarget = gridTarget(input, currentAX: point) {
-            return gridTarget
-        }
+        let tester = HitTester(policy: input.overlapPolicy)
         if let gridTarget = gridTarget(input, currentAX: point) {
-            return gridTarget
+            return tester.preferringOccupancy(
+                gridTarget,
+                at: point,
+                windowFrameAX: input.currentFrameAX,
+                zones: input.resolvedZones
+            )
         }
-        return HitTester(policy: input.overlapPolicy).target(at: point, zones: input.resolvedZones)
+        return tester.target(
+            at: point,
+            zones: input.resolvedZones,
+            windowFrameAX: input.currentFrameAX
+        )
     }
 
     /// Grid layouts prefer the cell under the pointer. Traveling from the

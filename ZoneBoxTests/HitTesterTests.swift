@@ -48,4 +48,29 @@ final class HitTesterTests: XCTestCase {
             .zone(side)
         )
     }
+
+    func testOccupiedWindowSticksOnSeamInsteadOfNeighbor() {
+        let left = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 0, y: 400, width: 500, height: 500))
+        let top = ResolvedZone(zoneID: UUID(), number: 4, frameAX: CGRect(x: 0, y: 0, width: 500, height: 400))
+        let window = CGRect(x: 8, y: 408, width: 484, height: 484)
+        let seam = CGPoint(x: 250, y: 390)
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(at: seam, zones: [left, top], windowFrameAX: window),
+            .zone(left)
+        )
+    }
+
+    func testInteriorPointerLeavesOccupiedZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 0, y: 400, width: 500, height: 500))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 400, width: 500, height: 500))
+        let window = CGRect(x: 8, y: 408, width: 484, height: 484)
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 750, y: 650),
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(right)
+        )
+    }
 }
