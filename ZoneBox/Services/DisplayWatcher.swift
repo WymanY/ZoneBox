@@ -35,6 +35,10 @@ final class DisplayWatcher {
                 updated.visibleWidth = probe.visibleWidth
                 updated.visibleHeight = probe.visibleHeight
                 updated.backingScale = probe.backingScale
+                let liveName = probe.localizedName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !liveName.isEmpty {
+                    updated.localizedName = probe.localizedName
+                }
                 identity = updated
                 if let idx = document.displays.firstIndex(where: { $0.id == updated.id }) {
                     document.displays[idx] = updated
