@@ -26,6 +26,7 @@ final class SnapEngine {
     private var stripWindowStartID: Layout.ID?
     private var stripOverflowLatch: Int?
     private var stripDropLatch: StripDropLatch?
+    private var suppressStripLatch = false
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
     private var layoutAssignmentGeneration = 0
@@ -86,6 +87,7 @@ final class SnapEngine {
             stripWindowStartID = nil
             stripOverflowLatch = nil
             stripDropLatch = nil
+            suppressStripLatch = false
             layoutAssignmentGeneration = SnapLayoutAssignmentPolicy.generationAfterSessionReset(
                 current: layoutAssignmentGeneration,
                 startingNewDrag: true
@@ -164,6 +166,7 @@ final class SnapEngine {
                     )
                     stripDropLatch = next.latch
                     sessionLayoutID = next.sessionLayoutID
+                    suppressStripLatch = true
                 }
             }
         }
@@ -549,12 +552,13 @@ final class SnapEngine {
                 sessionLayoutID = layoutID
             case .clearLockedTarget:
                 lockedTarget = nil
-            case .selectLayout(let layoutID):
-                sessionLayoutID = layoutID
-                stripWindowLayoutID = layoutID
-                stripOverflowLatch = nil
-                stripDropLatch = nil
-            }
+           case .selectLayout(let layoutID):
+               sessionLayoutID = layoutID
+               stripWindowLayoutID = layoutID
+               stripOverflowLatch = nil
+               stripDropLatch = nil
+                suppressStripLatch = true
+           }
         }
         if hideOverlay {
             runtime.overlay.hideSessionOverlay()
@@ -610,11 +614,12 @@ final class SnapEngine {
         lastStrip = nil
         stripWindowLayoutID = nil
         stripWindowStartID = nil
-        stripOverflowLatch = nil
-        stripDropLatch = nil
-        lastPresentation = .empty
-        quickSnapperLayoutID = nil
-    }
+       stripOverflowLatch = nil
+       stripDropLatch = nil
+        suppressStripLatch = false
+       lastPresentation = .empty
+       quickSnapperLayoutID = nil
+   }
 
     private struct PendingLayoutAssignment {
         var layoutID: Layout.ID
@@ -672,11 +677,12 @@ final class SnapEngine {
             sessionLayoutID = session.layoutID
             stripWindowLayoutID = nil
             stripWindowStartID = nil
-            stripOverflowLatch = nil
-            stripDropLatch = nil
-        } else if lastCursorDisplayID == nil {
-            lastCursorDisplayID = area?.display.id
-        }
+           stripOverflowLatch = nil
+           stripDropLatch = nil
+            suppressStripLatch = false
+       } else if lastCursorDisplayID == nil {
+           lastCursorDisplayID = area?.display.id
+       }
 
         let layouts = runtime.allResolvedLayouts(for: area)
         let layoutIDs = layouts.map(\.layout.id)
@@ -743,6 +749,17 @@ final class SnapEngine {
             }
         } else {
             stripOverflowLatch = nil
+        }
+
+        let gate = SnapLayoutSession.acceptingStripHit(
+            suppressStripLatch: suppressStripLatch,
+            pointerInStrip: pointerInStrip
+        )
+        suppressStripLatch = gate.suppressStripLatch
+        if !gate.acceptHit {
+            hitLatch = nil
+            highlightedLayoutID = nil
+            highlightedZoneNumber = nil
         }
 
         let liveZone: ResolvedZone?

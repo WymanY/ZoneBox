@@ -494,8 +494,31 @@ final class SnapSessionReducerTests: XCTestCase {
             previous: nil,
             currentSessionLayoutID: assigned
         )
-        XCTAssertNil(empty.latch)
-        XCTAssertEqual(empty.sessionLayoutID, assigned)
+       XCTAssertNil(empty.latch)
+       XCTAssertEqual(empty.sessionLayoutID, assigned)
+   }
+
+    func testKeyboardSelectionIgnoresStripHitsUntilPointerLeaves() {
+        let suppressedOnStrip = SnapLayoutSession.acceptingStripHit(
+            suppressStripLatch: true,
+            pointerInStrip: true
+        )
+        XCTAssertFalse(suppressedOnStrip.acceptHit)
+        XCTAssertTrue(suppressedOnStrip.suppressStripLatch)
+
+        let leftStrip = SnapLayoutSession.acceptingStripHit(
+            suppressStripLatch: true,
+            pointerInStrip: false
+        )
+        XCTAssertTrue(leftStrip.acceptHit)
+        XCTAssertFalse(leftStrip.suppressStripLatch)
+
+        let normal = SnapLayoutSession.acceptingStripHit(
+            suppressStripLatch: false,
+            pointerInStrip: true
+        )
+        XCTAssertTrue(normal.acceptHit)
+        XCTAssertFalse(normal.suppressStripLatch)
     }
 
     func testForcedStripTargetSnapsOutsideStrip() {

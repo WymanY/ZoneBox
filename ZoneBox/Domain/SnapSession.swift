@@ -293,6 +293,21 @@ public enum SnapLayoutSession {
     ) -> (latch: StripDropLatch?, sessionLayoutID: Layout.ID?) {
         (nil, previous?.layoutID ?? currentSessionLayoutID)
     }
+
+    /// After a digit or Tab/scroll selection, ignore strip hits until the
+    /// pointer leaves the strip so overlay refresh cannot rebuild the latch.
+    public static func acceptingStripHit(
+        suppressStripLatch: Bool,
+        pointerInStrip: Bool
+    ) -> (acceptHit: Bool, suppressStripLatch: Bool) {
+        if !suppressStripLatch {
+            return (true, false)
+        }
+        if pointerInStrip {
+            return (false, true)
+        }
+        return (true, false)
+    }
 }
 
 public enum SnapLayoutAssignmentPolicy {
