@@ -162,19 +162,24 @@ final class ZoneOverlayView: NSView {
         }
 
         if let overflow = geometry.overflowFrameAppKit {
-            drawOverflow(overflow, symbol: "›")
+            drawOverflow(overflow, symbol: "›", hovered: strip.hoveredOverflow == .next)
         }
         if let overflow = geometry.leadingOverflowFrameAppKit {
-            drawOverflow(overflow, symbol: "‹")
+            drawOverflow(overflow, symbol: "‹", hovered: strip.hoveredOverflow == .previous)
+        }
+        if strip.hoveredOverflow == .next, let overflow = geometry.overflowFrameAppKit {
+            drawOverflowTooltip(overflow, text: L10n.text(.layoutStripNext))
+        } else if strip.hoveredOverflow == .previous, let overflow = geometry.leadingOverflowFrameAppKit {
+            drawOverflowTooltip(overflow, text: L10n.text(.layoutStripPrevious))
         }
     }
 
-    private func drawOverflow(_ frameAppKit: CGRect, symbol: String) {
+    private func drawOverflow(_ frameAppKit: CGRect, symbol: String, hovered: Bool) {
         let local = convertFromScreen(frameAppKit)
-        NSColor.white.withAlphaComponent(0.18).setFill()
+        NSColor.white.withAlphaComponent(hovered ? 0.32 : 0.18).setFill()
         let path = NSBezierPath(roundedRect: local, xRadius: 8, yRadius: 8)
         path.fill()
-        NSColor.white.withAlphaComponent(0.35).setStroke()
+        NSColor.white.withAlphaComponent(hovered ? 0.55 : 0.35).setStroke()
         path.lineWidth = 1
         path.stroke()
         let label = symbol as NSString
@@ -185,6 +190,36 @@ final class ZoneOverlayView: NSView {
         let size = label.size(withAttributes: attrs)
         label.draw(
             at: NSPoint(x: local.midX - size.width / 2, y: local.midY - size.height / 2),
+            withAttributes: attrs
+        )
+    }
+
+    private func drawOverflowTooltip(_ frameAppKit: CGRect, text: String) {
+        let local = convertFromScreen(frameAppKit)
+        let label = text as NSString
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: NSColor.white,
+        ]
+        let size = label.size(withAttributes: attrs)
+        let pad = NSSize(width: 8, height: 5)
+        let bubbleSize = NSSize(width: size.width + pad.width * 2, height: size.height + pad.height * 2)
+        let gap: CGFloat = 8
+        var origin = NSPoint(
+            x: (local.midX - bubbleSize.width / 2).rounded(),
+            y: (local.minY - gap - bubbleSize.height).rounded()
+        )
+        origin.x = min(max(origin.x, 8), max(8, bounds.maxX - bubbleSize.width - 8))
+        origin.y = max(8, origin.y)
+        let bubble = CGRect(origin: origin, size: bubbleSize)
+        NSColor.black.withAlphaComponent(0.86).setFill()
+        NSBezierPath(roundedRect: bubble, xRadius: 6, yRadius: 6).fill()
+        NSColor.white.withAlphaComponent(0.22).setStroke()
+        let stroke = NSBezierPath(roundedRect: bubble, xRadius: 6, yRadius: 6)
+        stroke.lineWidth = 1
+        stroke.stroke()
+        label.draw(
+            at: NSPoint(x: bubble.minX + pad.width, y: bubble.minY + pad.height),
             withAttributes: attrs
         )
     }

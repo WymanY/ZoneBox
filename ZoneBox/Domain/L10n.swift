@@ -73,6 +73,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleNoDisplay
     case consoleCurrentDisplay
     case consoleOtherLayouts
+    case layoutStripPrevious
+    case layoutStripNext
     case organizeAdjustedTitle
     case organizePartialTitle
     case organizeFailedTitle
@@ -656,6 +658,8 @@ public enum L10n {
         .consoleNoDisplay: "No display",
         .consoleCurrentDisplay: "Current Display",
         .consoleOtherLayouts: "Other Layouts",
+        .layoutStripPrevious: "Previous layouts",
+        .layoutStripNext: "Next layouts",
         .organizeAdjustedTitle: "Arrangement adjusted",
         .organizePartialTitle: "Partially organized",
         .organizeFailedTitle: "Arrangement not completed",
@@ -1087,6 +1091,8 @@ public enum L10n {
         .consoleNoDisplay: "没有显示器",
         .consoleCurrentDisplay: "当前显示器",
         .consoleOtherLayouts: "其他布局",
+        .layoutStripPrevious: "上一组布局",
+        .layoutStripNext: "下一组布局",
         .organizeAdjustedTitle: "已调整整理方式",
         .organizePartialTitle: "已完成部分整理",
         .organizeFailedTitle: "整理未完成",
