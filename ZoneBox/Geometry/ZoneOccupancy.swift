@@ -21,6 +21,13 @@ public enum ZoneOccupancy {
         coverage(frame, zone: zone) >= fillRatio
     }
 
+    public static func isApplied(_ actual: CGRect, to target: CGRect) -> Bool {
+        abs(actual.width - target.width) <= applyTolerance
+            && abs(actual.height - target.height) <= applyTolerance
+            && abs(actual.minX - target.minX) <= applyTolerance
+            && abs(actual.minY - target.minY) <= applyTolerance
+    }
+
     /// Whether a window currently counts as living in a zone: either snapped
     /// there within tolerance or covering most of it.
     public static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
@@ -28,26 +35,24 @@ public enum ZoneOccupancy {
     }
 
     public static func preferredZone(for frame: CGRect, in zones: [ResolvedZone]) -> ResolvedZone? {
-        let occupied = zones.compactMap { zone -> (ResolvedZone, CGFloat)? in
+        let occupied = zones.compactMap { zone -> (zone: ResolvedZone, coverage: CGFloat, applied: Bool)? in
             guard occupies(frame, zone: zone.frameAX) else { return nil }
-            return (zone, coverage(frame, zone: zone.frameAX))
+            return (
+                zone,
+                coverage(frame, zone: zone.frameAX),
+                isApplied(frame, to: zone.frameAX)
+            )
         }
         return occupied.max { lhs, rhs in
-            if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
-            return lhs.0.number > rhs.0.number
-        }?.0
+            if lhs.applied != rhs.applied { return !lhs.applied && rhs.applied }
+            if abs(lhs.coverage - rhs.coverage) > 0.000_001 { return lhs.coverage < rhs.coverage }
+            return lhs.zone.number > rhs.zone.number
+        }?.zone
     }
 
     public static func containsInterior(_ point: CGPoint, zone: CGRect, inset: CGFloat = seamInset) -> Bool {
         let dx = min(max(inset, 0), max(zone.width / 4, 0))
         let dy = min(max(inset, 0), max(zone.height / 4, 0))
         return zone.insetBy(dx: dx, dy: dy).contains(point)
-    }
-
-    private static func isApplied(_ actual: CGRect, to target: CGRect) -> Bool {
-        abs(actual.width - target.width) <= applyTolerance
-            && abs(actual.height - target.height) <= applyTolerance
-            && abs(actual.minX - target.minX) <= applyTolerance
-            && abs(actual.minY - target.minY) <= applyTolerance
     }
 }

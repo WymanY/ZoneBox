@@ -1022,6 +1022,43 @@ final class SnapSessionReducerTests: XCTestCase {
             backingScale: 2
         )
     }
+    func testGridHoverOccupancySticksOnSeam() throws {
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let spec = GridSpec(
+            rows: 1,
+            columns: 2,
+            rowWeights: [10_000],
+            columnWeights: [5_000, 5_000],
+            cellMap: [[0, 1]]
+        )
+        let zones = (1...2).map { Zone(number: $0) }
+        let resolved = try GridResolver.resolve(spec: spec, zones: zones, workAreaAX: workAX, gutter: 16)
+        let leftZone = try XCTUnwrap(resolved.first(where: { $0.number == 1 }))
+        let rightZone = try XCTUnwrap(resolved.first(where: { $0.number == 2 }))
+
+        var input = armedReadyInput(phase: .armed(window), kind: .leftDragged)
+        input.primaryFlipHeight = 800
+        input.workAreas = [
+            WorkArea(
+                display: DisplayIdentity(localizedName: "Columns", visibleWidth: 1000, visibleHeight: 800, backingScale: 2),
+                frameAppKit: workAX,
+                visibleFrameAppKit: workAX,
+                backingScale: 2
+            ),
+        ]
+        input.resolvedZones = resolved
+        input.gridCells = GridCoverage.cells(spec: spec, workAreaAX: workAX)
+        input.gridGutter = 16
+        input.gridWorkAreaAX = workAX
+        input.currentFrameAX = leftZone.frameAX
+        input.armOriginAppKit = CGPoint(x: 200, y: 400)
+        input.event.locationAppKit = CGPoint(x: 510, y: 400)
+
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .highlighting(window, .zone(leftZone)), "effects=\(out.effects)")
+        XCTAssertFalse(out.effects.contains(.highlight(.zone(rightZone))))
+    }
+
 }
 
 final class DisplayTargetResolverTests: XCTestCase {

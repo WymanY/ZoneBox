@@ -38,4 +38,21 @@ final class ZoneOccupancyTests: XCTestCase {
         XCTAssertFalse(ZoneOccupancy.containsInterior(point, zone: zone4.frameAX))
         XCTAssertFalse(ZoneOccupancy.containsInterior(point, zone: zone3.frameAX))
     }
+
+    func testExactOuterMatchBeatsInnerFill() {
+        let outer = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+        let inner = ResolvedZone(
+            zoneID: UUID(),
+            number: 2,
+            frameAX: CGRect(x: 100, y: 100, width: 200, height: 200)
+        )
+        XCTAssertEqual(
+            ZoneOccupancy.preferredZone(for: outer.frameAX, in: [outer, inner])?.number,
+            1
+        )
+    }
 }
