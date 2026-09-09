@@ -67,4 +67,15 @@ final class ZoneOccupancyTests: XCTestCase {
         XCTAssertFalse(ZoneOccupancy.belongs(window, zone: left.frameAX))
         XCTAssertEqual(ZoneOccupancy.preferredBelongingZone(for: window, in: [left, right])?.number, 2)
     }
+
+    func testEvenSplitDoesNotBelongToEitherZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 250, y: 80, width: 500, height: 500)
+        XCTAssertEqual(ZoneOccupancy.windowCoverage(window, zone: left.frameAX), 0.5, accuracy: 0.000_001)
+        XCTAssertEqual(ZoneOccupancy.windowCoverage(window, zone: right.frameAX), 0.5, accuracy: 0.000_001)
+        XCTAssertFalse(ZoneOccupancy.belongs(window, zone: left.frameAX))
+        XCTAssertFalse(ZoneOccupancy.belongs(window, zone: right.frameAX))
+        XCTAssertNil(ZoneOccupancy.preferredBelongingZone(for: window, in: [left, right]))
+    }
 }

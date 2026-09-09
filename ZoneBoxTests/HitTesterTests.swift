@@ -90,4 +90,35 @@ final class HitTesterTests: XCTestCase {
             .zone(right)
         )
     }
+
+    func testPointerJustAboveWindowKeepsMajorityZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        let aboveTitleBarInLeft = CGPoint(x: 400, y: 40)
+        XCTAssertTrue(left.frameAX.contains(aboveTitleBarInLeft))
+        XCTAssertFalse(window.contains(aboveTitleBarInLeft))
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: aboveTitleBarInLeft,
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(right)
+        )
+    }
+
+    func testPointerFarFromWindowCanRetargetAwayFromMajorityZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 120, y: 700),
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(left)
+        )
+    }
 }

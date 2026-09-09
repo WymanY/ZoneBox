@@ -27,9 +27,9 @@ public struct HitTester: Sendable {
     }
 
     /// Keep a window that already occupies a zone unless the pointer has
-    /// clearly entered another zone outside the window. A pointer on the
-    /// dragged window itself is not a zone choice. Multi-zone grid spans stay
-    /// untouched.
+    /// clearly entered another zone away from the window. A pointer on or just
+    /// above the dragged window is not a zone choice; the overlay follows
+    /// where most of the window sits. Multi-zone grid spans stay untouched.
     public func preferringOccupancy(
         _ cursor: SnapTarget,
         at pointAX: CGPoint,
@@ -51,7 +51,7 @@ public struct HitTester: Sendable {
         if cursorZone.zoneID == occupied.zoneID {
             return cursor
         }
-        if Self.pointerIsOnWindow(pointAX, windowFrameAX: windowFrameAX) {
+        if Self.pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX) {
             return .zone(occupied)
         }
         if ZoneOccupancy.containsInterior(pointAX, zone: cursorZone.frameAX, inset: occupancyStickyInset) {
@@ -60,8 +60,10 @@ public struct HitTester: Sendable {
         return .zone(occupied)
     }
 
-    private static func pointerIsOnWindow(_ pointAX: CGPoint, windowFrameAX: CGRect) -> Bool {
-        windowFrameAX.insetBy(dx: -8, dy: -8).contains(pointAX)
+    private static let windowInfluenceOutset: CGFloat = 72
+
+    private static func pointerIsNearWindow(_ pointAX: CGPoint, windowFrameAX: CGRect) -> Bool {
+        windowFrameAX.insetBy(dx: -windowInfluenceOutset, dy: -windowInfluenceOutset).contains(pointAX)
     }
 
     private static func occupiedZone(
@@ -72,7 +74,7 @@ public struct HitTester: Sendable {
         if let filled = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones) {
             return filled
         }
-        guard pointerIsOnWindow(pointAX, windowFrameAX: windowFrameAX) else { return nil }
+        guard pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX) else { return nil }
         return ZoneOccupancy.preferredBelongingZone(for: windowFrameAX, in: zones)
     }
 

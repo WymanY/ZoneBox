@@ -5,7 +5,7 @@ import CoreGraphics
 /// leave that occupancy.
 public enum ZoneOccupancy {
     public static let fillRatio: CGFloat = 0.62
-    public static let windowBelongRatio: CGFloat = 0.62
+    public static let windowBelongRatio: CGFloat = 0.5
     public static let seamInset: CGFloat = 24
     public static let applyTolerance: CGFloat = 28
 
@@ -34,7 +34,7 @@ public enum ZoneOccupancy {
 
     /// A window belongs to a zone when most of the window itself sits there.
     public static func belongs(_ frame: CGRect, zone: CGRect) -> Bool {
-        windowCoverage(frame, zone: zone) >= windowBelongRatio
+        windowCoverage(frame, zone: zone) > windowBelongRatio
     }
 
     public static func isApplied(_ actual: CGRect, to target: CGRect) -> Bool {
@@ -71,7 +71,7 @@ public enum ZoneOccupancy {
     public static func preferredBelongingZone(for frame: CGRect, in zones: [ResolvedZone]) -> ResolvedZone? {
         let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat)? in
             let ratio = windowCoverage(frame, zone: zone.frameAX)
-            guard ratio >= windowBelongRatio else { return nil }
+            guard ratio > windowBelongRatio else { return nil }
             return (zone, ratio)
         }
         return ranked.max { lhs, rhs in
