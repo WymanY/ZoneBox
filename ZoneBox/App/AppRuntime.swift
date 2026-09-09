@@ -528,7 +528,10 @@ final class AppRuntime {
     }
 
     private func beginEditing(_ layout: Layout, isNew: Bool, target: EditorTarget) {
-        guard begin(.edit) else { return }
+        guard begin(.edit) else {
+            Log.app.notice("Editor opening blocked by runtime mode: \(String(describing: self.mode), privacy: .public)")
+            return
+        }
         pinHover.hideImmediately()
         pins.hideBadges()
         divider.hideAll()

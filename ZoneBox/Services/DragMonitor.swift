@@ -103,6 +103,20 @@ final class DragMonitor {
         guard runtime.isTrusted() else { return }
         guard !runtime.pinHover.consumesPoint(mouse.locationAppKit) else { return }
         guard !runtime.divider.consumesPoint(mouse.locationAppKit) else { return }
+        // The CG capture query only considers normal-level windows. Without
+        // this check, a click on our floating console captures the app behind
+        // it and owns `.snapping` while NSButton dispatches its action. Button
+        // tracking can consume mouse-up before our monitor sees it, so an
+        // editor handoff then fails to acquire `.editing`.
+        // Keep this in beginHold: both event monitors and pointer sampling
+        // enter here. Click-through previews must remain transparent to drag.
+        guard !NSApp.windows.contains(where: { window in
+            window.isVisible && window.isOnActiveSpace
+                && !window.ignoresMouseEvents
+                && window.level > .normal
+                && window.frame.contains(mouse.locationAppKit)
+                && !runtime.isSnappableOwnWindow(CGWindowID(window.windowNumber))
+        }) else { return }
         Log.snap.debug("Pointer hold began at x=\(mouse.locationAppKit.x, privacy: .public) y=\(mouse.locationAppKit.y, privacy: .public)")
         leftButtonHeld = true
         bufferedDrags.removeAll()
