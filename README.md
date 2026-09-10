@@ -40,6 +40,17 @@ make test
 5. After two or more neighboring grid zones each contain one snapped window, a divider handle appears in the seam. Drag it to resize those windows together; the new ratio is saved to the current layout.
 6. Keyboard defaults: **Control+Option+1…9** snaps the focused window; **Control+Option+Z** opens the editor; **Control+Option+U** unsnaps; **Control+Option+/** opens the keyboard shortcuts panel; **Command+,** opens Settings. Rebind these in **Settings → Keyboard**.
 
+## Snap diagnostics
+
+Drag diagnostics are saved locally across restarts, without starting a live log capture:
+
+- Debug: `~/Library/Application Support/com.fancyzone.app.debug/Logs/snap.jsonl`
+- Release: `~/Library/Application Support/com.fancyzone.app/Logs/snap.jsonl`
+
+Each JSON line includes a timestamp, app-run ID, drag-session ID, and technical event fields. Target changes, the displayed preview, mouse-up selection, and requested/returned window frames can be correlated within one drag. No window titles, document contents, screenshots, or credentials are recorded or uploaded.
+
+Writes run off the main thread. The current file and four rotated files (`snap.1.jsonl` through `snap.4.jsonl`) retain up to 10 MiB total; older entries are replaced as the files fill. When reporting an intermittent snap failure, note the approximate time and the intended versus actual pane. Keep the rotated files too, since the relevant drag may have crossed a rotation.
+
 ## Identifiers
 
 | | |
