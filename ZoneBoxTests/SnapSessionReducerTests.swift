@@ -423,6 +423,21 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(next?.zone, second)
     }
 
+    func testStripDropLatchKeepsMiniZoneWhenPointerLingersBelowStrip() {
+        let layoutID = UUID()
+        let first = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        let second = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 400, y: 0, width: 400, height: 800))
+        let next = SnapLayoutSession.stripDropLatch(
+            pointerInStrip: false,
+            hit: nil,
+            previous: StripDropLatch(layoutID: layoutID, zone: first),
+            liveZoneInLatchedLayout: second,
+            lingerNearStrip: true
+        )
+        XCTAssertEqual(next?.layoutID, layoutID)
+        XCTAssertEqual(next?.zone, first)
+    }
+
     func testStripDropLatchClearsOutsideLayout() {
         let previous = StripDropLatch(
             layoutID: UUID(),

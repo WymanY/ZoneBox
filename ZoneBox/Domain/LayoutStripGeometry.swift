@@ -41,6 +41,7 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     public static let overflowWidth: CGFloat = 36
     public static let cardCorner: CGFloat = 10
     public static let zoneInset: CGFloat = 8
+    public static let dropLingerBelow: CGFloat = 64
 
     public var frameAppKit: CGRect
     public var cards: [LayoutStripCard]
@@ -188,6 +189,20 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     public func contains(_ pointAppKit: CGPoint) -> Bool {
         if frameAppKit.contains(pointAppKit) { return true }
         return cards.contains { $0.frameAppKit.contains(pointAppKit) }
+    }
+
+    public func containsDropLinger(_ pointAppKit: CGPoint) -> Bool {
+        if contains(pointAppKit) { return true }
+        let linger = frameAppKit.insetBy(dx: 0, dy: -Self.dropLingerBelow)
+        return linger.contains(pointAppKit)
+    }
+
+    /// Project a point that slipped just below the bar back onto the cards so
+    /// a thumbnail column can still be chosen from its X position.
+    public func dropProbePoint(for pointAppKit: CGPoint) -> CGPoint {
+        if contains(pointAppKit) { return pointAppKit }
+        let y = cards.first?.frameAppKit.midY ?? frameAppKit.midY
+        return CGPoint(x: pointAppKit.x, y: y)
     }
 
     public func hitZone(at pointAppKit: CGPoint) -> (layoutID: Layout.ID, zoneNumber: Int)? {

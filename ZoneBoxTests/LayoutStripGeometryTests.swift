@@ -34,6 +34,25 @@ final class LayoutStripGeometryTests: XCTestCase {
 
         XCTAssertNil(geometry.hitZone(at: CGPoint(x: geometry.frameAppKit.minX + 2, y: geometry.frameAppKit.minY + 2)))
         XCTAssertTrue(geometry.contains(CGPoint(x: geometry.frameAppKit.midX, y: geometry.frameAppKit.midY)))
+        let justBelow = CGPoint(x: firstMini.midX, y: geometry.frameAppKit.minY - 24)
+        XCTAssertFalse(geometry.contains(justBelow))
+        XCTAssertTrue(geometry.containsDropLinger(justBelow))
+        let probed = geometry.dropProbePoint(for: justBelow)
+        let lingerHit = geometry.hitZone(at: probed)
+        XCTAssertEqual(lingerHit?.layoutID, left.id)
+        XCTAssertEqual(lingerHit?.zoneNumber, 1)
+
+        let secondMini = geometry.cards[0].zones[1].frameAppKit
+        let belowSecond = CGPoint(x: secondMini.midX, y: geometry.frameAppKit.minY - 24)
+        let secondHit = geometry.hitZone(at: geometry.dropProbePoint(for: belowSecond))
+        XCTAssertEqual(secondHit?.layoutID, left.id)
+        XCTAssertEqual(secondHit?.zoneNumber, 2)
+
+        let otherCard = geometry.cards[1]
+        let belowOther = CGPoint(x: otherCard.frameAppKit.midX, y: geometry.frameAppKit.minY - 24)
+        let otherHit = geometry.hitZone(at: geometry.dropProbePoint(for: belowOther))
+        XCTAssertEqual(otherHit?.layoutID, right.id)
+        XCTAssertEqual(otherHit?.zoneNumber, 1)
     }
 
     func testCardInteriorHitsNearestMiniZone() {
