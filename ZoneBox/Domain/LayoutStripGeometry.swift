@@ -193,15 +193,29 @@ public struct LayoutStripGeometry: Equatable, Sendable {
 
     public func containsDropLinger(_ pointAppKit: CGPoint) -> Bool {
         if contains(pointAppKit) { return true }
-        let linger = frameAppKit.insetBy(dx: 0, dy: -Self.dropLingerBelow)
-        return linger.contains(pointAppKit)
+        let below = CGRect(
+            x: frameAppKit.minX,
+            y: frameAppKit.minY - Self.dropLingerBelow,
+            width: frameAppKit.width,
+            height: Self.dropLingerBelow
+        )
+        return below.contains(pointAppKit)
     }
 
-    /// Project a point that slipped just below the bar back onto the cards so
-    /// a thumbnail column can still be chosen from its X position.
-    public func dropProbePoint(for pointAppKit: CGPoint) -> CGPoint {
+    /// Project a point that slipped just below the bar back onto the cards.
+    /// X still chooses the column; Y prefers the previously selected mini-zone
+    /// so a bottom row is not replaced by the card midpoint.
+    public func dropProbePoint(
+        for pointAppKit: CGPoint,
+        preservingLayoutID layoutID: Layout.ID? = nil,
+        zoneNumber: Int? = nil
+    ) -> CGPoint {
         if contains(pointAppKit) { return pointAppKit }
-        let y = cards.first?.frameAppKit.midY ?? frameAppKit.midY
+        let preferredY = cards
+            .first(where: { $0.layoutID == layoutID })?
+            .zones.first(where: { $0.number == zoneNumber })?
+            .frameAppKit.midY
+        let y = preferredY ?? cards.first?.frameAppKit.midY ?? frameAppKit.midY
         return CGPoint(x: pointAppKit.x, y: y)
     }
 

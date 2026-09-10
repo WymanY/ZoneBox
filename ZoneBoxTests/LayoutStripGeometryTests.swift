@@ -37,6 +37,9 @@ final class LayoutStripGeometryTests: XCTestCase {
         let justBelow = CGPoint(x: firstMini.midX, y: geometry.frameAppKit.minY - 24)
         XCTAssertFalse(geometry.contains(justBelow))
         XCTAssertTrue(geometry.containsDropLinger(justBelow))
+        let justAbove = CGPoint(x: geometry.frameAppKit.midX, y: geometry.frameAppKit.maxY + 24)
+        XCTAssertFalse(geometry.contains(justAbove))
+        XCTAssertFalse(geometry.containsDropLinger(justAbove))
         let probed = geometry.dropProbePoint(for: justBelow)
         let lingerHit = geometry.hitZone(at: probed)
         XCTAssertEqual(lingerHit?.layoutID, left.id)
@@ -53,6 +56,37 @@ final class LayoutStripGeometryTests: XCTestCase {
         let otherHit = geometry.hitZone(at: geometry.dropProbePoint(for: belowOther))
         XCTAssertEqual(otherHit?.layoutID, right.id)
         XCTAssertEqual(otherHit?.zoneNumber, 1)
+    }
+
+    func testDropProbeKeepsSelectedRowWhenPointerLingersBelow() throws {
+        let workAppKit = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let rows = Layout(name: "Rows", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: workAppKit,
+            layouts: [
+                (rows, [
+                    ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 1000, height: 400)),
+                    ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 0, y: 400, width: 1000, height: 400)),
+                ]),
+            ],
+            assignedLayoutID: rows.id,
+            workAreaAX: workAX
+        )
+
+        let bottomMini = try XCTUnwrap(geometry.cards[0].zones.first { $0.number == 2 }?.frameAppKit)
+        let justBelow = CGPoint(x: bottomMini.midX, y: geometry.frameAppKit.minY - 24)
+        let naive = geometry.hitZone(at: geometry.dropProbePoint(for: justBelow))
+        XCTAssertEqual(naive?.zoneNumber, 1)
+
+        let preserved = geometry.dropProbePoint(
+            for: justBelow,
+            preservingLayoutID: rows.id,
+            zoneNumber: 2
+        )
+        let hit = geometry.hitZone(at: preserved)
+        XCTAssertEqual(hit?.layoutID, rows.id)
+        XCTAssertEqual(hit?.zoneNumber, 2)
     }
 
     func testCardInteriorHitsNearestMiniZone() {

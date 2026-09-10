@@ -713,7 +713,11 @@ final class SnapEngine {
             if var visibleStrip = strip, visibleStrip.containsDropLinger(pointAppKit) {
                 pointerInStrip = true
                 let onStrip = visibleStrip.contains(pointAppKit)
-                let probePoint = visibleStrip.dropProbePoint(for: pointAppKit)
+                let probePoint = visibleStrip.dropProbePoint(
+                    for: pointAppKit,
+                    preservingLayoutID: stripDropLatch?.layoutID,
+                    zoneNumber: stripDropLatch?.zone.number
+                )
                 let overflowDelta = onStrip ? visibleStrip.hitOverflow(at: pointAppKit) : nil
                 if let overflowDelta {
                     let visibleIDs = visibleStrip.cards.map { $0.layoutID }
