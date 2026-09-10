@@ -27,7 +27,9 @@ public struct HitTester: Sendable {
     }
 
     /// Keep a window that already occupies a zone unless the pointer has
-    /// clearly entered another zone. Multi-zone grid spans stay untouched.
+    /// clearly entered another zone away from the window. A pointer on or just
+    /// above the dragged window is not a zone choice; the overlay follows
+    /// where most of the window sits. Multi-zone grid spans stay untouched.
     public func preferringOccupancy(
         _ cursor: SnapTarget,
         at pointAX: CGPoint,
@@ -39,7 +41,7 @@ public struct HitTester: Sendable {
             return cursor
         }
         guard let windowFrameAX,
-              let occupied = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones)
+              let occupied = occupiedZone(for: windowFrameAX, at: pointAX, in: zones)
         else {
             return cursor
         }
@@ -49,10 +51,42 @@ public struct HitTester: Sendable {
         if cursorZone.zoneID == occupied.zoneID {
             return cursor
         }
+        if Self.pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX) {
+            return .zone(occupied)
+        }
         if ZoneOccupancy.containsInterior(pointAX, zone: cursorZone.frameAX, inset: occupancyStickyInset) {
             return cursor
         }
         return .zone(occupied)
+    }
+
+    private static let windowInfluenceOutset: CGFloat = 72
+
+    private static func pointerIsNearWindow(_ pointAX: CGPoint, windowFrameAX: CGRect) -> Bool {
+        windowFrameAX.insetBy(dx: -windowInfluenceOutset, dy: -windowInfluenceOutset).contains(pointAX)
+    }
+
+    private func occupiedZone(
+        for windowFrameAX: CGRect,
+        at pointAX: CGPoint,
+        in zones: [ResolvedZone]
+    ) -> ResolvedZone? {
+        let nearWindow = Self.pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX)
+        // Containment of the window beats how much of a zone the window covers.
+        // A small window can sit entirely in pane 2 while covering little of
+        // pane 2 and a large fraction of a neighboring pane.
+        if nearWindow, let belonging = ZoneOccupancy.preferredBelongingZone(
+            for: windowFrameAX,
+            in: zones,
+            policy: policy,
+            pointAX: pointAX
+        ) {
+            return belonging
+        }
+        if let filled = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones) {
+            return filled
+        }
+        return nil
     }
 
     private func zone(for target: SnapTarget, in zones: [ResolvedZone]) -> ResolvedZone? {

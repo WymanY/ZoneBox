@@ -73,4 +73,101 @@ final class HitTesterTests: XCTestCase {
             .zone(right)
         )
     }
+
+    func testPointerOnWindowKeepsMajorityZoneInsteadOfTitleBarZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        let titleBarInLeft = CGPoint(x: 400, y: 100)
+        XCTAssertTrue(left.frameAX.contains(titleBarInLeft))
+        XCTAssertTrue(window.contains(titleBarInLeft))
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: titleBarInLeft,
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(right)
+        )
+    }
+
+    func testPointerJustAboveWindowKeepsMajorityZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        let aboveTitleBarInLeft = CGPoint(x: 400, y: 40)
+        XCTAssertTrue(left.frameAX.contains(aboveTitleBarInLeft))
+        XCTAssertFalse(window.contains(aboveTitleBarInLeft))
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: aboveTitleBarInLeft,
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(right)
+        )
+    }
+
+    func testWindowContainmentBeatsFillingANeighborZone() {
+        let narrowLeft = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 800))
+        let wideRight = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 200, y: 0, width: 800, height: 800))
+        let window = CGRect(x: 20, y: 50, width: 680, height: 700)
+        XCTAssertTrue(ZoneOccupancy.fills(window, zone: narrowLeft.frameAX))
+        XCTAssertTrue(ZoneOccupancy.belongs(window, zone: wideRight.frameAX))
+        XCTAssertGreaterThan(
+            ZoneOccupancy.windowCoverage(window, zone: wideRight.frameAX),
+            ZoneOccupancy.windowCoverage(window, zone: narrowLeft.frameAX)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 80, y: 80),
+                zones: [narrowLeft, wideRight],
+                windowFrameAX: window
+            ),
+            .zone(wideRight)
+        )
+    }
+
+    func testPointerFarFromWindowCanRetargetAwayFromMajorityZone() {
+        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800))
+        let window = CGRect(x: 350, y: 80, width: 600, height: 500)
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 120, y: 700),
+                zones: [left, right],
+                windowFrameAX: window
+            ),
+            .zone(left)
+        )
+    }
+
+    func testNestedWindowContainmentHonorsSmallestAreaPolicy() {
+        let outer = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+        let inner = ResolvedZone(
+            zoneID: UUID(),
+            number: 2,
+            frameAX: CGRect(x: 200, y: 200, width: 200, height: 200)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 300, y: 300),
+                zones: [outer, inner],
+                windowFrameAX: inner.frameAX
+            ),
+            .zone(inner)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .largestArea).target(
+                at: CGPoint(x: 300, y: 300),
+                zones: [outer, inner],
+                windowFrameAX: inner.frameAX
+            ),
+            .zone(outer)
+        )
+    }
 }

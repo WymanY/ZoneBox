@@ -8,6 +8,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var sessionActive = false
     private var currentDisplayLabel: NSTextField?
     private var displayLabel: NSTextField?
+    private weak var headerTitleStack: NSStackView?
     private var warningButton: NSButton?
     private var featuredLayoutHost: NSView?
     private var otherLayoutsHeader: NSView?
@@ -21,6 +22,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var settingsButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
+    private var appliedNewButtonTitle: String?
     private var eventMonitors: [Any] = []
     private var activationObservers: [NSObjectProtocol] = []
     private weak var statusButton: NSStatusBarButton?
@@ -146,48 +148,75 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeHeader() -> NSView {
-        let eyebrow = NSTextField(labelWithString: L10n.text(.consoleCurrentDisplay))
-        eyebrow.font = .systemFont(ofSize: 9, weight: .medium)
-        eyebrow.textColor = .secondaryLabelColor
-        eyebrow.lineBreakMode = .byTruncatingTail
+        let eyebrow = makeTruncatingLabel(
+            font: .systemFont(ofSize: 9, weight: .medium),
+            color: .secondaryLabelColor
+        )
         currentDisplayLabel = eyebrow
 
-        let name = NSTextField(labelWithString: "")
-        name.font = .systemFont(ofSize: 15, weight: .semibold)
-        name.lineBreakMode = .byTruncatingTail
-        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        name.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let name = makeTruncatingLabel(
+            font: .systemFont(ofSize: 15, weight: .semibold),
+            color: .labelColor
+        )
         displayLabel = name
 
         let titleStack = NSStackView(views: [eyebrow, name])
         titleStack.orientation = .vertical
         titleStack.alignment = .leading
+        titleStack.distribution = .fill
         titleStack.spacing = 1
-        titleStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        titleStack.translatesAutoresizingMaskIntoConstraints = false
         titleStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        titleStack.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        titleStack.setHuggingPriority(.defaultLow, for: .horizontal)
+        titleStack.setClippingResistancePriority(.defaultHigh, for: .horizontal)
+        headerTitleStack = titleStack
 
         let create = NSButton(title: L10n.text(.consoleNew), target: self, action: #selector(newLayout))
         create.bezelStyle = .rounded
         create.controlSize = .small
-        create.image = NSImage(systemSymbolName: "plus", accessibilityDescription: L10n.text(.consoleNew))
-        create.imagePosition = .imageLeading
-        create.imageScaling = .scaleProportionallyDown
-        create.imageHugsTitle = true
-        create.contentTintColor = .controlAccentColor
         create.refusesFirstResponder = true
-        create.toolTip = L10n.text(.consoleNew)
-        create.setAccessibilityLabel(L10n.text(.consoleNew))
         create.setContentHuggingPriority(.required, for: .horizontal)
         create.setContentCompressionResistancePriority(.required, for: .horizontal)
+        create.translatesAutoresizingMaskIntoConstraints = false
         newButton = create
+        appliedNewButtonTitle = nil
 
-        let header = NSStackView(views: [titleStack, create])
-        header.orientation = .horizontal
-        header.alignment = .centerY
-        header.spacing = 8
+        let header = NSView()
         header.translatesAutoresizingMaskIntoConstraints = false
-        header.heightAnchor.constraint(equalToConstant: Metrics.headerHeight).isActive = true
+        header.addSubview(titleStack)
+        header.addSubview(create)
+        header.setContentHuggingPriority(.required, for: .vertical)
+        header.setContentCompressionResistancePriority(.required, for: .vertical)
+        NSLayoutConstraint.activate([
+            header.heightAnchor.constraint(equalToConstant: Metrics.headerHeight),
+            titleStack.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            titleStack.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            titleStack.trailingAnchor.constraint(lessThanOrEqualTo: create.leadingAnchor, constant: -8),
+            create.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            create.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            create.topAnchor.constraint(greaterThanOrEqualTo: header.topAnchor),
+            create.bottomAnchor.constraint(lessThanOrEqualTo: header.bottomAnchor),
+        ])
+        applyNewLayoutButtonTitle(L10n.text(.consoleNew))
         return header
+    }
+
+    private func makeTruncatingLabel(font: NSFont, color: NSColor) -> NSTextField {
+        let field = ConsoleSingleLineLabel(labelWithString: "")
+        field.font = font
+        field.textColor = color
+        field.alignment = .left
+        field.lineBreakMode = .byTruncatingTail
+        field.maximumNumberOfLines = 1
+        field.usesSingleLineMode = false
+        field.preferredMaxLayoutWidth = 0
+        field.cell?.truncatesLastVisibleLine = true
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        field.setContentHuggingPriority(.required, for: .vertical)
+        field.setContentCompressionResistancePriority(.required, for: .vertical)
+        return field
     }
 
     private func makeFeaturedLayoutHost() -> NSView {
@@ -309,7 +338,10 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private func applyContent() {
         let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
         currentDisplayLabel?.stringValue = L10n.text(.consoleCurrentDisplay)
-        displayLabel?.stringValue = area?.display.localizedName ?? L10n.text(.consoleNoDisplay)
+        displayLabel?.stringValue = displayTitle(for: area)
+        currentDisplayLabel?.invalidateIntrinsicContentSize()
+        displayLabel?.invalidateIntrinsicContentSize()
+        headerTitleStack?.invalidateIntrinsicContentSize()
         otherLayoutsLabel?.stringValue = L10n.text(.consoleOtherLayouts)
         let warning = runtime.trust.showsMenuBarWarning()
         warningButton?.title = L10n.text(.menuEnableAccessibility)
@@ -319,21 +351,38 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         organizeButton?.isEnabled = !runtime.isOrganizingWindows
         workspaceButton?.title = L10n.text(.menuWorkspaces)
         settingsButton?.title = L10n.text(.menuSettings)
-        if let newButton {
-            newButton.attributedTitle = NSAttributedString(
-                string: L10n.text(.consoleNew),
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-                    .foregroundColor: NSColor.controlAccentColor,
-                ]
-            )
-        }
-        newButton?.toolTip = L10n.text(.consoleNew)
-        newButton?.setAccessibilityLabel(L10n.text(.consoleNew))
+        applyNewLayoutButtonTitle(L10n.text(.consoleNew))
         quitButton?.title = L10n.text(.menuQuit)
 
         rebuildLayoutViews(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
         gridHeightConstraint?.constant = gridHeight()
+    }
+
+    private func displayTitle(for area: WorkArea?) -> String {
+        let stored = area?.display.localizedName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !stored.isEmpty { return stored }
+        return L10n.text(.consoleNoDisplay)
+    }
+
+    private func applyNewLayoutButtonTitle(_ title: String) {
+        guard let newButton else { return }
+        newButton.toolTip = title
+        newButton.setAccessibilityLabel(title)
+        guard appliedNewButtonTitle != title else { return }
+        appliedNewButtonTitle = title
+        newButton.attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .foregroundColor: NSColor.controlAccentColor,
+            ]
+        )
+        newButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: title)
+        newButton.imagePosition = .imageLeading
+        newButton.imageScaling = .scaleProportionallyDown
+        newButton.imageHugsTitle = true
+        newButton.contentTintColor = .controlAccentColor
+        newButton.invalidateIntrinsicContentSize()
     }
 
     private func rebuildLayoutViews(currentID: UUID?) {
@@ -674,6 +723,17 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     @objc
     private func quit() {
         dismiss(handoff: { NSApp.terminate(nil) })
+    }
+}
+
+private final class ConsoleSingleLineLabel: NSTextField {
+    override var intrinsicContentSize: NSSize {
+        let vertical = super.intrinsicContentSize.height
+        guard !stringValue.isEmpty else {
+            return NSSize(width: NSView.noIntrinsicMetric, height: vertical)
+        }
+        let textWidth = ceil(attributedStringValue.size().width) + 2
+        return NSSize(width: textWidth, height: vertical)
     }
 }
 

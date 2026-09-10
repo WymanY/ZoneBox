@@ -692,6 +692,7 @@ final class SnapEngine {
         var forcedTarget: SnapTarget?
         var highlightedLayoutID: Layout.ID?
         var highlightedZoneNumber: Int?
+        var hoveredOverflow: LayoutStripOverflowHover?
         var hitLatch: StripDropLatch?
         if !isArmed(phase) {
             stripDropLatch = nil
@@ -720,6 +721,7 @@ final class SnapEngine {
                 )
                 let overflowDelta = onStrip ? visibleStrip.hitOverflow(at: pointAppKit) : nil
                 if let overflowDelta {
+                    hoveredOverflow = overflowDelta > 0 ? .next : .previous
                     let visibleIDs = visibleStrip.cards.map { $0.layoutID }
                     let edgeID = overflowDelta > 0 ? visibleIDs.last : visibleIDs.first
                     let neighborID = LayoutStripGeometry.neighborLayoutID(of: edgeID, in: layoutIDs, delta: overflowDelta)
@@ -814,7 +816,8 @@ final class SnapEngine {
             stripModel = OverlayStripRenderModel(
                 geometry: strip,
                 highlightedLayoutID: highlightedLayoutID ?? layoutID,
-                highlightedZoneNumber: highlightedZoneNumber
+                highlightedZoneNumber: highlightedZoneNumber,
+                hoveredOverflow: hoveredOverflow
             )
         } else {
             stripModel = nil
