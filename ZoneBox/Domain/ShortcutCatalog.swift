@@ -191,6 +191,7 @@ public enum ShortcutCustomizationID: String, Sendable, CaseIterable, Equatable {
     case quickSnapper
     case organizeWindows
     case applyWorkspace
+    case captureWorkspace
     case snapZones
     case openSettings
 }
@@ -261,6 +262,7 @@ public enum ShortcutCatalog {
     public static let organizeHotkeyID: UInt32 = 108
     public static let settingsHotkeyID: UInt32 = 109
     public static let applyWorkspaceHotkeyID: UInt32 = 110
+    public static let captureWorkspaceHotkeyID: UInt32 = 111
     public static let editorSaveChord = KeyChord(
         keyCode: HardwareKeyCode.s,
         carbonModifiers: CarbonModifier.command
@@ -375,6 +377,13 @@ public enum ShortcutCatalog {
                 titleKey: .shortcutApplyWorkspace,
                 hotkeyID: applyWorkspaceHotkeyID,
                 binding: .chord(settings.applyWorkspaceHotkey)
+            ),
+            ShortcutSpec(
+                id: "captureWorkspace",
+                surface: .global,
+                titleKey: .shortcutCaptureWorkspace,
+                hotkeyID: captureWorkspaceHotkeyID,
+                binding: .chord(settings.captureWorkspaceHotkey)
             ),
         ]
 
@@ -634,6 +643,7 @@ public enum ShortcutCatalog {
             (.quickSnapper, .shortcutQuickSnapper, settings.quickSnapperHotkey),
             (.organizeWindows, .shortcutOrganizeWindows, settings.organizeHotkey),
             (.applyWorkspace, .shortcutApplyWorkspace, settings.applyWorkspaceHotkey),
+            (.captureWorkspace, .shortcutCaptureWorkspace, settings.captureWorkspaceHotkey),
             (.openSettings, .shortcutSettings, settings.settingsHotkey),
             (.snapZones, .shortcutSnapZones, KeyChord(keyCode: AppSettings.zoneKeyCodes[0], carbonModifiers: settings.zoneHotkeyModifiers)),
         ]
@@ -660,6 +670,7 @@ public enum ShortcutCatalog {
         case .quickSnapper: next.quickSnapperHotkey = normalized
         case .organizeWindows: next.organizeHotkey = normalized
         case .applyWorkspace: next.applyWorkspaceHotkey = normalized
+        case .captureWorkspace: next.captureWorkspaceHotkey = normalized
         case .openSettings: next.settingsHotkey = normalized
         case .snapZones: next.zoneHotkeyModifiers = normalized.carbonModifiers
         }
@@ -731,6 +742,7 @@ public enum ShortcutEscapeAction: Equatable, Sendable {
     case closeShortcuts
     case cancelEditor
     case dismissQuickSnapper
+    case dismissWorkspaceSwitcher
     case cancelSnap
     case cancelDivider
     case closeSettings
@@ -748,6 +760,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
     public var settingsIsKey: Bool
     public var onboardingIsKey: Bool
     public var consoleIsVisible: Bool
+    public var workspaceSwitcherShowing: Bool
     public var dividerDragging: Bool
 
     public init(
@@ -759,6 +772,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         settingsIsKey: Bool = false,
         onboardingIsKey: Bool = false,
         consoleIsVisible: Bool = false,
+        workspaceSwitcherShowing: Bool = false,
         dividerDragging: Bool = false
     ) {
         self.shortcutsPanelIsKey = shortcutsPanelIsKey
@@ -769,6 +783,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         self.settingsIsKey = settingsIsKey
         self.onboardingIsKey = onboardingIsKey
         self.consoleIsVisible = consoleIsVisible
+        self.workspaceSwitcherShowing = workspaceSwitcherShowing
         self.dividerDragging = dividerDragging
     }
 
@@ -777,6 +792,7 @@ public struct ShortcutRouteContext: Equatable, Sendable {
         if context.shortcutsPanelIsKey { return .closeShortcuts }
         if context.editorClaimsKeyboard { return .cancelEditor }
         if context.quickSnapperShowing { return .dismissQuickSnapper }
+        if context.workspaceSwitcherShowing { return .dismissWorkspaceSwitcher }
         if context.dividerDragging { return .cancelDivider }
         if context.settingsIsKey { return .closeSettings }
         if context.onboardingIsKey { return .closeOnboarding }

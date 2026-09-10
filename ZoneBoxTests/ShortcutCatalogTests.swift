@@ -9,6 +9,7 @@ final class ShortcutCatalogTests: XCTestCase {
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.shortcutsPanelHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.quickSnapperHotkeyID }))
         XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.applyWorkspaceHotkeyID }))
+        XCTAssertTrue(pairs.contains(where: { $0.id == ShortcutCatalog.captureWorkspaceHotkeyID }))
         XCTAssertEqual(WindowOrganize.isPubliclyAvailable, false)
         XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.organizeHotkeyID }))
         XCTAssertFalse(pairs.contains(where: { $0.id == ShortcutCatalog.settingsHotkeyID }))
@@ -64,6 +65,23 @@ final class ShortcutCatalogTests: XCTestCase {
             ShortcutCatalog.resetting(.applyWorkspace, in: changed).applyWorkspaceHotkey,
             AppSettings.default.applyWorkspaceHotkey
         )
+
+        let capture = KeyChord(
+            keyCode: HardwareKeyCode.p,
+            carbonModifiers: CarbonModifier.controlOption | CarbonModifier.shift
+        )
+        XCTAssertEqual(AppSettings.default.captureWorkspaceHotkey, capture)
+        let customCapture = KeyChord(
+            keyCode: HardwareKeyCode.s,
+            carbonModifiers: CarbonModifier.controlOption | CarbonModifier.shift
+        )
+        let captured = ShortcutCatalog.applying(customCapture, to: .captureWorkspace, in: .default)
+        XCTAssertEqual(captured.captureWorkspaceHotkey, customCapture)
+        XCTAssertEqual(
+            ShortcutCatalog.resetting(.captureWorkspace, in: captured).captureWorkspaceHotkey,
+            AppSettings.default.captureWorkspaceHotkey
+        )
+        XCTAssertNil(ShortcutCatalog.validate(capture, replacing: .captureWorkspace, in: .default))
     }
 
     func testHotkeyLookupUsesCurrentSettings() {
@@ -99,6 +117,14 @@ final class ShortcutCatalogTests: XCTestCase {
                 settings: settings
             ),
             ShortcutCatalog.applyWorkspaceHotkeyID
+        )
+        XCTAssertEqual(
+            ShortcutCatalog.hotkeyID(
+                matching: HardwareKeyCode.p,
+                carbonModifiers: CarbonModifier.controlOption | CarbonModifier.shift,
+                settings: settings
+            ),
+            ShortcutCatalog.captureWorkspaceHotkeyID
         )
         XCTAssertEqual(
             ShortcutCatalog.hotkeyID(

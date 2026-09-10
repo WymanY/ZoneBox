@@ -110,5 +110,12 @@ final class SettingsStoreTests: XCTestCase {
             legacy.applyWorkspaceHotkey,
             KeyChord(keyCode: HardwareKeyCode.p, carbonModifiers: CarbonModifier.controlOption)
         )
+        XCTAssertEqual(
+            legacy.captureWorkspaceHotkey,
+            KeyChord(
+                keyCode: HardwareKeyCode.p,
+                carbonModifiers: CarbonModifier.controlOption | CarbonModifier.shift
+            )
+        )
     }
 }

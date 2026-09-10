@@ -47,6 +47,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var unsnapHotkey: KeyChord
     public var organizeHotkey: KeyChord
     public var applyWorkspaceHotkey: KeyChord
+    public var captureWorkspaceHotkey: KeyChord
     public var settingsHotkey: KeyChord
     public var onboardingCompletedVersion: Int
 
@@ -102,6 +103,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         unsnapHotkey: KeyChord(keyCode: 32, carbonModifiers: controlOption),
         organizeHotkey: KeyChord(keyCode: HardwareKeyCode.o, carbonModifiers: controlOption),
         applyWorkspaceHotkey: KeyChord(keyCode: HardwareKeyCode.p, carbonModifiers: controlOption),
+        captureWorkspaceHotkey: KeyChord(
+            keyCode: HardwareKeyCode.p,
+            carbonModifiers: controlOption | CarbonModifier.shift
+        ),
         settingsHotkey: KeyChord(keyCode: HardwareKeyCode.comma, carbonModifiers: CarbonModifier.command),
         onboardingCompletedVersion: 0
     )
@@ -157,6 +162,8 @@ extension AppSettings {
         organizeHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .organizeHotkey) ?? defaults.organizeHotkey
         applyWorkspaceHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .applyWorkspaceHotkey)
             ?? defaults.applyWorkspaceHotkey
+        captureWorkspaceHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .captureWorkspaceHotkey)
+            ?? defaults.captureWorkspaceHotkey
         settingsHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .settingsHotkey) ?? defaults.settingsHotkey
         onboardingCompletedVersion = try c.decodeIfPresent(Int.self, forKey: .onboardingCompletedVersion)
             ?? defaults.onboardingCompletedVersion

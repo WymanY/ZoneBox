@@ -26,6 +26,7 @@ final class AppRuntime {
     let drag = DragMonitor()
     let hotkeys = HotkeyCenter()
     let workspace = WorkspaceCenter()
+    let workspaceSwitcher = WorkspaceSwitcherController()
     let pins = PinCenter()
     let pinHover = PinHoverMonitor()
     let license = LicenseCenter()
@@ -73,6 +74,7 @@ final class AppRuntime {
         drag.runtime = self
         hotkeys.runtime = self
         workspace.runtime = self
+        workspaceSwitcher.runtime = self
         pins.runtime = self
         pinHover.runtime = self
         divider.runtime = self
@@ -136,6 +138,7 @@ final class AppRuntime {
 
     func teardown() {
         workspace.stop()
+        workspaceSwitcher.hide()
         pinHover.stop()
         pins.stop()
         overlay.hideAll()
@@ -159,6 +162,7 @@ final class AppRuntime {
         pins.hideBadges()
         overlay.hideAll()
         divider.hideAll()
+        workspaceSwitcher.hide()
     }
 
     func openSettings() {
@@ -355,6 +359,8 @@ final class AppRuntime {
     var settingsIsKey: Bool { settingsWindow?.isKey == true }
     var onboardingIsKey: Bool { welcome?.isKey == true || accessibilityGuide?.isKey == true }
     var consoleIsVisible: Bool { menuBar?.isConsoleVisible == true }
+    var isWorkspaceSwitcherShowing: Bool { workspaceSwitcher.isShowing }
+    var isWorkspaceSwitcherNaming: Bool { workspaceSwitcher.isNaming }
     var isRecordingHotkey: Bool { settingsWindow?.isRecordingHotkey == true }
 
     func snappableOwnWindowNumbers() -> Set<CGWindowID> {
@@ -405,6 +411,23 @@ final class AppRuntime {
         guard consoleIsVisible else { return false }
         menuBar?.closeConsole()
         return true
+    }
+
+    @discardableResult
+    func closeSwitcherIfOpen() -> Bool {
+        workspaceSwitcher.hideIfShowing()
+    }
+
+    func handleWorkspaceSwitcher(_ event: WorkspaceSwitcherEvent) {
+        workspaceSwitcher.handle(event)
+    }
+
+    func dismissWorkspaceSwitcher() {
+        workspaceSwitcher.hide()
+    }
+
+    func applicationInfo(bundleID: String) -> (name: String, icon: NSImage?) {
+        WorkspaceApplicationInfo.info(bundleID: bundleID)
     }
 
     @discardableResult
@@ -1126,6 +1149,10 @@ final class AppRuntime {
         }
     }
 
+    func noteWorkspaceSwitcherUI(showing: Bool) {
+        // Nonactivating HUD. Quick Snapper's UI session calls NSApp.activate.
+    }
+
     func resolvedZones(for area: WorkArea?) -> [ResolvedZone] {
         resolvedZones(for: area, layoutOverride: nil)
     }
@@ -1384,6 +1411,7 @@ final class AppRuntime {
         persistSettings()
         hotkeys.reregister()
         shortcutPanel?.applyLanguage()
+        workspaceSwitcher.applyLanguage()
     }
 
     func applyLanguage() {
@@ -1396,6 +1424,7 @@ final class AppRuntime {
         accessibilityGuide?.applyLanguage()
         editor?.applyLanguage()
         shortcutPanel?.applyLanguage()
+        workspaceSwitcher.applyLanguage()
     }
 
     func setUILanguage(_ preference: AppLanguagePreference) {
@@ -1414,6 +1443,7 @@ final class AppRuntime {
                 runtime.invalidateResolvedLayoutCache()
                 runtime.persist()
                 runtime.workspace.displaysDidChange()
+                runtime.workspaceSwitcher.displaysDidChange()
             }
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
@@ -1542,3 +1572,5 @@ extension AppRuntime: RuntimeDisplayCatalog {
     func isActive(displayID: DisplayIdentity.ID) -> Bool { displays.isActive(displayID: displayID) }
     func screen(for displayID: DisplayIdentity.ID) -> NSScreen? { displays.screen(for: displayID) }
 }
+
+extension AppRuntime: WorkspaceSwitcherHosting {}

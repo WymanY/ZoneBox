@@ -82,6 +82,9 @@ final class SnapEngine {
         diagnosticInput = String(describing: event.kind)
         diagnosticSource = source
         diagnosticPoint = event.locationAppKit
+        if event.kind == .leftDown {
+            runtime.dismissWorkspaceSwitcher()
+        }
         if event.kind == .leftDown, isQuickSnapperShowing {
             handleQuickSnapper(.dismiss)
         }
