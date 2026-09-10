@@ -10,8 +10,9 @@ public protocol AXFrameWriting: AnyObject {
 
 /// Writes AX position and size, then waits for apps that asynchronously
 /// restyle the window after a size change. Raycast AI Chat accepts the
-/// writes, then recenters; a trailing `setSize` in the fast loop is what
-/// undoes the origin. Settle waits for that adjustment and sets origin last.
+/// writes, then recenters; a trailing size write in the fast loop is what
+/// undoes the origin. A matching read is confirmed after a short delay so
+/// that restyle is not treated as success. Settle then writes origin last.
 public enum AXFrameMutation: Sendable {
     public static let successTolerance: CGFloat = 2
     public static let fastRetryLimit = 3
@@ -31,7 +32,7 @@ public enum AXFrameMutation: Sendable {
             writer.setSize(target.size)
             writer.setPoint(target.origin)
             writer.setSize(target.size)
-            if let actual = writer.readFrame(), chebyshevError(actual, target: target) <= successTolerance {
+            if let actual = confirmedFrame(target, using: writer) {
                 return actual
             }
             if attempt + 1 < fastRetryLimit {
@@ -40,7 +41,7 @@ public enum AXFrameMutation: Sendable {
         }
 
         writer.sleep(settleDelay)
-        if let actual = writer.readFrame(), chebyshevError(actual, target: target) <= successTolerance {
+        if let actual = confirmedFrame(target, using: writer) {
             return actual
         }
 
@@ -53,6 +54,20 @@ public enum AXFrameMutation: Sendable {
             writer.setPoint(target.origin)
         }
         return writer.readFrame()
+    }
+
+    /// A window can echo the target frame immediately, then restyle a moment
+    /// later. Treat a match as final only if it is still there after the short
+    /// delay that follows a trailing size write.
+    private static func confirmedFrame(_ target: CGRect, using writer: AXFrameWriting) -> CGRect? {
+        guard let actual = writer.readFrame(), chebyshevError(actual, target: target) <= successTolerance else {
+            return nil
+        }
+        writer.sleep(fastRetryDelay)
+        guard let confirmed = writer.readFrame(), chebyshevError(confirmed, target: target) <= successTolerance else {
+            return nil
+        }
+        return confirmed
     }
 
     public static func chebyshevError(_ actual: CGRect, target: CGRect) -> CGFloat {

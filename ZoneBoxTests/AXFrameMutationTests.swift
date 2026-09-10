@@ -2,7 +2,7 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class AXFrameMutationTests: XCTestCase {
-    func testMatchingWindowReturnsWithoutSettleSleep() {
+    func testMatchingWindowConfirmsAfterShortDelay() {
         let start = CGRect(x: 10, y: 20, width: 300, height: 200)
         let target = CGRect(x: 40, y: 80, width: 500, height: 320)
         let writer = FakeAXFrameWriter(frame: start)
@@ -10,7 +10,19 @@ final class AXFrameMutationTests: XCTestCase {
         XCTAssertEqual(actual, target)
         XCTAssertEqual(writer.sizeWriteCount, 2)
         XCTAssertEqual(writer.pointWriteCount, 1)
-        XCTAssertTrue(writer.sleeps.isEmpty)
+        XCTAssertEqual(writer.sleeps, [AXFrameMutation.fastRetryDelay])
+    }
+
+    func testImmediateMatchThatRecentersStillSettlesOrigin() {
+        let start = CGRect(x: 296, y: -855, width: 1411, height: 839)
+        let target = CGRect(x: -21, y: -944, width: 1536, height: 839)
+        let recentered = CGPoint(x: 255, y: -866)
+        let writer = FakeAXFrameWriter(frame: start, recenterOnSleep: recentered)
+        let actual = AXFrameMutation.apply(target, using: writer)
+        XCTAssertEqual(actual?.origin, target.origin)
+        XCTAssertEqual(actual?.size, target.size)
+        XCTAssertTrue(writer.sleeps.contains(AXFrameMutation.settleDelay))
+        XCTAssertEqual(writer.frame.origin, target.origin)
     }
 
     func testSizeWriteDriftsOriginUntilSettleSetsPointLast() {
@@ -50,7 +62,7 @@ final class AXFrameMutationTests: XCTestCase {
             using: writer
         )
         XCTAssertEqual(actual, CGRect(x: 10, y: 10, width: 400, height: 300))
-        XCTAssertTrue(writer.sleeps.isEmpty)
+        XCTAssertEqual(writer.sleeps, [AXFrameMutation.fastRetryDelay])
     }
 }
 
@@ -60,21 +72,24 @@ private final class FakeAXFrameWriter: AXFrameWriting {
     var sizeWriteCount = 0
     var pointWriteCount = 0
     private let driftOnSize: CGPoint?
+    private let recenterOnSleep: CGPoint?
     private let ignoreSizeUntilElapsed: TimeInterval
     private var elapsed: TimeInterval = 0
 
     init(
         frame: CGRect,
         driftOnSize: CGPoint? = nil,
+        recenterOnSleep: CGPoint? = nil,
         ignoreSizeUntilElapsed: TimeInterval = 0
     ) {
         self.frame = frame
         self.driftOnSize = driftOnSize
+        self.recenterOnSleep = recenterOnSleep
         self.ignoreSizeUntilElapsed = ignoreSizeUntilElapsed
     }
 
     func readFrame() -> CGRect? {
-        return frame
+        frame
     }
 
     func setSize(_ size: CGSize) {
@@ -96,5 +111,8 @@ private final class FakeAXFrameWriter: AXFrameWriting {
     func sleep(_ duration: TimeInterval) {
         sleeps.append(duration)
         elapsed += duration
+        if let recenterOnSleep {
+            frame.origin = recenterOnSleep
+        }
     }
 }
