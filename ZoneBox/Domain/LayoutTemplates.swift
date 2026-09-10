@@ -38,6 +38,11 @@ public enum LayoutTemplates {
     /// Compact zone rectangles for toolbar/menu thumbnails.
     /// y = 0 is the top of the work area, matching the layout editor canvas.
     public static func thumbnailGeometry(for layout: Layout) -> [(number: Int, rect: NormalizedRect)] {
+        thumbnailPanes(for: layout).map { (number: $0.number, rect: $0.rect) }
+    }
+
+    /// Thumbnail geometry with stable zone IDs for workspace restore schematics.
+    public static func thumbnailPanes(for layout: Layout) -> [(id: UUID, number: Int, rect: NormalizedRect)] {
         canvasGeometry(for: layout, workAreaAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)) ?? []
     }
 
@@ -184,7 +189,7 @@ public enum LayoutTemplates {
     private static func canvasGeometry(
         for layout: Layout,
         workAreaAX: CGRect
-    ) -> [(number: Int, rect: NormalizedRect)]? {
+    ) -> [(id: UUID, number: Int, rect: NormalizedRect)]? {
         let canvas: Layout
         if layout.kind == .grid {
             guard let converted = try? layout.convertingGridToCanvas(workAreaAX: workAreaAX) else { return nil }
@@ -195,11 +200,11 @@ public enum LayoutTemplates {
         let zones = canvas.zones
             .filter { $0.name != "__creating" }
             .sorted { $0.number < $1.number }
-        var geometry: [(number: Int, rect: NormalizedRect)] = []
+        var geometry: [(id: UUID, number: Int, rect: NormalizedRect)] = []
         geometry.reserveCapacity(zones.count)
         for zone in zones {
             guard let rect = zone.canvasRect else { return nil }
-            geometry.append((zone.number, rect))
+            geometry.append((zone.id, zone.number, rect))
         }
         return geometry
     }

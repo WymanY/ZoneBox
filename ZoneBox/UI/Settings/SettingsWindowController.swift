@@ -942,20 +942,52 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         options.orientation = .horizontal
         options.alignment = .centerY
         options.spacing = 20
-        options.edgeInsets = NSEdgeInsets(top: 0, left: 39, bottom: 0, right: 0)
+        options.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
         var rowViews: [NSView] = [header]
         if expanded {
-            rowViews.append(makeWorkspaceDetails(profile))
+            let details = makeWorkspaceDetails(profile)
+            details.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            details.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            rowViews.append(details)
         }
-        rowViews.append(makeSeparator(inset: 39))
-        rowViews.append(options)
-        let row = NSStackView(views: rowViews)
-        row.orientation = .vertical
-        row.alignment = .width
-        row.spacing = 11
-        row.edgeInsets = NSEdgeInsets(top: 15, left: 16, bottom: 13, right: 14)
-        return WorkspaceCardView(content: row, active: isActive)
+        let separator = makeSeparator(inset: 0)
+        let body = NSView()
+        body.translatesAutoresizingMaskIntoConstraints = false
+        body.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        body.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        header.translatesAutoresizingMaskIntoConstraints = false
+        options.translatesAutoresizingMaskIntoConstraints = false
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        body.addSubview(header)
+        var previous: NSView = header
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: body.topAnchor, constant: 15),
+            header.leadingAnchor.constraint(equalTo: body.leadingAnchor, constant: 16),
+            header.trailingAnchor.constraint(equalTo: body.trailingAnchor, constant: -14),
+        ])
+        if expanded, let details = rowViews.last, details !== header {
+            details.translatesAutoresizingMaskIntoConstraints = false
+            body.addSubview(details)
+            NSLayoutConstraint.activate([
+                details.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 11),
+                details.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+                details.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            ])
+            previous = details
+        }
+        body.addSubview(separator)
+        body.addSubview(options)
+        NSLayoutConstraint.activate([
+            separator.topAnchor.constraint(equalTo: previous.bottomAnchor, constant: 11),
+            separator.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            options.topAnchor.constraint(equalTo: separator.bottomAnchor, constant: 11),
+            options.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            options.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            options.bottomAnchor.constraint(equalTo: body.bottomAnchor, constant: -13),
+        ])
+        return WorkspaceCardView(content: body, active: isActive)
     }
 
     private func makeWorkspaceDetails(_ profile: WorkspaceProfile) -> NSView {
@@ -964,12 +996,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         content.alignment = .width
         content.spacing = 8
         content.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        content.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        content.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         for (sectionIndex, section) in profile.sections.enumerated() {
             let displayName = runtime.document.displays.first(where: { $0.id == section.space.displayID })?.localizedName
                 ?? L10n.text(.settingsWorkspaceUnavailableDisplay)
-            let layoutName = runtime.document.layouts.first(where: { $0.id == section.layoutID })
-                .map { L10n.layoutDisplayName($0.name) }
+            let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
+            let layoutName = layout.map { L10n.layoutDisplayName($0.name) }
                 ?? L10n.text(.settingsWorkspaceUnavailableLayout)
             let sectionTitle = NSTextField(
                 labelWithString: String(
@@ -980,6 +1014,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             )
             sectionTitle.font = .systemFont(ofSize: 11, weight: .semibold)
             sectionTitle.textColor = .secondaryLabelColor
+            sectionTitle.lineBreakMode = .byTruncatingTail
+            sectionTitle.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            sectionTitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             let displayIcon = NSImageView()
             displayIcon.image = NSImage(systemSymbolName: "display", accessibilityDescription: displayName)
             displayIcon.symbolConfiguration = .init(pointSize: 11, weight: .medium)
@@ -989,20 +1026,66 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 displayIcon.widthAnchor.constraint(equalToConstant: 16),
                 displayIcon.heightAnchor.constraint(equalToConstant: 16),
             ])
-            let sectionHeader = NSStackView(views: [displayIcon, sectionTitle, NSView()])
+            let sectionHeader = NSStackView(views: [displayIcon, sectionTitle])
             sectionHeader.orientation = .horizontal
             sectionHeader.alignment = .centerY
             sectionHeader.spacing = 6
-            content.addArrangedSubview(sectionHeader)
+            sectionHeader.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            sectionHeader.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-            for rule in section.rules {
-                content.addArrangedSubview(makeWorkspaceApplicationRow(rule))
+            let previewCaption = NSTextField(labelWithString: L10n.text(.settingsWorkspaceLayoutPreview))
+            previewCaption.font = .systemFont(ofSize: 10, weight: .medium)
+            previewCaption.textColor = .tertiaryLabelColor
+            previewCaption.maximumNumberOfLines = 1
+            previewCaption.lineBreakMode = .byTruncatingTail
+            previewCaption.setAccessibilityElement(false)
+            previewCaption.setContentCompressionResistancePriority(.fittingSizeCompression, for: .horizontal)
+            var applicationInfo: [String: (name: String, icon: NSImage?)] = [:]
+            for rule in section.rules where applicationInfo[rule.bundleID] == nil {
+                applicationInfo[rule.bundleID] = workspaceApplicationInfo(bundleID: rule.bundleID)
             }
+            let preview = WorkspaceLayoutPreviewView(
+                layout: layout,
+                rules: section.rules,
+                applicationInfo: applicationInfo
+            )
+            let applications = NSStackView()
+            applications.orientation = .vertical
+            applications.alignment = .width
+            applications.spacing = 8
+            applications.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            applications.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            applications.setHuggingPriority(.defaultLow, for: .horizontal)
+            for rule in section.rules {
+                applications.addArrangedSubview(makeWorkspaceApplicationRow(rule))
+            }
+
+            let previewColumn = NSStackView(views: [previewCaption, preview])
+            previewColumn.orientation = .vertical
+            previewColumn.alignment = .leading
+            previewColumn.spacing = 4
+            previewColumn.setContentHuggingPriority(.required, for: .horizontal)
+            previewColumn.setContentCompressionResistancePriority(.required, for: .horizontal)
+            previewColumn.widthAnchor.constraint(
+                equalToConstant: WorkspaceLayoutPreview.suggestedSize.width
+            ).isActive = true
+
+            content.addArrangedSubview(
+                WorkspaceSectionDetailsView(
+                    header: sectionHeader,
+                    applications: applications,
+                    previewColumn: previewColumn
+                )
+            )
             if sectionIndex < profile.sections.count - 1 {
                 content.addArrangedSubview(makeSeparator())
             }
         }
-        return WorkspaceDetailsSurfaceView(content: content)
+        constrainWorkspaceDetailRows(in: content)
+        let surface = WorkspaceDetailsSurfaceView(content: content)
+        surface.setContentHuggingPriority(.fittingSizeCompression, for: .horizontal)
+        surface.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return surface
     }
 
     private func makeWorkspaceApplicationRow(_ rule: AppPlacementRule) -> NSView {
@@ -1012,33 +1095,75 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.setAccessibilityLabel(info.name)
         icon.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 22),
-            icon.heightAnchor.constraint(equalToConstant: 22),
-        ])
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        icon.setContentHuggingPriority(.required, for: .vertical)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .vertical)
 
         let name = NSTextField(labelWithString: info.name)
         name.font = .systemFont(ofSize: 12, weight: .medium)
         name.lineBreakMode = .byTruncatingTail
+        name.maximumNumberOfLines = 1
+        name.cell?.truncatesLastVisibleLine = true
+        name.translatesAutoresizingMaskIntoConstraints = false
+        name.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let bundle = NSTextField(labelWithString: rule.bundleID)
         bundle.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
         bundle.textColor = .secondaryLabelColor
-        bundle.lineBreakMode = .byTruncatingMiddle
-        let labels = NSStackView(views: [name, bundle])
-        labels.orientation = .vertical
-        labels.alignment = .leading
-        labels.spacing = 1
-        labels.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        bundle.lineBreakMode = .byTruncatingTail
+        bundle.usesSingleLineMode = false
+        bundle.maximumNumberOfLines = 2
+        bundle.cell?.wraps = true
+        bundle.cell?.lineBreakMode = .byCharWrapping
+        bundle.translatesAutoresizingMaskIntoConstraints = false
+        bundle.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        bundle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let zone = WorkspaceZoneBadgeView(
             text: String(format: L10n.text(.settingsWorkspaceZone), rule.zoneNumber)
         )
+        zone.translatesAutoresizingMaskIntoConstraints = false
 
-        let row = NSStackView(views: [icon, labels, NSView(), zone])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 8
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        row.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        row.addSubview(icon)
+        row.addSubview(name)
+        row.addSubview(bundle)
+        row.addSubview(zone)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 22),
+            icon.heightAnchor.constraint(equalToConstant: 22),
+            name.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
+            name.topAnchor.constraint(equalTo: row.topAnchor),
+            name.trailingAnchor.constraint(equalTo: zone.leadingAnchor, constant: -8),
+            bundle.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+            bundle.trailingAnchor.constraint(lessThanOrEqualTo: zone.leadingAnchor, constant: -8),
+            bundle.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 1),
+            bundle.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            zone.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            zone.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            row.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+        ])
         return row
+    }
+
+    private func constrainWorkspaceDetailRows(in stack: NSStackView) {
+        let horizontalInset = stack.edgeInsets.left + stack.edgeInsets.right
+        for view in stack.arrangedSubviews {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            if view is WorkspaceLayoutPreviewView { continue }
+            let width = view.widthAnchor.constraint(
+                equalTo: stack.widthAnchor,
+                constant: -horizontalInset
+            )
+            width.priority = .required
+            width.isActive = true
+        }
     }
 
     private func workspaceApplicationInfo(bundleID: String) -> (name: String, icon: NSImage?) {
@@ -2550,13 +2675,99 @@ private final class WorkspaceZoneBadgeView: NSView {
     }
 }
 
+private enum WorkspaceDetailsMetrics {
+    static let columnSpacing: CGFloat = 12
+    static let stackSpacing: CGFloat = 8
+    static let minimumLeadingWidth: CGFloat = 240
+    static var wrappingBreakpoint: CGFloat {
+        WorkspaceLayoutPreview.suggestedSize.width + columnSpacing + minimumLeadingWidth
+    }
+}
+
+private final class WorkspaceSectionDetailsView: NSView {
+    private let header: NSView
+    private let applications: NSView
+    private let previewColumn: NSView
+    private var sideBySideConstraints: [NSLayoutConstraint] = []
+    private var stackedConstraints: [NSLayoutConstraint] = []
+    private var isSideBySide = true
+
+    init(header: NSView, applications: NSView, previewColumn: NSView) {
+        self.header = header
+        self.applications = applications
+        self.previewColumn = previewColumn
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        setContentHuggingPriority(.defaultHigh, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
+        for view in [header, applications, previewColumn] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+
+        let spacing = WorkspaceDetailsMetrics.columnSpacing
+        let stackSpacing = WorkspaceDetailsMetrics.stackSpacing
+        sideBySideConstraints = [
+            header.leadingAnchor.constraint(equalTo: leadingAnchor),
+            header.topAnchor.constraint(equalTo: topAnchor),
+            header.trailingAnchor.constraint(equalTo: previewColumn.leadingAnchor, constant: -spacing),
+            applications.leadingAnchor.constraint(equalTo: leadingAnchor),
+            applications.topAnchor.constraint(equalTo: header.bottomAnchor, constant: stackSpacing),
+            applications.trailingAnchor.constraint(equalTo: previewColumn.leadingAnchor, constant: -spacing),
+            applications.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
+            previewColumn.topAnchor.constraint(equalTo: topAnchor),
+            previewColumn.trailingAnchor.constraint(equalTo: trailingAnchor),
+            previewColumn.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
+            bottomAnchor.constraint(greaterThanOrEqualTo: applications.bottomAnchor),
+            bottomAnchor.constraint(greaterThanOrEqualTo: previewColumn.bottomAnchor),
+            applications.widthAnchor.constraint(greaterThanOrEqualToConstant: WorkspaceDetailsMetrics.minimumLeadingWidth),
+        ]
+        stackedConstraints = [
+            header.leadingAnchor.constraint(equalTo: leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: trailingAnchor),
+            header.topAnchor.constraint(equalTo: topAnchor),
+            previewColumn.leadingAnchor.constraint(equalTo: leadingAnchor),
+            previewColumn.topAnchor.constraint(equalTo: header.bottomAnchor, constant: stackSpacing),
+            previewColumn.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+            applications.leadingAnchor.constraint(equalTo: leadingAnchor),
+            applications.trailingAnchor.constraint(equalTo: trailingAnchor),
+            applications.topAnchor.constraint(equalTo: previewColumn.bottomAnchor, constant: stackSpacing),
+            applications.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ]
+        NSLayoutConstraint.activate(sideBySideConstraints)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        let availableWidth = max(bounds.width, superview?.bounds.width ?? 0)
+        if availableWidth > 0 {
+            let shouldBeSideBySide = availableWidth >= WorkspaceDetailsMetrics.wrappingBreakpoint
+            if shouldBeSideBySide != isSideBySide {
+                isSideBySide = shouldBeSideBySide
+                NSLayoutConstraint.deactivate(shouldBeSideBySide ? stackedConstraints : sideBySideConstraints)
+                NSLayoutConstraint.activate(shouldBeSideBySide ? sideBySideConstraints : stackedConstraints)
+            }
+        }
+        super.layout()
+    }
+}
+
 private final class WorkspaceDetailsSurfaceView: NSView {
     init(content: NSView) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
         layer?.cornerCurve = .continuous
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         content.translatesAutoresizingMaskIntoConstraints = false
+        content.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        content.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         addSubview(content)
         NSLayoutConstraint.activate([
             content.topAnchor.constraint(equalTo: topAnchor),

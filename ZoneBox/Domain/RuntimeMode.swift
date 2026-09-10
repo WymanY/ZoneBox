@@ -106,7 +106,10 @@ public struct RuntimeModeGate: Equatable, Sendable {
                 false
             }
         case .censusWindows:
-            mode == .idle
+            // Workspace restore starts its pending census before the organize
+            // transaction ends. Blocking census here dropped the first poll
+            // and let splash/helper races miss the real window.
+            mode == .idle || mode == .organizing
         case .mutateWindows:
             switch mode {
             case .idle, .snapping, .dividing, .organizing, .pinningFollow:

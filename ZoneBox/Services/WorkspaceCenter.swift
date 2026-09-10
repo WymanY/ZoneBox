@@ -23,7 +23,7 @@ final class WorkspaceCenter {
 
     /// Cold launches of heavy apps (editors, Electron shells) routinely take
     /// longer than 15s before their first standard window appears.
-    static let launchTimeout: TimeInterval = 30
+    static let launchTimeout: TimeInterval = WorkspaceRestore.launchTimeout
 
     /// After `NSRunningApplication.unhide()` the app's windows re-enter the
     /// CGWindowList a frame or two later; re-querying immediately misses them.
@@ -58,15 +58,14 @@ final class WorkspaceCenter {
         var rejectedAttempts = 0
     }
 
-    /// A freshly launched window may still be resizing itself when the first
-    /// placement lands. Retry a few polls before giving the target up.
-    private static let maxRejectedAttempts = 3
-
     private var pending: [PendingPlacement] = []
     private var observed: [WindowIdentity: ObservedWindow] = [:]
     private var baseline: Set<WindowIdentity> = []
     private var censusTask: Task<Void, Never>?
     private var paused = false
+    /// Splash / chrome windows that failed placement. They must not keep
+    /// reserving a zone, but a later resize can revive the same identity.
+    private var ignoredWindows: [WindowIdentity: CGRect] = [:]
 
     func start() {
         resetBaseline()
@@ -79,6 +78,7 @@ final class WorkspaceCenter {
         pending.removeAll()
         observed.removeAll()
         baseline.removeAll()
+        ignoredWindows.removeAll()
     }
 
     func pause() {
@@ -95,16 +95,31 @@ final class WorkspaceCenter {
 
     func displaysDidChange() {
         observed.removeAll()
+        ignoredWindows.removeAll()
         resetBaseline()
         updateCensus()
     }
 
     func applicationDidTerminate(pid: pid_t, bundleID: String?) {
         observed = observed.filter { $0.key.pid != pid }
-        if let bundleID {
-            pending.removeAll { $0.bundleID == bundleID }
-        }
+        ignoredWindows = ignoredWindows.filter { $0.key.pid != pid }
         updateCensus()
+        guard let bundleID else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.terminationRecheckDelay))
+            guard let self else { return }
+            let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+            if WorkspaceRestore.shouldDropPendingOnTermination(
+                bundleID: bundleID,
+                remainingRunningBundleIDs: running
+            ) {
+                pending.removeAll { $0.bundleID == bundleID }
+                Log.workspace.info("Apply pending dropped after exit app=\(bundleID, privacy: .public)")
+            } else {
+                Log.workspace.info("Apply pending kept after helper exit app=\(bundleID, privacy: .public)")
+            }
+            updateCensus()
+        }
     }
 
     func capture(name: String, replacing profileID: WorkspaceProfile.ID? = nil) {
@@ -167,6 +182,7 @@ final class WorkspaceCenter {
         guard runtime.document.deleteProfile(id: id) else { return }
         pending.removeAll()
         observed.removeAll()
+        ignoredWindows.removeAll()
         runtime.persist()
         runtime.reloadMenu()
         runtime.refreshWorkspaceSettings()
@@ -249,14 +265,18 @@ final class WorkspaceCenter {
             section.rules = ProfileCapture.frontmostRulesPerZone(section.rules)
             return section
         }
-        if repairedSections != profile.sections {
-            profile.sections = repairedSections
-            runtime.document.upsertProfile(profile)
-            runtime.persist()
-        }
+        profile.sections = repairedSections
+        let fallbackDisplayID = runtime.area(containingAppKit: NSEvent.mouseLocation)?.display.id
+            ?? runtime.workAreas.first?.display.id
+        profile.sections = WorkspaceRestore.remappedSections(
+            profile.sections,
+            availableDisplayIDs: Set(runtime.workAreas.map(\.display.id)),
+            fallbackDisplayID: fallbackDisplayID
+        )
 
         pending.removeAll()
         observed.removeAll()
+        ignoredWindows.removeAll()
         var zonesBySection: [DisplayIdentity.ID: [ResolvedZone]] = [:]
         for section in profile.sections {
             guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }),
@@ -355,6 +375,14 @@ final class WorkspaceCenter {
                     "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) no movable windows skipped=\(skipped.count, privacy: .public)"
                 )
                 appendUnique(skipped, to: &skippedWindows)
+                if WorkspaceRestore.shouldFlashAssignedLayout(
+                    displayAvailable: true,
+                    layoutExists: true,
+                    organizeSucceeded: false,
+                    noMovableWindows: true
+                ) {
+                    runtime.flashWorkspaceZones(area: area, layout: layout)
+                }
             case .failed(let skipped, let rollbackFailed):
                 Log.workspace.error(
                     "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) failed skipped=\(skipped.count, privacy: .public) rollbackFailed=\(rollbackFailed.count, privacy: .public)"
@@ -716,37 +744,89 @@ final class WorkspaceCenter {
             )
             return
         }
-        if action == .reopen {
+        switch WorkspaceRestore.openCommand(for: action) {
+        case .none:
+            return
+        case .reopenRunning:
             reopenRunningApplication(bundleID: bundleID)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.reopenNudgeDelay))
+                guard let self else { return }
+                let stillPending = pending.contains { $0.bundleID == bundleID }
+                let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                    .contains { !$0.isTerminated }
+                if WorkspaceRestore.shouldNudgeReopen(
+                    action: action,
+                    stillPending: stillPending,
+                    running: running
+                ) {
+                    Log.workspace.info("Apply reopen nudge app=\(bundleID, privacy: .public)")
+                    openApplication(bundleID: bundleID, url: url, action: action, attempt: 1)
+                }
+            }
+        case .launch:
+            openApplication(bundleID: bundleID, url: url, action: action, attempt: 1)
         }
+    }
+
+    private func openApplication(
+        bundleID: String,
+        url: URL,
+        action: ProfilePlan.AppOpenAction,
+        attempt: Int
+    ) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         configuration.createsNewApplicationInstance = false
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { [weak self] running, error in
-            if let error {
-                Log.workspace.error(
-                    "Apply open failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
-                )
-                Task { @MainActor in
-                    self?.pending.removeAll { $0.bundleID == bundleID }
-                    self?.showFeedback(
+            Task { @MainActor in
+                guard let self else { return }
+                let runningIDs = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+                if let error {
+                    Log.workspace.error(
+                        "Apply open failed app=\(bundleID, privacy: .public) attempt=\(attempt, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                    )
+                    if WorkspaceRestore.openFailureDisposition(
+                        action: action,
+                        bundleID: bundleID,
+                        runningBundleIDs: runningIDs
+                    ) == .keepWaiting {
+                        self.activateRunningApplication(bundleID: bundleID)
+                        return
+                    }
+                    if WorkspaceRestore.shouldRetryLaunch(
+                        action: action,
+                        attempt: attempt,
+                        runningBundleIDs: runningIDs,
+                        bundleID: bundleID
+                    ) {
+                        try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.launchRetryDelay))
+                        self.openApplication(bundleID: bundleID, url: url, action: action, attempt: attempt + 1)
+                        return
+                    }
+                    self.pending.removeAll { $0.bundleID == bundleID }
+                    self.showFeedback(
                         title: L10n.text(.workspaceAppMissingTitle),
                         detail: error.localizedDescription,
                         error: true
                     )
+                    return
                 }
-                return
-            }
-            let app = running ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
-            _ = app?.unhide()
-            _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-            Log.workspace.info("Apply activated all windows app=\(bundleID, privacy: .public)")
-            if bundleID == SimulatorDevicePlan.bundleID {
-                Task { @MainActor [weak self] in
-                    await self?.bootSimulatorDeviceIfNeeded(simulatorAppURL: url)
+                let app = running ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
+                _ = app?.unhide()
+                _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                Log.workspace.info("Apply activated all windows app=\(bundleID, privacy: .public)")
+                if bundleID == SimulatorDevicePlan.bundleID {
+                    await self.bootSimulatorDeviceIfNeeded(simulatorAppURL: url)
                 }
             }
         }
+    }
+
+    private func activateRunningApplication(bundleID: String) {
+        let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
+        _ = app?.unhide()
+        _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     }
 
     /// Simulator.app stays alive with only menu-bar strips after its last
@@ -798,6 +878,7 @@ final class WorkspaceCenter {
                 "Apply reopen failed app=\(bundleID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
             )
         }
+        activateRunningApplication(bundleID: bundleID)
     }
 
     private func updateCensus() {
@@ -902,10 +983,14 @@ final class WorkspaceCenter {
                 Log.workspace.info(
                     "Census placement rejected app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public) attempt=\(item.rejectedAttempts, privacy: .public)"
                 )
-                if item.rejectedAttempts >= Self.maxRejectedAttempts {
-                    if let pendingID = item.pendingID { pending.removeAll { $0.id == pendingID } }
+                switch WorkspaceRestore.rejectedWindowDisposition(rejectedAttempts: item.rejectedAttempts) {
+                case .ignoreThisWindowKeepPending:
+                    ignoredWindows[identity] = item.lastFrame
                     observed[identity] = nil
-                } else {
+                    Log.workspace.info(
+                        "Census ignored splash app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public)"
+                    )
+                case .retryAfterRestabilizing:
                     observed[identity] = item
                 }
                 continue
@@ -970,6 +1055,14 @@ final class WorkspaceCenter {
         guard let bundleID = ref.bundleID,
               !runtime.settings.excludedBundleIDs.contains(bundleID)
         else { return nil }
+        let identity = ref.identity
+        if let previous = ignoredWindows[identity] {
+            if WorkspaceRestore.shouldReviveIgnoredWindow(previousFrame: previous, currentFrame: ref.boundsAX) {
+                ignoredWindows[identity] = nil
+            } else {
+                return nil
+            }
+        }
         let reserved = Set(observed.values.compactMap(\.pendingID))
         if let placement = pending.first(where: { $0.bundleID == bundleID && !reserved.contains($0.id) }) {
             return (placement.id, placement)
@@ -1033,6 +1126,10 @@ final class WorkspaceCenter {
 
     private func appendUnique(_ identities: [WindowIdentity], to values: inout [WindowIdentity]) {
         for identity in identities where !values.contains(identity) { values.append(identity) }
+    }
+
+    private static func nanoseconds(_ interval: TimeInterval) -> UInt64 {
+        UInt64(interval * 1_000_000_000)
     }
 
     private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
