@@ -710,9 +710,15 @@ final class SnapEngine {
                 previousStartLayoutID: stripWindowStartID
             )
             stripWindowStartID = strip?.cards.first?.layoutID
-            if var visibleStrip = strip, visibleStrip.contains(pointAppKit) {
+            if var visibleStrip = strip, visibleStrip.containsDropLinger(pointAppKit) {
                 pointerInStrip = true
-                let overflowDelta = visibleStrip.hitOverflow(at: pointAppKit)
+                let onStrip = visibleStrip.contains(pointAppKit)
+                let probePoint = visibleStrip.dropProbePoint(
+                    for: pointAppKit,
+                    preservingLayoutID: stripDropLatch?.layoutID,
+                    zoneNumber: stripDropLatch?.zone.number
+                )
+                let overflowDelta = onStrip ? visibleStrip.hitOverflow(at: pointAppKit) : nil
                 if let overflowDelta {
                     let visibleIDs = visibleStrip.cards.map { $0.layoutID }
                     let edgeID = overflowDelta > 0 ? visibleIDs.last : visibleIDs.first
@@ -734,12 +740,12 @@ final class SnapEngine {
                     }
                 } else {
                     stripOverflowLatch = nil
-                    if let hit = visibleStrip.hitZone(at: pointAppKit),
+                    if let hit = visibleStrip.hitZone(at: probePoint),
                        let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
                        let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
                         hitLatch = StripDropLatch(layoutID: hit.layoutID, zone: zone)
                     } else {
-                        highlightedLayoutID = visibleStrip.hitCard(at: pointAppKit)
+                        highlightedLayoutID = visibleStrip.hitCard(at: probePoint)
                     }
                 }
                 strip = visibleStrip
@@ -784,7 +790,8 @@ final class SnapEngine {
             pointerInStrip: pointerInStrip,
             hit: hitLatch,
             previous: stripDropLatch,
-            liveZoneInLatchedLayout: liveZone
+            liveZoneInLatchedLayout: liveZone,
+            lingerNearStrip: strip?.containsDropLinger(pointAppKit) == true
         )
         if let latch = stripDropLatch {
             forcedTarget = .zone(latch.zone)

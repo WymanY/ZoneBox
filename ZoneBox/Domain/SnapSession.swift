@@ -272,15 +272,18 @@ public enum SnapLayoutSession {
     }
 
     /// A strip mini-zone stays selected until the pointer leaves both the strip
-    /// and that layout's real zones. A new mini-zone hit replaces it.
+    /// and that layout's real zones. A new mini-zone hit replaces it. Pointers
+    /// that only slip a little below the strip keep the mini-zone so a card
+    /// sitting over the wrong half of the screen cannot retarget the drop.
     public static func stripDropLatch(
         pointerInStrip: Bool,
         hit: StripDropLatch?,
         previous: StripDropLatch?,
-        liveZoneInLatchedLayout: ResolvedZone?
+        liveZoneInLatchedLayout: ResolvedZone?,
+        lingerNearStrip: Bool = false
     ) -> StripDropLatch? {
         if let hit { return hit }
-        if pointerInStrip { return previous }
+        if pointerInStrip || lingerNearStrip { return previous }
         guard let previous, let live = liveZoneInLatchedLayout else { return nil }
         return StripDropLatch(layoutID: previous.layoutID, zone: live)
     }

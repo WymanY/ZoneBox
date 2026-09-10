@@ -41,6 +41,7 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     public static let overflowWidth: CGFloat = 36
     public static let cardCorner: CGFloat = 10
     public static let zoneInset: CGFloat = 8
+    public static let dropLingerBelow: CGFloat = 64
 
     public var frameAppKit: CGRect
     public var cards: [LayoutStripCard]
@@ -188,6 +189,34 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     public func contains(_ pointAppKit: CGPoint) -> Bool {
         if frameAppKit.contains(pointAppKit) { return true }
         return cards.contains { $0.frameAppKit.contains(pointAppKit) }
+    }
+
+    public func containsDropLinger(_ pointAppKit: CGPoint) -> Bool {
+        if contains(pointAppKit) { return true }
+        let below = CGRect(
+            x: frameAppKit.minX,
+            y: frameAppKit.minY - Self.dropLingerBelow,
+            width: frameAppKit.width,
+            height: Self.dropLingerBelow
+        )
+        return below.contains(pointAppKit)
+    }
+
+    /// Project a point that slipped just below the bar back onto the cards.
+    /// X still chooses the column; Y prefers the previously selected mini-zone
+    /// so a bottom row is not replaced by the card midpoint.
+    public func dropProbePoint(
+        for pointAppKit: CGPoint,
+        preservingLayoutID layoutID: Layout.ID? = nil,
+        zoneNumber: Int? = nil
+    ) -> CGPoint {
+        if contains(pointAppKit) { return pointAppKit }
+        let preferredY = cards
+            .first(where: { $0.layoutID == layoutID })?
+            .zones.first(where: { $0.number == zoneNumber })?
+            .frameAppKit.midY
+        let y = preferredY ?? cards.first?.frameAppKit.midY ?? frameAppKit.midY
+        return CGPoint(x: pointAppKit.x, y: y)
     }
 
     public func hitZone(at pointAppKit: CGPoint) -> (layoutID: Layout.ID, zoneNumber: Int)? {
