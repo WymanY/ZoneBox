@@ -22,14 +22,14 @@ final class DragMonitor {
             .leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown, .flagsChanged, .mouseMoved, .scrollWheel,
         ]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: kinds, handler: { [weak self] event in
-            self?.handle(event)
+            self?.handle(event, source: "global")
         }) {
             monitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(
             matching: kinds,
             handler: { [weak self] event in
-                self?.handle(event)
+                self?.handle(event, source: "local")
                 return event
             }
         ) {
@@ -53,7 +53,7 @@ final class DragMonitor {
         capturedRef = nil
     }
 
-    private func handle(_ event: NSEvent) {
+    private func handle(_ event: NSEvent, source: String) {
         guard runtime.allows(.capturePointer) else { return }
         guard runtime.isTrusted() else { return }
 
@@ -61,8 +61,8 @@ final class DragMonitor {
             guard (NSEvent.pressedMouseButtons & 1) != 0 else { return }
             let location = NSEvent.mouseLocation
             let modifiers = Self.modifiers(flags: event.modifierFlags)
-            ensureHold(at: location, modifiers: modifiers)
-            ingestDrag(at: location, modifiers: modifiers)
+            ensureHold(at: location, modifiers: modifiers, source: source + ".mouseMoved")
+            ingestDrag(at: location, modifiers: modifiers, source: source + ".mouseMoved")
             return
         }
 
@@ -86,18 +86,18 @@ final class DragMonitor {
         let mouse = SnapMouseEvent(kind: kind, locationAppKit: location, modifiers: Self.modifiers(flags: event.modifierFlags))
         switch kind {
         case .leftDown:
-            beginHold(mouse)
+            beginHold(mouse, source: source)
         case .leftDragged:
-            ensureHold(at: location, modifiers: mouse.modifiers)
-            ingestDrag(at: location, modifiers: mouse.modifiers)
+            ensureHold(at: location, modifiers: mouse.modifiers, source: source)
+            ingestDrag(at: location, modifiers: mouse.modifiers, source: source)
         case .leftUp:
-            finishHold(mouse)
+            finishHold(mouse, source: source)
         default:
-            runtime.engine.handleMouse(mouse)
+            runtime.engine.handleMouse(mouse, source: source)
         }
     }
 
-    private func beginHold(_ mouse: SnapMouseEvent) {
+    private func beginHold(_ mouse: SnapMouseEvent, source: String) {
         guard !leftButtonHeld else { return }
         guard runtime.allows(.capturePointer) else { return }
         guard runtime.isTrusted() else { return }
@@ -137,17 +137,17 @@ final class DragMonitor {
         runtime.pendingIdentity = snapshot?.identity
         runtime.pendingFrame = snapshot?.frame
         runtime.pendingStartedOnMoveChrome = snapshot?.startedOnMoveChrome ?? false
-        runtime.engine.handleMouse(mouse)
+        runtime.engine.handleMouse(mouse, source: source)
         dragSessionReady = true
         resolveCapturedWindow(generation: holdGeneration)
     }
 
-    private func ensureHold(at location: CGPoint, modifiers: SnapModifiers) {
+    private func ensureHold(at location: CGPoint, modifiers: SnapModifiers, source: String) {
         guard !leftButtonHeld else { return }
-        beginHold(SnapMouseEvent(kind: .leftDown, locationAppKit: location, modifiers: modifiers))
+        beginHold(SnapMouseEvent(kind: .leftDown, locationAppKit: location, modifiers: modifiers), source: source)
     }
 
-    private func ingestDrag(at location: CGPoint, modifiers: SnapModifiers) {
+    private func ingestDrag(at location: CGPoint, modifiers: SnapModifiers, source: String) {
         guard leftButtonHeld else { return }
         if let last = lastSample, RectMath.chebyshev(location, last) < 1 { return }
         lastSample = location
@@ -160,10 +160,10 @@ final class DragMonitor {
             }
             return
         }
-        runtime.engine.handleMouse(mouse)
+        runtime.engine.handleMouse(mouse, source: source)
     }
 
-    private func finishHold(_ mouse: SnapMouseEvent) {
+    private func finishHold(_ mouse: SnapMouseEvent, source: String) {
         guard leftButtonHeld, !upSent else { return }
         Log.snap.debug("Pointer hold ended ready=\(self.dragSessionReady, privacy: .public) captured=\(self.runtime.pendingWindow != nil, privacy: .public)")
         leftButtonHeld = false
@@ -172,7 +172,7 @@ final class DragMonitor {
         bufferedDrags.removeAll()
         dragSessionReady = false
         scrollAccumulator = 0
-        runtime.engine.handleMouse(mouse)
+        runtime.engine.handleMouse(mouse, source: source)
     }
 
     private func handleScroll(_ event: NSEvent) {
@@ -183,10 +183,10 @@ final class DragMonitor {
         scrollAccumulator += event.scrollingDeltaY
         let threshold: CGFloat = 10
         if scrollAccumulator >= threshold {
-            runtime.engine.handleCycleLayout(-1)
+            runtime.engine.handleCycleLayout(-1, source: "scroll")
             scrollAccumulator = 0
         } else if scrollAccumulator <= -threshold {
-            runtime.engine.handleCycleLayout(1)
+            runtime.engine.handleCycleLayout(1, source: "scroll")
             scrollAccumulator = 0
         }
     }
@@ -218,13 +218,13 @@ final class DragMonitor {
                 locationAppKit: location,
                 modifiers: modifiers
             )
-            finishHold(mouse)
+            finishHold(mouse, source: "poll")
             return
         }
         guard runtime.allows(.capturePointer) else { return }
         guard runtime.isTrusted() else { return }
-        ensureHold(at: location, modifiers: modifiers)
-        ingestDrag(at: location, modifiers: modifiers)
+        ensureHold(at: location, modifiers: modifiers, source: "poll")
+        ingestDrag(at: location, modifiers: modifiers, source: "poll")
     }
 
     private func snapshotWindow(at location: CGPoint) -> (
@@ -259,12 +259,47 @@ final class DragMonitor {
     /// AX resolve is only needed to apply a snap. The overlay must arm from the
     /// CG snapshot even if the previous drop is still writing a frame.
     private func resolveCapturedWindow(generation: Int) {
+        let operationID = UUID()
         guard let ref = capturedRef else { return }
+        Log.snapDiagnostics.record("capture.start", fields: [
+            "operationID": operationID.uuidString,
+            "generation": "\(generation)",
+            "pid": "\(ref.pid)",
+            "windowNumber": "\(ref.windowNumber)",
+        ])
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let window = await self.runtime.ax.resolveAsync(ref: ref)
-            guard self.leftButtonHeld, self.holdGeneration == generation else { return }
+            let window = await self.runtime.ax.resolveAsync(ref: ref, operationID: operationID)
+            let held = self.leftButtonHeld
+            let currentGeneration = self.holdGeneration
+            let reason = SnapDiagnosticLog.captureDiscardReason(
+                held: held,
+                generation: generation,
+                currentGeneration: currentGeneration,
+                hasRef: true
+            )
+            if reason != "none" {
+                Log.snapDiagnostics.record("capture.discard", fields: [
+                    "operationID": operationID.uuidString,
+                    "generation": "\(generation)",
+                    "currentGeneration": "\(currentGeneration)",
+                    "held": "\(held)",
+                    "reason": reason,
+                    "axResolved": "\(window != nil)",
+                    "pid": "\(ref.pid)",
+                    "windowNumber": "\(ref.windowNumber)",
+                ])
+                return
+            }
             self.runtime.pendingWindow = window
+            Log.snapDiagnostics.record("capture.end", fields: [
+                "operationID": operationID.uuidString,
+                "generation": "\(generation)",
+                "axResolved": "\(window != nil)",
+                "pid": "\(ref.pid)",
+                "windowNumber": "\(ref.windowNumber)",
+                "resultWindowNumber": window.map { "\($0.identity.windowNumber)" } ?? "nil",
+            ])
         }
     }
 

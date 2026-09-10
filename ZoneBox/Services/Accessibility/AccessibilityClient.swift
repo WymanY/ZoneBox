@@ -70,16 +70,13 @@ final class AccessibilityClientLive: AccessibilityClient {
 
     func window(matching identity: WindowIdentity) async -> AXWindow? {
         await onAX { [self] in
-            let app = applicationElement(pid: identity.pid)
-            guard let windows = copyArray(app, kAXWindowsAttribute) else { return nil }
-            for element in windows {
-                let axElement = element as! AXUIElement
-                if let window = makeWindow(pid: identity.pid, element: axElement),
-                   window.identity.windowNumber == identity.windowNumber {
-                    return window
-                }
-            }
-            return nil
+            lookupWindow(
+                pid: identity.pid,
+                windowNumber: identity.windowNumber,
+                operationID: UUID(),
+                event: "ax.matching",
+                targetBoundsAX: query.windows(pid: identity.pid).first(where: { $0.windowNumber == identity.windowNumber })?.boundsAX
+            )
         }
     }
 
@@ -171,29 +168,40 @@ final class AccessibilityClientLive: AccessibilityClient {
     }
 
     func resolveAsync(ref: WindowRef) async -> AXWindow? {
-        await onAX { self.resolve(ref: ref) }
+        await resolveAsync(ref: ref, operationID: UUID())
     }
 
-    func resolve(ref: WindowRef) -> AXWindow? {
-        guard isSnappable(ref) else { return nil }
-        let app = applicationElement(pid: ref.pid)
-        guard let windows = copyArray(app, kAXWindowsAttribute) else { return nil }
-        for element in windows {
-            let axElement = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
-            if let window = makeWindow(pid: ref.pid, element: axElement),
-               window.identity.windowNumber == ref.windowNumber {
-                return window
-            }
+    func resolveAsync(ref: WindowRef, operationID: UUID) async -> AXWindow? {
+        await onAX { self.resolve(ref: ref, operationID: operationID) }
+    }
+
+    func resolve(ref: WindowRef, operationID: UUID = UUID()) -> AXWindow? {
+        let started = ProcessInfo.processInfo.systemUptime
+        guard isSnappable(ref) else {
+            recordAXLookup(
+                event: "ax.resolve",
+                operationID: operationID,
+                pid: ref.pid,
+                windowNumber: ref.windowNumber,
+                snappable: "false",
+                axError: "n/a",
+                axCount: "n/a",
+                axValues: "false",
+                matched: false,
+                matchPath: "none",
+                elapsedMs: elapsedMs(since: started)
+            )
+            return nil
         }
-        if let match = windows.compactMap({ element -> AXWindow? in
-            let el = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
-            guard let frame = Self.readFrame(el) else { return nil }
-            guard frame.insetBy(dx: -2, dy: -2).intersects(ref.boundsAX) else { return nil }
-            return makeWindow(pid: ref.pid, element: el)
-        }).first {
-            return match
-        }
-        return nil
+        return lookupWindow(
+            pid: ref.pid,
+            windowNumber: ref.windowNumber,
+            operationID: operationID,
+            event: "ax.resolve",
+            snappable: "true",
+            targetBoundsAX: ref.boundsAX,
+            started: started
+        )
     }
 
     private func applicationElement(pid: pid_t) -> AXUIElement {
@@ -203,27 +211,7 @@ final class AccessibilityClientLive: AccessibilityClient {
     }
 
     private func makeWindow(pid: pid_t, element: AXUIElement, includeUnreachable: Bool = false) -> AXWindow? {
-        let minimized = boolAttribute(element, "AXMinimized" as CFString) == true
-        // While a window sits in the Dock its subrole is reported as AXDialog,
-        // so the standard-window test would drop every minimized document
-        // window. Minimized windows in the unreachable set only need the role.
-        if includeUnreachable, minimized {
-            guard stringAttribute(element, kAXRoleAttribute) == kAXWindowRole else { return nil }
-        } else {
-            guard isStandardWindow(element) else { return nil }
-        }
-        if !includeUnreachable {
-            if isFullscreen(element) { return nil }
-            if minimized { return nil }
-        }
-        let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        let number = windowNumber(of: element, pid: pid)
-        if let number, allowedWindowNumbers().contains(number) {
-            return AXWindow(identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID), element: element)
-        }
-        if let bundleID, excluded().contains(bundleID) { return nil }
-        guard let number else { return nil }
-        return AXWindow(identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID), element: element)
+        makeWindowDetailed(pid: pid, element: element, includeUnreachable: includeUnreachable).window
     }
 
     private func isStandardWindow(_ element: AXUIElement) -> Bool {
@@ -240,15 +228,267 @@ final class AccessibilityClientLive: AccessibilityClient {
     }
 
     private func windowNumber(of element: AXUIElement, pid: pid_t) -> CGWindowID? {
-        if let id = AXPrivate.windowNumber(element) { return id }
-        guard let frame = Self.readFrame(element) else { return nil }
+        windowNumberProbe(of: element, pid: pid).id
+    }
+
+    private struct MakeWindowDetailed {
+        var window: AXWindow? = nil
+        var skip: String? = nil
+        var dlsym = "n/a"
+        var numberError = "n/a"
+        var geometryMatches = "n/a"
+        var numberSource = "n/a"
+    }
+
+    private func lookupWindow(
+        pid: pid_t,
+        windowNumber: CGWindowID,
+        operationID: UUID,
+        event: String,
+        snappable: String? = nil,
+        targetBoundsAX: CGRect? = nil,
+        started: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> AXWindow? {
+        let app = applicationElement(pid: pid)
+        let copied = copyArrayResult(app, kAXWindowsAttribute)
+        guard let windows = copied.values else {
+            recordAXLookup(
+                event: event,
+                operationID: operationID,
+                pid: pid,
+                windowNumber: windowNumber,
+                snappable: snappable,
+                axError: "\(copied.error.rawValue)",
+                axCount: "0",
+                axValues: "false",
+                matched: false,
+                matchPath: "none",
+                elapsedMs: elapsedMs(since: started)
+            )
+            return nil
+        }
+        var skips: [String] = []
+        var skipCounts: [String: Int] = [:]
+        var probeDlsym = "n/a"
+        var probeError = "n/a"
+        var probeGeometry = "n/a"
+        var probeSource = "n/a"
+        for element in windows {
+            let axElement = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
+            let detail = makeWindowDetailed(pid: pid, element: axElement)
+            if let skip = detail.skip {
+                skipCounts[skip, default: 0] += 1
+                if skips.count < SnapDiagnosticLog.maxListItems {
+                    skips.append(skip)
+                }
+                if skip == "missingWindowNumber" || probeSource == "n/a" {
+                    probeDlsym = detail.dlsym
+                    probeError = detail.numberError
+                    probeGeometry = detail.geometryMatches
+                    probeSource = detail.numberSource
+                }
+            }
+            if let window = detail.window, window.identity.windowNumber == windowNumber {
+                recordAXLookup(
+                    event: event,
+                    operationID: operationID,
+                    pid: pid,
+                    windowNumber: windowNumber,
+                    snappable: snappable,
+                    axError: "\(copied.error.rawValue)",
+                    axCount: "\(windows.count)",
+                    axValues: "true",
+                    skips: skips,
+                    skipCounts: skipCounts,
+                    privateDlsym: detail.dlsym,
+                    privateError: detail.numberError,
+                    geometryMatches: detail.geometryMatches,
+                    numberSource: detail.numberSource,
+                    matched: true,
+                    matchPath: "identity",
+                    resultWindowNumber: "\(window.identity.windowNumber)",
+                    elapsedMs: elapsedMs(since: started)
+                )
+                return window
+            }
+        }
+        if let targetBoundsAX {
+            if let match = windows.compactMap({ element -> AXWindow? in
+                let el = unsafeBitCast(element as AnyObject, to: AXUIElement.self)
+                guard let frame = Self.readFrame(el) else { return nil }
+                guard frame.insetBy(dx: -2, dy: -2).intersects(targetBoundsAX) else { return nil }
+                return makeWindow(pid: pid, element: el)
+            }).first {
+                recordAXLookup(
+                    event: event,
+                    operationID: operationID,
+                    pid: pid,
+                    windowNumber: windowNumber,
+                    snappable: snappable,
+                    axError: "\(copied.error.rawValue)",
+                    axCount: "\(windows.count)",
+                    axValues: "true",
+                    skips: skips,
+                    skipCounts: skipCounts,
+                    privateDlsym: probeDlsym,
+                    privateError: probeError,
+                    geometryMatches: probeGeometry,
+                    numberSource: probeSource,
+                    matched: true,
+                    matchPath: "geometry",
+                    resultWindowNumber: "\(match.identity.windowNumber)",
+                    elapsedMs: elapsedMs(since: started)
+                )
+                return match
+            }
+        }
+        recordAXLookup(
+            event: event,
+            operationID: operationID,
+            pid: pid,
+            windowNumber: windowNumber,
+            snappable: snappable,
+            axError: "\(copied.error.rawValue)",
+            axCount: "\(windows.count)",
+            axValues: "true",
+            skips: skips,
+            skipCounts: skipCounts,
+            privateDlsym: probeDlsym,
+            privateError: probeError,
+            geometryMatches: probeGeometry,
+            numberSource: probeSource,
+            matched: false,
+            matchPath: "none",
+            elapsedMs: elapsedMs(since: started)
+        )
+        return nil
+    }
+
+    private func makeWindowDetailed(
+        pid: pid_t,
+        element: AXUIElement,
+        includeUnreachable: Bool = false
+    ) -> MakeWindowDetailed {
+        let minimized = boolAttribute(element, "AXMinimized" as CFString) == true
+        // While a window sits in the Dock its subrole is reported as AXDialog,
+        // so the standard-window test would drop every minimized document
+        // window. Minimized windows in the unreachable set only need the role.
+        if includeUnreachable, minimized {
+            guard stringAttribute(element, kAXRoleAttribute) == kAXWindowRole else {
+                return MakeWindowDetailed(skip: "notWindowRole")
+            }
+        } else {
+            guard isStandardWindow(element) else {
+                return MakeWindowDetailed(skip: "notStandardWindow")
+            }
+        }
+        if !includeUnreachable {
+            if isFullscreen(element) { return MakeWindowDetailed(skip: "fullscreen") }
+            if minimized { return MakeWindowDetailed(skip: "minimized") }
+        }
+        let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        let probe = windowNumberProbe(of: element, pid: pid)
+        var detail = MakeWindowDetailed(
+            skip: nil,
+            dlsym: probe.dlsym,
+            numberError: probe.error,
+            geometryMatches: probe.geometryMatches,
+            numberSource: probe.source
+        )
+        if let number = probe.id, allowedWindowNumbers().contains(number) {
+            detail.window = AXWindow(
+                identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID),
+                element: element
+            )
+            return detail
+        }
+        if let bundleID, excluded().contains(bundleID) {
+            detail.skip = "excludedBundle"
+            return detail
+        }
+        guard let number = probe.id else {
+            detail.skip = "missingWindowNumber"
+            return detail
+        }
+        detail.window = AXWindow(
+            identity: WindowIdentity(pid: pid, windowNumber: number, bundleID: bundleID),
+            element: element
+        )
+        return detail
+    }
+
+    private func windowNumberProbe(of element: AXUIElement, pid: pid_t) -> (
+        id: CGWindowID?,
+        dlsym: String,
+        error: String,
+        geometryMatches: String,
+        source: String
+    ) {
+        let privateProbe = AXPrivate.probe(element)
+        let dlsym = privateProbe.dlsym ? "true" : "false"
+        let error = privateProbe.dlsym ? "\(privateProbe.error.rawValue)" : "missing-symbol"
+        if let id = privateProbe.id {
+            return (id, dlsym, error, "n/a", "private")
+        }
+        guard let frame = Self.readFrame(element) else {
+            return (nil, dlsym, error, "n/a", "none")
+        }
         let matches = query.windows(pid: pid).filter {
             abs($0.boundsAX.origin.x - frame.origin.x) <= 2
                 && abs($0.boundsAX.origin.y - frame.origin.y) <= 2
                 && abs($0.boundsAX.width - frame.width) <= 2
                 && abs($0.boundsAX.height - frame.height) <= 2
         }
-        return matches.count == 1 ? matches[0].windowNumber : nil
+        let id = matches.count == 1 ? matches[0].windowNumber : nil
+        return (id, dlsym, error, "\(matches.count)", id == nil ? "none" : "geometry")
+    }
+
+    private func recordAXLookup(
+        event: String,
+        operationID: UUID,
+        pid: pid_t,
+        windowNumber: CGWindowID,
+        snappable: String? = nil,
+        axError: String,
+        axCount: String,
+        axValues: String,
+        skips: [String] = [],
+        skipCounts: [String: Int] = [:],
+        privateDlsym: String = "n/a",
+        privateError: String = "n/a",
+        geometryMatches: String = "n/a",
+        numberSource: String = "n/a",
+        matched: Bool,
+        matchPath: String,
+        resultWindowNumber: String = "nil",
+        elapsedMs: String
+    ) {
+        var fields = [
+            "operationID": operationID.uuidString,
+            "pid": "\(pid)",
+            "windowNumber": "\(windowNumber)",
+            "axError": axError,
+            "axCount": axCount,
+            "axValues": axValues,
+            "skips": SnapDiagnosticLog.boundedList(skips),
+            "skipCounts": SnapDiagnosticLog.countSummary(skipCounts),
+            "privateDlsym": privateDlsym,
+            "privateError": privateError,
+            "geometryMatches": geometryMatches,
+            "numberSource": numberSource,
+            "matched": matched ? "true" : "false",
+            "matchPath": matchPath,
+            "resultWindowNumber": resultWindowNumber,
+            "elapsedMs": elapsedMs,
+        ]
+        if let snappable {
+            fields["snappable"] = snappable
+        }
+        Log.snapDiagnostics.record(event, fields: fields)
+    }
+
+    private func elapsedMs(since start: TimeInterval) -> String {
+        "\(Int((ProcessInfo.processInfo.systemUptime - start) * 1000))"
     }
 
     static func readFrame(_ element: AXUIElement) -> CGRect? {
@@ -282,12 +522,17 @@ private enum AXPrivate {
     typealias GetWindow = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 
     static func windowNumber(_ element: AXUIElement) -> CGWindowID? {
+        probe(element).id
+    }
+
+    static func probe(_ element: AXUIElement) -> (id: CGWindowID?, dlsym: Bool, error: AXError) {
         guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_AXUIElementGetWindow") else {
-            return nil
+            return (nil, false, .failure)
         }
         let fn = unsafeBitCast(sym, to: GetWindow.self)
         var id: CGWindowID = 0
-        return fn(element, &id) == .success ? id : nil
+        let error = fn(element, &id)
+        return (error == .success ? id : nil, true, error)
     }
 }
 
@@ -298,9 +543,14 @@ private func copyElement(_ element: AXUIElement, _ name: String) -> AXUIElement?
 }
 
 private func copyArray(_ element: AXUIElement, _ name: String) -> [Any]? {
+    copyArrayResult(element, name).values
+}
+
+private func copyArrayResult(_ element: AXUIElement, _ name: String) -> (values: [Any]?, error: AXError) {
     var ref: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(element, name as CFString, &ref) == .success else { return nil }
-    return ref as? [Any]
+    let error = AXUIElementCopyAttributeValue(element, name as CFString, &ref)
+    guard error == .success else { return (nil, error) }
+    return (ref as? [Any], error)
 }
 
 private func stringAttribute(_ element: AXUIElement, _ name: String) -> String? {

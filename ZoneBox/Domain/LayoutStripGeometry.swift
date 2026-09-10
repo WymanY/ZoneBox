@@ -210,7 +210,9 @@ public struct LayoutStripGeometry: Equatable, Sendable {
         preservingLayoutID layoutID: Layout.ID? = nil,
         zoneNumber: Int? = nil
     ) -> CGPoint {
-        if contains(pointAppKit) { return pointAppKit }
+        if cards.contains(where: { $0.frameAppKit.contains(pointAppKit) }) {
+            return pointAppKit
+        }
         let preferredY = cards
             .first(where: { $0.layoutID == layoutID })?
             .zones.first(where: { $0.number == zoneNumber })?

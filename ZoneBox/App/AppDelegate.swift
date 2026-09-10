@@ -23,6 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
+        let binaryModifiedAt = Bundle.main.executableURL.flatMap {
+            try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        }
+        Log.snapDiagnostics.record("app.start", fields: [
+            "bundle": AppIdentity.bundleID,
+            "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
+            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
+            "binaryModifiedAt": binaryModifiedAt?.ISO8601Format() ?? "unknown",
+            "os": ProcessInfo.processInfo.operatingSystemVersionString,
+        ])
         NSApp.setActivationPolicy(.accessory)
         let arguments = ProcessInfo.processInfo.arguments
         let resume = Self.welcomePage(from: arguments)
@@ -54,5 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         runtime.hideAllOverlays()
         runtime.teardown()
+        Log.snapDiagnostics.record("app.stop")
+        Log.snapDiagnostics.flush()
     }
 }

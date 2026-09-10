@@ -423,6 +423,122 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(next?.zone, second)
     }
 
+    func testReleaseDriftFallsBackToSettledMiniZone() {
+        let layoutID = UUID()
+        let right = StripDropLatch(
+            layoutID: layoutID,
+            zone: ResolvedZone(zoneID: UUID(), number: 3, frameAX: CGRect(x: 800, y: 0, width: 400, height: 800))
+        )
+        let middle = StripDropLatch(
+            layoutID: layoutID,
+            zone: ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 400, y: 0, width: 400, height: 800))
+        )
+        let left = StripDropLatch(
+            layoutID: layoutID,
+            zone: ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        )
+
+        // Rest on the right column, then lift-off drags the pointer across
+        // two columns over the last few frames before mouse-up.
+        var history = StripDropLatchHistory()
+        history.record(right, at: 10.0)
+        history.record(right, at: 10.4)
+        history.record(middle, at: 10.50)
+        history.record(left, at: 10.53)
+        XCTAssertEqual(history.committed(candidate: left, at: 10.55), right)
+
+        // A change that only shows up on the mouse-up frame is drift too.
+        history = StripDropLatchHistory()
+        history.record(right, at: 20.0)
+        XCTAssertEqual(history.committed(candidate: middle, at: 20.6), right)
+
+        // Holding the new column past the drift window makes it deliberate.
+        history = StripDropLatchHistory()
+        history.record(right, at: 30.0)
+        history.record(middle, at: 30.5)
+        XCTAssertEqual(history.committed(candidate: middle, at: 30.7), middle)
+
+        // A quick sweep with no rest commits where the pointer ended up.
+        history = StripDropLatchHistory()
+        history.record(left, at: 40.00)
+        history.record(middle, at: 40.05)
+        history.record(right, at: 40.10)
+        XCTAssertEqual(history.committed(candidate: right, at: 40.13), right)
+
+        // Leaving the strip entirely forgets the earlier rest.
+        history = StripDropLatchHistory()
+        history.record(right, at: 50.0)
+        history.record(nil, at: 50.5)
+        history.record(left, at: 51.0)
+        XCTAssertEqual(history.committed(candidate: left, at: 51.05), left)
+        history = StripDropLatchHistory()
+        XCTAssertNil(history.committed(candidate: nil, at: 60))
+    }
+
+    func testLingerProbeDoesNotReplaceExistingMiniZone() {
+        let previous = StripDropLatch(
+            layoutID: UUID(),
+            zone: ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        )
+        let probed = StripDropLatch(
+            layoutID: UUID(),
+            zone: ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 400, y: 0, width: 400, height: 800))
+        )
+        XCTAssertNil(
+            SnapLayoutSession.acceptedStripHit(
+                hit: probed,
+                previous: previous,
+                pointerOnStrip: false
+            )
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.acceptedStripHit(
+                hit: probed,
+                previous: previous,
+                pointerOnStrip: true
+            ),
+            probed
+        )
+        XCTAssertNil(
+            SnapLayoutSession.acceptedStripHit(
+                hit: probed,
+                previous: nil,
+                pointerOnStrip: false
+            )
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.acceptedStripHit(
+                hit: probed,
+                previous: nil,
+                pointerOnStrip: true
+            ),
+            probed
+        )
+    }
+
+    func testLingerHighlightDoesNotSwitchLayout() {
+        let card = UUID()
+        XCTAssertNil(
+            SnapLayoutSession.acceptedHighlight(
+                pointerOnStrip: false,
+                hitCard: card
+            )
+        )
+        XCTAssertEqual(
+            SnapLayoutSession.acceptedHighlight(
+                pointerOnStrip: true,
+                hitCard: card
+            ),
+            card
+        )
+        XCTAssertNil(
+            SnapLayoutSession.acceptedHighlight(
+                pointerOnStrip: false,
+                hitCard: nil
+            )
+        )
+    }
+
     func testStripDropLatchKeepsMiniZoneWhenPointerLingersBelowStrip() {
         let layoutID = UUID()
         let first = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
@@ -491,6 +607,33 @@ final class SnapSessionReducerTests: XCTestCase {
        XCTAssertEqual(next?.layoutID, newLayout)
        XCTAssertEqual(next?.zone, newZone)
    }
+
+    func testPreviewHighlightKeepsCurrentLayoutZone() {
+        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 800))
+        XCTAssertEqual(
+            SnapLayoutSession.previewHighlight(.zone(zone), zones: [zone]),
+            .zone(zone)
+        )
+    }
+
+    func testPreviewHighlightDoesNotRemapForeignZoneByNumber() {
+        let current = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 800, y: 0, width: 400, height: 300))
+        let leftover = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 410, y: 200, width: 811, height: 683))
+        XCTAssertEqual(
+            SnapLayoutSession.previewHighlight(.zone(leftover), zones: [current]),
+            .none
+        )
+    }
+
+    func testPreviewHighlightFallsBackToCurrentLatch() {
+        let current = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 1030, height: 1049))
+        let leftover = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 410, y: 200, width: 811, height: 683))
+        let latch = StripDropLatch(layoutID: UUID(), zone: current)
+        XCTAssertEqual(
+            SnapLayoutSession.previewHighlight(.zone(leftover), zones: [current], latch: latch),
+            .zone(current)
+        )
+    }
 
     func testDigitClearsStripLatchAndKeepsLatchedLayout() {
         let layoutID = UUID()

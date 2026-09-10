@@ -10,6 +10,7 @@
 		000A7ABBCA4988EA1D84C8DF /* ZonePixelMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */; };
 		01034520349DC78B30DF051F /* DividerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E3A9E10D7D51318797C876 /* DividerController.swift */; };
 		01D69CB05B1413BE070C4A29 /* CoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D43622DF069EE3B1A1AD00C /* CoordinateConverterTests.swift */; };
+		04E1EAE91F05E93D91095D13 /* SnapDiagnosticLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B0687D8671108CEB28067B /* SnapDiagnosticLogTests.swift */; };
 		0553B887B51F6CE49C87113E /* HitTesterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D54E65D9408AB863807B4 /* HitTesterTests.swift */; };
 		0638DC242F73C0E7E1B82F58 /* WindowOrganizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 059A835DCA68F2F6E0020B0F /* WindowOrganizeTests.swift */; };
 		077726CC23EA8ED725C192FF /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 047C177F8FC4FB4717F8DB9A /* AppRuntime.swift */; };
@@ -271,6 +272,7 @@
 		7442F39E0FCEC78B7C0755D4 /* LicenseEntitlementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseEntitlementTests.swift; sourceTree = "<group>"; };
 		769C9142748FF40EEB61E94A /* WindowMoveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChromeTests.swift; sourceTree = "<group>"; };
 		76D46356DE7D3AE004DC760C /* CanvasSnapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasSnapping.swift; sourceTree = "<group>"; };
+		77B0687D8671108CEB28067B /* SnapDiagnosticLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapDiagnosticLogTests.swift; sourceTree = "<group>"; };
 		78B3F38FDCFD328A4ADC6442 /* LicenseCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseCenter.swift; sourceTree = "<group>"; };
 		79E3A9E10D7D51318797C876 /* DividerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DividerController.swift; sourceTree = "<group>"; };
 		7CD56E29284C47A1F36B1DA9 /* PinMirrorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinMirrorPanel.swift; sourceTree = "<group>"; };
@@ -638,6 +640,7 @@
 				4D1B6A0F3A39EBBFF8DF2C68 /* ShakeDetectorTests.swift */,
 				C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */,
 				E23BBE12D82D5FDE06EAE3CD /* SimulatorDevicePlanTests.swift */,
+				77B0687D8671108CEB28067B /* SnapDiagnosticLogTests.swift */,
 				474991DA98F88EFDB0CA3003 /* SnapSessionReducerTests.swift */,
 				339ABB69DE5DB1CD014FC472 /* SnapWindowEligibilityTests.swift */,
 				169745AABF7306DB7316EF01 /* WindowCatalogStateTests.swift */,
@@ -1000,6 +1003,7 @@
 				8D15681958148829E26676CC /* ShakeDetectorTests.swift in Sources */,
 				4D93D2F8796C3F1CCA8E926B /* ShortcutCatalogTests.swift in Sources */,
 				BE82C809AF70C005B7553B5E /* SimulatorDevicePlanTests.swift in Sources */,
+				04E1EAE91F05E93D91095D13 /* SnapDiagnosticLogTests.swift in Sources */,
 				47CC6C61A00A821A4DD38484 /* SnapSessionReducerTests.swift in Sources */,
 				A013E5CFF03C06CF95B280C2 /* SnapWindowEligibilityTests.swift in Sources */,
 				FE8BF3FEE40CA0DE650A2D86 /* WindowCatalogStateTests.swift in Sources */,

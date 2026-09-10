@@ -11,6 +11,56 @@ public struct StripDropLatch: Equatable, Sendable {
     }
 }
 
+/// Remembers how long each strip target was held so a drop can fall back to
+/// the mini-zone the user actually rested on. Lifting fingers off a trackpad
+/// or releasing a mouse button drags the pointer 15-25pt over the last few
+/// frames; on a 37pt-wide thumbnail column that lands on the neighbor.
+public struct StripDropLatchHistory: Equatable, Sendable {
+    /// A target held at least this long counts as a deliberate choice.
+    public static let settleDuration: TimeInterval = 0.2
+    /// Target changes this close to mouse-up are treated as release drift.
+    public static let releaseDriftWindow: TimeInterval = 0.12
+
+    public private(set) var current: StripDropLatch?
+    public private(set) var currentSince: TimeInterval
+    public private(set) var settled: StripDropLatch?
+    public private(set) var settledEndedAt: TimeInterval?
+
+    public init() {
+        current = nil
+        currentSince = 0
+        settled = nil
+        settledEndedAt = nil
+    }
+
+    public mutating func record(_ latch: StripDropLatch?, at now: TimeInterval) {
+        guard latch != current else { return }
+        if let current, now - currentSince >= Self.settleDuration {
+            settled = current
+            settledEndedAt = now
+        }
+        if latch == nil {
+            settled = nil
+            settledEndedAt = nil
+        }
+        current = latch
+        currentSince = now
+    }
+
+    /// The target a mouse-up should commit. `candidate` is the target the
+    /// release frame itself computed; it only wins when the previous target
+    /// was not a deliberate rest that ended within the drift window.
+    public mutating func committed(candidate: StripDropLatch?, at now: TimeInterval) -> StripDropLatch? {
+        record(candidate, at: now)
+        guard let current else { return nil }
+        if now - currentSince >= Self.releaseDriftWindow { return current }
+        guard let settled, let settledEndedAt, now - settledEndedAt < Self.releaseDriftWindow else {
+            return current
+        }
+        return settled
+    }
+}
+
 public struct UnsnapRecord: Sendable, Equatable {
     public var identity: WindowIdentity
     public var originalFrameAX: CGRect
@@ -271,6 +321,27 @@ public enum SnapLayoutSession {
         )
     }
 
+    /// Linger-band probes may keep a mini-zone already chosen on the strip,
+    /// but they must not start a selection. Cards sit in the top center, so
+    /// shaking a window a few points below the bar would otherwise switch
+    /// layouts without ever entering a card.
+    public static func acceptedStripHit(
+        hit: StripDropLatch?,
+        previous _: StripDropLatch?,
+        pointerOnStrip: Bool
+    ) -> StripDropLatch? {
+        return pointerOnStrip ? hit : nil
+    }
+
+    /// Only a real strip-card hover may highlight another layout. Projecting
+    /// a linger-band point onto a card must not change the selected layout.
+    public static func acceptedHighlight(
+        pointerOnStrip: Bool,
+        hitCard: Layout.ID?
+    ) -> Layout.ID? {
+        pointerOnStrip ? hitCard : nil
+    }
+
     /// A strip mini-zone stays selected until the pointer leaves both the strip
     /// and that layout's real zones. A new mini-zone hit replaces it. Pointers
     /// that only slip a little below the strip keep the mini-zone so a card
@@ -286,6 +357,35 @@ public enum SnapLayoutSession {
         if pointerInStrip || lingerNearStrip { return previous }
         guard let previous, let live = liveZoneInLatchedLayout else { return nil }
         return StripDropLatch(layoutID: previous.layoutID, zone: live)
+    }
+
+    /// Overlay panes and the highlight rect must come from the same layout.
+    /// A leftover highlight from the previous strip card would otherwise draw
+    /// that card's zone on top of the newly selected layout.
+    public static func previewHighlight(
+        _ highlight: SnapTarget,
+        zones: [ResolvedZone],
+        latch: StripDropLatch? = nil
+    ) -> SnapTarget {
+        if belongs(highlight, in: zones) { return highlight }
+        if let latch, zones.contains(where: { $0.zoneID == latch.zone.zoneID }) {
+            return .zone(latch.zone)
+        }
+        return .none
+    }
+
+    private static func belongs(_ highlight: SnapTarget, in zones: [ResolvedZone]) -> Bool {
+        switch highlight {
+        case .none:
+            return true
+        case .zone(let zone):
+            return zones.contains { $0.zoneID == zone.zoneID }
+        case .span(_, let zoneIDs):
+            guard !zoneIDs.isEmpty else { return false }
+            return zoneIDs.allSatisfy { id in
+                zones.contains { $0.zoneID == id }
+            }
+        }
     }
 
     /// A successful overlay digit replaces the strip drop target. Keep the

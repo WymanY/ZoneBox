@@ -56,6 +56,13 @@ final class LayoutStripGeometryTests: XCTestCase {
         let otherHit = geometry.hitZone(at: geometry.dropProbePoint(for: belowOther))
         XCTAssertEqual(otherHit?.layoutID, right.id)
         XCTAssertEqual(otherHit?.zoneNumber, 1)
+
+        let chromeBelow = CGPoint(x: firstMini.midX, y: geometry.cards[0].frameAppKit.minY - 4)
+        XCTAssertTrue(geometry.contains(chromeBelow))
+        XCTAssertFalse(geometry.cards[0].frameAppKit.contains(chromeBelow))
+        let chromeHit = geometry.hitZone(at: geometry.dropProbePoint(for: chromeBelow))
+        XCTAssertEqual(chromeHit?.layoutID, left.id)
+        XCTAssertEqual(chromeHit?.zoneNumber, 1)
     }
 
     func testDropProbeKeepsSelectedRowWhenPointerLingersBelow() throws {
