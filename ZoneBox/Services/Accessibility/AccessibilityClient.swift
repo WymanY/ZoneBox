@@ -583,6 +583,30 @@ private func sizeAttribute(_ element: AXUIElement, _ name: CFString) -> CGSize? 
     return size
 }
 
+private final class AXElementFrameWriter: AXFrameWriting {
+    private let element: AXUIElement
+
+    init(_ element: AXUIElement) {
+        self.element = element
+    }
+
+    func readFrame() -> CGRect? {
+        AccessibilityClientLive.readFrame(element)
+    }
+
+    func setSize(_ size: CGSize) {
+        AXFrameMutator.setSize(element, size)
+    }
+
+    func setPoint(_ origin: CGPoint) {
+        AXFrameMutator.setPoint(element, origin)
+    }
+
+    func sleep(_ duration: TimeInterval) {
+        Thread.sleep(forTimeInterval: duration)
+    }
+}
+
 enum AXFrameMutator {
     static func setFrame(_ frame: CGRect, of element: AXUIElement) -> CGRect? {
         var enhanced: Bool?
@@ -594,38 +618,22 @@ enum AXFrameMutator {
             if let enhanced { setBool(element, "AXEnhancedUserInterface" as CFString, enhanced) }
         }
 
-        var target = frame
-        if let minSize = sizeAttribute(element, "AXMinSize" as CFString) {
-            target.size.width = max(target.size.width, minSize.width)
-            target.size.height = max(target.size.height, minSize.height)
-        }
-        if let maxSize = sizeAttribute(element, "AXMaxSize" as CFString), maxSize.width > 0 {
-            target.size.width = min(target.size.width, maxSize.width)
-            target.size.height = min(target.size.height, maxSize.height)
-        }
-
-        for _ in 0..<3 {
-            setSize(element, target.size)
-            setPoint(element, target.origin)
-            setSize(element, target.size)
-            if let actual = AccessibilityClientLive.readFrame(element) {
-                let err = max(abs(actual.origin.x - target.origin.x), abs(actual.origin.y - target.origin.y),
-                              abs(actual.size.width - target.size.width), abs(actual.size.height - target.size.height))
-                if err <= 2 { return actual }
-            }
-            Thread.sleep(forTimeInterval: 0.016)
-        }
-        return AccessibilityClientLive.readFrame(element)
+        return AXFrameMutation.apply(
+            frame,
+            minSize: sizeAttribute(element, "AXMinSize" as CFString),
+            maxSize: sizeAttribute(element, "AXMaxSize" as CFString),
+            using: AXElementFrameWriter(element)
+        )
     }
 
-    private static func setPoint(_ element: AXUIElement, _ point: CGPoint) {
+    fileprivate static func setPoint(_ element: AXUIElement, _ point: CGPoint) {
         var value = point
         if let ax = AXValueCreate(.cgPoint, &value) {
             AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, ax)
         }
     }
 
-    private static func setSize(_ element: AXUIElement, _ size: CGSize) {
+    fileprivate static func setSize(_ element: AXUIElement, _ size: CGSize) {
         var value = size
         if let ax = AXValueCreate(.cgSize, &value) {
             AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, ax)
