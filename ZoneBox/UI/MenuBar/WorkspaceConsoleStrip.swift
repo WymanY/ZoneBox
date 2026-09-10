@@ -85,7 +85,14 @@ final class WorkspaceConsoleStrip: NSView {
                     self?.onRename?(profile.id, name)
                 }
                 card.onRenameCancel = { [weak self] in
-                    self?.renamingID = nil
+                    guard let self else { return }
+                    self.renamingID = nil
+                    self.reload(
+                        profiles: profiles,
+                        activeID: activeID,
+                        layouts: layouts,
+                        connectedDisplayIDs: connectedDisplayIDs
+                    )
                 }
                 card.onDelete = { [weak self] in self?.onDelete?(profile) }
                 row.addArrangedSubview(card)

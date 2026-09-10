@@ -8,6 +8,8 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
     private var phase: WorkspaceSwitcherPhase = .hidden
     private var panel: SwitcherPanel?
     private var cardHost: NSStackView?
+    private var cardScroll: NSScrollView?
+    private var cardScrollHeight: NSLayoutConstraint?
     private var titleLabel: NSTextField?
     private var hintLabel: NSTextField?
     private var nameField: NSTextField?
@@ -121,6 +123,8 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         panel?.close()
         panel = nil
         cardHost = nil
+        cardScroll = nil
+        cardScrollHeight = nil
         titleLabel = nil
         hintLabel = nil
         nameField = nil
@@ -187,17 +191,38 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         cards.orientation = .vertical
         cards.alignment = .leading
         cards.spacing = Metrics.rowSpacing
-        cards.translatesAutoresizingMaskIntoConstraints = false
+        cards.translatesAutoresizingMaskIntoConstraints = true
         cardHost = cards
 
+        let document = SwitcherCardDocument()
+        document.addSubview(cards)
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.horizontalScrollElasticity = .none
+        let clip = NSClipView()
+        clip.drawsBackground = false
+        scroll.contentView = clip
+        scroll.documentView = document
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        cardScroll = scroll
+        let scrollHeight = scroll.heightAnchor.constraint(equalToConstant: Metrics.cardHeight)
+        cardScrollHeight = scrollHeight
+
         stack.addArrangedSubview(header)
-        stack.addArrangedSubview(cards)
+        stack.addArrangedSubview(scroll)
         root.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: root.topAnchor),
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            scrollHeight,
         ])
         return root
     }
@@ -245,9 +270,12 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
                 }
             }
         }
+        layoutCardDocument()
         resizePanel()
         if case .naming = phase {
             scheduleNameFieldFocus()
+        } else if case .browsing(let highlight) = phase {
+            scrollHighlightVisible(highlight)
         }
     }
 
@@ -379,14 +407,38 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         }
     }
 
+    private func layoutCardDocument() {
+        guard let cardHost, let document = cardScroll?.documentView else { return }
+        cardHost.frame = NSRect(x: 0, y: 0, width: Metrics.contentWidth, height: 0)
+        cardHost.layoutSubtreeIfNeeded()
+        let height = max(cardHost.fittingSize.height, 1)
+        cardHost.frame = NSRect(x: 0, y: 0, width: Metrics.contentWidth, height: height)
+        document.setFrameSize(NSSize(width: Metrics.contentWidth, height: height))
+    }
+
+    private func scrollHighlightVisible(_ highlight: Int) {
+        guard let cardHost, let scroll = cardScroll else { return }
+        let row = highlight / Metrics.columns
+        let y = CGFloat(row) * (Metrics.cardHeight + Metrics.rowSpacing)
+        let target = NSRect(x: 0, y: y, width: Metrics.contentWidth, height: Metrics.cardHeight)
+        cardHost.scrollToVisible(target)
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
     private func resizePanel() {
         guard let panel, let content = panel.contentView else { return }
+        layoutCardDocument()
+        let naturalCards = cardHost?.fittingSize.height ?? Metrics.cardHeight
+        let area = runtime.area(containingAppKit: NSEvent.mouseLocation) ?? runtime.workAreas.first
+        let screen = area.flatMap { runtime.screen(for: $0.display.id) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: Metrics.width, height: 800)
+        let chrome: CGFloat = 14 + 22 + 10 + 14
+        let maxCards = max(Metrics.cardHeight, visible.height - 48 - chrome)
+        let cardsHeight = min(naturalCards, maxCards)
+        cardScrollHeight?.constant = cardsHeight
         content.layoutSubtreeIfNeeded()
-        let fitting = content.fittingSize
-        let size = NSSize(width: Metrics.width, height: max(fitting.height, Metrics.minHeight))
-        var frame = panel.frame
-        frame.size = size
-        panel.setFrame(frame, display: true)
+        let size = NSSize(width: Metrics.width, height: chrome + cardsHeight)
+        panel.setFrame(NSRect(origin: panel.frame.origin, size: size), display: true)
         content.setFrameSize(size)
         panel.invalidateShadow()
         positionOnPointerDisplay()
@@ -504,6 +556,10 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         static let cardHeight: CGFloat = 132
         static let previewSize = NSSize(width: 132, height: 64)
     }
+}
+
+private final class SwitcherCardDocument: NSView {
+    override var isFlipped: Bool { true }
 }
 
 private final class SwitcherPanel: NSPanel {
@@ -626,7 +682,7 @@ private final class SwitcherProfileCard: NSView {
             previewRow.addArrangedSubview(preview)
         }
         if profile.sections.count > 2 {
-            let extra = NSTextField(labelWithString: "+(profile.sections.count - 2)")
+            let extra = NSTextField(labelWithString: String(format: "+%d", profile.sections.count - 2))
             extra.font = .systemFont(ofSize: 10, weight: .medium)
             extra.textColor = .secondaryLabelColor
             previewRow.addArrangedSubview(extra)
@@ -645,7 +701,7 @@ private final class SwitcherProfileCard: NSView {
             icons.addArrangedSubview(view)
         }
         if bundleIDs.count > 5 {
-            let extra = NSTextField(labelWithString: "+(bundleIDs.count - 5)")
+            let extra = NSTextField(labelWithString: String(format: "+%d", bundleIDs.count - 5))
             extra.font = .systemFont(ofSize: 9)
             extra.textColor = .secondaryLabelColor
             icons.addArrangedSubview(extra)

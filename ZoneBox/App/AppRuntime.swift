@@ -1150,7 +1150,7 @@ final class AppRuntime {
     }
 
     func noteWorkspaceSwitcherUI(showing: Bool) {
-        noteQuickSnapperUI(showing: showing)
+        // Nonactivating HUD. Quick Snapper's UI session calls NSApp.activate.
     }
 
     func resolvedZones(for area: WorkArea?) -> [ResolvedZone] {
