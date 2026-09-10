@@ -75,6 +75,8 @@
 		5AB0E7DE3723D77DE633F84C /* OverlayPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF8CEA8006FEC64E189A8FE /* OverlayPanel.swift */; };
 		5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9118B8805E80F4D1DA3FC84D /* AppSettings.swift */; };
 		5BA7B1CBFBEAC008BF64959E /* CanvasAlignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452F14BC1880DC6613F81535 /* CanvasAlignmentTests.swift */; };
+		5E162926652F25D6040EB067 /* AXFrameMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85FD3A6E1C8FD0B35CD64F2D /* AXFrameMutationTests.swift */; };
+		602BAB1EB72AC9325077D8E3 /* AXFrameMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911E2237CF24AFA98A7C04A0 /* AXFrameMutation.swift */; };
 		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
 		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
 		64021BE1C01989E39E4BC87D /* WorkspaceLayoutPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9A57E96F23A51BD13E8D85 /* WorkspaceLayoutPreviewView.swift */; };
@@ -281,6 +283,7 @@
 		83CFE7A71F4B852FC67C4ACE /* WindowNumberAllowlist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowNumberAllowlist.swift; sourceTree = "<group>"; };
 		8571DA8824420BA1C6BFFE12 /* ProfilePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePlan.swift; sourceTree = "<group>"; };
 		85AF3584B40B1DE9E539564D /* MagneticResize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagneticResize.swift; sourceTree = "<group>"; };
+		85FD3A6E1C8FD0B35CD64F2D /* AXFrameMutationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXFrameMutationTests.swift; sourceTree = "<group>"; };
 		8620CAF22D1FEB8ADC381F6C /* ShortcutCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalog.swift; sourceTree = "<group>"; };
 		886157B8AFFD508BC0337B29 /* RuntimeHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeHost.swift; sourceTree = "<group>"; };
 		8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libZoneBoxCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -293,6 +296,7 @@
 		8F09677CE6C82C3B3978A9E2 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
 		9118B8805E80F4D1DA3FC84D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		911E2237CF24AFA98A7C04A0 /* AXFrameMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXFrameMutation.swift; sourceTree = "<group>"; };
 		921585654641B9B709D6F8B3 /* WorkspaceRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRestoreTests.swift; sourceTree = "<group>"; };
 		92804B026972E065B5438FCB /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutThumbnailRenderer.swift; sourceTree = "<group>"; };
@@ -434,6 +438,7 @@
 			children = (
 				E62292FD18B81A5F1168FDFD /* AppIdentity.swift */,
 				9118B8805E80F4D1DA3FC84D /* AppSettings.swift */,
+				911E2237CF24AFA98A7C04A0 /* AXFrameMutation.swift */,
 				0469E20CD7E9925F2A12E02A /* DisplayIdentity.swift */,
 				8E1179F5E0E9E644378B45AB /* DividerPlan.swift */,
 				BA9D165C2B155D2E12A803AB /* L10n.swift */,
@@ -609,6 +614,7 @@
 		C41B2668B7FA27A16D22E3E4 /* ZoneBoxTests */ = {
 			isa = PBXGroup;
 			children = (
+				85FD3A6E1C8FD0B35CD64F2D /* AXFrameMutationTests.swift */,
 				452F14BC1880DC6613F81535 /* CanvasAlignmentTests.swift */,
 				9A1EA11777D94206C972FF4E /* CanvasEditingTests.swift */,
 				69685BECC3CD1AA25F48583D /* CanvasSnappingTests.swift */,
@@ -899,6 +905,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				602BAB1EB72AC9325077D8E3 /* AXFrameMutation.swift in Sources */,
 				C161D00E490572EA176CC384 /* AppIdentity.swift in Sources */,
 				5AEEADDF5E7BB3E40152E752 /* AppSettings.swift in Sources */,
 				D80B6CC48920A72AD77C0EC0 /* CanvasAlignment.swift in Sources */,
@@ -970,6 +977,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5E162926652F25D6040EB067 /* AXFrameMutationTests.swift in Sources */,
 				5BA7B1CBFBEAC008BF64959E /* CanvasAlignmentTests.swift in Sources */,
 				457858D9720581855722618D /* CanvasEditingTests.swift in Sources */,
 				0FE94C325E5B5EA959CB1188 /* CanvasSnappingTests.swift in Sources */,
