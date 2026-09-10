@@ -397,13 +397,24 @@ final class WorkspaceCenter {
             )
         }
 
-        // Frame changes do not affect WindowServer ordering. Raise every
-        // restored workspace window after placement so unrelated windows left
-        // untouched by the profile cannot continue covering the result. AXRaise
-        // changes stacking without activating the application or stealing focus.
-        for window in restoredWindows {
-            _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
+        // Frame changes do not affect WindowServer ordering. AXRaise also stays
+        // inside the owning app, so unrelated apps can keep covering the result.
+        // Activate each saved app, then raise its restored windows, so the
+        // workspace becomes the frontmost layer without yanking other Spaces.
+        var foregroundWindows: [AXWindow] = []
+        var seenForeground = Set<WindowIdentity>()
+        for sectionPlan in outcome.sections {
+            for placement in sectionPlan.placements {
+                guard let window = handles[placement.identity],
+                      seenForeground.insert(placement.identity).inserted
+                else { continue }
+                foregroundWindows.append(window)
+            }
         }
+        for window in restoredWindows where seenForeground.insert(window.identity).inserted {
+            foregroundWindows.append(window)
+        }
+        await bringRestoredWorkspaceToFront(windows: foregroundWindows)
 
         runtime.document.activeProfileID = profile.id
         runtime.persist()
@@ -823,10 +834,32 @@ final class WorkspaceCenter {
         }
     }
 
-    private func activateRunningApplication(bundleID: String) {
+    private func activateRunningApplication(bundleID: String, allWindows: Bool = true) {
         let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
         _ = app?.unhide()
-        _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        if allWindows {
+            _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        } else {
+            _ = app?.activate(options: [.activateIgnoringOtherApps])
+        }
+    }
+
+    /// Bring saved workspace apps above unrelated windows. AXRaise alone cannot
+    /// do this; activation lifts the app's layer, then raise puts the restored
+    /// window on top of that app.
+    private func bringRestoredWorkspaceToFront(windows: [AXWindow]) async {
+        let bundleIDs = WorkspaceRestore.foregroundBundleIDs(windows.compactMap(\.identity.bundleID))
+        guard !bundleIDs.isEmpty else { return }
+        Log.workspace.info(
+            "Apply foreground apps=\(bundleIDs.joined(separator: ","), privacy: .public)"
+        )
+        let allWindows = WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
+        for bundleID in bundleIDs {
+            activateRunningApplication(bundleID: bundleID, allWindows: allWindows)
+            for window in windows where window.identity.bundleID == bundleID {
+                _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
+            }
+        }
     }
 
     /// Simulator.app stays alive with only menu-bar strips after its last
@@ -1009,6 +1042,7 @@ final class WorkspaceCenter {
             )
             if let pendingID = item.pendingID { pending.removeAll { $0.id == pendingID } }
             observed[identity] = nil
+            await bringRestoredWorkspaceToFront(windows: [window])
         }
         updateCensus()
     }
