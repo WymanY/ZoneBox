@@ -69,6 +69,15 @@ public enum ZoneOccupancy {
     /// The zone that contains most of the window, even when the window is too
     /// small to fill that zone.
     public static func preferredBelongingZone(for frame: CGRect, in zones: [ResolvedZone]) -> ResolvedZone? {
+        preferredBelongingZone(for: frame, in: zones, policy: .smallestArea, pointAX: nil)
+    }
+
+    public static func preferredBelongingZone(
+        for frame: CGRect,
+        in zones: [ResolvedZone],
+        policy: OverlapPolicy,
+        pointAX: CGPoint?
+    ) -> ResolvedZone? {
         let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat)? in
             let ratio = windowCoverage(frame, zone: zone.frameAX)
             guard ratio > windowBelongRatio else { return nil }
@@ -76,8 +85,31 @@ public enum ZoneOccupancy {
         }
         return ranked.max { lhs, rhs in
             if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
-            return lhs.0.number > rhs.0.number
+            return lessPreferred(lhs.0, than: rhs.0, policy: policy, pointAX: pointAX)
         }?.0
+    }
+
+    private static func lessPreferred(
+        _ lhs: ResolvedZone,
+        than rhs: ResolvedZone,
+        policy: OverlapPolicy,
+        pointAX: CGPoint?
+    ) -> Bool {
+        let leftArea = lhs.frameAX.width * lhs.frameAX.height
+        let rightArea = rhs.frameAX.width * rhs.frameAX.height
+        switch policy {
+        case .smallestArea:
+            if abs(leftArea - rightArea) > 0.000_001 { return leftArea > rightArea }
+        case .largestArea:
+            if abs(leftArea - rightArea) > 0.000_001 { return leftArea < rightArea }
+        case .closestCenterToCursor:
+            if let pointAX {
+                let left = hypot(lhs.frameAX.midX - pointAX.x, lhs.frameAX.midY - pointAX.y)
+                let right = hypot(rhs.frameAX.midX - pointAX.x, rhs.frameAX.midY - pointAX.y)
+                if abs(left - right) > 0.000_001 { return left > right }
+            }
+        }
+        return lhs.number > rhs.number
     }
 
     public static func containsInterior(_ point: CGPoint, zone: CGRect, inset: CGFloat = seamInset) -> Bool {

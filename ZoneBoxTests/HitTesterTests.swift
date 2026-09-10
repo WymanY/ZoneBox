@@ -141,4 +141,33 @@ final class HitTesterTests: XCTestCase {
             .zone(left)
         )
     }
+
+    func testNestedWindowContainmentHonorsSmallestAreaPolicy() {
+        let outer = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+        let inner = ResolvedZone(
+            zoneID: UUID(),
+            number: 2,
+            frameAX: CGRect(x: 200, y: 200, width: 200, height: 200)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .smallestArea).target(
+                at: CGPoint(x: 300, y: 300),
+                zones: [outer, inner],
+                windowFrameAX: inner.frameAX
+            ),
+            .zone(inner)
+        )
+        XCTAssertEqual(
+            HitTester(policy: .largestArea).target(
+                at: CGPoint(x: 300, y: 300),
+                zones: [outer, inner],
+                windowFrameAX: inner.frameAX
+            ),
+            .zone(outer)
+        )
+    }
 }

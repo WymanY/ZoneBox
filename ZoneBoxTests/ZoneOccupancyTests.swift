@@ -78,4 +78,38 @@ final class ZoneOccupancyTests: XCTestCase {
         XCTAssertFalse(ZoneOccupancy.belongs(window, zone: right.frameAX))
         XCTAssertNil(ZoneOccupancy.preferredBelongingZone(for: window, in: [left, right]))
     }
+
+    func testEqualContainmentFollowsOverlapPolicyInsteadOfZoneNumber() {
+        let outer = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+        let inner = ResolvedZone(
+            zoneID: UUID(),
+            number: 2,
+            frameAX: CGRect(x: 200, y: 200, width: 200, height: 200)
+        )
+        let window = inner.frameAX
+        XCTAssertEqual(ZoneOccupancy.windowCoverage(window, zone: outer.frameAX), 1, accuracy: 0.000_001)
+        XCTAssertEqual(ZoneOccupancy.windowCoverage(window, zone: inner.frameAX), 1, accuracy: 0.000_001)
+        XCTAssertEqual(
+            ZoneOccupancy.preferredBelongingZone(
+                for: window,
+                in: [outer, inner],
+                policy: .smallestArea,
+                pointAX: CGPoint(x: 300, y: 300)
+            )?.number,
+            2
+        )
+        XCTAssertEqual(
+            ZoneOccupancy.preferredBelongingZone(
+                for: window,
+                in: [outer, inner],
+                policy: .largestArea,
+                pointAX: CGPoint(x: 300, y: 300)
+            )?.number,
+            1
+        )
+    }
 }

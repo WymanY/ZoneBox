@@ -41,7 +41,7 @@ public struct HitTester: Sendable {
             return cursor
         }
         guard let windowFrameAX,
-              let occupied = Self.occupiedZone(for: windowFrameAX, at: pointAX, in: zones)
+              let occupied = occupiedZone(for: windowFrameAX, at: pointAX, in: zones)
         else {
             return cursor
         }
@@ -66,16 +66,21 @@ public struct HitTester: Sendable {
         windowFrameAX.insetBy(dx: -windowInfluenceOutset, dy: -windowInfluenceOutset).contains(pointAX)
     }
 
-    private static func occupiedZone(
+    private func occupiedZone(
         for windowFrameAX: CGRect,
         at pointAX: CGPoint,
         in zones: [ResolvedZone]
     ) -> ResolvedZone? {
-        let nearWindow = pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX)
+        let nearWindow = Self.pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX)
         // Containment of the window beats how much of a zone the window covers.
         // A small window can sit entirely in pane 2 while covering little of
         // pane 2 and a large fraction of a neighboring pane.
-        if nearWindow, let belonging = ZoneOccupancy.preferredBelongingZone(for: windowFrameAX, in: zones) {
+        if nearWindow, let belonging = ZoneOccupancy.preferredBelongingZone(
+            for: windowFrameAX,
+            in: zones,
+            policy: policy,
+            pointAX: pointAX
+        ) {
             return belonging
         }
         if let filled = ZoneOccupancy.preferredZone(for: windowFrameAX, in: zones) {
