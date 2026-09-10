@@ -73,6 +73,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleNoDisplay
     case consoleCurrentDisplay
     case consoleOtherLayouts
+    case consoleWorkspaces
+    case consoleSaveWorkspace
+    case consoleManageWorkspaces
+    case consoleSwitcherHint
     case layoutStripPrevious
     case layoutStripNext
     case organizeAdjustedTitle
@@ -112,6 +116,20 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case workspaceAppNotInstalledDetail
     case workspaceLaunchTimeoutDetail
     case workspaceLayoutDeleteImpact
+    case workspaceSwitcherTitle
+    case workspaceSwitcherHint
+    case workspaceSwitcherCurrent
+    case workspaceSwitcherEmptyAction
+    case workspaceSwitcherEmptyDetail
+    case workspaceSwitcherSaveSummary
+    case workspaceSwitcherSaveEmpty
+    case workspaceSwitcherDisconnected
+    case workspaceAlreadySavedTitle
+    case workspaceCapturedHotkeyDetail
+    case workspaceUndoAction
+    case workspaceCardUpdate
+    case workspaceCardRename
+    case workspaceCardDelete
 
     case settingsTitle
     case settingsAccessBanner
@@ -272,6 +290,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case shortcutQuickSnapper
     case shortcutOrganizeWindows
     case shortcutApplyWorkspace
+    case shortcutCaptureWorkspace
     case shortcutEditorCancel
     case shortcutEditorCycle
     case shortcutEditorCycleBack
@@ -658,6 +677,10 @@ public enum L10n {
         .consoleNoDisplay: "No display",
         .consoleCurrentDisplay: "Current Display",
         .consoleOtherLayouts: "Other Layouts",
+        .consoleWorkspaces: "Workspaces",
+        .consoleSaveWorkspace: "Save Current",
+        .consoleManageWorkspaces: "Manage…",
+        .consoleSwitcherHint: "%@ switcher",
         .layoutStripPrevious: "Previous layouts",
         .layoutStripNext: "Next layouts",
         .organizeAdjustedTitle: "Arrangement adjusted",
@@ -697,6 +720,20 @@ public enum L10n {
         .workspaceAppNotInstalledDetail: "%@ is not installed.",
         .workspaceLaunchTimeoutDetail: "%@ did not open a window in time.",
         .workspaceLayoutDeleteImpact: "%d workspace profiles will be affected.",
+        .workspaceSwitcherTitle: "Workspaces",
+        .workspaceSwitcherHint: "1–9 apply · ⏎ apply highlighted · S save current · U update highlighted · Esc",
+        .workspaceSwitcherCurrent: "Current",
+        .workspaceSwitcherEmptyAction: "Press S to save the current arrangement",
+        .workspaceSwitcherEmptyDetail: "Place windows into zones, then save.",
+        .workspaceSwitcherSaveSummary: "Will save %d apps · %d displays",
+        .workspaceSwitcherSaveEmpty: "No windows are inside zones",
+        .workspaceSwitcherDisconnected: "This display is disconnected",
+        .workspaceAlreadySavedTitle: "Current arrangement is already “%@”",
+        .workspaceCapturedHotkeyDetail: "%@ restores this anytime",
+        .workspaceUndoAction: "Undo",
+        .workspaceCardUpdate: "Update from Current Arrangement",
+        .workspaceCardRename: "Rename…",
+        .workspaceCardDelete: "Delete…",
 
         .settingsTitle: "ZoneBox Settings",
         .settingsAccessBanner: "Snapping is off until Accessibility is allowed. Open the guide to turn on the ZoneBox switch.",
@@ -856,7 +893,8 @@ public enum L10n {
         .shortcutShowShortcuts: "Keyboard shortcuts",
         .shortcutQuickSnapper: "Quick Snapper overlay",
         .shortcutOrganizeWindows: "Organize windows",
-        .shortcutApplyWorkspace: "Apply active workspace",
+        .shortcutApplyWorkspace: "Workspace switcher",
+        .shortcutCaptureWorkspace: "Save current workspace",
         .shortcutEditorCancel: "Close editor",
         .shortcutEditorCycle: "Select next zone",
         .shortcutEditorCycleBack: "Select previous zone",
@@ -1091,6 +1129,10 @@ public enum L10n {
         .consoleNoDisplay: "没有显示器",
         .consoleCurrentDisplay: "当前显示器",
         .consoleOtherLayouts: "其他布局",
+        .consoleWorkspaces: "工作区",
+        .consoleSaveWorkspace: "保存当前",
+        .consoleManageWorkspaces: "管理…",
+        .consoleSwitcherHint: "%@ 切换器",
         .layoutStripPrevious: "上一组布局",
         .layoutStripNext: "下一组布局",
         .organizeAdjustedTitle: "已调整整理方式",
@@ -1130,6 +1172,20 @@ public enum L10n {
         .workspaceAppNotInstalledDetail: "未安装 %@。",
         .workspaceLaunchTimeoutDetail: "%@ 未在限定时间内打开窗口。",
         .workspaceLayoutDeleteImpact: "%d 个工作区方案将受影响。",
+        .workspaceSwitcherTitle: "工作区",
+        .workspaceSwitcherHint: "1–9 应用 · ⏎ 应用高亮项 · S 保存当前 · U 更新高亮项 · Esc",
+        .workspaceSwitcherCurrent: "当前",
+        .workspaceSwitcherEmptyAction: "按 S 保存当前排布",
+        .workspaceSwitcherEmptyDetail: "先把窗口放进分区，再保存。",
+        .workspaceSwitcherSaveSummary: "将保存 %d 个应用 · %d 台显示器",
+        .workspaceSwitcherSaveEmpty: "没有窗口位于分区内",
+        .workspaceSwitcherDisconnected: "该显示器当前未连接",
+        .workspaceAlreadySavedTitle: "当前排布已保存为 “%@”",
+        .workspaceCapturedHotkeyDetail: "%@ 可随时恢复",
+        .workspaceUndoAction: "撤销",
+        .workspaceCardUpdate: "用当前排布更新",
+        .workspaceCardRename: "重命名…",
+        .workspaceCardDelete: "删除…",
 
         .settingsTitle: "ZoneBox 设置",
         .settingsAccessBanner: "未允许辅助功能时无法吸附。请打开引导，打开 ZoneBox 开关。",
@@ -1289,7 +1345,8 @@ public enum L10n {
         .shortcutShowShortcuts: "键盘快捷键",
         .shortcutQuickSnapper: "快速吸附覆盖层",
         .shortcutOrganizeWindows: "一键布局",
-        .shortcutApplyWorkspace: "应用当前工作区",
+        .shortcutApplyWorkspace: "工作区切换器",
+        .shortcutCaptureWorkspace: "保存当前工作区",
         .shortcutEditorCancel: "关闭编辑器",
         .shortcutEditorCycle: "选中下一分区",
         .shortcutEditorCycleBack: "选中上一分区",

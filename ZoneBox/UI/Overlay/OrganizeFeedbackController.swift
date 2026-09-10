@@ -3,6 +3,7 @@ import ZoneBoxCore
 
 struct OrganizeFeedback {
     enum Tone {
+        case success
         case warning
         case error
     }
@@ -23,7 +24,10 @@ final class OrganizeFeedbackController: NSObject {
 
     func show(_ feedback: OrganizeFeedback, on screen: NSScreen) {
         hideWorkItem?.cancel()
-        panel?.orderOut(nil)
+        if let existing = panel {
+            existing.orderOut(nil)
+            panel = nil
+        }
 
         let panel = OrganizeFeedbackPanel(feedback: feedback)
         panel.onDismiss = { [weak self] in self?.dismiss() }
@@ -34,7 +38,13 @@ final class OrganizeFeedbackController: NSObject {
                 y: frame.maxY - panel.frame.height - 28
             )
         )
+        panel.alphaValue = 0
         panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
         self.panel = panel
 
         let announcement = feedback.detail.isEmpty
@@ -58,8 +68,15 @@ final class OrganizeFeedbackController: NSObject {
     func dismiss() {
         hideWorkItem?.cancel()
         hideWorkItem = nil
-        panel?.orderOut(nil)
-        panel = nil
+        guard let panel else { return }
+        self.panel = nil
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.14
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        } completionHandler: {
+            panel.orderOut(nil)
+        }
     }
 }
 
@@ -71,7 +88,7 @@ private final class OrganizeFeedbackPanel: NSPanel {
 
     init(feedback: OrganizeFeedback) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 430, height: 104),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 72),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -88,36 +105,43 @@ private final class OrganizeFeedbackPanel: NSPanel {
         animationBehavior = .utilityWindow
         isReleasedWhenClosed = false
 
-        let effect = NSVisualEffectView(frame: .zero)
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 8
-        effect.layer?.cornerCurve = .continuous
-        effect.layer?.masksToBounds = true
-        effect.autoresizingMask = [.width, .height]
+        let chrome = FeedbackChromeView(frame: .zero)
+        chrome.translatesAutoresizingMaskIntoConstraints = false
+
+        let iconWell = NSView()
+        iconWell.wantsLayer = true
+        iconWell.layer?.cornerRadius = 8
+        iconWell.layer?.cornerCurve = .continuous
+        iconWell.translatesAutoresizingMaskIntoConstraints = false
+
+        let palette = TonePalette(feedback.tone)
+        iconWell.layer?.backgroundColor = palette.well.cgColor
 
         let icon = NSImageView()
-        icon.image = NSImage(
-            systemSymbolName: feedback.tone == .error ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill",
-            accessibilityDescription: nil
-        )
-        icon.contentTintColor = feedback.tone == .error ? .systemRed : .systemOrange
+        let symbol = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        icon.image = NSImage(systemSymbolName: palette.symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbol)
+        icon.contentTintColor = palette.icon
+        icon.imageScaling = .scaleProportionallyDown
         icon.translatesAutoresizingMaskIntoConstraints = false
+
+        iconWell.addSubview(icon)
 
         let title = NSTextField(labelWithString: feedback.title)
         title.font = .systemFont(ofSize: 13, weight: .semibold)
         title.textColor = .labelColor
         title.lineBreakMode = .byTruncatingTail
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let detail = NSTextField(wrappingLabelWithString: feedback.detail)
         detail.font = .systemFont(ofSize: 12)
         detail.textColor = .secondaryLabelColor
         detail.maximumNumberOfLines = 3
+        detail.isHidden = feedback.detail.isEmpty
         detail.setContentCompressionResistancePriority(.required, for: .vertical)
+        detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let text = NSStackView(views: [title, detail])
+        let text = NSStackView(views: feedback.detail.isEmpty ? [title] : [title, detail])
         text.orientation = .vertical
         text.alignment = .leading
         text.spacing = 3
@@ -143,51 +167,65 @@ private final class OrganizeFeedbackPanel: NSPanel {
         actionRow.translatesAutoresizingMaskIntoConstraints = false
         actionRow.isHidden = actions.isEmpty
 
+        let body = NSStackView(views: actions.isEmpty ? [text] : [text, actionRow])
+        body.orientation = .vertical
+        body.alignment = .leading
+        body.spacing = actions.isEmpty ? 0 : 8
+        body.translatesAutoresizingMaskIntoConstraints = false
+
         let closeTitle = L10n.text(.organizeClose)
         let close = NSButton(
-            image: NSImage(systemSymbolName: "xmark", accessibilityDescription: closeTitle) ?? NSImage(),
+            image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: closeTitle) ?? NSImage(),
             target: self,
             action: #selector(closeFeedback)
         )
         close.bezelStyle = .inline
         close.isBordered = false
-        close.contentTintColor = .secondaryLabelColor
+        close.imagePosition = .imageOnly
+        close.imageScaling = .scaleProportionallyDown
+        close.contentTintColor = .tertiaryLabelColor
         close.translatesAutoresizingMaskIntoConstraints = false
         close.toolTip = closeTitle
         close.setAccessibilityLabel(closeTitle)
 
-        effect.addSubview(icon)
-        effect.addSubview(text)
-        effect.addSubview(actionRow)
-        effect.addSubview(close)
-        contentView = effect
+        chrome.addSubview(iconWell)
+        chrome.addSubview(body)
+        chrome.addSubview(close)
+        contentView = chrome
+
+        let titleWidth = ceil(title.attributedStringValue.size().width)
+        let detailWidth = feedback.detail.isEmpty ? 0 : ceil(detail.attributedStringValue.size().width)
+        let textWidth = min(Metrics.maxTextWidth, max(Metrics.minTextWidth, titleWidth, detailWidth))
+        title.preferredMaxLayoutWidth = textWidth
+        detail.preferredMaxLayoutWidth = textWidth
 
         NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: effect.leadingAnchor, constant: 14),
-            icon.topAnchor.constraint(equalTo: effect.topAnchor, constant: 15),
-            icon.widthAnchor.constraint(equalToConstant: 20),
-            icon.heightAnchor.constraint(equalToConstant: 20),
-            close.trailingAnchor.constraint(equalTo: effect.trailingAnchor, constant: -10),
-            close.topAnchor.constraint(equalTo: effect.topAnchor, constant: 10),
-            close.widthAnchor.constraint(equalToConstant: 20),
-            close.heightAnchor.constraint(equalToConstant: 20),
-            text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-            text.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8),
-            text.topAnchor.constraint(equalTo: effect.topAnchor, constant: 12),
-            actionRow.leadingAnchor.constraint(equalTo: text.leadingAnchor),
-            actionRow.trailingAnchor.constraint(lessThanOrEqualTo: effect.trailingAnchor, constant: -12),
-            actionRow.topAnchor.constraint(equalTo: text.bottomAnchor, constant: actions.isEmpty ? 0 : 8),
-            actionRow.bottomAnchor.constraint(equalTo: effect.bottomAnchor, constant: actions.isEmpty ? -12 : -10),
+            iconWell.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: Metrics.inset),
+            iconWell.topAnchor.constraint(equalTo: chrome.topAnchor, constant: Metrics.inset),
+            iconWell.widthAnchor.constraint(equalToConstant: Metrics.iconWell),
+            iconWell.heightAnchor.constraint(equalToConstant: Metrics.iconWell),
+            icon.centerXAnchor.constraint(equalTo: iconWell.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: iconWell.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.heightAnchor.constraint(equalToConstant: 16),
+            body.leadingAnchor.constraint(equalTo: iconWell.trailingAnchor, constant: 10),
+            body.topAnchor.constraint(equalTo: chrome.topAnchor, constant: Metrics.inset),
+            body.bottomAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -Metrics.inset),
+            body.widthAnchor.constraint(equalToConstant: textWidth),
+            close.leadingAnchor.constraint(equalTo: body.trailingAnchor, constant: 8),
+            close.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -10),
+            close.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 10),
+            close.widthAnchor.constraint(equalToConstant: 18),
+            close.heightAnchor.constraint(equalToConstant: 18),
             actionRow.heightAnchor.constraint(equalToConstant: actions.isEmpty ? 0 : 24),
         ])
 
-        let textWidth: CGFloat = 430 - 72
-        title.preferredMaxLayoutWidth = textWidth
-        detail.preferredMaxLayoutWidth = textWidth
-        let textHeight = ceil(title.intrinsicContentSize.height + 3 + detail.intrinsicContentSize.height)
-        let actionsHeight: CGFloat = actions.isEmpty ? 0 : 32
-        let height = max(88, 12 + textHeight + (actions.isEmpty ? 12 : 8) + actionsHeight)
-        setContentSize(NSSize(width: 430, height: height))
+        chrome.layoutSubtreeIfNeeded()
+        let height = max(Metrics.minHeight, chrome.fittingSize.height)
+        let width = Metrics.inset + Metrics.iconWell + 10 + textWidth + 8 + 18 + 10
+        setContentSize(NSSize(width: width, height: height))
+        chrome.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        chrome.autoresizingMask = [.width, .height]
     }
 
     private func actionButton(title: String, action: @escaping () -> Void) -> NSButton {
@@ -200,6 +238,61 @@ private final class OrganizeFeedbackPanel: NSPanel {
     @objc
     private func closeFeedback() {
         onDismiss?()
+    }
+
+    private enum Metrics {
+        static let inset: CGFloat = 14
+        static let iconWell: CGFloat = 28
+        static let minHeight: CGFloat = 56
+        static let minTextWidth: CGFloat = 168
+        static let maxTextWidth: CGFloat = 280
+    }
+}
+
+private struct TonePalette {
+    var symbol: String
+    var icon: NSColor
+    var well: NSColor
+
+    init(_ tone: OrganizeFeedback.Tone) {
+        switch tone {
+        case .success:
+            symbol = "checkmark.circle.fill"
+            icon = .systemGreen
+            well = NSColor.systemGreen.withAlphaComponent(0.14)
+        case .warning:
+            symbol = "exclamationmark.triangle.fill"
+            icon = .systemOrange
+            well = NSColor.systemOrange.withAlphaComponent(0.14)
+        case .error:
+            symbol = "exclamationmark.octagon.fill"
+            icon = .systemRed
+            well = NSColor.systemRed.withAlphaComponent(0.14)
+        }
+    }
+}
+
+private final class FeedbackChromeView: NSVisualEffectView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        material = .hudWindow
+        blendingMode = .behindWindow
+        state = .active
+        wantsLayer = true
+        layer?.cornerRadius = 14
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
     }
 }
 

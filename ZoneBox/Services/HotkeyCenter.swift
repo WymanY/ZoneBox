@@ -206,6 +206,12 @@ final class HotkeyCenter {
             return handleEscape(event, consume: false)
         }
 
+        if runtime.isWorkspaceSwitcherShowing {
+            if let handled = handleWorkspaceSwitcherKey(event, flags: flags, consume: consume) {
+                return handled
+            }
+        }
+
         if runtime.engine.isQuickSnapperShowing,
            let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode),
            !flags.contains(.command)
@@ -306,6 +312,7 @@ final class HotkeyCenter {
                 settingsIsKey: runtime.settingsIsKey,
                 onboardingIsKey: runtime.onboardingIsKey,
                 consoleIsVisible: runtime.consoleIsVisible,
+                workspaceSwitcherShowing: runtime.isWorkspaceSwitcherShowing,
                 dividerDragging: runtime.divider.isDragging
             )
         )
@@ -318,6 +325,8 @@ final class HotkeyCenter {
             runtime.cancelEditor()
         case .dismissQuickSnapper:
             runtime.engine.handleQuickSnapper(.dismiss)
+        case .dismissWorkspaceSwitcher:
+            runtime.handleWorkspaceSwitcher(.dismiss)
         case .cancelDivider:
             runtime.divider.cancelDrag()
         case .closeSettings:
@@ -337,7 +346,62 @@ final class HotkeyCenter {
         return action == .ignore ? event : nil
     }
 
+    private func handleWorkspaceSwitcherKey(_ event: NSEvent, flags: NSEvent.ModifierFlags, consume: Bool) -> NSEvent? {
+        if runtime.isWorkspaceSwitcherNaming {
+            if event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter,
+               !flags.contains(.command)
+            {
+                runtime.handleWorkspaceSwitcher(.save)
+                return consume ? nil : event
+            }
+            return event
+        }
+
+        let command = flags.contains(.command)
+        // Leftover Control/Option from opening the HUD with Control+Option+P
+        // must not block S/U/arrows/digits; those chords are how the switcher
+        // is invoked.
+        if !command, let number = QuickSnapperReducer.zoneNumber(forKeyCode: event.keyCode) {
+            runtime.handleWorkspaceSwitcher(.digit(number))
+            return consume ? nil : event
+        }
+        if !command, event.keyCode == HardwareKeyCode.return || event.keyCode == HardwareKeyCode.keypadEnter {
+            runtime.handleWorkspaceSwitcher(.confirm)
+            return consume ? nil : event
+        }
+        if !command, event.keyCode == HardwareKeyCode.tab {
+            runtime.handleWorkspaceSwitcher(.move(dx: flags.contains(.shift) ? -1 : 1, dy: 0))
+            return consume ? nil : event
+        }
+        if !command {
+            switch event.keyCode {
+            case HardwareKeyCode.left:
+                runtime.handleWorkspaceSwitcher(.move(dx: -1, dy: 0))
+                return consume ? nil : event
+            case HardwareKeyCode.right:
+                runtime.handleWorkspaceSwitcher(.move(dx: 1, dy: 0))
+                return consume ? nil : event
+            case HardwareKeyCode.up:
+                runtime.handleWorkspaceSwitcher(.move(dx: 0, dy: -1))
+                return consume ? nil : event
+            case HardwareKeyCode.down:
+                runtime.handleWorkspaceSwitcher(.move(dx: 0, dy: 1))
+                return consume ? nil : event
+            case HardwareKeyCode.s:
+                runtime.handleWorkspaceSwitcher(.beginSave)
+                return consume ? nil : event
+            case HardwareKeyCode.u:
+                runtime.handleWorkspaceSwitcher(.update)
+                return consume ? nil : event
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
     func handle(id: UInt32) {
+
         let now = ProcessInfo.processInfo.systemUptime
         if let lastHandled, lastHandled.id == id, now - lastHandled.time < Self.dedupWindow {
             return
@@ -367,7 +431,14 @@ final class HotkeyCenter {
         case ShortcutCatalog.organizeHotkeyID:
             runtime.organizeWindowsFromHotkey()
         case ShortcutCatalog.applyWorkspaceHotkeyID:
-            runtime.workspace.applyCurrentOrMostRecent()
+            if runtime.isWorkspaceSwitcherShowing {
+                runtime.handleWorkspaceSwitcher(.confirm)
+            } else {
+                runtime.handleWorkspaceSwitcher(.invoke)
+            }
+        case ShortcutCatalog.captureWorkspaceHotkeyID:
+            _ = runtime.closeSwitcherIfOpen()
+            runtime.workspace.captureImmediately()
         case 1...9:
             if runtime.engine.isQuickSnapperShowing {
                 runtime.engine.handleQuickSnapper(.digit(Int(id)))

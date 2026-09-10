@@ -70,9 +70,11 @@ protocol RuntimeChromeNotifying: AnyObject {
     func refreshDivider()
     func reloadMenu()
     func closeConsole()
+    func dismissWorkspaceSwitcher()
     func noteUserSnapCompleted()
     func noteSnapSessionBecameIdle()
     func noteQuickSnapperUI(showing: Bool)
+    func noteWorkspaceSwitcherUI(showing: Bool)
 }
 
 @MainActor
@@ -135,7 +137,10 @@ protocol HotkeyRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeSettin
     var settingsIsKey: Bool { get }
     var onboardingIsKey: Bool { get }
     var consoleIsVisible: Bool { get }
+    var isWorkspaceSwitcherShowing: Bool { get }
+    var isWorkspaceSwitcherNaming: Bool { get }
     func handleEditorKey(_ event: NSEvent) -> Bool
+    func handleWorkspaceSwitcher(_ event: WorkspaceSwitcherEvent)
     func openEditorForFocusedWindow()
     func organizeWindowsFromHotkey()
     func toggleShortcutPanel()
@@ -145,5 +150,15 @@ protocol HotkeyRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeSettin
     func closeSettingsIfOpen() -> Bool
     func closeOnboardingIfOpen() -> Bool
     func closeConsoleIfOpen() -> Bool
+    func closeSwitcherIfOpen() -> Bool
     func reloadMenu()
 }
+
+@MainActor
+protocol WorkspaceSwitcherHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeLicenseGating, RuntimeLayoutMutating, RuntimeChromeNotifying {
+    var workspace: WorkspaceCenter { get }
+    var settings: AppSettings { get }
+    func openAccessibility()
+    func applicationInfo(bundleID: String) -> (name: String, icon: NSImage?)
+}
+

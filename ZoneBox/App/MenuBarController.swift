@@ -398,8 +398,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func makeWorkspacesMenu() -> NSMenu {
         let menu = NSMenu()
-        for profile in runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt }) {
-            let title = profile.name.count > 30 ? String(profile.name.prefix(29)) + "…" : profile.name
+        for (index, profile) in runtime.document.orderedProfilesForSettings().enumerated() {
+            let raw = profile.name.count > 30 ? String(profile.name.prefix(29)) + "…" : profile.name
+            let title = index < 9 ? "\(index + 1). \(raw)" : raw
             let item = NSMenuItem(title: title, action: #selector(applyWorkspace(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = profile.id.uuidString

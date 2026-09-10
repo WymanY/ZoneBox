@@ -8,16 +8,20 @@ final class WorkspaceLayoutPreviewView: NSView {
     private let icons: [String: NSImage]
     private let names: [String: String]
 
+    private let canvasSize: NSSize
+
     init(
         layout: Layout?,
         rules: [AppPlacementRule],
-        applicationInfo: [String: (name: String, icon: NSImage?)]
+        applicationInfo: [String: (name: String, icon: NSImage?)],
+        canvasSize: NSSize = WorkspaceLayoutPreview.suggestedSize
     ) {
         self.previewLayout = layout
         self.rules = rules
         self.icons = applicationInfo.compactMapValues { $0.icon }
         self.names = applicationInfo.mapValues { $0.name }
-        super.init(frame: NSRect(origin: .zero, size: WorkspaceLayoutPreview.suggestedSize))
+        self.canvasSize = canvasSize
+        super.init(frame: NSRect(origin: .zero, size: canvasSize))
         translatesAutoresizingMaskIntoConstraints = false
         wantsLayer = true
         layer?.cornerRadius = 7
@@ -27,8 +31,8 @@ final class WorkspaceLayoutPreviewView: NSView {
         setContentCompressionResistancePriority(.required, for: .horizontal)
         setContentHuggingPriority(.required, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)
-        widthAnchor.constraint(equalToConstant: WorkspaceLayoutPreview.suggestedSize.width).isActive = true
-        heightAnchor.constraint(equalToConstant: WorkspaceLayoutPreview.suggestedSize.height).isActive = true
+        widthAnchor.constraint(equalToConstant: canvasSize.width).isActive = true
+        heightAnchor.constraint(equalToConstant: canvasSize.height).isActive = true
         toolTip = L10n.text(.settingsWorkspaceLayoutPreview)
         setAccessibilityRole(.image)
         setAccessibilityElement(true)
@@ -41,7 +45,7 @@ final class WorkspaceLayoutPreviewView: NSView {
 
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
-    override var intrinsicContentSize: NSSize { WorkspaceLayoutPreview.suggestedSize }
+    override var intrinsicContentSize: NSSize { canvasSize }
     override var acceptsFirstResponder: Bool { false }
 
     override func viewDidChangeEffectiveAppearance() {

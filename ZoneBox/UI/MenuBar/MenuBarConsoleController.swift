@@ -18,7 +18,12 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var gridHeightConstraint: NSLayoutConstraint?
     private var otherLayoutCount = 0
     private var organizeButton: NSButton?
-    private var workspaceButton: NSButton?
+    private var workspaceHeader: NSView?
+    private var workspaceLabel: NSTextField?
+    private var saveWorkspaceButton: NSButton?
+    private var manageWorkspaceButton: NSButton?
+    private var workspaceStrip: WorkspaceConsoleStrip?
+    private var switcherHintLabel: NSTextField?
     private var settingsButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
@@ -133,6 +138,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(makeFeaturedLayoutHost())
         stack.addArrangedSubview(makeOtherLayoutsHeader())
         stack.addArrangedSubview(makeOtherLayoutsGrid())
+        stack.addArrangedSubview(makeWorkspaceHeader())
+        stack.addArrangedSubview(makeWorkspaceStrip())
         stack.addArrangedSubview(makeSeparator())
         stack.addArrangedSubview(makeFooter())
 
@@ -297,29 +304,82 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return scroll
     }
 
-    private func makeFooter() -> NSView {
-        let workspace = NSButton(
-            title: L10n.text(.menuWorkspaces),
-            target: self,
-            action: #selector(showWorkspaceMenu(_:))
-        )
-        workspace.bezelStyle = .rounded
-        workspace.controlSize = .small
-        workspaceButton = workspace
+    private func makeWorkspaceHeader() -> NSView {
+        let label = NSTextField(labelWithString: L10n.text(.consoleWorkspaces))
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        workspaceLabel = label
 
+        let save = NSButton(title: L10n.text(.consoleSaveWorkspace), target: self, action: #selector(saveCurrentWorkspace))
+        save.bezelStyle = .inline
+        save.isBordered = false
+        save.font = .systemFont(ofSize: 11, weight: .medium)
+        save.contentTintColor = .controlAccentColor
+        save.setContentHuggingPriority(.required, for: .horizontal)
+        saveWorkspaceButton = save
+
+        let manage = NSButton(title: L10n.text(.consoleManageWorkspaces), target: self, action: #selector(manageConsoleWorkspaces(_:)))
+        manage.bezelStyle = .inline
+        manage.isBordered = false
+        manage.font = .systemFont(ofSize: 11, weight: .medium)
+        manage.setContentHuggingPriority(.required, for: .horizontal)
+        manageWorkspaceButton = manage
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let row = NSStackView(views: [label, spacer, save, manage])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.heightAnchor.constraint(equalToConstant: Metrics.sectionHeaderHeight).isActive = true
+        workspaceHeader = row
+        return row
+    }
+
+    private func makeWorkspaceStrip() -> NSView {
+        let strip = WorkspaceConsoleStrip()
+        strip.onApply = { [weak self] id in
+            self?.dismiss(handoff: { [weak self] in self?.runtime.workspace.apply(profileID: id) })
+        }
+        strip.onSave = { [weak self] in self?.saveCurrentWorkspace() }
+        strip.onBeginRename = { [weak self] id in self?.reloadWorkspaceStrip(beginRename: id) }
+        strip.onUpdate = { [weak self] id in
+            self?.runtime.workspace.updateProfileFromCurrent(id: id)
+            self?.reloadWorkspaceStrip()
+        }
+        strip.onRename = { [weak self] id, name in
+            guard var profile = self?.runtime.document.profiles.first(where: { $0.id == id }) else { return }
+            profile.name = LayoutEditTransaction.uniqueName(
+                base: name,
+                existingNames: self?.runtime.document.profiles.filter { $0.id != id }.map(\.name) ?? []
+            )
+            self?.runtime.workspace.updateProfile(profile)
+            self?.reloadWorkspaceStrip()
+        }
+        strip.onDelete = { [weak self] profile in self?.confirmAndDeleteWorkspace(profile) }
+        workspaceStrip = strip
+        return strip
+    }
+
+    private func makeFooter() -> NSView {
         let settings = NSButton(title: L10n.text(.menuSettings), target: self, action: #selector(openSettings))
         settings.bezelStyle = .rounded
         settings.controlSize = .small
         settingsButton = settings
+
+        let hint = NSTextField(labelWithString: "")
+        hint.font = .systemFont(ofSize: 10)
+        hint.textColor = .tertiaryLabelColor
+        hint.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        switcherHintLabel = hint
 
         let quit = NSButton(title: L10n.text(.menuQuit), target: self, action: #selector(quit))
         quit.bezelStyle = .rounded
         quit.controlSize = .small
         quitButton = quit
 
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let row = NSStackView(views: [workspace, settings, spacer, quit])
+        let row = NSStackView(views: [settings, hint, quit])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
@@ -349,12 +409,17 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
         organizeButton?.title = L10n.text(.consoleOrganize)
         organizeButton?.isEnabled = !runtime.isOrganizingWindows
-        workspaceButton?.title = L10n.text(.menuWorkspaces)
+        workspaceLabel?.stringValue = L10n.text(.consoleWorkspaces)
+        saveWorkspaceButton?.title = L10n.text(.consoleSaveWorkspace)
+        manageWorkspaceButton?.title = L10n.text(.consoleManageWorkspaces)
         settingsButton?.title = L10n.text(.menuSettings)
         applyNewLayoutButtonTitle(L10n.text(.consoleNew))
         quitButton?.title = L10n.text(.menuQuit)
+        let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
+        switcherHintLabel?.stringValue = String(format: L10n.text(.consoleSwitcherHint), chord)
 
         rebuildLayoutViews(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
+        reloadWorkspaceStrip()
         gridHeightConstraint?.constant = gridHeight()
     }
 
@@ -438,6 +503,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         var visibleHeights: [CGFloat] = [
             Metrics.headerHeight,
             Metrics.featuredHeight,
+            Metrics.sectionHeaderHeight,
+            Metrics.workspaceStripHeight,
             1,
             Metrics.footerHeight,
         ]
@@ -445,7 +512,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             visibleHeights.insert(Metrics.warningHeight, at: 1)
         }
         if otherLayoutCount > 0 {
-            visibleHeights.insert(contentsOf: [Metrics.sectionHeaderHeight, gridHeight()], at: visibleHeights.count - 2)
+            visibleHeights.insert(contentsOf: [Metrics.sectionHeaderHeight, gridHeight()], at: 2)
         }
         let gaps = CGFloat(max(visibleHeights.count - 1, 0)) * Metrics.stackSpacing
         return Metrics.panelInsets.top + visibleHeights.reduce(0, +) + gaps + Metrics.panelInsets.bottom
@@ -636,67 +703,41 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         dismiss(handoff: { [runtime] in runtime.newGridLayout() })
     }
 
+    private func reloadWorkspaceStrip(beginRename: WorkspaceProfile.ID? = nil) {
+        let layouts = Dictionary(uniqueKeysWithValues: runtime.document.layouts.map { ($0.id, $0) })
+        workspaceStrip?.reload(
+            profiles: runtime.document.orderedProfilesForSettings(),
+            activeID: runtime.document.activeProfileID,
+            layouts: layouts,
+            connectedDisplayIDs: Set(runtime.displays.workAreas.map(\.display.id)),
+            beginRename: beginRename
+        )
+    }
+
     @objc
-    private func showWorkspaceMenu(_ sender: NSButton) {
-        let menu = NSMenu()
-        for profile in runtime.document.profiles.sorted(by: { $0.updatedAt > $1.updatedAt }) {
-            let title = profile.name.count > 30 ? String(profile.name.prefix(29)) + "…" : profile.name
-            let item = NSMenuItem(title: title, action: #selector(applyConsoleWorkspace(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = profile.id.uuidString
-            item.state = profile.id == runtime.document.activeProfileID ? .on : .off
-            item.isEnabled = !runtime.isOrganizingWindows
-            menu.addItem(item)
+    private func saveCurrentWorkspace() {
+        runtime.workspace.captureImmediately { [weak self] id in
+            self?.reloadWorkspaceStrip(beginRename: id)
         }
-        if !runtime.document.profiles.isEmpty { menu.addItem(.separator()) }
-        let capture = NSMenuItem(
-            title: L10n.text(.menuCaptureWorkspace),
-            action: #selector(captureConsoleWorkspace(_:)),
-            keyEquivalent: ""
-        )
-        capture.target = self
-        capture.isEnabled = !runtime.isOrganizingWindows
-        menu.addItem(capture)
-        menu.addItem(.separator())
-        let manage = NSMenuItem(
-            title: L10n.text(.menuManageWorkspaces),
-            action: #selector(manageConsoleWorkspaces(_:)),
-            keyEquivalent: ""
-        )
-        manage.target = self
-        menu.addItem(manage)
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
     }
 
-    @objc
-    private func applyConsoleWorkspace(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
-        dismiss(handoff: { [runtime] in runtime.workspace.apply(profileID: id) })
-    }
-
-    @objc
-    private func captureConsoleWorkspace(_ sender: NSMenuItem) {
-        let suggested = runtime.workspace.suggestedCaptureName()
+    private func confirmAndDeleteWorkspace(_ profile: WorkspaceProfile) {
         let alert = NSAlert()
-        alert.messageText = L10n.text(.workspaceNameTitle)
-        alert.informativeText = L10n.text(.workspaceNameMessage)
-        let field = NSTextField(string: suggested)
-        field.placeholderString = L10n.text(.workspaceNamePlaceholder)
-        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-        alert.accessoryView = field
-        alert.addButton(withTitle: L10n.text(.workspaceSave))
+        alert.messageText = String(format: L10n.text(.settingsWorkspaceDeleteTitle), profile.name)
+        alert.addButton(withTitle: L10n.text(.settingsWorkspaceDelete))
         alert.addButton(withTitle: L10n.text(.editorCancel))
-        alert.window.initialFirstResponder = field
-        if !suggested.isEmpty {
-            field.selectText(nil)
+        alert.buttons.first?.hasDestructiveAction = true
+        if let panel {
+            alert.beginSheetModal(for: panel) { [weak self] response in
+                guard let self, response == .alertFirstButtonReturn else { return }
+                self.runtime.workspace.deleteProfile(id: profile.id)
+                self.reloadWorkspaceStrip()
+            }
         }
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = field.stringValue
-        dismiss(handoff: { [runtime] in runtime.workspace.capture(name: name) })
     }
 
     @objc
-    private func manageConsoleWorkspaces(_ sender: NSMenuItem) {
+    private func manageConsoleWorkspaces(_ sender: Any? = nil) {
         dismiss(handoff: { [runtime] in runtime.openWorkspaceSettings() })
     }
 
@@ -847,7 +888,8 @@ private enum Metrics {
     static let compactPreviewSize = NSSize(width: compactWidth - 16, height: 52)
     static let compactThumbnailSize = NSSize(width: compactPreviewSize.width - 6, height: compactPreviewSize.height - 6)
     static let featuredThumbnailSize = NSSize(width: 180, height: 86)
-    static let maxGridHeight: CGFloat = compactHeight * 3 + rowSpacing * 2
+    static let maxGridHeight: CGFloat = compactHeight * 2 + rowSpacing
+    static let workspaceStripHeight: CGFloat = 84
 }
 
 private final class LayoutGridView: NSView {

@@ -66,6 +66,28 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
         }
         return ordered.isEmpty ? fallback : ordered.joined(separator: "+")
     }
+
+    /// Arrangement equality ignores rule order and section order. Empty
+    /// profiles never match, including against another empty profile.
+    public func hasSameArrangement(as other: WorkspaceProfile) -> Bool {
+        Self.sameArrangement(sections, other.sections)
+    }
+
+    public func hasSameArrangement(as sections: [ProfileSection]) -> Bool {
+        Self.sameArrangement(self.sections, sections)
+    }
+
+    public static func sameArrangement(_ lhs: [ProfileSection], _ rhs: [ProfileSection]) -> Bool {
+        guard !lhs.isEmpty, !rhs.isEmpty, lhs.count == rhs.count else { return false }
+        func signature(_ section: ProfileSection) -> (UUID, Layout.ID, Set<AppPlacementRule>) {
+            (section.space.displayID, section.layoutID, Set(section.rules))
+        }
+        let left = lhs.map(signature).sorted { $0.0.uuidString < $1.0.uuidString }
+        let right = rhs.map(signature).sorted { $0.0.uuidString < $1.0.uuidString }
+        return zip(left, right).allSatisfy { lhs, rhs in
+            lhs.0 == rhs.0 && lhs.1 == rhs.1 && lhs.2 == rhs.2
+        }
+    }
 }
 
 public struct WorkspaceApplyFeedback: Equatable, Sendable {

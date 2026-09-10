@@ -129,6 +129,42 @@ final class WorkspaceCenter {
         }
     }
 
+    func captureImmediately(onCreated: ((WorkspaceProfile.ID) -> Void)? = nil) {
+        guard runtime.requestProAccess(for: .workspace) else { return }
+        Task { @MainActor [weak self] in
+            await self?.captureNow(
+                name: self?.suggestedCaptureName() ?? L10n.text(.workspaceDefaultName),
+                replacing: nil,
+                preferExistingArrangement: true,
+                includeHotkeyHint: true,
+                onCreated: onCreated
+            )
+        }
+    }
+
+    func capturePreview() -> (applicationCount: Int, displayCount: Int) {
+        let sections = captureSections(from: collectVisibleSamples())
+        return (
+            Set(sections.flatMap(\.rules).map(\.bundleID)).count,
+            sections.count
+        )
+    }
+
+    func updateProfileFromCurrent(id: WorkspaceProfile.ID) {
+        guard runtime.requestProAccess(for: .workspace) else { return }
+        guard let existing = runtime.document.profiles.first(where: { $0.id == id }) else {
+            NSSound.beep()
+            return
+        }
+        Task { @MainActor [weak self] in
+            await self?.captureNow(
+                name: existing.name,
+                replacing: existing.id,
+                undoSnapshot: existing
+            )
+        }
+    }
+
     func suggestedCaptureName() -> String {
         let fallback = L10n.text(.workspaceDefaultName)
         let samples = collectVisibleSamples()
@@ -189,7 +225,14 @@ final class WorkspaceCenter {
         updateCensus()
     }
 
-    private func captureNow(name: String, replacing profileID: WorkspaceProfile.ID?) async {
+    private func captureNow(
+        name: String,
+        replacing profileID: WorkspaceProfile.ID?,
+        preferExistingArrangement: Bool = false,
+        includeHotkeyHint: Bool = false,
+        undoSnapshot: WorkspaceProfile? = nil,
+        onCreated: ((WorkspaceProfile.ID) -> Void)? = nil
+    ) async {
         guard runtime.allows(.censusWindows), runtime.mode == .idle else {
             NSSound.beep()
             return
@@ -215,7 +258,26 @@ final class WorkspaceCenter {
             showFeedback(
                 title: L10n.text(.workspaceCaptureEmptyTitle),
                 detail: L10n.text(.workspaceCaptureEmptyDetail),
-                error: true
+                tone: .error
+            )
+            return
+        }
+
+        if preferExistingArrangement, profileID == nil,
+           var existingMatch = runtime.document.profiles.first(where: { $0.hasSameArrangement(as: sections) })
+        {
+            existingMatch.updatedAt = Date()
+            runtime.document.upsertProfile(existingMatch)
+            runtime.document.activeProfileID = existingMatch.id
+            runtime.persist()
+            runtime.reloadMenu()
+            runtime.refreshWorkspaceSettings()
+            resetBaseline()
+            updateCensus()
+            showFeedback(
+                title: String(format: L10n.text(.workspaceAlreadySavedTitle), existingMatch.name),
+                detail: "",
+                tone: .success
             )
             return
         }
@@ -242,11 +304,37 @@ final class WorkspaceCenter {
         runtime.refreshWorkspaceSettings()
         resetBaseline()
         updateCensus()
+        if existing == nil {
+            onCreated?(profile.id)
+        }
+        let detail: String
+        if includeHotkeyHint, existing == nil {
+            let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
+            detail = String(format: L10n.text(.workspaceCapturedDetail), profile.name, profile.applicationCount)
+                + " · "
+                + String(format: L10n.text(.workspaceCapturedHotkeyDetail), chord)
+        } else {
+            detail = String(format: L10n.text(.workspaceCapturedDetail), profile.name, profile.applicationCount)
+        }
+        let snapshotForUndo = existing == nil ? nil : undoSnapshot
         showFeedback(
             title: L10n.text(existing == nil ? .workspaceCapturedTitle : .workspaceUpdatedTitle),
-            detail: String(format: L10n.text(.workspaceCapturedDetail), profile.name, profile.applicationCount),
-            error: false
+            detail: detail,
+            tone: .success,
+            restoreTitle: snapshotForUndo == nil ? nil : L10n.text(.workspaceUndoAction),
+            onRestore: snapshotForUndo.map { snapshot in
+                { [weak self] in self?.restoreUndoSnapshot(snapshot) }
+            }
         )
+    }
+
+    private func restoreUndoSnapshot(_ snapshot: WorkspaceProfile) {
+        runtime.document.upsertProfile(snapshot)
+        runtime.document.activeProfileID = snapshot.id
+        runtime.persist()
+        runtime.reloadMenu()
+        runtime.refreshWorkspaceSettings()
+        updateCensus()
     }
 
     private func applyNow(_ profile: WorkspaceProfile) async {
@@ -444,7 +532,9 @@ final class WorkspaceCenter {
             showFeedback(
                 title: L10n.text(feedback.titleKey),
                 detail: feedback.detail,
-                error: feedback.isError
+                tone: feedback.isError
+                    ? .error
+                    : feedback.titleKey == .workspaceApplyPartialTitle ? .warning : .success
             )
         }
     }
@@ -751,7 +841,7 @@ final class WorkspaceCenter {
             showFeedback(
                 title: L10n.text(.workspaceAppMissingTitle),
                 detail: String(format: L10n.text(.workspaceAppNotInstalledDetail), bundleID),
-                error: true
+                tone: .error
             )
             return
         }
@@ -819,7 +909,7 @@ final class WorkspaceCenter {
                     self.showFeedback(
                         title: L10n.text(.workspaceAppMissingTitle),
                         detail: error.localizedDescription,
-                        error: true
+                        tone: .error
                     )
                     return
                 }
@@ -946,7 +1036,7 @@ final class WorkspaceCenter {
                     format: L10n.text(.workspaceLaunchTimeoutDetail),
                     expiredBundles.sorted().joined(separator: ", ")
                 ),
-                error: true
+                tone: .error
             )
         }
         guard runtime.allows(.censusWindows) else { return }
@@ -1148,12 +1238,24 @@ final class WorkspaceCenter {
         }
     }
 
-    private func showFeedback(title: String, detail: String, error: Bool) {
+    private func showFeedback(
+        title: String,
+        detail: String,
+        tone: OrganizeFeedback.Tone,
+        restoreTitle: String? = nil,
+        onRestore: (() -> Void)? = nil
+    ) {
         let area = runtime.area(containingAppKit: NSEvent.mouseLocation)
             ?? runtime.workAreas.first
         guard let area, let screen = runtime.screen(for: area.display.id) else { return }
         runtime.organizeFeedback.show(
-            OrganizeFeedback(tone: error ? .error : .warning, title: title, detail: detail),
+            OrganizeFeedback(
+                tone: tone,
+                title: title,
+                detail: detail,
+                restoreTitle: restoreTitle,
+                onRestore: onRestore
+            ),
             on: screen
         )
     }
