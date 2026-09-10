@@ -119,6 +119,14 @@ final class L10nTests: XCTestCase {
             "分区 2"
         )
         XCTAssertEqual(
+            L10n.text(.settingsWorkspaceLayoutPreview, language: .english),
+            "Restore layout schematic"
+        )
+        XCTAssertEqual(
+            L10n.text(.settingsWorkspaceLayoutPreview, language: .chineseSimplified),
+            "恢复布局示意"
+        )
+        XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .english),
             "Shows a Screen Recording mirror above other apps. Clicks and scrolling go to the original window. Raise is best-effort, not a private always-on-top window level."
         )

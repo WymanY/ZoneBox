@@ -130,6 +130,15 @@ final class RuntimeOwnershipTests: XCTestCase {
         XCTAssertTrue(gate.begin(.organize))
     }
 
+    func testOrganizeModeAllowsWorkspaceCensusAndMutation() {
+        var gate = RuntimeModeGate()
+        XCTAssertTrue(gate.begin(.organize))
+        XCTAssertTrue(gate.allows(.censusWindows))
+        XCTAssertTrue(gate.allows(.mutateWindows))
+        XCTAssertFalse(gate.allows(.capturePointer))
+        XCTAssertFalse(gate.allows(.presentDivider))
+    }
+
     func testTimeoutDoesNotBlockLaterWrite() async {
         let mutator = FakeWindowMutator(frames: [left: CGRect(x: 0, y: 0, width: 100, height: 100)])
         mutator.hangUntilCancelled = true

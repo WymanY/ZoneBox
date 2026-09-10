@@ -236,6 +236,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsWorkspaceUnavailableDisplay
     case settingsWorkspaceUnavailableLayout
     case settingsWorkspaceActive
+    case settingsWorkspaceLayoutPreview
     case settingsAccessGranted
     case settingsAccessRequired
     case settingsManageAccess
@@ -818,6 +819,7 @@ public enum L10n {
         .settingsWorkspaceUnavailableDisplay: "Unavailable display",
         .settingsWorkspaceUnavailableLayout: "Unavailable layout",
         .settingsWorkspaceActive: "Last applied",
+        .settingsWorkspaceLayoutPreview: "Restore layout schematic",
         .settingsAccessGranted: "Accessibility allowed",
         .settingsAccessRequired: "Accessibility required",
         .settingsManageAccess: "Manage…",
@@ -1248,6 +1250,7 @@ public enum L10n {
         .settingsWorkspaceUnavailableDisplay: "不可用的显示器",
         .settingsWorkspaceUnavailableLayout: "不可用的布局",
         .settingsWorkspaceActive: "最近应用",
+        .settingsWorkspaceLayoutPreview: "恢复布局示意",
         .settingsAccessGranted: "辅助功能权限：已授权",
         .settingsAccessRequired: "需要辅助功能权限",
         .settingsManageAccess: "管理权限…",
