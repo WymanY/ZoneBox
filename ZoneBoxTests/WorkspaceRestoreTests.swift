@@ -296,4 +296,23 @@ final class WorkspaceRestoreTests: XCTestCase {
         )
         XCTAssertTrue(WorkspaceRestore.shouldAssignLayout(displayAvailable: true, layoutExists: true))
     }
+
+    func testForegroundBundleIDsPreserveFirstSeenOrderAndDropDuplicates() {
+        XCTAssertEqual(
+            WorkspaceRestore.foregroundBundleIDs([
+                "com.apple.Notes",
+                "",
+                "com.electron.factory",
+                "com.apple.Notes",
+                "  com.google.Chrome  ",
+                "com.electron.factory",
+            ]),
+            ["com.apple.Notes", "com.electron.factory", "com.google.Chrome"]
+        )
+        XCTAssertEqual(WorkspaceRestore.foregroundBundleIDs(["", "   "]), [])
+    }
+
+    func testRestoredAppsDoNotActivateEveryWindowOnOtherSpaces() {
+        XCTAssertFalse(WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps)
+    }
 }

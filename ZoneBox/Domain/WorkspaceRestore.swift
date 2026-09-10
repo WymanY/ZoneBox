@@ -150,4 +150,23 @@ public enum WorkspaceRestore {
         shouldAssignLayout(displayAvailable: displayAvailable, layoutExists: layoutExists)
             && (organizeSucceeded || noMovableWindows)
     }
+
+    /// Unique bundle IDs in first-seen order. Restore activates this sequence
+    /// so every saved app sits above unrelated windows; the last ID becomes
+    /// the frontmost application.
+    public static func foregroundBundleIDs(_ bundleIDs: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for raw in bundleIDs {
+            let bundleID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !bundleID.isEmpty, seen.insert(bundleID).inserted else { continue }
+            ordered.append(bundleID)
+        }
+        return ordered
+    }
+
+    /// AXRaise does not lift a window above another application. Restore must
+    /// activate each saved app. Activating every window would yank the user
+    /// onto another Space, so this stays off for already-placed windows.
+    public static var activateAllWindowsWhenForegroundingRestoredApps: Bool { false }
 }
