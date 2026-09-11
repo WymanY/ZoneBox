@@ -74,7 +74,7 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(roundTrip.recentLayoutIDs, [first])
     }
 
-    func testProfilesRoundTripAndNormalizeDanglingReferences() throws {
+    func testProfilesRoundTripAndDropEmptySections() throws {
         let layout = LayoutTemplates.columns(2)
         let displayID = UUID()
         let kept = WorkspaceProfile(
@@ -82,27 +82,85 @@ final class LayoutStoreTests: XCTestCase {
             sections: [
                 ProfileSection(
                     space: SpaceKey(displayID: displayID),
-                    layoutID: layout.id,
-                    rules: [AppPlacementRule(bundleID: "com.example.Editor", zoneID: layout.zones[0].id, zoneNumber: 1)]
+                    rules: [
+                        AppPlacementRule(
+                            bundleID: "com.example.Editor",
+                            frame: NormalizedRect(x: 0.125, y: 0, width: 0.375, height: 0.8)
+                        ),
+                    ]
                 ),
             ]
         )
-        let dangling = WorkspaceProfile(
-            name: "Dangling",
-            sections: [
-                ProfileSection(
-                    space: SpaceKey(displayID: displayID),
-                    layoutID: UUID(),
-                    rules: [AppPlacementRule(bundleID: "com.example.Other", zoneID: UUID(), zoneNumber: 1)]
-                ),
-            ]
+        let empty = WorkspaceProfile(
+            name: "Empty",
+            sections: [ProfileSection(space: SpaceKey(displayID: displayID), rules: [])]
         )
-        let document = StoreDocument(layouts: [layout], profiles: [kept, dangling], activeProfileID: dangling.id)
+        let document = StoreDocument(layouts: [layout], profiles: [kept, empty], activeProfileID: empty.id)
         XCTAssertEqual(document.profiles, [kept])
         XCTAssertNil(document.activeProfileID)
 
         let decoded = try JSONDecoder().decode(StoreDocument.self, from: JSONEncoder().encode(document))
         XCTAssertEqual(decoded.profiles, [kept])
+    }
+
+    func testLegacyZoneRulesMigrateToTheFramesTheirZonesOccupied() throws {
+        let layout = LayoutTemplates.columns(2)
+        let panes = LayoutTemplates.thumbnailPanes(for: layout)
+        let displayID = UUID()
+        let profileID = UUID()
+        let json = Data(
+            """
+            {
+              "schemaVersion": 1,
+              "layouts": \(String(decoding: try JSONEncoder().encode([layout]), as: UTF8.self)),
+              "displays": [],
+              "assignments": [],
+              "profiles": [{
+                "id": "\(profileID.uuidString)",
+                "name": "Legacy",
+                "launchMissingApps": false,
+                "createdAt": 0,
+                "updatedAt": 0,
+                "sections": [{
+                  "space": {"displayID": "\(displayID.uuidString)"},
+                  "layoutID": "\(layout.id.uuidString)",
+                  "rules": [
+                    {"bundleID": "by.id", "zoneID": "\(layout.zones[1].id.uuidString)", "zoneNumber": 1},
+                    {"bundleID": "by.number", "zoneID": "\(UUID().uuidString)", "zoneNumber": 1},
+                    {"bundleID": "gone", "zoneID": "\(UUID().uuidString)", "zoneNumber": 9}
+                  ]
+                }, {
+                  "space": {"displayID": "\(UUID().uuidString)"},
+                  "layoutID": "\(UUID().uuidString)",
+                  "rules": [{"bundleID": "orphan", "zoneID": "\(UUID().uuidString)", "zoneNumber": 1}]
+                }]
+              }],
+              "activeProfileID": "\(profileID.uuidString)"
+            }
+            """.utf8
+        )
+
+        let document = try JSONDecoder().decode(StoreDocument.self, from: json)
+
+        let profile = try XCTUnwrap(document.profiles.first)
+        XCTAssertEqual(document.profiles.count, 1)
+        XCTAssertEqual(profile.id, profileID)
+        XCTAssertFalse(profile.launchMissingApps)
+        XCTAssertEqual(profile.sections.map(\.space.displayID), [displayID])
+        let secondZonePane = try XCTUnwrap(panes.first { $0.id == layout.zones[1].id })
+        let firstNumberPane = try XCTUnwrap(panes.first { $0.number == 1 })
+        XCTAssertEqual(
+            profile.sections[0].rules,
+            [
+                AppPlacementRule(bundleID: "by.id", frame: secondZonePane.rect),
+                AppPlacementRule(bundleID: "by.number", frame: firstNumberPane.rect),
+            ]
+        )
+        XCTAssertEqual(document.activeProfileID, profileID)
+
+        let reencoded = String(decoding: try JSONEncoder().encode(document), as: UTF8.self)
+        XCTAssertFalse(reencoded.contains("zoneNumber"))
+        XCTAssertTrue(reencoded.contains("\"frame\""))
     }
 
     func testLegacyAutomaticPlacementFieldIsIgnoredAndNotReencoded() throws {
@@ -134,17 +192,18 @@ final class LayoutStoreTests: XCTestCase {
         let stale = DisplayIdentity(localizedName: "Mi Monitor", visibleWidth: 1920, visibleHeight: 1049, backingScale: 2)
         let live = DisplayIdentity(localizedName: "Mi Monitor", visibleWidth: 1920, visibleHeight: 1049, backingScale: 2)
         let builtIn = DisplayIdentity(localizedName: "Built-in", visibleWidth: 1440, visibleHeight: 809, backingScale: 2)
-        let rule = AppPlacementRule(bundleID: "app", zoneID: layout.zones[0].id, zoneNumber: 1)
+        let rule = AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))
+        let liveRule = AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0, y: 0, width: 1, height: 0.5))
         let orphaned = WorkspaceProfile(
             name: "Desk",
-            sections: [ProfileSection(space: SpaceKey(displayID: stale.id), layoutID: layout.id, rules: [rule])]
+            sections: [ProfileSection(space: SpaceKey(displayID: stale.id), rules: [rule])]
         )
         let both = WorkspaceProfile(
             name: "Both",
             sections: [
-                ProfileSection(space: SpaceKey(displayID: stale.id), layoutID: layout.id, rules: [rule]),
-                ProfileSection(space: SpaceKey(displayID: live.id), layoutID: other.id, rules: [rule]),
-                ProfileSection(space: SpaceKey(displayID: builtIn.id), layoutID: other.id, rules: [rule]),
+                ProfileSection(space: SpaceKey(displayID: stale.id), rules: [rule]),
+                ProfileSection(space: SpaceKey(displayID: live.id), rules: [liveRule]),
+                ProfileSection(space: SpaceKey(displayID: builtIn.id), rules: [liveRule]),
             ]
         )
         var document = StoreDocument(
@@ -160,7 +219,7 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(document.assignments, [LayoutAssignment(space: SpaceKey(displayID: live.id), layoutID: layout.id)])
         XCTAssertEqual(document.profiles[0].sections.map(\.space.displayID), [live.id])
         XCTAssertEqual(document.profiles[1].sections.map(\.space.displayID), [live.id, builtIn.id])
-        XCTAssertEqual(document.profiles[1].sections.map(\.layoutID), [other.id, other.id])
+        XCTAssertEqual(document.profiles[1].sections.map(\.rules), [[liveRule], [liveRule]])
     }
 
     func testBestMatchRejectsAmbiguousNameAndSizeTies() {
@@ -234,7 +293,7 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(document, before)
     }
 
-    func testSettingsProfileOrderStaysPutWhenActiveProfileChanges() {
+    func testActiveProfileLeadsAndTheRestKeepInsertionOrder() {
         let layout = LayoutTemplates.columns(2)
         let displayID = UUID()
         let older = Date(timeIntervalSince1970: 1)
@@ -245,9 +304,13 @@ final class LayoutStoreTests: XCTestCase {
                 sections: [
                     ProfileSection(
                         space: SpaceKey(displayID: displayID),
-                        layoutID: layout.id,
-                        rules: [AppPlacementRule(bundleID: "app.\(name)", zoneID: layout.zones[0].id, zoneNumber: 1)]
-                    )
+                        rules: [
+                            AppPlacementRule(
+                                bundleID: "app.\(name)",
+                                frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)
+                            ),
+                        ]
+                    ),
                 ],
                 createdAt: createdAt,
                 updatedAt: updatedAt
@@ -255,18 +318,32 @@ final class LayoutStoreTests: XCTestCase {
         }
         let first = profile(name: "First", createdAt: older, updatedAt: older)
         let second = profile(name: "Second", createdAt: newer, updatedAt: newer)
-        var document = StoreDocument(layouts: [layout], profiles: [first, second], activeProfileID: first.id)
-        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second"])
+        let third = profile(name: "Third", createdAt: newer, updatedAt: newer)
+        var document = StoreDocument(
+            layouts: [layout],
+            profiles: [first, second, third],
+            activeProfileID: first.id
+        )
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second", "Third"])
 
-        document.activeProfileID = second.id
+        // Applying or saving the last card moves only that card to the front.
+        document.activeProfileID = third.id
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["Third", "First", "Second"])
+        XCTAssertEqual(document.profiles.map(\.name), ["First", "Second", "Third"])
+
+        // A recapture keeps the active card in front without touching updatedAt order.
         var recaptured = second
         recaptured.updatedAt = Date(timeIntervalSince1970: 99)
         document.upsertProfile(recaptured)
-        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second"])
-        XCTAssertEqual(document.activeProfileID, second.id)
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["Third", "First", "Second"])
+        XCTAssertEqual(document.activeProfileID, third.id)
+
+        // No active workspace: stored order as-is.
+        document.activeProfileID = nil
+        XCTAssertEqual(document.orderedProfilesForSettings().map(\.name), ["First", "Second", "Third"])
     }
 
-    func testDeleteLayoutCascadesProfileSectionsAndActiveProfile() {
+    func testDeleteLayoutLeavesFrameBasedProfilesAlone() {
         let first = LayoutTemplates.columns(2)
         let second = LayoutTemplates.rows(2)
         let profile = WorkspaceProfile(
@@ -274,15 +351,14 @@ final class LayoutStoreTests: XCTestCase {
             sections: [
                 ProfileSection(
                     space: SpaceKey(displayID: UUID()),
-                    layoutID: first.id,
-                    rules: [AppPlacementRule(bundleID: "app", zoneID: first.zones[0].id, zoneNumber: 1)]
+                    rules: [AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))]
                 ),
             ]
         )
         var document = StoreDocument(layouts: [first, second], profiles: [profile], activeProfileID: profile.id)
         XCTAssertTrue(document.deleteLayout(id: first.id))
-        XCTAssertTrue(document.profiles.isEmpty)
-        XCTAssertNil(document.activeProfileID)
+        XCTAssertEqual(document.profiles, [profile])
+        XCTAssertEqual(document.activeProfileID, profile.id)
     }
 
     func testMarkLayoutUsedDedupesAndDeleteCleansMRU() {

@@ -4,38 +4,37 @@ import Foundation
 public enum ProfilePlan {
     public struct SectionPlan: Equatable, Sendable {
         public var displayID: DisplayIdentity.ID
-        public var layoutID: Layout.ID
+        public var workAreaAX: CGRect
         public var placements: [WindowOrganizePlacement]
-        public var zoneIDByIdentity: [WindowIdentity: UUID]
+        /// Every saved frame on this display, including ones whose app has no
+        /// window yet, so the confirmation flash shows the whole arrangement.
+        public var targetFramesAX: [CGRect]
 
         public init(
             displayID: DisplayIdentity.ID,
-            layoutID: Layout.ID,
+            workAreaAX: CGRect,
             placements: [WindowOrganizePlacement],
-            zoneIDByIdentity: [WindowIdentity: UUID]
+            targetFramesAX: [CGRect]
         ) {
             self.displayID = displayID
-            self.layoutID = layoutID
+            self.workAreaAX = workAreaAX
             self.placements = placements
-            self.zoneIDByIdentity = zoneIDByIdentity
+            self.targetFramesAX = targetFramesAX
         }
     }
 
     public struct Outcome: Equatable, Sendable {
         public var sections: [SectionPlan]
         public var missingBundleIDs: [String]
-        public var staleRules: [AppPlacementRule]
         public var skippedDisplayIDs: [DisplayIdentity.ID]
 
         public init(
             sections: [SectionPlan],
             missingBundleIDs: [String],
-            staleRules: [AppPlacementRule],
             skippedDisplayIDs: [DisplayIdentity.ID]
         ) {
             self.sections = sections
             self.missingBundleIDs = missingBundleIDs
-            self.staleRules = staleRules
             self.skippedDisplayIDs = skippedDisplayIDs
         }
     }
@@ -59,7 +58,7 @@ public enum ProfilePlan {
         return runningBundleIDs.contains(bundleID) ? .reopen : .launch
     }
 
-    /// Bundle IDs from sections whose display and layout are currently available.
+    /// Bundle IDs from sections whose display is currently available.
     /// Skipped (disconnected) sections must not unhide or reopen their apps.
     public static func restorableBundleIDs(
         profile: WorkspaceProfile,
@@ -84,9 +83,12 @@ public enum ProfilePlan {
         isFullscreen
     }
 
+    /// Saved frames are relative to each display's work area, so a section
+    /// restores proportionally when the same display comes back at another
+    /// resolution and exactly when it does not.
     public static func make(
         profile: WorkspaceProfile,
-        zonesBySection: [DisplayIdentity.ID: [ResolvedZone]],
+        workAreasBySection: [DisplayIdentity.ID: CGRect],
         candidates: [ProfileCapture.WindowSample]
     ) -> Outcome {
         var queues: [String: [ProfileCapture.WindowSample]] = [:]
@@ -97,39 +99,33 @@ public enum ProfilePlan {
 
         var sections: [SectionPlan] = []
         var missing: [String] = []
-        var stale: [AppPlacementRule] = []
         var skipped: [DisplayIdentity.ID] = []
 
         for section in profile.sections {
             let displayID = section.space.displayID
-            guard let zones = zonesBySection[displayID] else {
+            guard let workAreaAX = workAreasBySection[displayID] else {
                 if !skipped.contains(displayID) { skipped.append(displayID) }
                 continue
             }
             var placements: [WindowOrganizePlacement] = []
-            var zoneIDs: [WindowIdentity: UUID] = [:]
-            for rule in ProfileCapture.frontmostRulesPerZone(section.rules) {
-                guard let zone = zones.first(where: { $0.zoneID == rule.zoneID })
-                    ?? zones.first(where: { $0.number == rule.zoneNumber })
-                else {
-                    stale.append(rule)
-                    continue
-                }
+            var targets: [CGRect] = []
+            for rule in section.rules {
+                let target = rule.frame.denormalize(in: workAreaAX)
+                targets.append(target)
                 guard var queue = queues[rule.bundleID], !queue.isEmpty else {
                     if !missing.contains(rule.bundleID) { missing.append(rule.bundleID) }
                     continue
                 }
-                let sample = queue.remove(at: preferredIndex(in: queue, zone: zone.frameAX, sectionZones: zones))
+                let sample = queue.remove(at: preferredIndex(in: queue, target: target, workAreaAX: workAreaAX))
                 queues[rule.bundleID] = queue
-                placements.append(WindowOrganizePlacement(identity: sample.identity, targetFrameAX: zone.frameAX))
-                zoneIDs[sample.identity] = zone.zoneID
+                placements.append(WindowOrganizePlacement(identity: sample.identity, targetFrameAX: target))
             }
             sections.append(
                 SectionPlan(
                     displayID: displayID,
-                    layoutID: section.layoutID,
+                    workAreaAX: workAreaAX,
                     placements: placements,
-                    zoneIDByIdentity: zoneIDs
+                    targetFramesAX: targets
                 )
             )
         }
@@ -137,27 +133,26 @@ public enum ProfilePlan {
         return Outcome(
             sections: sections,
             missingBundleIDs: missing,
-            staleRules: stale,
             skippedDisplayIDs: skipped
         )
     }
 
     /// Same-app windows are consumed front-to-back, but a window that already
-    /// sits in the rule's zone keeps it, and a window on the section's display
+    /// sits at the rule's frame keeps it, and a window on the section's display
     /// beats one on another display. Otherwise two browser windows swap places
     /// on every restore even though both were exactly where the profile wanted.
     static func preferredIndex(
         in queue: [ProfileCapture.WindowSample],
-        zone: CGRect,
-        sectionZones: [ResolvedZone]
+        target: CGRect,
+        workAreaAX: CGRect
     ) -> Int {
         var bestIndex = 0
         var bestScore = -1
         for (index, sample) in queue.enumerated() {
             let score: Int
-            if ProfileCapture.occupies(sample.frameAX, zone: zone) {
+            if ProfileCapture.occupies(sample.frameAX, zone: target) {
                 score = 2
-            } else if sectionZones.contains(where: { intersectsInterior(sample.frameAX, $0.frameAX) }) {
+            } else if intersectsInterior(sample.frameAX, workAreaAX) {
                 score = 1
             } else {
                 score = 0

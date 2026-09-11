@@ -42,6 +42,7 @@
 		30BBD31606521AA8D9527935 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
 		31C3FDF786216F6231203B26 /* DividerPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A26B472B8AD57437CC0AC7 /* DividerPlanTests.swift */; };
 		3221C9A4F5E9F507E3622277 /* CanvasEditorCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7344A0AA5258CE72F2F37A /* CanvasEditorCommands.swift */; };
+		3226BD7544D96E09AAFB1DEA /* WorkspaceCapturePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA2A93972400594DAC49EF39 /* WorkspaceCapturePrompt.swift */; };
 		34009A0AA34541218949D821 /* WorkspaceSwitcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02D11A2FE6589F0944F304E /* WorkspaceSwitcherTests.swift */; };
 		3404124FE47711426FE97D17 /* PinBadgeSlotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA194CF90613C4665568EB3 /* PinBadgeSlotTests.swift */; };
 		34BDD8C76AD75AE658760B0F /* LicenseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9631DDBAA70D484EDFBA000 /* LicenseConfig.swift */; };
@@ -80,6 +81,7 @@
 		5E162926652F25D6040EB067 /* AXFrameMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85FD3A6E1C8FD0B35CD64F2D /* AXFrameMutationTests.swift */; };
 		602BAB1EB72AC9325077D8E3 /* AXFrameMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911E2237CF24AFA98A7C04A0 /* AXFrameMutation.swift */; };
 		602C8EF6260E18480529C10D /* UISession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32320082E685F5BED369E0 /* UISession.swift */; };
+		62D12D697C927EAC352A5CC8 /* WorkspaceProfileMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DB405C7A6B538406DB33DB /* WorkspaceProfileMigration.swift */; };
 		63C3B0B612099E5215AF0F25 /* libZoneBoxCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8977D5A42FCDB9665527E332 /* libZoneBoxCore.a */; };
 		64021BE1C01989E39E4BC87D /* WorkspaceLayoutPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9A57E96F23A51BD13E8D85 /* WorkspaceLayoutPreviewView.swift */; };
 		68931C44AB28E7F7ABAFE9AB /* LicenseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6DDC34595048A8AB68DB2E /* LicenseStore.swift */; };
@@ -305,6 +307,7 @@
 		8FABADF86A10A5CE9C0A81EC /* OverlapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlapPolicy.swift; sourceTree = "<group>"; };
 		9118B8805E80F4D1DA3FC84D /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		911E2237CF24AFA98A7C04A0 /* AXFrameMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXFrameMutation.swift; sourceTree = "<group>"; };
+		91DB405C7A6B538406DB33DB /* WorkspaceProfileMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceProfileMigration.swift; sourceTree = "<group>"; };
 		921585654641B9B709D6F8B3 /* WorkspaceRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRestoreTests.swift; sourceTree = "<group>"; };
 		92804B026972E065B5438FCB /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		930771AEC81146EE7355D0CB /* LayoutThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutThumbnailRenderer.swift; sourceTree = "<group>"; };
@@ -340,6 +343,7 @@
 		C44D6AE4213818490ABAEA7A /* ShortcutCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogTests.swift; sourceTree = "<group>"; };
 		C477D3E91C0282AAFB91190F /* OwnWindowFrameMutationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnWindowFrameMutationTests.swift; sourceTree = "<group>"; };
 		C9D5122A337EC77F24071CC7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		CA2A93972400594DAC49EF39 /* WorkspaceCapturePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceCapturePrompt.swift; sourceTree = "<group>"; };
 		CA830A028E016744AF61F8E0 /* WelcomeAccessibilityPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeAccessibilityPage.swift; sourceTree = "<group>"; };
 		CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChrome.swift; sourceTree = "<group>"; };
 		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -484,6 +488,7 @@
 				ABB8270A23BADECB0D3F0EAC /* WindowOrganize.swift */,
 				24DE70182DC54D9626815FC6 /* WorkspaceLayoutPreview.swift */,
 				144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */,
+				91DB405C7A6B538406DB33DB /* WorkspaceProfileMigration.swift */,
 				9D4A78403910C0981EEC37B6 /* WorkspaceRestore.swift */,
 				F1D8C7D67F5538E3607348EA /* WorkspaceSwitcher.swift */,
 				DD96966B883ED6C884EED18A /* Zone.swift */,
@@ -495,6 +500,7 @@
 			isa = PBXGroup;
 			children = (
 				6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */,
+				CA2A93972400594DAC49EF39 /* WorkspaceCapturePrompt.swift */,
 				6A4B020D51B99BF72A79CFFF /* WorkspaceConsoleStrip.swift */,
 			);
 			path = MenuBar;
@@ -919,6 +925,7 @@
 				FFB58EB33E86634605604872 /* WindowCatalog.swift in Sources */,
 				910DE576C2672D6EFF044DB0 /* WindowQuerying.swift in Sources */,
 				494A0A2047E018F72492DF9D /* WorkspaceApplicationInfo.swift in Sources */,
+				3226BD7544D96E09AAFB1DEA /* WorkspaceCapturePrompt.swift in Sources */,
 				D5FF897F5A4AF3F055B13384 /* WorkspaceCenter.swift in Sources */,
 				93DF8D76D43ED1151420A9F2 /* WorkspaceConsoleStrip.swift in Sources */,
 				64021BE1C01989E39E4BC87D /* WorkspaceLayoutPreviewView.swift in Sources */,
@@ -990,6 +997,7 @@
 				E8405C23906B84C40461F26F /* WorkArea.swift in Sources */,
 				4B9037C1F9415B5A6EE3C7C4 /* WorkspaceLayoutPreview.swift in Sources */,
 				58EA885B537AFB39EB3EFBE4 /* WorkspaceProfile.swift in Sources */,
+				62D12D697C927EAC352A5CC8 /* WorkspaceProfileMigration.swift in Sources */,
 				0D590FD3F0AE3E678AA6C281 /* WorkspaceRestore.swift in Sources */,
 				F03548C6C6285EA6CCA0A3BA /* WorkspaceSwitcher.swift in Sources */,
 				AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */,

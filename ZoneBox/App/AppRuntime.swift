@@ -1052,19 +1052,34 @@ final class AppRuntime {
         workAreaAX: CGRect? = nil,
         showName: Bool = false
     ) {
-        previewHideWorkItem?.cancel()
-        previewHideWorkItem = nil
         let workAX = workAreaAX ?? CoordinateConverter.axRect(
             fromAppKit: area.visibleFrameAppKit,
             primaryFlipHeight: displays.primaryFlipHeight
         )
         let zones = (try? resolveLayout(layout, workAreaAX: workAX, gutter: CGFloat(settings.gutterPoints))) ?? []
+        flash(
+            zones: zones,
+            on: area.display.id,
+            duration: duration,
+            showName: showName,
+            layoutName: showName ? L10n.layoutDisplayName(layout.name) : nil,
+            showNumbers: nil
+        )
+    }
+
+    private func flash(
+        zones: [ResolvedZone],
+        on displayID: DisplayIdentity.ID,
+        duration: TimeInterval,
+        showName: Bool,
+        layoutName: String?,
+        showNumbers: Bool?
+    ) {
+        previewHideWorkItem?.cancel()
+        previewHideWorkItem = nil
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
-        let presentation = OverlayPresentation(
-            layoutName: showName ? L10n.layoutDisplayName(layout.name) : nil
-        )
-        let displayID = area.display.id
+        let presentation = OverlayPresentation(layoutName: layoutName)
         let present: () -> Void = { [weak self] in
             guard let self else { return }
             self.divider.hideAll()
@@ -1079,7 +1094,8 @@ final class AppRuntime {
                     displayID: displayID,
                     zones: zones,
                     highlight: .none,
-                    presentation: presentation
+                    presentation: presentation,
+                    showNumbers: showNumbers
                 )
             }
             let work = DispatchWorkItem { [weak self] in
@@ -1104,8 +1120,21 @@ final class AppRuntime {
         }
     }
 
-    func flashWorkspaceZones(area: WorkArea, layout: Layout) {
-        flashZones(area: area, layout: layout, duration: 1.2)
+    /// Confirms a workspace restore by outlining the restored frames themselves.
+    /// They are windows, not zones, so zone numbers stay off.
+    func flashWorkspaceFrames(area: WorkArea, framesAX: [CGRect]) {
+        guard !framesAX.isEmpty else { return }
+        let zones = framesAX.enumerated().map { index, frame in
+            ResolvedZone(zoneID: UUID(), number: index + 1, frameAX: frame)
+        }
+        flash(
+            zones: zones,
+            on: area.display.id,
+            duration: 1.2,
+            showName: false,
+            layoutName: nil,
+            showNumbers: false
+        )
     }
 
     func openAccessibility() {
@@ -1498,10 +1527,22 @@ final class AppRuntime {
     /// Debug builds accept workspace commands over distributed notifications so
     /// capture/restore can be exercised from a script without synthesizing
     /// hotkeys (which needs Accessibility for the sending process):
-    ///   `com.fancyzone.app.debug.applyWorkspace`   object: profile UUID or nil
-    ///   `com.fancyzone.app.debug.captureWorkspace` object: profile name or nil
+    ///   `com.fancyzone.app.debug.applyWorkspace`    object: profile UUID or nil
+    ///   `com.fancyzone.app.debug.captureWorkspace`  object: profile name or nil
+    ///   `com.fancyzone.app.debug.workspaceSwitcher` object: invoke | beginSave |
+    ///     toggleCaptureScope | save | dismiss
     private func observeDebugTriggers() {
         let center = DistributedNotificationCenter.default()
+        center.addObserver(
+            forName: Notification.Name("\(AppIdentity.bundleID).workspaceSwitcher"),
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let runtime = self,
+                  let event = Self.debugSwitcherEvent(named: note.object as? String)
+            else { return }
+            Task { @MainActor in runtime.handleWorkspaceSwitcher(event) }
+        }
         center.addObserver(
             forName: Notification.Name("\(AppIdentity.bundleID).applyWorkspace"),
             object: nil,
@@ -1527,6 +1568,17 @@ final class AppRuntime {
             Task { @MainActor in
                 runtime.workspace.capture(name: name ?? runtime.workspace.suggestedCaptureName())
             }
+        }
+    }
+
+    private static func debugSwitcherEvent(named name: String?) -> WorkspaceSwitcherEvent? {
+        switch name {
+        case "invoke": .invoke
+        case "beginSave": .beginSave
+        case "toggleCaptureScope": .toggleCaptureScope
+        case "save": .save
+        case "dismiss": .dismiss
+        default: nil
         }
     }
 #endif

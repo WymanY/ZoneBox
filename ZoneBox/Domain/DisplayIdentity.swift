@@ -145,7 +145,11 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         displays = try container.decode([DisplayIdentity].self, forKey: .displays)
         assignments = try container.decode([LayoutAssignment].self, forKey: .assignments)
         recentLayoutIDs = try container.decodeIfPresent([Layout.ID].self, forKey: .recentLayoutIDs) ?? []
-        profiles = try container.decodeIfPresent([WorkspaceProfile].self, forKey: .profiles) ?? []
+        let storedProfiles = try container.decodeIfPresent(
+            [WorkspaceProfileMigration.StoredProfile].self,
+            forKey: .profiles
+        ) ?? []
+        profiles = WorkspaceProfileMigration.profiles(from: storedProfiles, layouts: layouts)
         activeProfileID = try container.decodeIfPresent(WorkspaceProfile.ID.self, forKey: .activeProfileID)
         normalizeReferences()
     }
@@ -189,10 +193,18 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         return ordered
     }
 
-    /// Settings list keeps stored insertion order. Apply, recapture, and
-    /// rename update activeProfileID / updatedAt without moving cards.
+    /// The active workspace always leads so card 1 / digit 1 is the one in
+    /// use; the others keep stored insertion order, so applying or saving
+    /// moves exactly one card. Every surface (console, switcher, menus,
+    /// settings) shares this order so the numbers agree.
     public func orderedProfilesForSettings() -> [WorkspaceProfile] {
-        profiles
+        guard let activeProfileID,
+              let index = profiles.firstIndex(where: { $0.id == activeProfileID }),
+              index > 0
+        else { return profiles }
+        var ordered = profiles
+        ordered.insert(ordered.remove(at: index), at: 0)
+        return ordered
     }
 
     public mutating func markLayoutUsed(_ id: Layout.ID) {
@@ -220,7 +232,8 @@ public struct StoreDocument: Codable, Equatable, Sendable {
 
     /// Removes a saved layout. The last remaining layout is kept so snapping always
     /// has somewhere to go. Displays that pointed at the deleted layout fall back to
-    /// the first layout still in the document.
+    /// the first layout still in the document. Workspaces store window frames,
+    /// not zones, so they are unaffected.
     @discardableResult
     public mutating func deleteLayout(id: Layout.ID) -> Bool {
         guard layouts.count > 1,
@@ -232,13 +245,6 @@ public struct StoreDocument: Codable, Equatable, Sendable {
             assignments[assignmentIndex].layoutID = fallbackID
         }
         recentLayoutIDs.removeAll { $0 == id }
-        for profileIndex in profiles.indices {
-            profiles[profileIndex].sections.removeAll { $0.layoutID == id }
-        }
-        profiles.removeAll { $0.sections.isEmpty }
-        if let activeProfileID, !profiles.contains(where: { $0.id == activeProfileID }) {
-            self.activeProfileID = nil
-        }
         return true
     }
 
@@ -291,13 +297,12 @@ public struct StoreDocument: Codable, Equatable, Sendable {
 
     public mutating func normalizeReferences() {
         pruneRecentLayoutIDs()
-        let knownLayouts = Set(layouts.map(\.id))
         var seenProfiles = Set<WorkspaceProfile.ID>()
         profiles = profiles.compactMap { profile in
             guard !seenProfiles.contains(profile.id) else { return nil }
             seenProfiles.insert(profile.id)
             var copy = profile
-            copy.sections.removeAll { !knownLayouts.contains($0.layoutID) || $0.rules.isEmpty }
+            copy.sections.removeAll { $0.rules.isEmpty }
             return copy.sections.isEmpty ? nil : copy
         }
         if let activeProfileID, !profiles.contains(where: { $0.id == activeProfileID }) {

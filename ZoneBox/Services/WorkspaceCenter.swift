@@ -43,9 +43,9 @@ final class WorkspaceCenter {
     private struct PendingPlacement: Identifiable {
         var id = UUID()
         var bundleID: String
-        var zoneID: UUID
-        var zoneNumber: Int
-        var layoutID: Layout.ID
+        /// Saved frame relative to the display's work area; resolved against
+        /// the live work area when the window finally appears.
+        var frame: NormalizedRect
         var displayID: DisplayIdentity.ID
         var expiresAt: Date
     }
@@ -122,10 +122,14 @@ final class WorkspaceCenter {
         }
     }
 
-    func capture(name: String, replacing profileID: WorkspaceProfile.ID? = nil) {
+    func capture(
+        name: String,
+        replacing profileID: WorkspaceProfile.ID? = nil,
+        displayID: DisplayIdentity.ID? = nil
+    ) {
         guard runtime.requestProAccess(for: .workspace) else { return }
         Task { @MainActor [weak self] in
-            await self?.captureNow(name: name, replacing: profileID)
+            await self?.captureNow(name: name, replacing: profileID, displayID: displayID)
         }
     }
 
@@ -144,9 +148,31 @@ final class WorkspaceCenter {
 
     func capturePreview() -> (applicationCount: Int, displayCount: Int) {
         let sections = captureSections(from: collectVisibleSamples())
-        return (
-            Set(sections.flatMap(\.rules).map(\.bundleID)).count,
-            sections.count
+        return (Self.applicationCount(of: sections), sections.count)
+    }
+
+    /// What a save would record right now, for both the whole desk and, when
+    /// a scope choice is offered, the pointer's display alone. One window
+    /// enumeration feeds every field so the switcher can call this per key.
+    func captureSummary() -> WorkspaceCaptureSummary {
+        let samples = collectVisibleSamples()
+        let sections = captureSections(from: samples)
+        let context = capturePromptContext(sections: sections)
+        var thisDisplay: WorkspaceCaptureSummary.DisplayScope?
+        if context.offersDisplayChoice, let displayID = context.thisDisplayID {
+            let scoped = ProfileCapture.sections(sections, limitedTo: displayID)
+            thisDisplay = WorkspaceCaptureSummary.DisplayScope(
+                id: displayID,
+                name: context.thisDisplayName,
+                applicationCount: Self.applicationCount(of: scoped),
+                suggestedName: suggestedName(sections: scoped, samples: samples)
+            )
+        }
+        return WorkspaceCaptureSummary(
+            applicationCount: Self.applicationCount(of: sections),
+            displayCount: sections.count,
+            suggestedName: suggestedName(sections: sections, samples: samples),
+            thisDisplay: thisDisplay
         )
     }
 
@@ -165,18 +191,42 @@ final class WorkspaceCenter {
         }
     }
 
-    func suggestedCaptureName() -> String {
-        let fallback = L10n.text(.workspaceDefaultName)
+    func capturePromptContext() -> WorkspaceCapturePromptContext {
+        capturePromptContext(sections: captureSections(from: collectVisibleSamples()))
+    }
+
+    private func capturePromptContext(sections: [ProfileSection]) -> WorkspaceCapturePromptContext {
+        let area = runtime.area(containingAppKit: NSEvent.mouseLocation)
+        return WorkspaceCapturePromptContext(
+            contentDisplayCount: sections.count,
+            thisDisplayID: area?.display.id,
+            thisDisplayName: area?.display.localizedName ?? ""
+        )
+    }
+
+    func suggestedCaptureName(displayID: DisplayIdentity.ID? = nil) -> String {
         let samples = collectVisibleSamples()
-        let names = captureSections(from: samples).flatMap { section in
-            section.rules.map { rule -> String in
+        let sections = ProfileCapture.sections(captureSections(from: samples), limitedTo: displayID)
+        return suggestedName(sections: sections, samples: samples)
+    }
+
+    private func suggestedName(
+        sections: [ProfileSection],
+        samples: [ProfileCapture.WindowSample]
+    ) -> String {
+        let names = sections.flatMap { section in
+            AppPlacementRule.readingOrder(section.rules).map { rule -> String in
                 if let sample = samples.first(where: { $0.identity.bundleID == rule.bundleID }) {
                     return applicationName(for: sample.identity)
                 }
                 return applicationName(forBundleID: rule.bundleID)
             }
         }
-        return WorkspaceProfile.suggestedName(appNames: names, fallback: fallback)
+        return WorkspaceProfile.suggestedName(appNames: names, fallback: L10n.text(.workspaceDefaultName))
+    }
+
+    private static func applicationCount(of sections: [ProfileSection]) -> Int {
+        Set(sections.flatMap(\.rules).map(\.bundleID)).count
     }
 
     func apply(profileID: WorkspaceProfile.ID) {
@@ -228,6 +278,7 @@ final class WorkspaceCenter {
     private func captureNow(
         name: String,
         replacing profileID: WorkspaceProfile.ID?,
+        displayID: DisplayIdentity.ID? = nil,
         preferExistingArrangement: Bool = false,
         includeHotkeyHint: Bool = false,
         undoSnapshot: WorkspaceProfile? = nil,
@@ -242,14 +293,34 @@ final class WorkspaceCenter {
             return
         }
         let candidates = await collectCandidates(visibleOnly: true).candidates
-        let sections = captureSections(from: candidates.map(\.sample))
+        var sections = captureSections(from: candidates.map(\.sample))
+        let existing = profileID.flatMap { id in runtime.document.profiles.first(where: { $0.id == id }) }
+        if let existing {
+            let available = Set(runtime.workAreas.map(\.display.id))
+            guard let merged = ProfileCapture.mergedRecaptureSections(
+                existing: existing.sections,
+                captured: sections,
+                availableDisplayIDs: available
+            ) else {
+                NSSound.beep()
+                showFeedback(
+                    title: L10n.text(.workspaceCaptureEmptyTitle),
+                    detail: L10n.text(.workspaceCaptureEmptyDetail),
+                    tone: .error
+                )
+                return
+            }
+            sections = merged
+        } else {
+            sections = ProfileCapture.sections(sections, limitedTo: displayID)
+        }
         Log.workspace.info(
             "Capture visibleWindows=\(candidates.count, privacy: .public) sections=\(sections.count, privacy: .public) rules=\(sections.reduce(0) { $0 + $1.rules.count }, privacy: .public)"
         )
         for section in sections {
             for rule in section.rules {
                 Log.workspace.info(
-                    "Capture rule display=\(section.space.displayID.uuidString.prefix(8), privacy: .public) zone=\(rule.zoneNumber, privacy: .public) app=\(rule.bundleID, privacy: .public)"
+                    "Capture rule display=\(section.space.displayID.uuidString.prefix(8), privacy: .public) frame=\(Self.describe(rule.frame), privacy: .public) app=\(rule.bundleID, privacy: .public)"
                 )
             }
         }
@@ -285,7 +356,6 @@ final class WorkspaceCenter {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let desiredName = trimmed.isEmpty ? L10n.text(.workspaceDefaultName) : trimmed
         let now = Date()
-        let existing = profileID.flatMap { id in runtime.document.profiles.first(where: { $0.id == id }) }
         let profile = WorkspaceProfile(
             id: existing?.id ?? UUID(),
             name: LayoutEditTransaction.uniqueName(
@@ -307,14 +377,14 @@ final class WorkspaceCenter {
         if existing == nil {
             onCreated?(profile.id)
         }
-        let detail: String
+        var detail = L10n.workspaceCapturedDetail(
+            name: profile.name,
+            displayCount: profile.sections.count,
+            applicationCount: profile.applicationCount
+        )
         if includeHotkeyHint, existing == nil {
             let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
-            detail = String(format: L10n.text(.workspaceCapturedDetail), profile.name, profile.applicationCount)
-                + " · "
-                + String(format: L10n.text(.workspaceCapturedHotkeyDetail), chord)
-        } else {
-            detail = String(format: L10n.text(.workspaceCapturedDetail), profile.name, profile.applicationCount)
+            detail += " · " + String(format: L10n.text(.workspaceCapturedHotkeyDetail), chord)
         }
         let snapshotForUndo = existing == nil ? nil : undoSnapshot
         showFeedback(
@@ -348,12 +418,6 @@ final class WorkspaceCenter {
         }
 
         var profile = profile
-        let repairedSections = profile.sections.map { section in
-            var section = section
-            section.rules = ProfileCapture.frontmostRulesPerZone(section.rules)
-            return section
-        }
-        profile.sections = repairedSections
         let fallbackDisplayID = runtime.area(containingAppKit: NSEvent.mouseLocation)?.display.id
             ?? runtime.workAreas.first?.display.id
         profile.sections = WorkspaceRestore.remappedSections(
@@ -365,16 +429,16 @@ final class WorkspaceCenter {
         pending.removeAll()
         observed.removeAll()
         ignoredWindows.removeAll()
-        var zonesBySection: [DisplayIdentity.ID: [ResolvedZone]] = [:]
+        var workAreasBySection: [DisplayIdentity.ID: CGRect] = [:]
         for section in profile.sections {
-            guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }),
-                  let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
-            else { continue }
-            zonesBySection[section.space.displayID] = runtime.resolvedZones(layout: layout, area: area)
+            guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }) else {
+                continue
+            }
+            workAreasBySection[section.space.displayID] = workAreaAX(for: area)
         }
         let restorableBundleIDs = ProfilePlan.restorableBundleIDs(
             profile: profile,
-            availableDisplayIDs: Set(zonesBySection.keys)
+            availableDisplayIDs: Set(workAreasBySection.keys)
         )
         let collected = await collectCandidates(restorableBundleIDs: restorableBundleIDs)
         let candidates = collected.candidates
@@ -382,11 +446,11 @@ final class WorkspaceCenter {
         let candidatesByIdentity = Dictionary(uniqueKeysWithValues: candidates.map { ($0.sample.identity, $0) })
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: zonesBySection,
+            workAreasBySection: workAreasBySection,
             candidates: candidates.map(\.sample)
         )
         Log.workspace.info(
-            "Apply profile=\(profile.name, privacy: .public) candidates=\(candidates.count, privacy: .public) placements=\(outcome.sections.reduce(0) { $0 + $1.placements.count }, privacy: .public) missing=\(outcome.missingBundleIDs.joined(separator: ","), privacy: .public) unreachable=\(collected.unreachableBundleIDs.sorted().joined(separator: ","), privacy: .public) stale=\(outcome.staleRules.count, privacy: .public) skippedDisplays=\(outcome.skippedDisplayIDs.count, privacy: .public)"
+            "Apply profile=\(profile.name, privacy: .public) candidates=\(candidates.count, privacy: .public) placements=\(outcome.sections.reduce(0) { $0 + $1.placements.count }, privacy: .public) missing=\(outcome.missingBundleIDs.joined(separator: ","), privacy: .public) unreachable=\(collected.unreachableBundleIDs.sorted().joined(separator: ","), privacy: .public) skippedDisplays=\(outcome.skippedDisplayIDs.count, privacy: .public)"
         )
 
         await revealPlannedWindows(outcome: outcome, candidates: candidatesByIdentity)
@@ -397,21 +461,20 @@ final class WorkspaceCenter {
         var movedWindows: [WindowIdentity] = []
 
         for sectionPlan in outcome.sections {
+            // The executor carries a layout for Organize's sake; workspace
+            // placements are explicit frames, so the display's current layout
+            // is passed through untouched and never assigned.
             guard runtime.isActive(displayID: sectionPlan.displayID),
                   let area = runtime.workAreas.first(where: { $0.display.id == sectionPlan.displayID }),
-                  let layout = runtime.document.layouts.first(where: { $0.id == sectionPlan.layoutID })
+                  let layout = runtime.document.layout(for: sectionPlan.displayID)
             else { continue }
             let initialSkipped = sectionPlan.placements.map(\.identity).filter { handles[$0] == nil }
             let entries = sectionPlan.placements.compactMap { placement -> (identity: WindowIdentity, handle: AXWindow)? in
                 return handles[placement.identity].map { (placement.identity, $0) }
             }
             let placements = Dictionary(uniqueKeysWithValues: sectionPlan.placements.map { ($0.identity, $0) })
-            let workAX = CoordinateConverter.axRect(
-                fromAppKit: area.visibleFrameAppKit,
-                primaryFlipHeight: runtime.primaryFlipHeight
-            )
-            runtime.document.assign(layoutID: layout.id, to: sectionPlan.displayID)
-            runtime.document.markLayoutUsed(layout.id)
+            let workAX = sectionPlan.workAreaAX
+            let zones = runtime.resolvedZones(layout: layout, area: area)
             let result = await WindowOrganizeExecutor.execute(
                 windows: entries,
                 initialSkipped: initialSkipped,
@@ -449,7 +512,7 @@ final class WorkspaceCenter {
                             identity: move.identity,
                             originalFrameAX: move.originalFrameAX,
                             snappedFrameAX: move.appliedFrameAX,
-                            zoneIDs: sectionPlan.zoneIDByIdentity[move.identity].map { [$0] } ?? []
+                            zoneIDs: Self.zoneMembership(for: move.appliedFrameAX, in: zones)
                         ),
                         displayID: sectionPlan.displayID
                     )
@@ -457,20 +520,14 @@ final class WorkspaceCenter {
                         restoredWindows.append(window)
                     }
                 }
-                runtime.flashWorkspaceZones(area: area, layout: layout)
+                runtime.flashWorkspaceFrames(area: area, framesAX: sectionPlan.targetFramesAX)
             case .noMovableWindows(let skipped):
                 Log.workspace.info(
                     "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) no movable windows skipped=\(skipped.count, privacy: .public)"
                 )
                 appendUnique(skipped, to: &skippedWindows)
-                if WorkspaceRestore.shouldFlashAssignedLayout(
-                    displayAvailable: true,
-                    layoutExists: true,
-                    organizeSucceeded: false,
-                    noMovableWindows: true
-                ) {
-                    runtime.flashWorkspaceZones(area: area, layout: layout)
-                }
+                // Every window may still be launching; show where they will land.
+                runtime.flashWorkspaceFrames(area: area, framesAX: sectionPlan.targetFramesAX)
             case .failed(let skipped, let rollbackFailed):
                 Log.workspace.error(
                     "Apply section display=\(sectionPlan.displayID.uuidString.prefix(8), privacy: .public) failed skipped=\(skipped.count, privacy: .public) rollbackFailed=\(rollbackFailed.count, privacy: .public)"
@@ -524,7 +581,6 @@ final class WorkspaceCenter {
             skipped: skippedWindows,
             missingCount: unresolvedMissingCount,
             launchingCount: launchingCount,
-            staleCount: outcome.staleRules.count,
             disconnectedCount: outcome.skippedDisplayIDs.count,
             applicationName: applicationName(for:)
         )
@@ -561,11 +617,11 @@ final class WorkspaceCenter {
         }
     }
 
+    /// Windows are grouped by the display that holds most of them and saved
+    /// where they are, relative to that display's work area.
     private func captureSections(from samples: [ProfileCapture.WindowSample]) -> [ProfileSection] {
         var sections: [ProfileSection] = []
         for area in runtime.workAreas {
-            guard let layout = runtime.document.layout(for: area.display.id) else { continue }
-            let zones = runtime.resolvedZones(layout: layout, area: area)
             let owned = samples.filter { sample in
                 DisplayTargetResolver.workArea(
                     containingWindowFrameAX: sample.frameAX,
@@ -573,18 +629,33 @@ final class WorkspaceCenter {
                     primaryFlipHeight: runtime.primaryFlipHeight
                 )?.display.id == area.display.id
             }
-            let rules = ProfileCapture.rules(windows: owned, zones: zones)
+            let rules = ProfileCapture.rules(windows: owned, workAreaAX: workAreaAX(for: area))
             if !rules.isEmpty {
-                sections.append(
-                    ProfileSection(
-                        space: SpaceKey(displayID: area.display.id),
-                        layoutID: layout.id,
-                        rules: rules
-                    )
-                )
+                sections.append(ProfileSection(space: SpaceKey(displayID: area.display.id), rules: rules))
             }
         }
         return sections
+    }
+
+    private func workAreaAX(for area: WorkArea) -> CGRect {
+        CoordinateConverter.axRect(
+            fromAppKit: area.visibleFrameAppKit,
+            primaryFlipHeight: runtime.primaryFlipHeight
+        )
+    }
+
+    /// Restored frames that coincide with a zone of the display's current
+    /// layout join that zone in the catalog, so unsnap and zone cycling keep
+    /// working for them. Frames that match no zone simply have no membership.
+    private static func zoneMembership(for frameAX: CGRect, in zones: [ResolvedZone]) -> [UUID] {
+        ZoneOccupancy.preferredZone(for: frameAX, in: zones).map { [$0.zoneID] } ?? []
+    }
+
+    private static func describe(_ frame: NormalizedRect) -> String {
+        String(
+            format: "%.2f,%.2f %.2fx%.2f",
+            frame.x, frame.y, frame.width, frame.height
+        )
     }
 
     /// On-screen windows in WindowServer z-order, resolved through one AX
@@ -794,7 +865,7 @@ final class WorkspaceCenter {
             NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
         )
         for section in profile.sections {
-            guard let zones = resolvedZones(for: section) else { continue }
+            guard runtime.workAreas.contains(where: { $0.display.id == section.space.displayID }) else { continue }
             for rule in section.rules {
                 if (consumed[rule.bundleID] ?? 0) > 0 {
                     consumed[rule.bundleID, default: 0] -= 1
@@ -807,16 +878,11 @@ final class WorkspaceCenter {
                     runningBundleIDs: runningBundleIDs,
                     launchMissingApps: profile.launchMissingApps
                 )
-                guard action != .none,
-                      let zone = zones.first(where: { $0.zoneID == rule.zoneID })
-                        ?? zones.first(where: { $0.number == rule.zoneNumber })
-                else { continue }
+                guard action != .none else { continue }
                 pending.append(
                     PendingPlacement(
                         bundleID: rule.bundleID,
-                        zoneID: zone.zoneID,
-                        zoneNumber: zone.number,
-                        layoutID: section.layoutID,
+                        frame: rule.frame,
                         displayID: section.space.displayID,
                         expiresAt: expiresAt
                     )
@@ -1065,7 +1131,7 @@ final class WorkspaceCenter {
             guard await runtime.ax.resolveAsync(ref: ref) != nil else { continue }
             baseline.insert(ref.identity)
             Log.workspace.info(
-                "Census observed app=\(ref.bundleID ?? "?", privacy: .public) window=\(ref.windowNumber, privacy: .public) zone=\(target.placement.zoneNumber, privacy: .public)"
+                "Census observed app=\(ref.bundleID ?? "?", privacy: .public) window=\(ref.windowNumber, privacy: .public) frame=\(Self.describe(target.placement.frame), privacy: .public)"
             )
             observed[ref.identity] = ObservedWindow(
                 pendingID: target.pendingID,
@@ -1088,7 +1154,7 @@ final class WorkspaceCenter {
             }
             observed[identity] = item
             guard item.stableSamples >= 2 else { continue }
-            guard let zone = resolvedZone(for: item.target) else {
+            guard let target = targetFrame(for: item.target) else {
                 // The target display went away; free the reservation so the
                 // pending entry can expire or be claimed on another screen.
                 observed[identity] = nil
@@ -1100,7 +1166,7 @@ final class WorkspaceCenter {
                 observed[identity] = nil
                 continue
             }
-            guard let applied = await acceptedDelayedFrame(zone.frameAX, of: window) else {
+            guard let applied = await acceptedDelayedFrame(target.frameAX, of: window) else {
                 item.rejectedAttempts += 1
                 item.stableSamples = 0
                 Log.workspace.info(
@@ -1119,14 +1185,14 @@ final class WorkspaceCenter {
                 continue
             }
             Log.workspace.info(
-                "Census placed app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public) zone=\(zone.number, privacy: .public)"
+                "Census placed app=\(identity.bundleID ?? "?", privacy: .public) window=\(identity.windowNumber, privacy: .public) frame=\(Self.describe(item.target.frame), privacy: .public)"
             )
             runtime.catalog.record(
                 UnsnapRecord(
                     identity: identity,
                     originalFrameAX: original,
                     snappedFrameAX: applied,
-                    zoneIDs: [zone.zoneID]
+                    zoneIDs: Self.zoneMembership(for: applied, in: target.zones)
                 ),
                 displayID: item.target.displayID
             )
@@ -1163,7 +1229,7 @@ final class WorkspaceCenter {
                 guard let target = reserveTarget(for: ref) else { continue }
                 baseline.insert(identity)
                 Log.workspace.info(
-                    "Census claimed existing app=\(bundleID, privacy: .public) window=\(identity.windowNumber, privacy: .public) zone=\(target.placement.zoneNumber, privacy: .public)"
+                    "Census claimed existing app=\(bundleID, privacy: .public) window=\(identity.windowNumber, privacy: .public) frame=\(Self.describe(target.placement.frame), privacy: .public)"
                 )
                 observed[identity] = ObservedWindow(
                     pendingID: target.pendingID,
@@ -1194,20 +1260,15 @@ final class WorkspaceCenter {
         return nil
     }
 
-    private func resolvedZones(for section: ProfileSection) -> [ResolvedZone]? {
-        guard let area = runtime.workAreas.first(where: { $0.display.id == section.space.displayID }),
-              let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
-        else { return nil }
-        return runtime.resolvedZones(layout: layout, area: area)
-    }
-
-    private func resolvedZone(for placement: PendingPlacement) -> ResolvedZone? {
-        guard let area = runtime.workAreas.first(where: { $0.display.id == placement.displayID }),
-              let layout = runtime.document.layouts.first(where: { $0.id == placement.layoutID })
-        else { return nil }
-        let zones = runtime.resolvedZones(layout: layout, area: area)
-        return zones.first(where: { $0.zoneID == placement.zoneID })
-            ?? zones.first(where: { $0.number == placement.zoneNumber })
+    /// The saved frame on the display's live work area, plus that display's
+    /// current zones for catalog membership. Nil once the display is gone.
+    private func targetFrame(for placement: PendingPlacement) -> (frameAX: CGRect, zones: [ResolvedZone])? {
+        guard let area = runtime.workAreas.first(where: { $0.display.id == placement.displayID }) else {
+            return nil
+        }
+        let zones = runtime.document.layout(for: placement.displayID)
+            .map { runtime.resolvedZones(layout: $0, area: area) } ?? []
+        return (placement.frame.denormalize(in: workAreaAX(for: area)), zones)
     }
 
     private func resetBaseline() {

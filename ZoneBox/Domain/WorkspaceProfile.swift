@@ -1,25 +1,47 @@
+import CoreGraphics
 import Foundation
 
+/// One captured window: the app that owned it and where it sat, relative to
+/// its display's work area. Restore writes that frame back, so a workspace
+/// reproduces the desk as it was captured rather than the zones of whichever
+/// layout happened to be active.
 public struct AppPlacementRule: Codable, Hashable, Sendable {
     public var bundleID: String
-    public var zoneID: UUID
-    public var zoneNumber: Int
+    public var frame: NormalizedRect
 
-    public init(bundleID: String, zoneID: UUID, zoneNumber: Int) {
+    public init(bundleID: String, frame: NormalizedRect) {
         self.bundleID = bundleID
-        self.zoneID = zoneID
-        self.zoneNumber = zoneNumber
+        self.frame = frame
+    }
+
+    /// Two captures of the same desk differ by a few points once a window has
+    /// been nudged. Frames within this fraction of the work area count as the
+    /// same place.
+    public static let matchTolerance: Double = 0.02
+
+    public func matches(_ other: AppPlacementRule, tolerance: Double = matchTolerance) -> Bool {
+        bundleID == other.bundleID && frame.isClose(to: other.frame, tolerance: tolerance)
+    }
+
+    /// Left-to-right, then top-to-bottom, so lists and generated names read the
+    /// way the desk looks. Rules are stored front-to-back for restore.
+    public static func readingOrder(_ rules: [AppPlacementRule]) -> [AppPlacementRule] {
+        func bucket(_ value: Double) -> Int { Int((value * 50).rounded()) }
+        return rules.enumerated().sorted { lhs, rhs in
+            let left = (bucket(lhs.element.frame.x), bucket(lhs.element.frame.y), lhs.element.bundleID, lhs.offset)
+            let right = (bucket(rhs.element.frame.x), bucket(rhs.element.frame.y), rhs.element.bundleID, rhs.offset)
+            return left < right
+        }.map(\.element)
     }
 }
 
 public struct ProfileSection: Codable, Hashable, Sendable {
     public var space: SpaceKey
-    public var layoutID: Layout.ID
+    /// Captured windows front-to-back.
     public var rules: [AppPlacementRule]
 
-    public init(space: SpaceKey, layoutID: Layout.ID, rules: [AppPlacementRule]) {
+    public init(space: SpaceKey, rules: [AppPlacementRule]) {
         self.space = space
-        self.layoutID = layoutID
         self.rules = rules
     }
 }
@@ -52,8 +74,8 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
         Set(sections.flatMap(\.rules).map(\.bundleID)).count
     }
 
-    /// Capture order is zone number then z-order. Join unique app names with "+"
-    /// so the save sheet can offer ChatGPT+Notes instead of a generic "Workspace".
+    /// Join unique app names with "+" so the save sheet can offer ChatGPT+Notes
+    /// instead of a generic "Workspace". Callers pass names in reading order.
     public static func suggestedName(appNames: [String], fallback: String) -> String {
         var seen = Set<String>()
         var ordered: [String] = []
@@ -67,8 +89,9 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
         return ordered.isEmpty ? fallback : ordered.joined(separator: "+")
     }
 
-    /// Arrangement equality ignores rule order and section order. Empty
-    /// profiles never match, including against another empty profile.
+    /// Arrangement equality ignores rule order and section order and tolerates
+    /// small frame drift. Empty profiles never match, including against another
+    /// empty profile.
     public func hasSameArrangement(as other: WorkspaceProfile) -> Bool {
         Self.sameArrangement(sections, other.sections)
     }
@@ -79,14 +102,21 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
 
     public static func sameArrangement(_ lhs: [ProfileSection], _ rhs: [ProfileSection]) -> Bool {
         guard !lhs.isEmpty, !rhs.isEmpty, lhs.count == rhs.count else { return false }
-        func signature(_ section: ProfileSection) -> (UUID, Layout.ID, Set<AppPlacementRule>) {
-            (section.space.displayID, section.layoutID, Set(section.rules))
-        }
-        let left = lhs.map(signature).sorted { $0.0.uuidString < $1.0.uuidString }
-        let right = rhs.map(signature).sorted { $0.0.uuidString < $1.0.uuidString }
+        let left = lhs.sorted { $0.space.displayID.uuidString < $1.space.displayID.uuidString }
+        let right = rhs.sorted { $0.space.displayID.uuidString < $1.space.displayID.uuidString }
         return zip(left, right).allSatisfy { lhs, rhs in
-            lhs.0 == rhs.0 && lhs.1 == rhs.1 && lhs.2 == rhs.2
+            lhs.space.displayID == rhs.space.displayID && sameRules(lhs.rules, rhs.rules)
         }
+    }
+
+    static func sameRules(_ lhs: [AppPlacementRule], _ rhs: [AppPlacementRule]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        var unmatched = rhs
+        for rule in lhs {
+            guard let index = unmatched.firstIndex(where: { rule.matches($0) }) else { return false }
+            unmatched.remove(at: index)
+        }
+        return true
     }
 }
 
@@ -107,7 +137,6 @@ public struct WorkspaceApplyFeedback: Equatable, Sendable {
         skipped: [WindowIdentity],
         missingCount: Int,
         launchingCount: Int = 0,
-        staleCount: Int,
         disconnectedCount: Int,
         applicationName: (WindowIdentity) -> String,
         language: AppLanguage = LanguageCenter.language
@@ -152,15 +181,6 @@ public struct WorkspaceApplyFeedback: Equatable, Sendable {
                 )
             )
         }
-        if staleCount > 0 {
-            parts.append(
-                String(
-                    format: L10n.text(.workspaceStaleDetail, language: language),
-                    locale: language.locale,
-                    staleCount
-                )
-            )
-        }
         if disconnectedCount > 0 {
             parts.append(
                 String(
@@ -183,7 +203,6 @@ public struct WorkspaceApplyFeedback: Equatable, Sendable {
         let isPartial = !constrainedSet.isEmpty
             || !failedSet.isEmpty
             || missingCount > 0
-            || staleCount > 0
             || disconnectedCount > 0
         return WorkspaceApplyFeedback(
             titleKey: isPartial ? .workspaceApplyPartialTitle : .workspaceAppliedTitle,

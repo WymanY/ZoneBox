@@ -2,66 +2,60 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class ProfilePlanTests: XCTestCase {
+    private let workArea = CGRect(x: 0, y: 25, width: 1000, height: 800)
+    private let leftHalf = NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)
+    private let rightHalf = NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)
+
     func testConsumesBundleQueuesAcrossDisplaysWithoutReusingWindows() {
         let firstDisplay = UUID()
         let secondDisplay = UUID()
-        let layoutID = UUID()
-        let firstZone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100))
-        let secondZone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 100, y: 0, width: 100, height: 100))
+        let secondWorkArea = CGRect(x: 1000, y: 0, width: 2000, height: 1000)
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: firstDisplay), layoutID: layoutID, rules: [rule("browser", firstZone)]),
-            ProfileSection(space: SpaceKey(displayID: secondDisplay), layoutID: layoutID, rules: [rule("browser", secondZone)]),
+            ProfileSection(space: SpaceKey(displayID: firstDisplay), rules: [rule("browser", leftHalf)]),
+            ProfileSection(space: SpaceKey(displayID: secondDisplay), rules: [rule("browser", rightHalf)]),
         ])
         let front = sample(pid: 1, number: 1, bundleID: "browser")
         let back = sample(pid: 2, number: 2, bundleID: "browser")
 
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: [firstDisplay: [firstZone], secondDisplay: [secondZone]],
+            workAreasBySection: [firstDisplay: workArea, secondDisplay: secondWorkArea],
             candidates: [front, back]
         )
 
         XCTAssertEqual(outcome.sections.flatMap(\.placements).map(\.identity), [front.identity, back.identity])
-        XCTAssertEqual(outcome.sections.flatMap(\.placements).map(\.targetFrameAX), [firstZone.frameAX, secondZone.frameAX])
+        XCTAssertEqual(
+            outcome.sections.flatMap(\.placements).map(\.targetFrameAX),
+            [CGRect(x: 0, y: 25, width: 500, height: 800), CGRect(x: 2000, y: 0, width: 1000, height: 1000)]
+        )
         XCTAssertTrue(outcome.missingBundleIDs.isEmpty)
     }
 
-    func testReportsMissingStaleAndDisconnectedSections() {
+    func testReportsMissingAppsAndDisconnectedSections() {
         let activeDisplay = UUID()
         let disconnected = UUID()
-        let layoutID = UUID()
-        let fallbackZone = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 0, y: 0, width: 200, height: 100))
-        let stale = AppPlacementRule(bundleID: "stale", zoneID: UUID(), zoneNumber: 99)
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(
-                space: SpaceKey(displayID: activeDisplay),
-                layoutID: layoutID,
-                rules: [AppPlacementRule(bundleID: "editor", zoneID: UUID(), zoneNumber: 2), stale]
-            ),
-            ProfileSection(space: SpaceKey(displayID: disconnected), layoutID: layoutID, rules: [rule("browser", fallbackZone)]),
+            ProfileSection(space: SpaceKey(displayID: activeDisplay), rules: [rule("editor", leftHalf)]),
+            ProfileSection(space: SpaceKey(displayID: disconnected), rules: [rule("browser", rightHalf)]),
         ])
 
-        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [activeDisplay: [fallbackZone]], candidates: [])
+        let outcome = ProfilePlan.make(profile: profile, workAreasBySection: [activeDisplay: workArea], candidates: [])
 
         XCTAssertEqual(outcome.missingBundleIDs, ["editor"])
-        XCTAssertEqual(outcome.staleRules, [stale])
         XCTAssertEqual(outcome.skippedDisplayIDs, [disconnected])
+        XCTAssertEqual(outcome.sections.first?.targetFramesAX, [CGRect(x: 0, y: 25, width: 500, height: 800)])
         XCTAssertEqual(
-            ProfilePlan.restorableBundleIDs(
-                profile: profile,
-                availableDisplayIDs: [activeDisplay]
-            ),
-            Set(["editor", "stale"])
+            ProfilePlan.restorableBundleIDs(profile: profile, availableDisplayIDs: [activeDisplay]),
+            Set(["editor"])
         )
     }
 
     func testRestorableBundleIDsIgnoreSkippedDisplays() {
         let active = UUID()
         let disconnected = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: .zero)
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: active), layoutID: UUID(), rules: [rule("editor", zone)]),
-            ProfileSection(space: SpaceKey(displayID: disconnected), layoutID: UUID(), rules: [rule("hidden.app", zone)]),
+            ProfileSection(space: SpaceKey(displayID: active), rules: [rule("editor", leftHalf)]),
+            ProfileSection(space: SpaceKey(displayID: disconnected), rules: [rule("hidden.app", leftHalf)]),
         ])
 
         XCTAssertEqual(
@@ -96,116 +90,79 @@ final class ProfilePlanTests: XCTestCase {
 
     func testKeepsConnectedSectionWhenEverySavedWindowIsMissing() {
         let display = UUID()
-        let layoutID = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 200, height: 100))
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: display), layoutID: layoutID, rules: [rule("editor", zone)]),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [rule("editor", leftHalf)]),
         ])
 
-        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [display: [zone]], candidates: [])
+        let outcome = ProfilePlan.make(profile: profile, workAreasBySection: [display: workArea], candidates: [])
 
         XCTAssertEqual(outcome.sections.map(\.displayID), [display])
-        XCTAssertEqual(outcome.sections.map(\.layoutID), [layoutID])
+        XCTAssertEqual(outcome.sections.map(\.workAreaAX), [workArea])
         XCTAssertTrue(outcome.sections.first?.placements.isEmpty ?? false)
         XCTAssertEqual(outcome.missingBundleIDs, ["editor"])
     }
 
     func testMissingBundleIDsAreDeduplicated() {
         let display = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: .zero)
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("app", zone), rule("app", zone)]),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [rule("app", leftHalf), rule("app", rightHalf)]),
         ])
-        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [display: [zone]], candidates: [])
+        let outcome = ProfilePlan.make(profile: profile, workAreasBySection: [display: workArea], candidates: [])
         XCTAssertEqual(outcome.missingBundleIDs, ["app"])
     }
 
-    func testIgnoresOlderBackgroundAssignmentForTheSameZone() throws {
+    func testFramesScaleWithTheLiveWorkArea() throws {
         let display = UUID()
-        let zone = ResolvedZone(
-            zoneID: UUID(),
-            number: 1,
-            frameAX: CGRect(x: 0, y: 0, width: 500, height: 500)
-        )
-        let front = sample(pid: 1, number: 1, bundleID: "factory")
-        let hidden = sample(pid: 2, number: 2, bundleID: "browser")
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(
-                space: SpaceKey(displayID: display),
-                layoutID: UUID(),
-                rules: [rule("factory", zone), rule("browser", zone)]
-            ),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [
+                rule("app", NormalizedRect(x: 0.25, y: 0.5, width: 0.5, height: 0.25)),
+            ]),
         ])
+        let larger = CGRect(x: 100, y: 50, width: 2000, height: 1200)
 
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: [display: [zone]],
-            candidates: [front, hidden]
+            workAreasBySection: [display: larger],
+            candidates: [sample(pid: 1, number: 1, bundleID: "app")]
         )
 
-        let placement = try XCTUnwrap(outcome.sections.first?.placements.first)
-        XCTAssertEqual(placement.identity, front.identity)
-        XCTAssertEqual(outcome.sections.first?.placements.count, 1)
-        XCTAssertTrue(outcome.missingBundleIDs.isEmpty)
+        XCTAssertEqual(
+            try XCTUnwrap(outcome.sections.first?.placements.first?.targetFrameAX),
+            CGRect(x: 600, y: 650, width: 1000, height: 300)
+        )
     }
 
-    func testFallsBackFromStaleZoneIDToZoneNumber() throws {
+    func testWindowAlreadyAtTheSavedFrameKeepsItInsteadOfFrontmostWindow() throws {
         let display = UUID()
-        let fallback = ResolvedZone(
-            zoneID: UUID(),
-            number: 2,
-            frameAX: CGRect(x: 300, y: 50, width: 200, height: 150)
-        )
-        let candidate = sample(pid: 1, number: 1, bundleID: "app")
+        let leftFrame = leftHalf.denormalize(in: workArea)
+        let rightFrame = rightHalf.denormalize(in: workArea)
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(
-                space: SpaceKey(displayID: display),
-                layoutID: UUID(),
-                rules: [AppPlacementRule(bundleID: "app", zoneID: UUID(), zoneNumber: 2)]
-            ),
-        ])
-
-        let outcome = ProfilePlan.make(
-            profile: profile,
-            zonesBySection: [display: [fallback]],
-            candidates: [candidate]
-        )
-        XCTAssertEqual(try XCTUnwrap(outcome.sections.first?.placements.first?.targetFrameAX), fallback.frameAX)
-        XCTAssertTrue(outcome.staleRules.isEmpty)
-    }
-
-    func testWindowAlreadyInZoneKeepsItInsteadOfFrontmostWindow() throws {
-        let display = UUID()
-        let left = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
-        let right = ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 500))
-        let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", left), rule("browser", right)]),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [rule("browser", leftHalf), rule("browser", rightHalf)]),
         ])
         let frontInRight = ProfileCapture.WindowSample(
             identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
-            frameAX: right.frameAX
+            frameAX: rightFrame
         )
         let backInLeft = ProfileCapture.WindowSample(
             identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "browser"),
-            frameAX: left.frameAX
+            frameAX: leftFrame
         )
 
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: [display: [left, right]],
+            workAreasBySection: [display: workArea],
             candidates: [frontInRight, backInLeft]
         )
 
         let placements = try XCTUnwrap(outcome.sections.first?.placements)
         XCTAssertEqual(placements.map(\.identity), [backInLeft.identity, frontInRight.identity])
-        XCTAssertEqual(placements.map(\.targetFrameAX), [left.frameAX, right.frameAX])
+        XCTAssertEqual(placements.map(\.targetFrameAX), [leftFrame, rightFrame])
     }
 
     func testWindowOnSectionDisplayBeatsWindowOnAnotherDisplay() throws {
         let display = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", zone)]),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [rule("browser", leftHalf)]),
         ])
         let frontElsewhere = ProfileCapture.WindowSample(
             identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
@@ -213,23 +170,22 @@ final class ProfilePlanTests: XCTestCase {
         )
         let backOnDisplay = ProfileCapture.WindowSample(
             identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "browser"),
-            frameAX: CGRect(x: 100, y: 100, width: 100, height: 100)
+            frameAX: CGRect(x: 600, y: 100, width: 100, height: 100)
         )
 
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: [display: [zone]],
+            workAreasBySection: [display: workArea],
             candidates: [frontElsewhere, backOnDisplay]
         )
 
         XCTAssertEqual(outcome.sections.first?.placements.map(\.identity), [backOnDisplay.identity])
     }
 
-    func testFrontmostWindowWinsWhenNoWindowIsNearAnyZone() {
+    func testFrontmostWindowWinsWhenNoWindowIsOnTheDisplay() {
         let display = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500))
         let profile = WorkspaceProfile(name: "Work", sections: [
-            ProfileSection(space: SpaceKey(displayID: display), layoutID: UUID(), rules: [rule("browser", zone)]),
+            ProfileSection(space: SpaceKey(displayID: display), rules: [rule("browser", leftHalf)]),
         ])
         let front = ProfileCapture.WindowSample(
             identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "browser"),
@@ -240,7 +196,7 @@ final class ProfilePlanTests: XCTestCase {
             frameAX: CGRect(x: 3000, y: 0, width: 300, height: 300)
         )
 
-        let outcome = ProfilePlan.make(profile: profile, zonesBySection: [display: [zone]], candidates: [front, back])
+        let outcome = ProfilePlan.make(profile: profile, workAreasBySection: [display: workArea], candidates: [front, back])
 
         XCTAssertEqual(outcome.sections.first?.placements.map(\.identity), [front.identity])
     }
@@ -308,28 +264,8 @@ final class ProfilePlanTests: XCTestCase {
         )
     }
 
-    func testCaptureKeepsOnlyFrontmostWindowAssignedToOneZone() {
-        let zone = ResolvedZone(
-            zoneID: UUID(),
-            number: 1,
-            frameAX: CGRect(x: 0, y: 0, width: 500, height: 500)
-        )
-        let front = ProfileCapture.WindowSample(
-            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "front"),
-            frameAX: zone.frameAX
-        )
-        let hidden = ProfileCapture.WindowSample(
-            identity: WindowIdentity(pid: 2, windowNumber: 2, bundleID: "hidden"),
-            frameAX: zone.frameAX
-        )
-
-        let rules = ProfileCapture.rules(windows: [front, hidden], zones: [zone])
-
-        XCTAssertEqual(rules.map(\.bundleID), ["front"])
-    }
-
-    private func rule(_ bundleID: String, _ zone: ResolvedZone) -> AppPlacementRule {
-        AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
+    private func rule(_ bundleID: String, _ frame: NormalizedRect) -> AppPlacementRule {
+        AppPlacementRule(bundleID: bundleID, frame: frame)
     }
 
     private func sample(pid: pid_t, number: UInt32, bundleID: String) -> ProfileCapture.WindowSample {
