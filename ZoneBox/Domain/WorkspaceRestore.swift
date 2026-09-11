@@ -135,22 +135,6 @@ public enum WorkspaceRestore {
         }
     }
 
-    public static func shouldAssignLayout(displayAvailable: Bool, layoutExists: Bool) -> Bool {
-        displayAvailable && layoutExists
-    }
-
-    /// Flash the saved layout even when every window is still launching, so the
-    /// user can see the display switch before apps finish opening.
-    public static func shouldFlashAssignedLayout(
-        displayAvailable: Bool,
-        layoutExists: Bool,
-        organizeSucceeded: Bool,
-        noMovableWindows: Bool
-    ) -> Bool {
-        shouldAssignLayout(displayAvailable: displayAvailable, layoutExists: layoutExists)
-            && (organizeSucceeded || noMovableWindows)
-    }
-
     /// Unique bundle IDs in first-seen order. Restore activates this sequence
     /// so every saved app sits above unrelated windows; the last ID becomes
     /// the frontmost application.
@@ -161,6 +145,17 @@ public enum WorkspaceRestore {
             let bundleID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !bundleID.isEmpty, seen.insert(bundleID).inserted else { continue }
             ordered.append(bundleID)
+        }
+        return ordered
+    }
+
+    /// Unique process IDs in first-seen order. Helpers often share a bundle ID
+    /// with the real app, so restore must activate the PID that owns the window.
+    public static func foregroundProcessIDs(_ pids: [pid_t]) -> [pid_t] {
+        var seen = Set<pid_t>()
+        var ordered: [pid_t] = []
+        for pid in pids where pid > 0 && seen.insert(pid).inserted {
+            ordered.append(pid)
         }
         return ordered
     }

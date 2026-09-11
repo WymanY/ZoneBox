@@ -31,26 +31,21 @@ public enum ProfileCapture {
         }
     }
 
+    /// One rule per captured window, kept front-to-back, holding the frame
+    /// relative to the display's work area. There is no zone matching: a
+    /// window that spans two zones or ignores the layout entirely is saved
+    /// exactly where it was.
     public static func rules(
         windows: [WindowSample],
-        zones: [ResolvedZone]
+        workAreaAX: CGRect
     ) -> [AppPlacementRule] {
-        var occupied = Set<UUID>()
-        var assigned: [UUID: WindowSample] = [:]
-        for sample in windows {
-            guard sample.identity.bundleID?.isEmpty == false else { continue }
-            guard let zone = bestZone(for: sample.frameAX, in: zones, excluding: occupied) else { continue }
-            occupied.insert(zone.zoneID)
-            assigned[zone.zoneID] = sample
-        }
-        return zones.sorted { lhs, rhs in
-            if lhs.number != rhs.number { return lhs.number < rhs.number }
-            return lhs.zoneID.uuidString < rhs.zoneID.uuidString
-        }.compactMap { zone in
-            guard let sample = assigned[zone.zoneID],
-                  let bundleID = sample.identity.bundleID
-            else { return nil }
-            return AppPlacementRule(bundleID: bundleID, zoneID: zone.zoneID, zoneNumber: zone.number)
+        guard workAreaAX.width > 0, workAreaAX.height > 0 else { return [] }
+        return windows.compactMap { sample in
+            guard let bundleID = sample.identity.bundleID, !bundleID.isEmpty else { return nil }
+            return AppPlacementRule(
+                bundleID: bundleID,
+                frame: NormalizedRect.normalize(sample.frameAX, in: workAreaAX)
+            )
         }
     }
 
@@ -75,54 +70,53 @@ public enum ProfileCapture {
         return visible
     }
 
-    /// Keeps the frontmost captured assignment when older profile data contains
-    /// more than one application for the same zone. Such duplicates were created
-    /// when a partly exposed background window was mistaken for foreground
-    /// content and would otherwise be restored on top of the intended window.
-    public static func frontmostRulesPerZone(_ rules: [AppPlacementRule]) -> [AppPlacementRule] {
-        var zoneIDs = Set<UUID>()
-        var zoneNumbers = Set<Int>()
-        return rules.filter { rule in
-            guard !zoneIDs.contains(rule.zoneID), !zoneNumbers.contains(rule.zoneNumber) else {
-                return false
-            }
-            zoneIDs.insert(rule.zoneID)
-            zoneNumbers.insert(rule.zoneNumber)
-            return true
-        }
-    }
-
-    /// Whether a window currently counts as living in `zone`: either snapped
+    /// Whether a window currently counts as sitting at `target`: either placed
     /// there within tolerance or covering most of it.
     public static func occupies(_ frame: CGRect, zone: CGRect) -> Bool {
         ZoneOccupancy.occupies(frame, zone: zone)
     }
 
-    /// Pick the unoccupied zone this window belongs to. Prefer the zone the
-    /// window fills; otherwise the unoccupied zone with the largest overlap.
-    private static func bestZone(
-        for frame: CGRect,
-        in zones: [ResolvedZone],
-        excluding occupied: Set<UUID>
-    ) -> ResolvedZone? {
-        let ranked = zones.compactMap { zone -> (ResolvedZone, CGFloat, Bool)? in
-            guard !occupied.contains(zone.zoneID) else { return nil }
-            let intersection = frame.intersection(zone.frameAX)
-            guard !intersection.isNull, !intersection.isInfinite else { return nil }
-            let overlap = max(intersection.width, 0) * max(intersection.height, 0)
-            guard overlap > 0 else { return nil }
-            let zoneArea = max(zone.frameAX.width * zone.frameAX.height, 1)
-            let coverage = overlap / zoneArea
-            let fillsZone = occupies(frame, zone: zone.frameAX)
-            guard fillsZone || coverage >= 0.20 else { return nil }
-            return (zone, coverage, fillsZone)
+    /// A new workspace keeps every display that holds captured windows unless
+    /// the user asked for the pointer's display only.
+    public static func sections(
+        _ sections: [ProfileSection],
+        limitedTo displayID: DisplayIdentity.ID?
+    ) -> [ProfileSection] {
+        guard let displayID else { return sections }
+        return sections.filter { $0.space.displayID == displayID }
+    }
+
+    /// Recapture refreshes connected displays only. A section whose display is
+    /// unplugged stays as saved, so updating a laptop-only desk cannot erase the
+    /// docked half. Returns nil when nothing was captured so a failed recapture
+    /// cannot wipe the profile.
+    public static func mergedRecaptureSections(
+        existing: [ProfileSection],
+        captured: [ProfileSection],
+        availableDisplayIDs: Set<DisplayIdentity.ID>
+    ) -> [ProfileSection]? {
+        guard !captured.isEmpty else { return nil }
+        var capturedByDisplay: [DisplayIdentity.ID: ProfileSection] = [:]
+        for section in captured where capturedByDisplay[section.space.displayID] == nil {
+            capturedByDisplay[section.space.displayID] = section
         }
-        let preferred = ranked.filter { $0.2 }
-        let pool = preferred.isEmpty ? ranked : preferred
-        return pool.max { lhs, rhs in
-            if abs(lhs.1 - rhs.1) > 0.000_001 { return lhs.1 < rhs.1 }
-            return lhs.0.number > rhs.0.number
-        }?.0
+        var result: [ProfileSection] = []
+        var seen = Set<DisplayIdentity.ID>()
+        for section in existing {
+            let id = section.space.displayID
+            seen.insert(id)
+            if availableDisplayIDs.contains(id) {
+                if let fresh = capturedByDisplay[id] {
+                    result.append(fresh)
+                }
+            } else {
+                result.append(section)
+            }
+        }
+        for section in captured where seen.insert(section.space.displayID).inserted {
+            result.append(section)
+        }
+        return result.isEmpty ? nil : result
     }
 
     /// Adjacent snapped windows commonly share a 1pt seam. That is not occlusion.

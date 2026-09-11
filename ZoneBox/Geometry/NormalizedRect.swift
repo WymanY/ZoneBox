@@ -18,6 +18,13 @@ public struct NormalizedRect: Codable, Hashable, Sendable {
     public var midX: Double { x + width / 2 }
     public var midY: Double { y + height / 2 }
 
+    public func isClose(to other: NormalizedRect, tolerance: Double) -> Bool {
+        abs(x - other.x) <= tolerance
+            && abs(y - other.y) <= tolerance
+            && abs(width - other.width) <= tolerance
+            && abs(height - other.height) <= tolerance
+    }
+
     public func clamped() -> NormalizedRect {
         var r = self
         r.width = min(max(r.width, 0.02), 1)

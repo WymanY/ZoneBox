@@ -1,105 +1,64 @@
 import CoreGraphics
 import Foundation
 
-/// Read-only restore schematic for a workspace section.
-/// Uses the live layout referenced by section.layoutID, not a captured screenshot.
+/// Read-only restore schematic for a workspace section: every captured window
+/// drawn where restore will put it, relative to the display's work area.
 public enum WorkspaceLayoutPreview {
     public static let suggestedSize = CGSize(width: 160, height: 90)
     public static let iconMinimumWidth: CGFloat = 28
     public static let iconMinimumHeight: CGFloat = 22
 
     public struct Pane: Equatable, Sendable {
-        public var zoneID: UUID
-        public var number: Int
+        public var bundleID: String
         public var rect: NormalizedRect
-        public var bundleID: String?
+        /// False when the window is too small, or too covered by windows in
+        /// front, for an icon to mean anything. The pane is still drawn.
         public var showsIcon: Bool
         public var labelRect: NormalizedRect
     }
 
     public struct Snapshot: Equatable, Sendable {
-        public var isUnavailable: Bool
+        /// Back-to-front, so drawing in order puts the frontmost window on top.
         public var panes: [Pane]
     }
 
     public static func snapshot(
-        layout: Layout?,
         rules: [AppPlacementRule],
         canvasSize: CGSize = suggestedSize
     ) -> Snapshot {
-        guard let layout else {
-            return Snapshot(isUnavailable: true, panes: [])
-        }
-        let geometry = LayoutTemplates.thumbnailPanes(for: layout).filter { pane in
-            pane.rect.width > 0 && pane.rect.height > 0
-        }
-        let bindings = bind(
-            rules: rules,
-            zones: geometry.map { (id: $0.id, number: $0.number) }
-        )
-        let drafts = geometry.map { pane -> Draft in
-            let frame = pixelRect(pane.rect, in: canvasSize)
-            let bundleID = bindings[pane.id]
+        let drafts = rules.reversed().compactMap { rule -> Draft? in
+            let rect = rule.frame.clamped()
+            let frame = pixelRect(rect, in: canvasSize)
+            guard frame.width > 0, frame.height > 0 else { return nil }
             return Draft(
-                zoneID: pane.id,
-                number: pane.number,
-                rect: pane.rect,
+                bundleID: rule.bundleID,
+                rect: rect,
                 frame: frame,
-                bundleID: bundleID,
-                showsIcon: bundleID != nil
-                    && frame.width >= iconMinimumWidth
-                    && frame.height >= iconMinimumHeight
+                showsIcon: frame.width >= iconMinimumWidth && frame.height >= iconMinimumHeight
             )
         }
         let labels = placeLabels(drafts, canvasSize: canvasSize)
         let panes = zip(drafts, labels).map { draft, placement in
             Pane(
-                zoneID: draft.zoneID,
-                number: draft.number,
-                rect: draft.rect,
                 bundleID: draft.bundleID,
+                rect: draft.rect,
                 showsIcon: placement.showsIcon,
                 labelRect: normalize(placement.frame, in: canvasSize)
             )
         }
-        return Snapshot(isUnavailable: false, panes: panes)
-    }
-
-    /// Same resolution order as workspace restore: zoneID first, then zoneNumber.
-    public static func boundZone(
-        for rule: AppPlacementRule,
-        in zones: [(id: UUID, number: Int)]
-    ) -> (id: UUID, number: Int)? {
-        if let match = zones.first(where: { $0.id == rule.zoneID }) {
-            return match
-        }
-        return zones.first(where: { $0.number == rule.zoneNumber })
+        return Snapshot(panes: panes)
     }
 
     private struct Draft {
-        var zoneID: UUID
-        var number: Int
+        var bundleID: String
         var rect: NormalizedRect
         var frame: CGRect
-        var bundleID: String?
         var showsIcon: Bool
     }
 
     private struct LabelPlacement {
         var frame: CGRect
         var showsIcon: Bool
-    }
-
-    private static func bind(
-        rules: [AppPlacementRule],
-        zones: [(id: UUID, number: Int)]
-    ) -> [UUID: String] {
-        var bundleByZone: [UUID: String] = [:]
-        for rule in ProfileCapture.frontmostRulesPerZone(rules) {
-            guard let zone = boundZone(for: rule, in: zones), bundleByZone[zone.id] == nil else { continue }
-            bundleByZone[zone.id] = rule.bundleID
-        }
-        return bundleByZone
     }
 
     private static func placeLabels(_ drafts: [Draft], canvasSize: CGSize) -> [LabelPlacement] {
@@ -111,32 +70,30 @@ public enum WorkspaceLayoutPreview {
                 guard otherIndex > index, other.frame.intersects(draft.frame) else { return nil }
                 return other.frame
             }
-            var showsIcon = draft.showsIcon
-            var frame = bestLabelRect(
+            let frame = bestLabelRect(
                 in: draft.frame,
-                size: labelSize(showsIcon: showsIcon, pane: draft.frame),
+                size: labelSize(pane: draft.frame),
                 occluders: occluders,
                 avoiding: placed,
                 canvasSize: canvasSize
             )
-            if showsIcon, placed.contains(where: { $0.intersects(frame) }) {
+            var showsIcon = draft.showsIcon
+            if showsIcon,
+               occluders.contains(where: { $0.contains(frame) })
+               || placed.contains(where: { $0.intersects(frame) })
+            {
                 showsIcon = false
-                frame = bestLabelRect(
-                    in: draft.frame,
-                    size: labelSize(showsIcon: false, pane: draft.frame),
-                    occluders: occluders,
-                    avoiding: placed,
-                    canvasSize: canvasSize
-                )
             }
-            placed.append(frame)
+            if showsIcon {
+                placed.append(frame)
+            }
             result.append(LabelPlacement(frame: frame, showsIcon: showsIcon))
         }
         return result
     }
 
-    private static func labelSize(showsIcon: Bool, pane: CGRect) -> CGSize {
-        let requested = showsIcon ? CGSize(width: 34, height: 18) : CGSize(width: 16, height: 14)
+    private static func labelSize(pane: CGRect) -> CGSize {
+        let requested = CGSize(width: 18, height: 18)
         return CGSize(
             width: min(requested.width, max(8, pane.width - 2)),
             height: min(requested.height, max(8, pane.height - 2))

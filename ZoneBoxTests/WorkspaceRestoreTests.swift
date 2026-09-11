@@ -2,6 +2,8 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class WorkspaceRestoreTests: XCTestCase {
+    private let leftHalf = NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)
+
     func testReopenDoesNotLaunchASecondInstance() {
         XCTAssertEqual(WorkspaceRestore.openCommand(for: .reopen), .reopenRunning)
         XCTAssertEqual(WorkspaceRestore.openCommand(for: .launch), .launch)
@@ -144,11 +146,9 @@ final class WorkspaceRestoreTests: XCTestCase {
     func testClamshellRemapsFirstSectionOntoTheRemainingDisplay() {
         let saved = UUID()
         let live = UUID()
-        let layoutID = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: .zero)
         let sections = [
-            ProfileSection(space: SpaceKey(displayID: saved), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "com.openai.codex", zoneID: zone.zoneID, zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: saved), rules: [
+                AppPlacementRule(bundleID: "com.openai.codex", frame: leftHalf),
             ]),
         ]
 
@@ -159,20 +159,18 @@ final class WorkspaceRestoreTests: XCTestCase {
         )
 
         XCTAssertEqual(remapped.map(\.space.displayID), [live])
-        XCTAssertEqual(remapped.map(\.layoutID), [layoutID])
-        XCTAssertEqual(remapped.first?.rules.map(\.bundleID), ["com.openai.codex"])
+        XCTAssertEqual(remapped.first?.rules, sections[0].rules)
     }
 
     func testConnectedSiblingDisplayIsNotStolenByADisconnectedSection() {
         let builtIn = UUID()
         let external = UUID()
-        let layoutID = UUID()
         let sections = [
-            ProfileSection(space: SpaceKey(displayID: builtIn), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "notes", zoneID: UUID(), zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: builtIn), rules: [
+                AppPlacementRule(bundleID: "notes", frame: leftHalf),
             ]),
-            ProfileSection(space: SpaceKey(displayID: external), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "browser", zoneID: UUID(), zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: external), rules: [
+                AppPlacementRule(bundleID: "browser", frame: leftHalf),
             ]),
         ]
 
@@ -189,13 +187,12 @@ final class WorkspaceRestoreTests: XCTestCase {
         let first = UUID()
         let second = UUID()
         let live = UUID()
-        let layoutID = UUID()
         let sections = [
-            ProfileSection(space: SpaceKey(displayID: first), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "one", zoneID: UUID(), zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: first), rules: [
+                AppPlacementRule(bundleID: "one", frame: leftHalf),
             ]),
-            ProfileSection(space: SpaceKey(displayID: second), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "two", zoneID: UUID(), zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: second), rules: [
+                AppPlacementRule(bundleID: "two", frame: leftHalf),
             ]),
         ]
 
@@ -208,51 +205,20 @@ final class WorkspaceRestoreTests: XCTestCase {
         XCTAssertEqual(remapped.map(\.space.displayID), [live, second])
     }
 
-    func testLayoutStillAssignsAndFlashesWhenEveryAppIsStillLaunching() {
-        XCTAssertTrue(WorkspaceRestore.shouldAssignLayout(displayAvailable: true, layoutExists: true))
-        XCTAssertFalse(WorkspaceRestore.shouldAssignLayout(displayAvailable: false, layoutExists: true))
-        XCTAssertFalse(WorkspaceRestore.shouldAssignLayout(displayAvailable: true, layoutExists: false))
-        XCTAssertTrue(
-            WorkspaceRestore.shouldFlashAssignedLayout(
-                displayAvailable: true,
-                layoutExists: true,
-                organizeSucceeded: false,
-                noMovableWindows: true
-            )
-        )
-        XCTAssertTrue(
-            WorkspaceRestore.shouldFlashAssignedLayout(
-                displayAvailable: true,
-                layoutExists: true,
-                organizeSucceeded: true,
-                noMovableWindows: false
-            )
-        )
-        XCTAssertFalse(
-            WorkspaceRestore.shouldFlashAssignedLayout(
-                displayAvailable: true,
-                layoutExists: true,
-                organizeSucceeded: false,
-                noMovableWindows: false
-            )
-        )
-    }
-
     func testTimeoutCoversSlowElectronColdLaunch() {
         XCTAssertGreaterThanOrEqual(WorkspaceRestore.launchTimeout, 45)
         XCTAssertEqual(WorkspaceRestore.launchRetryLimit, 3)
         XCTAssertEqual(WorkspaceRestore.maxRejectedAttempts, 3)
     }
 
-    func testRemappedDisplayStillPlansLayoutAndLaunchesMissingApps() {
+    func testRemappedDisplayStillPlansFramesAndLaunchesMissingApps() {
         let saved = UUID()
         let live = UUID()
-        let layoutID = UUID()
-        let zone = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let liveWorkArea = CGRect(x: 0, y: 0, width: 800, height: 400)
         let original = WorkspaceProfile(name: "Desk", sections: [
-            ProfileSection(space: SpaceKey(displayID: saved), layoutID: layoutID, rules: [
-                AppPlacementRule(bundleID: "com.openai.codex", zoneID: zone.zoneID, zoneNumber: 1),
-                AppPlacementRule(bundleID: "com.todesktop.230313mzl4w4u92", zoneID: zone.zoneID, zoneNumber: 1),
+            ProfileSection(space: SpaceKey(displayID: saved), rules: [
+                AppPlacementRule(bundleID: "com.openai.codex", frame: leftHalf),
+                AppPlacementRule(bundleID: "com.todesktop.230313mzl4w4u92", frame: NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)),
             ]),
         ])
         let remapped = WorkspaceRestore.remappedSections(
@@ -268,14 +234,17 @@ final class WorkspaceRestoreTests: XCTestCase {
         )
         let outcome = ProfilePlan.make(
             profile: profile,
-            zonesBySection: [live: [zone]],
+            workAreasBySection: [live: liveWorkArea],
             candidates: []
         )
 
         XCTAssertEqual(outcome.sections.map(\.displayID), [live])
-        XCTAssertEqual(outcome.sections.map(\.layoutID), [layoutID])
+        XCTAssertEqual(
+            outcome.sections.first?.targetFramesAX,
+            [CGRect(x: 0, y: 0, width: 400, height: 400), CGRect(x: 400, y: 0, width: 400, height: 400)]
+        )
         XCTAssertTrue(outcome.sections.first?.placements.isEmpty ?? false)
-        XCTAssertEqual(outcome.missingBundleIDs, ["com.openai.codex"])
+        XCTAssertEqual(outcome.missingBundleIDs, ["com.openai.codex", "com.todesktop.230313mzl4w4u92"])
         XCTAssertEqual(
             ProfilePlan.openAction(
                 bundleID: "com.openai.codex",
@@ -294,7 +263,6 @@ final class WorkspaceRestoreTests: XCTestCase {
             ),
             .reopen
         )
-        XCTAssertTrue(WorkspaceRestore.shouldAssignLayout(displayAvailable: true, layoutExists: true))
     }
 
     func testForegroundBundleIDsPreserveFirstSeenOrderAndDropDuplicates() {

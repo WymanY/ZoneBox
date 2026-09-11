@@ -3,7 +3,9 @@ import Foundation
 public enum WorkspaceSwitcherPhase: Equatable, Sendable {
     case hidden
     case browsing(highlight: Int)
-    case naming(text: String, highlight: Int)
+    /// `thisDisplayOnly` narrows the save to the pointer's display; it only
+    /// takes effect while the input offers a `displayChoice`.
+    case naming(text: String, highlight: Int, thisDisplayOnly: Bool = false)
 }
 
 public enum WorkspaceSwitcherEvent: Equatable, Sendable {
@@ -13,6 +15,7 @@ public enum WorkspaceSwitcherEvent: Equatable, Sendable {
     case confirm
     case beginSave
     case textChanged(String)
+    case toggleCaptureScope
     case save
     case update
     case dismiss
@@ -22,9 +25,24 @@ public enum WorkspaceSwitcherEffect: Equatable, Sendable {
     case show
     case hide
     case apply(WorkspaceProfile.ID)
-    case capture(name: String)
+    /// nil `displayID` saves every display that holds windows.
+    case capture(name: String, displayID: DisplayIdentity.ID? = nil)
     case updateProfile(WorkspaceProfile.ID)
     case beep
+}
+
+/// The "only this display" alternative offered while naming. Present only
+/// when at least two displays hold windows and the pointer's display is known.
+public struct WorkspaceSwitcherDisplayChoice: Equatable, Sendable {
+    public var displayID: DisplayIdentity.ID
+    public var suggestedName: String
+    public var captureCount: Int
+
+    public init(displayID: DisplayIdentity.ID, suggestedName: String, captureCount: Int) {
+        self.displayID = displayID
+        self.suggestedName = suggestedName
+        self.captureCount = captureCount
+    }
 }
 
 public struct WorkspaceSwitcherInput: Equatable, Sendable {
@@ -36,6 +54,7 @@ public struct WorkspaceSwitcherInput: Equatable, Sendable {
     public var trusted: Bool
     public var captureCount: Int
     public var suggestedName: String
+    public var displayChoice: WorkspaceSwitcherDisplayChoice?
 
     public init(
         phase: WorkspaceSwitcherPhase,
@@ -45,7 +64,8 @@ public struct WorkspaceSwitcherInput: Equatable, Sendable {
         isIdle: Bool = true,
         trusted: Bool = true,
         captureCount: Int = 0,
-        suggestedName: String = ""
+        suggestedName: String = "",
+        displayChoice: WorkspaceSwitcherDisplayChoice? = nil
     ) {
         self.phase = phase
         self.event = event
@@ -55,6 +75,7 @@ public struct WorkspaceSwitcherInput: Equatable, Sendable {
         self.trusted = trusted
         self.captureCount = captureCount
         self.suggestedName = suggestedName
+        self.displayChoice = displayChoice
     }
 }
 
@@ -85,6 +106,8 @@ public enum WorkspaceSwitcherReducer {
             return beginSave(input)
         case .textChanged(let text):
             return textChanged(input, text: text)
+        case .toggleCaptureScope:
+            return toggleCaptureScope(input)
         case .save:
             return save(input)
         case .update:
@@ -194,29 +217,52 @@ public enum WorkspaceSwitcherReducer {
     }
 
     private static func textChanged(_ input: WorkspaceSwitcherInput, text: String) -> WorkspaceSwitcherOutput {
-        guard case .naming(_, let highlight) = input.phase else {
+        guard case .naming(_, let highlight, let thisDisplayOnly) = input.phase else {
             return WorkspaceSwitcherOutput(phase: input.phase, effects: [])
         }
         return WorkspaceSwitcherOutput(
-            phase: .naming(text: text, highlight: highlight),
+            phase: .naming(text: text, highlight: highlight, thisDisplayOnly: thisDisplayOnly),
+            effects: []
+        )
+    }
+
+    /// Flips between saving every display and only the pointer's display. A
+    /// name the user has not edited follows the scope; a typed name is kept.
+    private static func toggleCaptureScope(_ input: WorkspaceSwitcherInput) -> WorkspaceSwitcherOutput {
+        guard case .naming(let text, let highlight, let thisDisplayOnly) = input.phase,
+              let choice = input.displayChoice
+        else {
+            return WorkspaceSwitcherOutput(phase: input.phase, effects: [])
+        }
+        let previousSuggestion = thisDisplayOnly ? choice.suggestedName : input.suggestedName
+        let nextSuggestion = thisDisplayOnly ? input.suggestedName : choice.suggestedName
+        return WorkspaceSwitcherOutput(
+            phase: .naming(
+                text: text == previousSuggestion ? nextSuggestion : text,
+                highlight: highlight,
+                thisDisplayOnly: !thisDisplayOnly
+            ),
             effects: []
         )
     }
 
     private static func save(_ input: WorkspaceSwitcherInput) -> WorkspaceSwitcherOutput {
-        guard case .naming(let text, let highlight) = input.phase else {
+        guard case .naming(let text, let highlight, let thisDisplayOnly) = input.phase else {
             return WorkspaceSwitcherOutput(phase: input.phase, effects: [])
         }
+        // A scope narrowed while two displays held windows falls back to the
+        // whole desk once the choice disappears (display unplugged mid-save).
+        let scope = thisDisplayOnly ? input.displayChoice : nil
         let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if input.captureCount == 0 || name.isEmpty {
+        if (scope?.captureCount ?? input.captureCount) == 0 || name.isEmpty {
             return WorkspaceSwitcherOutput(
-                phase: .naming(text: text, highlight: highlight),
+                phase: .naming(text: text, highlight: highlight, thisDisplayOnly: thisDisplayOnly),
                 effects: [.beep]
             )
         }
         return WorkspaceSwitcherOutput(
             phase: .hidden,
-            effects: [.hide, .capture(name: name)]
+            effects: [.hide, .capture(name: name, displayID: scope?.displayID)]
         )
     }
 
@@ -237,7 +283,7 @@ public enum WorkspaceSwitcherReducer {
         switch input.phase {
         case .hidden:
             return WorkspaceSwitcherOutput(phase: .hidden, effects: [])
-        case .naming(_, let highlight):
+        case .naming(_, let highlight, _):
             return WorkspaceSwitcherOutput(phase: .browsing(highlight: highlight), effects: [])
         case .browsing:
             return WorkspaceSwitcherOutput(phase: .hidden, effects: [.hide])
@@ -259,7 +305,7 @@ public enum WorkspaceSwitcherReducer {
         switch input.phase {
         case .browsing(let highlight):
             return .browsing(highlight: highlight)
-        case .naming(_, let highlight):
+        case .naming(_, let highlight, _):
             return .browsing(highlight: highlight)
         case .hidden:
             return .hidden

@@ -1002,14 +1002,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         for (sectionIndex, section) in profile.sections.enumerated() {
             let displayName = runtime.document.displays.first(where: { $0.id == section.space.displayID })?.localizedName
                 ?? L10n.text(.settingsWorkspaceUnavailableDisplay)
-            let layout = runtime.document.layouts.first(where: { $0.id == section.layoutID })
-            let layoutName = layout.map { L10n.layoutDisplayName($0.name) }
-                ?? L10n.text(.settingsWorkspaceUnavailableLayout)
             let sectionTitle = NSTextField(
                 labelWithString: String(
                     format: L10n.text(.settingsWorkspaceSectionSummary),
                     displayName,
-                    layoutName
+                    section.rules.count
                 )
             )
             sectionTitle.font = .systemFont(ofSize: 11, weight: .semibold)
@@ -1045,7 +1042,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 applicationInfo[rule.bundleID] = workspaceApplicationInfo(bundleID: rule.bundleID)
             }
             let preview = WorkspaceLayoutPreviewView(
-                layout: layout,
                 rules: section.rules,
                 applicationInfo: applicationInfo
             )
@@ -1056,7 +1052,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             applications.setContentHuggingPriority(.defaultLow, for: .horizontal)
             applications.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             applications.setHuggingPriority(.defaultLow, for: .horizontal)
-            for rule in section.rules {
+            for rule in AppPlacementRule.readingOrder(section.rules) {
                 applications.addArrangedSubview(makeWorkspaceApplicationRow(rule))
             }
 
@@ -1120,8 +1116,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         bundle.setContentHuggingPriority(.defaultLow, for: .horizontal)
         bundle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        // Width × height as a share of the display's work area, so a left
+        // half reads 50% × 100% and a full-screen window 100% × 100%.
         let zone = WorkspaceZoneBadgeView(
-            text: String(format: L10n.text(.settingsWorkspaceZone), rule.zoneNumber)
+            text: String(
+                format: L10n.text(.settingsWorkspaceWindowSize),
+                Int((rule.frame.width * 100).rounded()),
+                Int((rule.frame.height * 100).rounded())
+            )
         )
         zone.translatesAutoresizingMaskIntoConstraints = false
 
