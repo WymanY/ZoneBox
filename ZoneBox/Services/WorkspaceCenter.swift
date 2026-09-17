@@ -241,7 +241,9 @@ final class WorkspaceCenter {
             runtime.openAccessibility()
             return
         }
-        let candidates = await collectCandidates(visibleOnly: true).candidates
+        let candidates = await collectCandidates(visibleOnly: true).candidates.filter {
+            isEligibleForWorkspaceCapture($0.sample.identity)
+        }
         let sections = captureSections(from: candidates.map(\.sample))
         Log.workspace.info(
             "Capture visibleWindows=\(candidates.count, privacy: .public) sections=\(sections.count, privacy: .public) rules=\(sections.reduce(0) { $0 + $1.rules.count }, privacy: .public)"
@@ -555,7 +557,7 @@ final class WorkspaceCenter {
             guard visible.contains(ref.identity),
                   let bundleID = ref.bundleID,
                   !bundleID.isEmpty,
-                  !runtime.settings.excludedBundleIDs.contains(bundleID)
+                  isEligibleForWorkspaceCapture(ref.identity)
             else { return nil }
             return ProfileCapture.WindowSample(identity: ref.identity, frameAX: ref.boundsAX)
         }
@@ -773,6 +775,38 @@ final class WorkspaceCenter {
     private func isExcluded(_ bundleID: String) -> Bool {
         runtime.settings.excludedBundleIDs.contains(bundleID)
     }
+
+    private func isEligibleForWorkspaceCapture(_ identity: WindowIdentity) -> Bool {
+        guard let bundleID = identity.bundleID, !isExcluded(bundleID) else { return false }
+        let app = NSRunningApplication(processIdentifier: identity.pid)
+            ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
+        let policy = app.flatMap { WorkspaceCaptureEligibility.ActivationPolicy($0.activationPolicy) }
+        let presentation = policy == nil
+            ? bundlePresentation(for: bundleID)
+            : WorkspaceCaptureEligibility.BundlePresentation()
+        return WorkspaceCaptureEligibility.shouldCapture(
+            bundleID: bundleID,
+            activationPolicy: policy,
+            presentation: presentation
+        )
+    }
+
+    private func bundlePresentation(for bundleID: String) -> WorkspaceCaptureEligibility.BundlePresentation {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+              let bundle = Bundle(url: url)
+        else {
+            return WorkspaceCaptureEligibility.BundlePresentation()
+        }
+        return WorkspaceCaptureEligibility.BundlePresentation(
+            lsUIElement: WorkspaceCaptureEligibility.boolFlag(
+                bundle.object(forInfoDictionaryKey: "LSUIElement")
+            ),
+            lsBackgroundOnly: WorkspaceCaptureEligibility.boolFlag(
+                bundle.object(forInfoDictionaryKey: "LSBackgroundOnly")
+            )
+        )
+    }
+
 
     private func isLargeEnough(_ frame: CGRect) -> Bool {
         frame.width >= 80 && frame.height >= 80
@@ -1273,5 +1307,17 @@ final class WorkspaceCenter {
             && abs(lhs.minY - rhs.minY) <= 2
             && abs(lhs.width - rhs.width) <= 2
             && abs(lhs.height - rhs.height) <= 2
+    }
+}
+
+
+extension WorkspaceCaptureEligibility.ActivationPolicy {
+    init?(_ policy: NSApplication.ActivationPolicy) {
+        switch policy {
+        case .regular: self = .regular
+        case .accessory: self = .accessory
+        case .prohibited: self = .prohibited
+        @unknown default: return nil
+        }
     }
 }
