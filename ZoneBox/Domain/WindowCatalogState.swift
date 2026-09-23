@@ -28,7 +28,10 @@ public struct WindowCatalogState: Equatable, Sendable {
     public mutating func record(_ value: UnsnapRecord, displayID: UUID?) {
         if let existing = records[value.identity] {
             var updated = value
-            updated.originalFrameAX = existing.originalFrameAX
+            updated.originalFrameAX = UnsnapCatalogPolicy.originalFrameAX(
+                existing: existing,
+                incomingOriginal: value.originalFrameAX
+            )
             records[value.identity] = updated
         } else {
             records[value.identity] = value

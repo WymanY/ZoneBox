@@ -77,6 +77,7 @@ public enum SnapSessionReducer {
             if input.startedOnMoveChrome,
                input.restoreSizeOnUnsnap,
                let record = input.unsnapRecord,
+               record.identity == window,
                let down = input.downLocationAppKit,
                RectMath.chebyshev(input.event.locationAppKit, down) >= 30 {
                 let current = input.currentFrameAX ?? record.snappedFrameAX
@@ -88,7 +89,7 @@ public enum SnapSessionReducer {
                 )
                 return SnapReducerOutput(
                     phase: .idle,
-                    effects: [.applyFrame(window, frame), .hideOverlay]
+                    effects: [.applyFrame(window, frame), .dropUnsnap(window), .hideOverlay]
                 )
             }
             return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
@@ -107,18 +108,13 @@ public enum SnapSessionReducer {
                 return SnapReducerOutput(phase: .idle, effects: [.hideOverlay])
             }
             var effects: [SnapEffect] = [.applyFrame(window, frame), .hideOverlay]
-            if let original = input.downFrameAX {
-                effects.insert(
-                    .recordUnsnap(
-                        UnsnapRecord(
-                            identity: window,
-                            originalFrameAX: original,
-                            snappedFrameAX: frame,
-                            zoneIDs: target.unsnapZoneIDs
-                        )
-                    ),
-                    at: 0
-                )
+            if let record = recordUnsnapEffect(
+                window: window,
+                snapped: frame,
+                zoneIDs: target.unsnapZoneIDs,
+                input: input
+            ) {
+                effects.insert(record, at: 0)
             }
             if let layoutID = layoutID(for: target, input: input) {
                 if let applyIndex = effects.firstIndex(of: .applyFrame(window, frame)) {
@@ -323,17 +319,13 @@ public enum SnapSessionReducer {
             }
             effects.append(.highlight(target))
             effects.append(.applyFrame(window, zone.frameAX))
-            if let original = input.downFrameAX {
-                effects.append(
-                    .recordUnsnap(
-                        UnsnapRecord(
-                            identity: window,
-                            originalFrameAX: original,
-                            snappedFrameAX: zone.frameAX,
-                            zoneIDs: [zone.zoneID]
-                        )
-                    )
-                )
+            if let record = recordUnsnapEffect(
+                window: window,
+                snapped: zone.frameAX,
+                zoneIDs: [zone.zoneID],
+                input: input
+            ) {
+                effects.append(record)
             }
             return SnapReducerOutput(phase: .highlighting(window, target), effects: effects)
         default:
@@ -471,4 +463,25 @@ public enum SnapSessionReducer {
         if frame.minY < workAX.minY { frame.origin.y = workAX.minY }
         return frame
     }
+
+    private static func recordUnsnapEffect(
+        window: WindowIdentity,
+        snapped: CGRect,
+        zoneIDs: [UUID],
+        input: SnapReducerInput
+    ) -> SnapEffect? {
+        guard let original = UnsnapCatalogPolicy.capturedOriginalFrame(
+            downFrameAX: input.downFrameAX,
+            currentFrameAX: input.currentFrameAX
+        ) else { return nil }
+        return .recordUnsnap(
+            UnsnapRecord(
+                identity: window,
+                originalFrameAX: original,
+                snappedFrameAX: snapped,
+                zoneIDs: zoneIDs
+            )
+        )
+    }
+
 }

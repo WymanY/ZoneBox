@@ -24,12 +24,12 @@ New installs get a **14-day Pro trial**. After that, Pro features ask for a lice
 - Launch price: **US$9.99** for 30 days (Creem code `LAUNCH30`)
 - Devices: **2 Macs** per key
 - Provider: [Creem](https://www.creem.io) (Merchant of Record)
-- Checkout: https://zonebox-site.vercel.app/buy
+- Checkout: https://zonebox.top/buy
 - After payment, Creem emails a license key and the site shows it on /success
 
 ## Activation
 
-The Mac app never embeds a Creem API key. It talks to https://zonebox-site.vercel.app/api/license, which proxies activate, validate, and deactivate.
+The Mac app never embeds a Creem API key. It talks to https://zonebox.top/api/license, which proxies activate, validate, and deactivate.
 
 Users can paste a key in Settings -> License, or open zonebox://activate?key=...
 
