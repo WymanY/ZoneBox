@@ -159,6 +159,7 @@ final class SnapSessionReducerTests: XCTestCase {
         let out = SnapSessionReducer.reduce(input)
         XCTAssertEqual(out.phase, .idle)
         XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains(.dropUnsnap(window)))
     }
 
     func testTitleBarUnarmedDragRestoresOriginalSizeAtDropOrigin() {
@@ -179,6 +180,7 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(out.phase, .idle)
         XCTAssertTrue(out.effects.contains(.applyFrame(window, CGRect(x: 220, y: 180, width: 500, height: 400))))
         XCTAssertFalse(out.effects.contains(.applyFrame(window, record.originalFrameAX)))
+        XCTAssertTrue(out.effects.contains(.dropUnsnap(window)))
     }
 
     func testTitleBarUnarmedDragClampsRestoredSizeToTheDropDisplay() {
@@ -213,6 +215,135 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(out.phase, .idle)
         XCTAssertTrue(out.effects.contains(.applyFrame(window, CGRect(x: 1600, y: 100, width: 500, height: 400))))
         XCTAssertFalse(out.effects.contains(.applyFrame(window, CGRect(x: 940, y: 100, width: 500, height: 400))))
+        XCTAssertTrue(out.effects.contains(.dropUnsnap(window)))
+    }
+
+    func testTitleBarUnsnapStillRestoresAfterApplicationSizeConstraintsOrResize() {
+        let record = UnsnapRecord(
+            identity: window,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: frame,
+            zoneIDs: [UUID()]
+        )
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftUp)
+        input.startedOnMoveChrome = true
+        input.restoreSizeOnUnsnap = true
+        input.unsnapRecord = record
+        input.downFrameAX = CGRect(x: 300, y: 240, width: 500, height: 400)
+        input.currentFrameAX = CGRect(x: 320, y: 260, width: 500, height: 400)
+        input.downLocationAppKit = .zero
+        input.event.locationAppKit = CGPoint(x: 80, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertTrue(out.effects.contains(.applyFrame(window, CGRect(x: 320, y: 260, width: 500, height: 400))))
+        XCTAssertTrue(out.effects.contains(.dropUnsnap(window)))
+    }
+
+    func testTitleBarUnarmedDragWithoutCatalogDoesNotRestoreAgain() {
+        var input = armedReadyInput(phase: .dragging(window), kind: .leftUp)
+        input.startedOnMoveChrome = true
+        input.restoreSizeOnUnsnap = true
+        input.unsnapRecord = nil
+        input.currentFrameAX = CGRect(x: 220, y: 180, width: 500, height: 400)
+        input.downLocationAppKit = .zero
+        input.event.locationAppKit = CGPoint(x: 80, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertEqual(out.phase, .idle)
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains(.dropUnsnap(window)))
+    }
+
+    func testUnsnapCatalogCompletionProtectsFailedAndSupersededWrites() {
+        let record = UnsnapRecord(identity: window, originalFrameAX: frame,
+                                  snappedFrameAX: frame, zoneIDs: [UUID()])
+        var newer = record
+        newer.snappedAt = record.snappedAt.addingTimeInterval(1)
+        func completion(_ current: UnsnapRecord?, applied: Bool = true, generation: Int = 1) -> WindowIdentity? {
+            UnsnapCatalogPolicy.identityToDrop(
+                capturedForThisWrite: record, currentRecord: current,
+                frameApplied: applied, completionGeneration: 1, currentGeneration: generation
+            )
+        }
+        var catalog = WindowCatalogState()
+        catalog.record(record, displayID: UUID())
+        if let identity = completion(catalog.records[window], applied: false) {
+            catalog.drop(identity: identity)
+        }
+        XCTAssertEqual(catalog.records[window], record)
+        XCTAssertNotNil(catalog.membership[window])
+        XCTAssertNil(completion(record, generation: 2))
+        XCTAssertNil(completion(newer))
+        XCTAssertNil(completion(nil))
+        if let identity = completion(catalog.records[window]) {
+            catalog.drop(identity: identity)
+        }
+        XCTAssertNil(catalog.records[window])
+        XCTAssertNil(catalog.membership[window])
+    }
+
+    func testCapturedOriginalPrefersLiveSizeWhenDownFrameIsStaleWorkArea() {
+        let down = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let current = CGRect(x: 142, y: 154, width: 697, height: 697)
+        XCTAssertEqual(
+            UnsnapCatalogPolicy.capturedOriginalFrame(downFrameAX: down, currentFrameAX: current),
+            CGRect(x: 0, y: 31, width: 697, height: 697)
+        )
+        XCTAssertEqual(
+            UnsnapCatalogPolicy.capturedOriginalFrame(downFrameAX: current, currentFrameAX: current),
+            current
+        )
+        XCTAssertEqual(
+            UnsnapCatalogPolicy.capturedOriginalFrame(downFrameAX: down, currentFrameAX: nil),
+            down
+        )
+    }
+
+    func testOriginalFrameKeepsFirstOnlyWhileStillAtSnappedSize() {
+        let existing = UnsnapRecord(
+            identity: window,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: CGRect(x: 0, y: 31, width: 720, height: 869),
+            zoneIDs: [UUID()]
+        )
+        XCTAssertEqual(
+            UnsnapCatalogPolicy.originalFrameAX(
+                existing: existing,
+                incomingOriginal: CGRect(x: 12, y: 40, width: 720, height: 869)
+            ),
+            existing.originalFrameAX
+        )
+        let resized = CGRect(x: 142, y: 154, width: 697, height: 697)
+        XCTAssertEqual(
+            UnsnapCatalogPolicy.originalFrameAX(existing: existing, incomingOriginal: resized),
+            resized
+        )
+    }
+
+    func testArmedDropRecordsLiveSizeInsteadOfStaleWorkAreaDownFrame() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 720, y: 31, width: 720, height: 869)
+        )
+        let live = CGRect(x: 142, y: 154, width: 697, height: 697)
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .leftUp)
+        input.resolvedZones = [zone]
+        input.downFrameAX = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        input.currentFrameAX = live
+        input.event.locationAppKit = CoordinateConverter.appKitPoint(
+            fromAX: CGPoint(x: zone.frameAX.midX, y: zone.frameAX.midY),
+            primaryFlipHeight: input.primaryFlipHeight
+        )
+        let out = SnapSessionReducer.reduce(input)
+        let recorded = out.effects.contains {
+            if case .recordUnsnap(let record) = $0 {
+                return record.identity == window
+                    && record.originalFrameAX == CGRect(x: 0, y: 31, width: 697, height: 697)
+                    && record.snappedFrameAX == zone.frameAX
+            }
+            return false
+        }
+        XCTAssertTrue(recorded, "effects=\(out.effects)")
     }
 
     func testShiftReleaseKeepsHighlightedZoneWhenSticky() {
@@ -862,6 +993,7 @@ final class SnapSessionReducerTests: XCTestCase {
             return false
         }
         XCTAssertTrue(recorded)
+        XCTAssertFalse(out.effects.contains(.dropUnsnap(window)))
     }
 
     func testOverlayDigitMissingZoneIsNoOp() {

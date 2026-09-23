@@ -99,6 +99,7 @@ public enum SnapEffect: Equatable, Sendable {
     case highlight(SnapTarget)
     case applyFrame(WindowIdentity, CGRect)
     case recordUnsnap(UnsnapRecord)
+    case dropUnsnap(WindowIdentity)
     case cancel
     case assignLayout(Layout.ID)
     case clearLockedTarget
@@ -445,5 +446,53 @@ public enum SnapLayoutAssignmentPolicy {
         startingNewDrag: Bool
     ) -> Int {
         startingNewDrag ? current + 1 : current
+    }
+}
+
+public enum UnsnapCatalogPolicy {
+    public static let sizeTolerance: CGFloat = 8
+
+    /// A failed or superseded write must not clear the current snap cycle.
+    public static func identityToDrop(
+        capturedForThisWrite: UnsnapRecord?,
+        currentRecord: UnsnapRecord?,
+        frameApplied: Bool,
+        completionGeneration: Int,
+        currentGeneration: Int
+    ) -> WindowIdentity? {
+        guard frameApplied,
+              completionGeneration == currentGeneration,
+              let capturedForThisWrite,
+              currentRecord == capturedForThisWrite
+        else { return nil }
+        return capturedForThisWrite.identity
+    }
+
+    /// Mouse-down CG can briefly report a work-area-sized frame. Prefer the
+    /// refreshed live size when it disagrees, keeping the down origin.
+    public static func capturedOriginalFrame(downFrameAX: CGRect?, currentFrameAX: CGRect?) -> CGRect? {
+        switch (downFrameAX, currentFrameAX) {
+        case (nil, nil):
+            return nil
+        case (let down?, nil):
+            return down
+        case (nil, let current?):
+            return current
+        case (let down?, let current?):
+            guard RectMath.chebyshevSize(down.size, current.size) > sizeTolerance else {
+                return down
+            }
+            return CGRect(x: down.minX, y: down.minY, width: current.width, height: current.height)
+        }
+    }
+
+    /// Keep the first original only while the window is still at the last
+    /// snapped size. A live resize starts a new restore cycle.
+    public static func originalFrameAX(existing: UnsnapRecord?, incomingOriginal: CGRect) -> CGRect {
+        guard let existing else { return incomingOriginal }
+        if RectMath.chebyshevSize(incomingOriginal.size, existing.snappedFrameAX.size) <= sizeTolerance {
+            return existing.originalFrameAX
+        }
+        return incomingOriginal
     }
 }

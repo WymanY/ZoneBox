@@ -7,7 +7,7 @@ enum LicenseConfig {
         {
             return url
         }
-        return URL(string: "https://zonebox-site.vercel.app/buy")!
+        return URL(string: "https://zonebox.top/buy")!
     }
 
     static var licenseAPIURL: URL {
@@ -16,6 +16,6 @@ enum LicenseConfig {
         {
             return url
         }
-        return URL(string: "https://zonebox-site.vercel.app/api/license")!
+        return URL(string: "https://zonebox.top/api/license")!
     }
 }
