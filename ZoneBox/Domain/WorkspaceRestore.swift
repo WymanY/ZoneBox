@@ -233,12 +233,10 @@ public enum WorkspaceRestore {
 
     public static func activationOutcome(
         requestAccepted: Bool,
-        requestedBundleID: String,
-        actualFrontmostBundleID: String?
+        requestedPID: pid_t,
+        actualFrontmostPID: pid_t?
     ) -> ActivationOutcome {
-        let requested = requestedBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let actual = actualFrontmostBundleID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !requested.isEmpty, actual == requested { return .acceptedAndFrontmost }
+        if actualFrontmostPID == requestedPID { return .acceptedAndFrontmost }
         guard requestAccepted else { return .rejected }
         return .acceptedButFrontmostMismatch
     }

@@ -416,43 +416,52 @@ final class WorkspaceRestoreTests: XCTestCase {
         XCTAssertEqual(
             WorkspaceRestore.activationOutcome(
                 requestAccepted: false,
-                requestedBundleID: "com.google.Chrome",
-                actualFrontmostBundleID: "com.tencent.xinWeChat"
+                requestedPID: 42,
+                actualFrontmostPID: 7
             ),
             .rejected
         )
         XCTAssertEqual(
             WorkspaceRestore.activationOutcome(
                 requestAccepted: true,
-                requestedBundleID: "com.google.Chrome",
-                actualFrontmostBundleID: "com.tencent.xinWeChat"
+                requestedPID: 42,
+                actualFrontmostPID: 7
             ),
             .acceptedButFrontmostMismatch
         )
         XCTAssertEqual(
             WorkspaceRestore.activationOutcome(
                 requestAccepted: true,
-                requestedBundleID: "com.google.Chrome",
-                actualFrontmostBundleID: "com.google.Chrome"
+                requestedPID: 42,
+                actualFrontmostPID: 42
             ),
             .acceptedAndFrontmost
         )
         XCTAssertEqual(
             WorkspaceRestore.activationOutcome(
                 requestAccepted: true,
-                requestedBundleID: "com.google.Chrome",
-                actualFrontmostBundleID: nil
+                requestedPID: 42,
+                actualFrontmostPID: nil
             ),
             .acceptedButFrontmostMismatch
         )
         XCTAssertEqual(
             WorkspaceRestore.activationOutcome(
                 requestAccepted: false,
-                requestedBundleID: "com.google.Chrome",
-                actualFrontmostBundleID: "com.google.Chrome"
+                requestedPID: 42,
+                actualFrontmostPID: 42
             ),
             .acceptedAndFrontmost
         )
+        // A helper or another instance can share the bundle ID but not the
+        // restored window's process ID. Keep retrying in that case.
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedPID: 42,
+                actualFrontmostPID: 43
+            )
+        ))
     }
 
     func testActivationRetryOnlyWhenRequestDidNotLand() {

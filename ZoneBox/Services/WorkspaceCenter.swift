@@ -1048,8 +1048,8 @@ final class WorkspaceCenter {
         try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
         var outcome = WorkspaceRestore.activationOutcome(
             requestAccepted: axError == .success,
-            requestedBundleID: bundleID,
-            actualFrontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            requestedPID: pid,
+            actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
         )
         Log.workspace.info(
             "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil", privacy: .public) attempt=1"
@@ -1060,15 +1060,30 @@ final class WorkspaceCenter {
         let actual = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
         outcome = WorkspaceRestore.activationOutcome(
             requestAccepted: axError == .success,
-            requestedBundleID: bundleID,
-            actualFrontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            requestedPID: pid,
+            actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
         )
         Log.workspace.info(
             "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(actual, privacy: .public) attempt=2"
         )
+        if WorkspaceRestore.shouldRetryActivation(outcome) {
+            let options: NSApplication.ActivationOptions = allWindows
+                ? [.activateAllWindows, .activateIgnoringOtherApps]
+                : [.activateIgnoringOtherApps]
+            let activated = app.activate(options: options)
+            try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
+            outcome = WorkspaceRestore.activationOutcome(
+                requestAccepted: activated,
+                requestedPID: pid,
+                actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+            )
+            Log.workspace.info(
+                "Apply activate method=appKit app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) accepted=\(activated, privacy: .public) frontmostPID=\(Int(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0), privacy: .public)"
+            )
+        }
         if outcome != .acceptedAndFrontmost {
             Log.workspace.error(
-                "Apply activate still not frontmost app=\(bundleID, privacy: .public) frontmost=\(actual, privacy: .public)"
+                "Apply activate still not frontmost app=\(bundleID, privacy: .public) requestedPID=\(Int(pid), privacy: .public) frontmostPID=\(Int(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0), privacy: .public)"
             )
         }
     }
