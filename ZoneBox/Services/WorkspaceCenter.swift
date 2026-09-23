@@ -926,7 +926,7 @@ final class WorkspaceCenter {
                         bundleID: bundleID,
                         runningBundleIDs: runningIDs
                     ) == .keepWaiting {
-                        self.activateRunningApplication(bundleID: bundleID)
+                        await self.bringApplicationFrontmost(bundleID: bundleID, windowPIDs: [], allWindows: true)
                         return
                     }
                     if WorkspaceRestore.shouldRetryLaunch(
@@ -949,8 +949,11 @@ final class WorkspaceCenter {
                 }
                 let app = running ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
                 _ = app?.unhide()
-                _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-                Log.workspace.info("Apply activated all windows app=\(bundleID, privacy: .public)")
+                await self.bringApplicationFrontmost(
+                    bundleID: bundleID,
+                    windowPIDs: running.map { [$0.processIdentifier] } ?? [],
+                    allWindows: true
+                )
                 if bundleID == SimulatorDevicePlan.bundleID {
                     await self.bootSimulatorDeviceIfNeeded(simulatorAppURL: url)
                 }
@@ -958,13 +961,17 @@ final class WorkspaceCenter {
         }
     }
 
-    private func activateRunningApplication(bundleID: String, allWindows: Bool = true) {
-        let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first
-        _ = app?.unhide()
-        if allWindows {
-            _ = app?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-        } else {
-            _ = app?.activate(options: [.activateIgnoringOtherApps])
+    private func activateRunningApplication(
+        bundleID: String,
+        allWindows: Bool = true,
+        windowPIDs: [pid_t] = []
+    ) {
+        Task { @MainActor in
+            await bringApplicationFrontmost(
+                bundleID: bundleID,
+                windowPIDs: windowPIDs,
+                allWindows: allWindows
+            )
         }
     }
 
@@ -975,14 +982,94 @@ final class WorkspaceCenter {
         let bundleIDs = WorkspaceRestore.foregroundBundleIDs(windows.compactMap(\.identity.bundleID))
         guard !bundleIDs.isEmpty else { return }
         Log.workspace.info(
-            "Apply foreground apps=\(bundleIDs.joined(separator: ","), privacy: .public)"
+            "Apply foreground apps=\(bundleIDs.joined(separator: ","), privacy: .public) current=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil", privacy: .public)"
         )
-        let allWindows = WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
         for bundleID in bundleIDs {
-            activateRunningApplication(bundleID: bundleID, allWindows: allWindows)
+            let windowPIDs = windows.compactMap { window -> pid_t? in
+                window.identity.bundleID == bundleID ? window.identity.pid : nil
+            }
+            await bringApplicationFrontmost(
+                bundleID: bundleID,
+                windowPIDs: windowPIDs,
+                allWindows: WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
+            )
             for window in windows where window.identity.bundleID == bundleID {
                 _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
             }
+        }
+        let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+        let requested = bundleIDs.last ?? ""
+        if frontmost == requested {
+            Log.workspace.info(
+                "Apply foreground finished frontmost=\(frontmost, privacy: .public)"
+            )
+        } else {
+            Log.workspace.error(
+                "Apply foreground finished requested=\(requested, privacy: .public) frontmost=\(frontmost, privacy: .public)"
+            )
+        }
+    }
+
+    private func runningRestoreProcesses() -> [WorkspaceRestore.RunningProcess] {
+        NSWorkspace.shared.runningApplications.map { app in
+            WorkspaceRestore.RunningProcess(
+                pid: app.processIdentifier,
+                bundleID: app.bundleIdentifier,
+                isRegular: app.activationPolicy == .regular,
+                isFinished: app.isTerminated,
+                isHidden: app.isHidden
+            )
+        }
+    }
+
+    private func bringApplicationFrontmost(
+        bundleID: String,
+        windowPIDs: [pid_t],
+        allWindows: Bool
+    ) async {
+        let pid = WorkspaceRestore.preferredProcessIdentifier(
+            bundleID: bundleID,
+            restoredWindowPIDs: windowPIDs,
+            running: runningRestoreProcesses()
+        )
+        guard let pid, let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
+            Log.workspace.error(
+                "Apply activate missing process app=\(bundleID, privacy: .public)"
+            )
+            return
+        }
+        _ = app.unhide()
+        if allWindows {
+            Log.workspace.info(
+                "Apply activate AXFrontmost is not activateAllWindows app=\(bundleID, privacy: .public)"
+            )
+        }
+        var axError = await runtime.ax.setFrontmost(pid: pid)
+        try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
+        var outcome = WorkspaceRestore.activationOutcome(
+            requestAccepted: axError == .success,
+            requestedBundleID: bundleID,
+            actualFrontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        )
+        Log.workspace.info(
+            "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil", privacy: .public) attempt=1"
+        )
+        guard WorkspaceRestore.shouldRetryActivation(outcome) else { return }
+        axError = await runtime.ax.setFrontmost(pid: pid)
+        try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
+        let actual = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+        outcome = WorkspaceRestore.activationOutcome(
+            requestAccepted: axError == .success,
+            requestedBundleID: bundleID,
+            actualFrontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        )
+        Log.workspace.info(
+            "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(actual, privacy: .public) attempt=2"
+        )
+        if outcome != .acceptedAndFrontmost {
+            Log.workspace.error(
+                "Apply activate still not frontmost app=\(bundleID, privacy: .public) frontmost=\(actual, privacy: .public)"
+            )
         }
     }
 

@@ -315,4 +315,151 @@ final class WorkspaceRestoreTests: XCTestCase {
     func testRestoredAppsDoNotActivateEveryWindowOnOtherSpaces() {
         XCTAssertFalse(WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps)
     }
+
+    func testPreferredProcessUsesRestoredWindowPIDInsteadOfHelper() {
+        let windowPID: pid_t = 98973
+        let helperPID: pid_t = 1001
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: helperPID,
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                isRegular: false,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: windowPID,
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                restoredWindowPIDs: [windowPID],
+                running: running
+            ),
+            windowPID
+        )
+    }
+
+    func testPreferredProcessPrefersRegularVisibleAppWhenWindowPIDIsMissing() {
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: 11,
+                bundleID: "com.google.Chrome",
+                isRegular: false,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 22,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: false,
+                isHidden: true
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 33,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 44,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: true,
+                isHidden: false
+            ),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.google.Chrome",
+                restoredWindowPIDs: [],
+                running: running
+            ),
+            33
+        )
+    }
+
+    func testPreferredProcessIgnoresOtherBundlesAndEmptyIDs() {
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: 7,
+                bundleID: "com.tencent.xinWeChat",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+        ]
+        XCTAssertNil(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.google.Chrome",
+                restoredWindowPIDs: [7],
+                running: running
+            )
+        )
+        XCTAssertNil(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "  ",
+                restoredWindowPIDs: [7],
+                running: running
+            )
+        )
+    }
+
+    func testActivationOutcomeRecordsRejectionAndFrontmostMismatch() {
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: false,
+                requestedBundleID: "com.google.Chrome",
+                actualFrontmostBundleID: "com.tencent.xinWeChat"
+            ),
+            .rejected
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedBundleID: "com.google.Chrome",
+                actualFrontmostBundleID: "com.tencent.xinWeChat"
+            ),
+            .acceptedButFrontmostMismatch
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedBundleID: "com.google.Chrome",
+                actualFrontmostBundleID: "com.google.Chrome"
+            ),
+            .acceptedAndFrontmost
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedBundleID: "com.google.Chrome",
+                actualFrontmostBundleID: nil
+            ),
+            .acceptedButFrontmostMismatch
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: false,
+                requestedBundleID: "com.google.Chrome",
+                actualFrontmostBundleID: "com.google.Chrome"
+            ),
+            .acceptedAndFrontmost
+        )
+    }
+
+    func testActivationRetryOnlyWhenRequestDidNotLand() {
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(.rejected))
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(.acceptedButFrontmostMismatch))
+        XCTAssertFalse(WorkspaceRestore.shouldRetryActivation(.acceptedAndFrontmost))
+        XCTAssertFalse(WorkspaceRestore.shouldRetryActivation(.noProcess))
+        XCTAssertEqual(WorkspaceRestore.activationSettleDelay, 0.05)
+    }
 }
