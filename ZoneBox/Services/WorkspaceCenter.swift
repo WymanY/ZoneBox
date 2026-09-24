@@ -984,28 +984,29 @@ final class WorkspaceCenter {
         Log.workspace.info(
             "Apply foreground apps=\(bundleIDs.joined(separator: ","), privacy: .public) current=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil", privacy: .public)"
         )
+        let identities = windows.map(\.identity)
+        var lastPID: pid_t?
         for bundleID in bundleIDs {
-            let windowPIDs = windows.compactMap { window -> pid_t? in
-                window.identity.bundleID == bundleID ? window.identity.pid : nil
-            }
-            await bringApplicationFrontmost(
-                bundleID: bundleID,
-                windowPIDs: windowPIDs,
-                allWindows: WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
-            )
-            for window in windows where window.identity.bundleID == bundleID {
-                _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
+            for pid in WorkspaceRestore.foregroundProcessIDs(identities, bundleID: bundleID) {
+                lastPID = pid
+                await bringApplicationFrontmost(
+                    bundleID: bundleID,
+                    pid: pid,
+                    allWindows: WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
+                )
+                for window in windows where window.identity.pid == pid && window.identity.bundleID == bundleID {
+                    _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
+                }
             }
         }
-        let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
-        let requested = bundleIDs.last ?? ""
-        if frontmost == requested {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        if let lastPID, frontmost?.processIdentifier == lastPID {
             Log.workspace.info(
-                "Apply foreground finished frontmost=\(frontmost, privacy: .public)"
+                "Apply foreground finished frontmost=\(frontmost?.bundleIdentifier ?? "nil", privacy: .public) pid=\(Int(lastPID), privacy: .public)"
             )
         } else {
             Log.workspace.error(
-                "Apply foreground finished requested=\(requested, privacy: .public) frontmost=\(frontmost, privacy: .public)"
+                "Apply foreground finished requestedPID=\(Int(lastPID ?? 0), privacy: .public) frontmostPID=\(Int(frontmost?.processIdentifier ?? 0), privacy: .public)"
             )
         }
     }
@@ -1032,9 +1033,21 @@ final class WorkspaceCenter {
             restoredWindowPIDs: windowPIDs,
             running: runningRestoreProcesses()
         )
-        guard let pid, let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else {
+        guard let pid else {
             Log.workspace.error(
                 "Apply activate missing process app=\(bundleID, privacy: .public)"
+            )
+            return
+        }
+        await bringApplicationFrontmost(bundleID: bundleID, pid: pid, allWindows: allWindows)
+    }
+
+    private func bringApplicationFrontmost(bundleID: String, pid: pid_t, allWindows: Bool) async {
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              !app.isTerminated,
+              app.bundleIdentifier == bundleID else {
+            Log.workspace.error(
+                "Apply activate missing process app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public)"
             )
             return
         }

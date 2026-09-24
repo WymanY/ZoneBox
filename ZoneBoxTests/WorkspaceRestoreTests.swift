@@ -312,6 +312,19 @@ final class WorkspaceRestoreTests: XCTestCase {
         XCTAssertEqual(WorkspaceRestore.foregroundBundleIDs(["", "   "]), [])
     }
 
+    func testForegroundProcessIDsIncludeBothInstancesOfOneBundle() {
+        let windows = [
+            WindowIdentity(pid: 41, windowNumber: 1, bundleID: "com.example.app"),
+            WindowIdentity(pid: 42, windowNumber: 2, bundleID: "com.example.app"),
+            WindowIdentity(pid: 41, windowNumber: 3, bundleID: "com.example.app"),
+            WindowIdentity(pid: 99, windowNumber: 4, bundleID: "com.other.app"),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.foregroundProcessIDs(windows, bundleID: "com.example.app"),
+            [41, 42]
+        )
+    }
+
     func testRestoredAppsDoNotActivateEveryWindowOnOtherSpaces() {
         XCTAssertFalse(WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps)
     }

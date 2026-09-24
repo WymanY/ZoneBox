@@ -169,6 +169,16 @@ public enum WorkspaceRestore {
         return ordered
     }
 
+    /// Each restored window owner must be activated before its windows are raised.
+    /// Preserve the saved window order while skipping repeated windows of one process.
+    public static func foregroundProcessIDs(_ windows: [WindowIdentity], bundleID: String) -> [pid_t] {
+        var seen = Set<pid_t>()
+        return windows.compactMap { window in
+            guard window.bundleID == bundleID, seen.insert(window.pid).inserted else { return nil }
+            return window.pid
+        }
+    }
+
     /// AXRaise does not lift a window above another application. Restore must
     /// activate each saved app. Activating every window would yank the user
     /// onto another Space, so this stays off for already-placed windows.
