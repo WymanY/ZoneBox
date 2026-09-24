@@ -1054,19 +1054,20 @@ final class WorkspaceCenter {
         Log.workspace.info(
             "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil", privacy: .public) attempt=1"
         )
-        guard WorkspaceRestore.shouldRetryActivation(outcome) else { return }
-        axError = await runtime.ax.setFrontmost(pid: pid)
-        try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
-        let actual = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
-        outcome = WorkspaceRestore.activationOutcome(
-            requestAccepted: axError == .success,
-            requestedPID: pid,
-            actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
-        )
-        Log.workspace.info(
-            "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(actual, privacy: .public) attempt=2"
-        )
         if WorkspaceRestore.shouldRetryActivation(outcome) {
+            axError = await runtime.ax.setFrontmost(pid: pid)
+            try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
+            let actual = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+            outcome = WorkspaceRestore.activationOutcome(
+                requestAccepted: axError == .success,
+                requestedPID: pid,
+                actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+            )
+            Log.workspace.info(
+                "Apply activate method=axFrontmost app=\(bundleID, privacy: .public) pid=\(Int(pid), privacy: .public) axError=\(axError.rawValue, privacy: .public) frontmost=\(actual, privacy: .public) attempt=2"
+            )
+        }
+        if allWindows || WorkspaceRestore.shouldRetryActivation(outcome) {
             let options: NSApplication.ActivationOptions = allWindows
                 ? [.activateAllWindows, .activateIgnoringOtherApps]
                 : [.activateIgnoringOtherApps]
