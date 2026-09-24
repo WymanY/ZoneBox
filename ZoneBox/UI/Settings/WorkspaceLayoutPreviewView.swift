@@ -1,9 +1,9 @@
 import AppKit
 import ZoneBoxCore
 
-/// Read-only AppKit schematic for a workspace section. Does not restore windows.
+/// Read-only AppKit schematic of the windows a workspace section restores.
+/// Does not restore windows.
 final class WorkspaceLayoutPreviewView: NSView {
-    private let previewLayout: Layout?
     private let rules: [AppPlacementRule]
     private let icons: [String: NSImage]
     private let names: [String: String]
@@ -11,12 +11,10 @@ final class WorkspaceLayoutPreviewView: NSView {
     private let canvasSize: NSSize
 
     init(
-        layout: Layout?,
         rules: [AppPlacementRule],
         applicationInfo: [String: (name: String, icon: NSImage?)],
         canvasSize: NSSize = WorkspaceLayoutPreview.suggestedSize
     ) {
-        self.previewLayout = layout
         self.rules = rules
         self.icons = applicationInfo.compactMapValues { $0.icon }
         self.names = applicationInfo.mapValues { $0.name }
@@ -66,7 +64,7 @@ final class WorkspaceLayoutPreviewView: NSView {
     }
 
     private var currentSnapshot: WorkspaceLayoutPreview.Snapshot {
-        WorkspaceLayoutPreview.snapshot(layout: previewLayout, rules: rules, canvasSize: bounds.size)
+        WorkspaceLayoutPreview.snapshot(rules: rules, canvasSize: bounds.size)
     }
 
     private func drawSchematic() {
@@ -80,12 +78,8 @@ final class WorkspaceLayoutPreviewView: NSView {
         background.stroke()
 
         let snapshot = currentSnapshot
-        if snapshot.isUnavailable || snapshot.panes.isEmpty {
-            let text = (
-                snapshot.isUnavailable
-                    ? L10n.text(.settingsWorkspaceUnavailableLayout)
-                    : L10n.text(.settingsWorkspaceLayoutPreview)
-            ) as NSString
+        if snapshot.panes.isEmpty {
+            let text = L10n.text(.settingsWorkspaceLayoutPreview) as NSString
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 11, weight: .medium),
                 .foregroundColor: NSColor.secondaryLabelColor,
@@ -100,13 +94,18 @@ final class WorkspaceLayoutPreviewView: NSView {
 
         let inner = canvas.insetBy(dx: 6, dy: 6)
         guard inner.width > 1, inner.height > 1 else { return }
+        // Panes arrive back-to-front; a window in front covers the one behind,
+        // just as it will on the restored desk.
         for pane in snapshot.panes {
             let frame = pixelRect(pane.rect, in: inner).insetBy(dx: 0.6, dy: 0.6)
             guard frame.width > 0.8, frame.height > 0.8 else { continue }
-            let path = NSBezierPath(roundedRect: frame, xRadius: min(5, min(frame.width, frame.height) * 0.18), yRadius: min(5, min(frame.width, frame.height) * 0.18))
-            fillColor(bound: pane.bundleID != nil, increaseContrast: increaseContrast).setFill()
+            let radius = min(5, min(frame.width, frame.height) * 0.18)
+            let path = NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius)
+            NSColor.controlBackgroundColor.withAlphaComponent(increaseContrast ? 0.96 : 0.9).setFill()
             path.fill()
-            strokeColor(bound: pane.bundleID != nil, increaseContrast: increaseContrast).setStroke()
+            fillColor(increaseContrast: increaseContrast).setFill()
+            path.fill()
+            strokeColor(increaseContrast: increaseContrast).setStroke()
             path.lineWidth = increaseContrast ? 1.2 : 0.8
             path.stroke()
         }
@@ -117,58 +116,25 @@ final class WorkspaceLayoutPreviewView: NSView {
     }
 
     private func drawContents(_ pane: WorkspaceLayoutPreview.Pane, in canvas: CGRect) {
+        guard pane.showsIcon, let icon = icons[pane.bundleID] else { return }
         let labelFrame = pixelRect(pane.labelRect, in: canvas)
         guard labelFrame.width > 1, labelFrame.height > 1 else { return }
-        let number = String(pane.number) as NSString
-        let fontSize = max(8, min(12, min(labelFrame.height * 0.72, labelFrame.width * 0.42)))
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .semibold),
-            .foregroundColor: NSColor.labelColor,
-        ]
-        let numberSize = number.size(withAttributes: attrs)
-        if pane.showsIcon, let bundleID = pane.bundleID, let icon = icons[bundleID] {
-            let iconSide = min(14, min(labelFrame.height - 2, labelFrame.width * 0.45))
-            let spacing: CGFloat = 3
-            let totalWidth = iconSide + spacing + numberSize.width
-            var originX = labelFrame.midX - totalWidth / 2
-            if originX < labelFrame.minX { originX = labelFrame.minX }
-            let iconRect = CGRect(
-                x: originX,
-                y: labelFrame.midY - iconSide / 2,
-                width: iconSide,
-                height: iconSide
-            )
-            icon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
-            number.draw(
-                at: CGPoint(
-                    x: iconRect.maxX + spacing,
-                    y: labelFrame.midY - numberSize.height / 2
-                ),
-                withAttributes: attrs
-            )
-            return
-        }
-        number.draw(
-            at: CGPoint(
-                x: labelFrame.midX - numberSize.width / 2,
-                y: labelFrame.midY - numberSize.height / 2
-            ),
-            withAttributes: attrs
+        let iconSide = min(16, min(labelFrame.height, labelFrame.width))
+        let iconRect = CGRect(
+            x: labelFrame.midX - iconSide / 2,
+            y: labelFrame.midY - iconSide / 2,
+            width: iconSide,
+            height: iconSide
         )
+        icon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
     }
 
-    private func fillColor(bound: Bool, increaseContrast: Bool) -> NSColor {
-        if bound {
-            return NSColor.controlAccentColor.withAlphaComponent(increaseContrast ? 0.42 : 0.26)
-        }
-        return NSColor.quaternaryLabelColor.withAlphaComponent(increaseContrast ? 0.28 : 0.16)
+    private func fillColor(increaseContrast: Bool) -> NSColor {
+        NSColor.controlAccentColor.withAlphaComponent(increaseContrast ? 0.42 : 0.26)
     }
 
-    private func strokeColor(bound: Bool, increaseContrast: Bool) -> NSColor {
-        if bound {
-            return NSColor.controlAccentColor.withAlphaComponent(increaseContrast ? 0.9 : 0.55)
-        }
-        return NSColor.separatorColor.withAlphaComponent(increaseContrast ? 0.8 : 0.45)
+    private func strokeColor(increaseContrast: Bool) -> NSColor {
+        NSColor.controlAccentColor.withAlphaComponent(increaseContrast ? 0.9 : 0.55)
     }
 
     private func pixelRect(_ rect: NormalizedRect, in canvas: CGRect) -> CGRect {
@@ -181,17 +147,10 @@ final class WorkspaceLayoutPreviewView: NSView {
     }
 
     private func refreshAccessibility() {
-        let snapshot = currentSnapshot
         setAccessibilityLabel(L10n.text(.settingsWorkspaceLayoutPreview))
-        if snapshot.isUnavailable {
-            setAccessibilityValue(L10n.text(.settingsWorkspaceUnavailableLayout))
-            return
-        }
-        let summary = snapshot.panes.map { pane in
-            let zone = String(format: L10n.text(.settingsWorkspaceZone), pane.number)
-            guard let bundleID = pane.bundleID else { return zone }
-            return zone + ", " + (names[bundleID] ?? bundleID)
-        }.joined(separator: "; ")
+        let summary = AppPlacementRule.readingOrder(rules)
+            .map { names[$0.bundleID] ?? $0.bundleID }
+            .joined(separator: "; ")
         setAccessibilityValue(summary.isEmpty ? L10n.text(.settingsWorkspaceLayoutPreview) : summary)
     }
 }

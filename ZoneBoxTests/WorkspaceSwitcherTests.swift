@@ -88,7 +88,7 @@ final class WorkspaceSwitcherTests: XCTestCase {
             captureCount: 2
         )
         XCTAssertEqual(saved.phase, .hidden)
-        XCTAssertEqual(saved.effects, [.hide, .capture(name: "Desk")])
+        XCTAssertEqual(saved.effects, [.hide, .capture(name: "Desk", displayID: nil)])
 
         let empty = reduce(
             phase: .naming(text: "   ", highlight: 1),
@@ -109,6 +109,93 @@ final class WorkspaceSwitcherTests: XCTestCase {
         )
         XCTAssertEqual(out.phase, .naming(text: "Desk", highlight: 0))
         XCTAssertEqual(out.effects, [.beep])
+    }
+
+    func testToggleScopeIsIgnoredWithoutADisplayChoice() {
+        let out = reduce(
+            phase: .naming(text: "Desk", highlight: 0),
+            event: .toggleCaptureScope,
+            ids: [first]
+        )
+        XCTAssertEqual(out.phase, .naming(text: "Desk", highlight: 0))
+        XCTAssertEqual(out.effects, [])
+
+        let browsing = reduce(phase: .browsing(highlight: 0), event: .toggleCaptureScope, ids: [first])
+        XCTAssertEqual(browsing.phase, .browsing(highlight: 0))
+        XCTAssertEqual(browsing.effects, [])
+    }
+
+    func testToggleScopeFollowsUntouchedSuggestionAndKeepsTypedName() {
+        let choice = WorkspaceSwitcherDisplayChoice(displayID: UUID(), suggestedName: "Cursor", captureCount: 1)
+
+        let narrowed = reduce(
+            phase: .naming(text: "Chrome+Cursor+WeChat", highlight: 0),
+            event: .toggleCaptureScope,
+            ids: [first],
+            suggestedName: "Chrome+Cursor+WeChat",
+            displayChoice: choice
+        )
+        XCTAssertEqual(narrowed.phase, .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true))
+        XCTAssertEqual(narrowed.effects, [])
+
+        let widened = reduce(
+            phase: .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true),
+            event: .toggleCaptureScope,
+            ids: [first],
+            suggestedName: "Chrome+Cursor+WeChat",
+            displayChoice: choice
+        )
+        XCTAssertEqual(widened.phase, .naming(text: "Chrome+Cursor+WeChat", highlight: 0))
+
+        let typed = reduce(
+            phase: .naming(text: "Coding", highlight: 0),
+            event: .toggleCaptureScope,
+            ids: [first],
+            suggestedName: "Chrome+Cursor+WeChat",
+            displayChoice: choice
+        )
+        XCTAssertEqual(typed.phase, .naming(text: "Coding", highlight: 0, thisDisplayOnly: true))
+
+        let edited = reduce(
+            phase: .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true),
+            event: .textChanged("Cursor desk"),
+            ids: [first],
+            displayChoice: choice
+        )
+        XCTAssertEqual(edited.phase, .naming(text: "Cursor desk", highlight: 0, thisDisplayOnly: true))
+    }
+
+    func testSaveNarrowedToThisDisplayCapturesThatDisplayOnly() {
+        let display = UUID()
+        let choice = WorkspaceSwitcherDisplayChoice(displayID: display, suggestedName: "Cursor", captureCount: 1)
+
+        let saved = reduce(
+            phase: .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true),
+            event: .save,
+            ids: [first],
+            captureCount: 3,
+            displayChoice: choice
+        )
+        XCTAssertEqual(saved.phase, .hidden)
+        XCTAssertEqual(saved.effects, [.hide, .capture(name: "Cursor", displayID: display)])
+
+        let emptyDisplay = reduce(
+            phase: .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true),
+            event: .save,
+            ids: [first],
+            captureCount: 3,
+            displayChoice: WorkspaceSwitcherDisplayChoice(displayID: display, suggestedName: "", captureCount: 0)
+        )
+        XCTAssertEqual(emptyDisplay.phase, .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true))
+        XCTAssertEqual(emptyDisplay.effects, [.beep])
+
+        let choiceGone = reduce(
+            phase: .naming(text: "Cursor", highlight: 0, thisDisplayOnly: true),
+            event: .save,
+            ids: [first],
+            captureCount: 3
+        )
+        XCTAssertEqual(choiceGone.effects, [.hide, .capture(name: "Cursor", displayID: nil)])
     }
 
     func testUpdateHidesAndTargetsHighlight() {
@@ -153,7 +240,8 @@ final class WorkspaceSwitcherTests: XCTestCase {
         isIdle: Bool = true,
         trusted: Bool = true,
         captureCount: Int = 1,
-        suggestedName: String = "Workspace"
+        suggestedName: String = "Workspace",
+        displayChoice: WorkspaceSwitcherDisplayChoice? = nil
     ) -> WorkspaceSwitcherOutput {
         WorkspaceSwitcherReducer.reduce(
             WorkspaceSwitcherInput(
@@ -164,50 +252,55 @@ final class WorkspaceSwitcherTests: XCTestCase {
                 isIdle: isIdle,
                 trusted: trusted,
                 captureCount: captureCount,
-                suggestedName: suggestedName
+                suggestedName: suggestedName,
+                displayChoice: displayChoice
             )
         )
     }
 }
 
 final class WorkspaceProfileArrangementTests: XCTestCase {
-    func testSameArrangementIgnoresRuleOrder() {
+    private let leftHalf = NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)
+    private let rightHalf = NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)
+
+    func testSameArrangementIgnoresRuleOrderAndSmallDrift() {
         let display = UUID()
-        let layout = UUID()
-        let zone = UUID()
-        let a = AppPlacementRule(bundleID: "a", zoneID: zone, zoneNumber: 1)
-        let b = AppPlacementRule(bundleID: "b", zoneID: zone, zoneNumber: 2)
+        let a = AppPlacementRule(bundleID: "a", frame: leftHalf)
+        let b = AppPlacementRule(bundleID: "b", frame: rightHalf)
+        let nudgedB = AppPlacementRule(bundleID: "b", frame: NormalizedRect(x: 0.51, y: 0.005, width: 0.49, height: 0.99))
         let left = WorkspaceProfile(
             name: "Left",
-            sections: [ProfileSection(space: SpaceKey(displayID: display), layoutID: layout, rules: [a, b])]
+            sections: [ProfileSection(space: SpaceKey(displayID: display), rules: [a, b])]
         )
         let right = WorkspaceProfile(
             name: "Right",
-            sections: [ProfileSection(space: SpaceKey(displayID: display), layoutID: layout, rules: [b, a])]
+            sections: [ProfileSection(space: SpaceKey(displayID: display), rules: [nudgedB, a])]
         )
         XCTAssertTrue(left.hasSameArrangement(as: right))
     }
 
-    func testDifferentDisplayOrLayoutIsNotSame() {
+    func testDifferentDisplayFrameOrAppCountIsNotSame() {
         let display = UUID()
-        let layout = UUID()
-        let otherLayout = UUID()
-        let zone = UUID()
-        let rule = AppPlacementRule(bundleID: "a", zoneID: zone, zoneNumber: 1)
+        let rule = AppPlacementRule(bundleID: "a", frame: leftHalf)
         let base = WorkspaceProfile(
             name: "Base",
-            sections: [ProfileSection(space: SpaceKey(displayID: display), layoutID: layout, rules: [rule])]
+            sections: [ProfileSection(space: SpaceKey(displayID: display), rules: [rule])]
         )
         let otherDisplay = WorkspaceProfile(
             name: "Other display",
-            sections: [ProfileSection(space: SpaceKey(displayID: UUID()), layoutID: layout, rules: [rule])]
+            sections: [ProfileSection(space: SpaceKey(displayID: UUID()), rules: [rule])]
         )
-        let otherLayoutProfile = WorkspaceProfile(
-            name: "Other layout",
-            sections: [ProfileSection(space: SpaceKey(displayID: display), layoutID: otherLayout, rules: [rule])]
+        let moved = WorkspaceProfile(
+            name: "Moved",
+            sections: [ProfileSection(space: SpaceKey(displayID: display), rules: [AppPlacementRule(bundleID: "a", frame: rightHalf)])]
+        )
+        let extra = WorkspaceProfile(
+            name: "Extra",
+            sections: [ProfileSection(space: SpaceKey(displayID: display), rules: [rule, AppPlacementRule(bundleID: "b", frame: rightHalf)])]
         )
         XCTAssertFalse(base.hasSameArrangement(as: otherDisplay))
-        XCTAssertFalse(base.hasSameArrangement(as: otherLayoutProfile))
+        XCTAssertFalse(base.hasSameArrangement(as: moved))
+        XCTAssertFalse(base.hasSameArrangement(as: extra))
     }
 
     func testEmptySectionsAreNeverEqual() {

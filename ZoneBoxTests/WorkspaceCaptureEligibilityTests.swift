@@ -119,7 +119,7 @@ final class WorkspaceCaptureEligibilityTests: XCTestCase {
             )
         }
 
-        let rules = ProfileCapture.rules(windows: capturable, zones: [zone])
+        let rules = ProfileCapture.rules(windows: capturable, workAreaAX: zone.frameAX)
         XCTAssertEqual(rules.map(\.bundleID), ["com.todesktop.230313mzl4w4u92"])
     }
 }

@@ -120,7 +120,7 @@ protocol WorkspaceRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDis
     func openAccessibility()
     func beginWindowTransaction() -> Bool
     func finishWindowTransaction()
-    func flashWorkspaceZones(area: WorkArea, layout: Layout)
+    func flashWorkspaceFrames(area: WorkArea, framesAX: [CGRect])
     func refreshWorkspaceSettings()
     func cacheOrganizeBehavior(_ behavior: WindowOrganizeWindowBehavior, for identity: WindowIdentity)
 }

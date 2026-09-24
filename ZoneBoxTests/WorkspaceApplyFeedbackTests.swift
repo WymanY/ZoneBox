@@ -17,7 +17,6 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
             issues: [issue],
             skipped: [],
             missingCount: 0,
-            staleCount: 0,
             disconnectedCount: 0,
             applicationName: { $0 == aliDrive ? "阿里云盘" : "ChatGPT" },
             language: .chineseSimplified
@@ -26,7 +25,7 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
         XCTAssertEqual(feedback.titleKey, .workspaceApplyPartialTitle)
         XCTAssertEqual(
             feedback.detail,
-            "已完整归位 1 个窗口。 阿里云盘已移动到位，但其最小窗口尺寸大于当前分区。"
+            "已完整归位 1 个窗口。 阿里云盘已移动到位，但其最小窗口尺寸大于保存时的尺寸。"
         )
         XCTAssertFalse(feedback.detail.contains("3"))
         XCTAssertFalse(feedback.detail.contains("无法移动"))
@@ -47,7 +46,6 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
             issues: [issue],
             skipped: [blocked],
             missingCount: 0,
-            staleCount: 0,
             disconnectedCount: 0,
             applicationName: { _ in "Blocked" },
             language: .chineseSimplified
@@ -67,7 +65,6 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
             issues: [],
             skipped: [],
             missingCount: 0,
-            staleCount: 0,
             disconnectedCount: 0,
             applicationName: { _ in "App" },
             language: .chineseSimplified
@@ -87,7 +84,6 @@ final class WorkspaceApplyFeedbackTests: XCTestCase {
             skipped: [],
             missingCount: 0,
             launchingCount: 1,
-            staleCount: 0,
             disconnectedCount: 0,
             applicationName: { _ in "ChatGPT" },
             language: .chineseSimplified

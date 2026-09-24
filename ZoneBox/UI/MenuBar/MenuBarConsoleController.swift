@@ -667,13 +667,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let name = L10n.layoutDisplayName(layout.name)
         let alert = NSAlert()
         alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
-        let affected = runtime.document.profiles.filter { profile in
-            profile.sections.contains(where: { $0.layoutID == layout.id })
-        }.count
-        alert.informativeText = affected == 0
-            ? L10n.text(.menuDeleteLayoutMessage)
-            : L10n.text(.menuDeleteLayoutMessage) + " "
-                + String(format: L10n.text(.workspaceLayoutDeleteImpact), affected)
+        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))
@@ -704,11 +698,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func reloadWorkspaceStrip(beginRename: WorkspaceProfile.ID? = nil) {
-        let layouts = Dictionary(uniqueKeysWithValues: runtime.document.layouts.map { ($0.id, $0) })
         workspaceStrip?.reload(
             profiles: runtime.document.orderedProfilesForSettings(),
             activeID: runtime.document.activeProfileID,
-            layouts: layouts,
             connectedDisplayIDs: Set(runtime.displays.workAreas.map(\.display.id)),
             beginRename: beginRename
         )
@@ -837,7 +829,9 @@ private final class ConsoleMaterialView: NSVisualEffectView {
     }
 }
 
-private final class ThinOverlayScroller: NSScroller {
+/// 8pt overlay scroller with no slot, shared by the console's layout grid and
+/// workspace strip so both scroll indicators look alike.
+final class ThinOverlayScroller: NSScroller {
     override class var isCompatibleWithOverlayScrollers: Bool { true }
 
     override class func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
@@ -887,7 +881,14 @@ private enum Metrics {
     static let compactHeight: CGFloat = 88
     static let compactPreviewSize = NSSize(width: compactWidth - 16, height: 52)
     static let compactThumbnailSize = NSSize(width: compactPreviewSize.width - 6, height: compactPreviewSize.height - 6)
-    static let featuredThumbnailSize = NSSize(width: 180, height: 86)
+    /// The featured card frames its thumbnail in a "screen" like the compact
+    /// cards do, so the zones read as sitting inside the display.
+    static let featuredPreviewSize = NSSize(width: 188, height: 94)
+    static let featuredPreviewInset: CGFloat = 4
+    static let featuredThumbnailSize = NSSize(
+        width: featuredPreviewSize.width - featuredPreviewInset * 2,
+        height: featuredPreviewSize.height - featuredPreviewInset * 2
+    )
     static let maxGridHeight: CGFloat = compactHeight * 2 + rowSpacing
     static let workspaceStripHeight: CGFloat = 84
 }
@@ -1262,16 +1263,21 @@ private final class LayoutCardView: NSView {
         let font: NSFont
         switch mode {
         case .featured:
-            thumbRect = NSRect(
+            let previewRect = NSRect(
                 x: 12,
-                y: ((bounds.height - Metrics.featuredThumbnailSize.height) / 2).rounded(),
-                width: Metrics.featuredThumbnailSize.width,
-                height: Metrics.featuredThumbnailSize.height
+                y: ((bounds.height - Metrics.featuredPreviewSize.height) / 2).rounded(),
+                width: Metrics.featuredPreviewSize.width,
+                height: Metrics.featuredPreviewSize.height
+            )
+            drawScreenFrame(previewRect, radius: 6, lineWidth: 1, strokeAlpha: 0.42, dark: dark)
+            thumbRect = previewRect.insetBy(
+                dx: Metrics.featuredPreviewInset,
+                dy: Metrics.featuredPreviewInset
             )
             titleRect = NSRect(
-                x: thumbRect.maxX + 14,
+                x: previewRect.maxX + 14,
                 y: 42,
-                width: max(0, bounds.maxX - thumbRect.maxX - 54),
+                width: max(0, bounds.maxX - previewRect.maxX - 54),
                 height: 22
             )
             font = .systemFont(ofSize: 13, weight: .semibold)
@@ -1283,12 +1289,7 @@ private final class LayoutCardView: NSView {
                 width: Metrics.compactPreviewSize.width,
                 height: Metrics.compactPreviewSize.height
             )
-            NSColor.labelColor.withAlphaComponent(dark ? 0.055 : 0.035).setFill()
-            let previewPath = NSBezierPath(roundedRect: previewRect, xRadius: 5, yRadius: 5)
-            previewPath.fill()
-            NSColor.separatorColor.withAlphaComponent(0.28).setStroke()
-            previewPath.lineWidth = 0.5
-            previewPath.stroke()
+            drawScreenFrame(previewRect, radius: 5, lineWidth: 0.5, strokeAlpha: 0.28, dark: dark)
             thumbRect = NSRect(
                 x: previewRect.minX + 3,
                 y: previewRect.minY + 3,
@@ -1307,5 +1308,26 @@ private final class LayoutCardView: NSView {
             .paragraphStyle: paragraph,
         ]
         (title as NSString).draw(in: titleRect, withAttributes: attrs)
+    }
+
+    /// The display the zones live in: a faint bezel-like plate behind the
+    /// thumbnail, drawn the same way on featured and compact cards.
+    private func drawScreenFrame(
+        _ rect: NSRect,
+        radius: CGFloat,
+        lineWidth: CGFloat,
+        strokeAlpha: CGFloat,
+        dark: Bool
+    ) {
+        let path = NSBezierPath(
+            roundedRect: rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
+            xRadius: radius,
+            yRadius: radius
+        )
+        NSColor.labelColor.withAlphaComponent(dark ? 0.055 : 0.035).setFill()
+        path.fill()
+        NSColor.separatorColor.withAlphaComponent(strokeAlpha).setStroke()
+        path.lineWidth = lineWidth
+        path.stroke()
     }
 }

@@ -354,6 +354,12 @@ final class HotkeyCenter {
                 runtime.handleWorkspaceSwitcher(.save)
                 return consume ? nil : event
             }
+            // Tab has no job inside the single name field; it flips between
+            // saving every display and only the pointer's display.
+            if event.keyCode == HardwareKeyCode.tab, !flags.contains(.command) {
+                runtime.handleWorkspaceSwitcher(.toggleCaptureScope)
+                return consume ? nil : event
+            }
             return event
         }
 
