@@ -110,7 +110,8 @@ public enum ProfilePlan {
             var placements: [WindowOrganizePlacement] = []
             var targets: [CGRect] = []
             for rule in section.rules {
-                let target = rule.frame.denormalize(in: workAreaAX)
+                guard let frame = rule.frame else { continue }
+                let target = frame.denormalize(in: workAreaAX)
                 targets.append(target)
                 guard var queue = queues[rule.bundleID], !queue.isEmpty else {
                     if !missing.contains(rule.bundleID) { missing.append(rule.bundleID) }

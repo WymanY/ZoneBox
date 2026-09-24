@@ -27,7 +27,7 @@ public enum WorkspaceLayoutPreview {
         canvasSize: CGSize = suggestedSize
     ) -> Snapshot {
         let drafts = rules.reversed().compactMap { rule -> Draft? in
-            let rect = rule.frame.clamped()
+            guard let rect = rule.frame?.clamped() else { return nil }
             let frame = pixelRect(rect, in: canvasSize)
             guard frame.width > 0, frame.height > 0 else { return nil }
             return Draft(

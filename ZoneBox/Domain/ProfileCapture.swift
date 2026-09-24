@@ -76,6 +76,17 @@ public enum ProfileCapture {
         ZoneOccupancy.occupies(frame, zone: zone)
     }
 
+    /// "Only this display" is offered when at least two displays would be
+    /// saved and the pointer sits on one of those displays. An empty pointer
+    /// display would otherwise produce a zero-window capture.
+    public static func offersThisDisplayScope(
+        sections: [ProfileSection],
+        pointerDisplayID: DisplayIdentity.ID?
+    ) -> Bool {
+        guard sections.count >= 2, let pointerDisplayID else { return false }
+        return sections.contains { $0.space.displayID == pointerDisplayID }
+    }
+
     /// A new workspace keeps every display that holds captured windows unless
     /// the user asked for the pointer's display only.
     public static func sections(

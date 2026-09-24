@@ -24,7 +24,7 @@ The product site is a separate project. Do not add website files to this app rep
 | --- | --- |
 | Site checkout | `/Users/wyman/Documents/zonebox-site` |
 | Site GitHub | https://github.com/WymanY/zonebox-site |
-| Live site | https://zonebox-site.wuyun768.workers.dev |
+| Live site | https://zonebox.top |
 | Previous Vercel site | https://zonebox-site.vercel.app |
 
 For site copy and feature explanations, read this app's `README.md`, `docs/onboarding-design.md`, and `ZoneBox/Domain/L10n.swift`, then edit the site repo.

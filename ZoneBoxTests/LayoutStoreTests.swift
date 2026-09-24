@@ -103,10 +103,10 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(decoded.profiles, [kept])
     }
 
-    func testLegacyZoneRulesMigrateToTheFramesTheirZonesOccupied() throws {
+    func testLegacyZoneRulesKeepZoneFieldsAndUnresolvedSections() throws {
         let layout = LayoutTemplates.columns(2)
-        let panes = LayoutTemplates.thumbnailPanes(for: layout)
         let displayID = UUID()
+        let orphanDisplayID = UUID()
         let profileID = UUID()
         let json = Data(
             """
@@ -130,7 +130,7 @@ final class LayoutStoreTests: XCTestCase {
                     {"bundleID": "gone", "zoneID": "\(UUID().uuidString)", "zoneNumber": 9}
                   ]
                 }, {
-                  "space": {"displayID": "\(UUID().uuidString)"},
+                  "space": {"displayID": "\(orphanDisplayID.uuidString)"},
                   "layoutID": "\(UUID().uuidString)",
                   "rules": [{"bundleID": "orphan", "zoneID": "\(UUID().uuidString)", "zoneNumber": 1}]
                 }]
@@ -141,28 +141,169 @@ final class LayoutStoreTests: XCTestCase {
         )
 
         let document = try JSONDecoder().decode(StoreDocument.self, from: json)
-
         let profile = try XCTUnwrap(document.profiles.first)
         XCTAssertEqual(document.profiles.count, 1)
         XCTAssertEqual(profile.id, profileID)
         XCTAssertFalse(profile.launchMissingApps)
-        XCTAssertEqual(profile.sections.map(\.space.displayID), [displayID])
-        let secondZonePane = try XCTUnwrap(panes.first { $0.id == layout.zones[1].id })
-        let firstNumberPane = try XCTUnwrap(panes.first { $0.number == 1 })
-        XCTAssertEqual(
-            profile.sections[0].rules,
-            [
-                AppPlacementRule(bundleID: "by.id", frame: secondZonePane.rect),
-                AppPlacementRule(bundleID: "by.number", frame: firstNumberPane.rect),
-            ]
-        )
+        XCTAssertEqual(profile.sections.map(\.space.displayID), [displayID, orphanDisplayID])
+        XCTAssertEqual(profile.sections[0].layoutID, layout.id)
+        XCTAssertEqual(profile.sections[0].rules.map(\.bundleID), ["by.id", "by.number", "gone"])
+        XCTAssertNil(profile.sections[0].rules[0].frame)
+        XCTAssertEqual(profile.sections[0].rules[0].zoneID, layout.zones[1].id)
+        XCTAssertEqual(profile.sections[1].rules.map(\.bundleID), ["orphan"])
+        XCTAssertNil(profile.sections[1].rules[0].frame)
         XCTAssertEqual(document.activeProfileID, profileID)
 
         let reencoded = String(decoding: try JSONEncoder().encode(document), as: UTF8.self)
-        XCTAssertFalse(reencoded.contains("zoneNumber"))
-        XCTAssertTrue(reencoded.contains("\"frame\""))
+        XCTAssertTrue(reencoded.contains("zoneNumber"))
+        XCTAssertTrue(reencoded.contains("layoutID"))
+        XCTAssertFalse(reencoded.contains("\"frame\""))
     }
 
+    func testLegacyDuplicateZoneKeepsTheFrontmostRule() throws {
+        let layout = LayoutTemplates.columns(2)
+        let zone = layout.zones[0]
+        let stored = [
+            WorkspaceProfileMigration.StoredRule(bundleID: "front", zoneID: zone.id, zoneNumber: zone.number),
+            WorkspaceProfileMigration.StoredRule(bundleID: "back", zoneID: zone.id, zoneNumber: zone.number),
+        ]
+        let rules = WorkspaceProfileMigration.migratedRules(stored, layout: layout)
+        XCTAssertEqual(rules.map(\.bundleID), ["front"])
+        XCTAssertEqual(rules[0].zoneID, zone.id)
+        XCTAssertNil(rules[0].frame)
+    }
+
+    func testLegacyMigrationFramesIncludeConfiguredGutter() throws {
+        let layout = LayoutTemplates.columns(2)
+        let displayID = UUID()
+        let workArea = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let stored = WorkspaceProfileMigration.StoredProfile(
+            id: UUID(),
+            name: "Legacy",
+            sections: [
+                WorkspaceProfileMigration.StoredSection(
+                    space: SpaceKey(displayID: displayID),
+                    layoutID: layout.id,
+                    rules: [
+                        WorkspaceProfileMigration.StoredRule(
+                            bundleID: "left",
+                            zoneID: layout.zones[0].id,
+                            zoneNumber: 1
+                        ),
+                    ]
+                ),
+            ]
+        )
+        let profile = try XCTUnwrap(
+            WorkspaceProfileMigration.profiles(from: [stored], layouts: [layout]).first
+        )
+        XCTAssertNil(profile.sections[0].rules[0].frame)
+
+        let unguttered = try XCTUnwrap(LayoutTemplates.thumbnailPanes(for: layout).first { $0.number == 1 }).rect
+        let resolved = WorkspaceProfileMigration.resolving(
+            profile,
+            layouts: [layout],
+            workAreasByDisplay: [displayID: workArea],
+            gutter: 16
+        )
+        let zones = try resolveLayout(layout, workAreaAX: workArea, gutter: 16)
+        let expected = NormalizedRect.normalize(zones[0].frameAX, in: workArea)
+        XCTAssertEqual(resolved.sections[0].rules[0].frame, expected)
+        XCTAssertNotEqual(resolved.sections[0].rules[0].frame, unguttered)
+        XCTAssertEqual(resolved.sections[0].rules[0].zoneID, layout.zones[0].id)
+
+        let missingGeometry = WorkspaceProfileMigration.resolving(
+            profile,
+            layouts: [layout],
+            workAreasByDisplay: [:],
+            gutter: 16
+        )
+        XCTAssertNil(missingGeometry.sections[0].rules[0].frame)
+        XCTAssertEqual(missingGeometry.sections[0].rules[0].zoneID, layout.zones[0].id)
+    }
+
+    func testLegacyProfilesRoundTripThroughLayoutStoreWithoutBakingFrames() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("zonebox-legacy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let layout = LayoutTemplates.columns(2)
+        let displayID = UUID()
+        let profileID = UUID()
+        let json = Data(
+            """
+            {
+              "schemaVersion": 1,
+              "layouts": \(String(decoding: try JSONEncoder().encode([layout]), as: UTF8.self)),
+              "displays": [],
+              "assignments": [],
+              "profiles": [{
+                "id": "\(profileID.uuidString)",
+                "name": "Legacy",
+                "launchMissingApps": true,
+                "sections": [{
+                  "space": {"displayID": "\(displayID.uuidString)"},
+                  "layoutID": "\(layout.id.uuidString)",
+                  "rules": [
+                    {"bundleID": "front", "zoneID": "\(layout.zones[0].id.uuidString)", "zoneNumber": 1},
+                    {"bundleID": "duplicate", "zoneID": "\(layout.zones[0].id.uuidString)", "zoneNumber": 1},
+                    {"bundleID": "gone", "zoneID": "\(UUID().uuidString)", "zoneNumber": 9}
+                  ]
+                }]
+              }]
+            }
+            """.utf8
+        )
+        let decoded = try JSONDecoder().decode(StoreDocument.self, from: json)
+        XCTAssertFalse(decoded.profiles.isEmpty)
+
+        let store = LayoutStore(directory: dir)
+        try store.save(decoded)
+        let loaded = try store.load()
+        let profile = try XCTUnwrap(loaded.profiles.first)
+        XCTAssertEqual(profile.sections[0].rules.map(\.bundleID), ["front", "gone"])
+        XCTAssertTrue(profile.sections[0].rules.allSatisfy { $0.frame == nil })
+
+        try store.save(loaded)
+        let saved = try String(contentsOf: store.fileURL, encoding: .utf8)
+        XCTAssertTrue(saved.contains("zoneNumber"))
+        XCTAssertTrue(saved.contains("layoutID"))
+        XCTAssertFalse(saved.contains("\"frame\""))
+
+        let reloaded = try store.load()
+        XCTAssertEqual(reloaded.profiles.first?.sections[0].rules.map(\.bundleID), ["front", "gone"])
+        XCTAssertEqual(reloaded.profiles.first?.sections[0].layoutID, layout.id)
+        XCTAssertNil(reloaded.profiles.first?.sections[0].rules[0].frame)
+    }
+
+    func testCapturedFrameProfilesStillRoundTripWithoutZoneFields() throws {
+        let layout = LayoutTemplates.columns(2)
+        let displayID = UUID()
+        let kept = WorkspaceProfile(
+            name: "Coding",
+            sections: [
+                ProfileSection(
+                    space: SpaceKey(displayID: displayID),
+                    rules: [
+                        AppPlacementRule(
+                            bundleID: "com.example.Editor",
+                            frame: NormalizedRect(x: 0.125, y: 0, width: 0.375, height: 0.8)
+                        ),
+                    ]
+                ),
+            ]
+        )
+        let document = StoreDocument(layouts: [layout], profiles: [kept])
+        let encoded = String(decoding: try JSONEncoder().encode(document), as: UTF8.self)
+        XCTAssertTrue(encoded.contains("\"frame\""))
+        XCTAssertFalse(encoded.contains("zoneNumber"))
+        XCTAssertFalse(encoded.contains("layoutID"))
+
+        let decoded = try JSONDecoder().decode(StoreDocument.self, from: JSONEncoder().encode(document))
+        XCTAssertEqual(decoded.profiles[0].sections[0].rules[0].frame, kept.sections[0].rules[0].frame)
+        XCTAssertNil(decoded.profiles[0].sections[0].rules[0].zoneID)
+        XCTAssertNil(decoded.profiles[0].sections[0].layoutID)
+    }
     func testLegacyAutomaticPlacementFieldIsIgnoredAndNotReencoded() throws {
         let id = UUID()
         let json = Data(

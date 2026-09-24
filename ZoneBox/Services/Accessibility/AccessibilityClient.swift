@@ -28,6 +28,7 @@ protocol AccessibilityClient: AnyObject {
     func frame(of window: AXWindow) async -> CGRect?
     func setFrame(_ frame: CGRect, of window: AXWindow) async -> CGRect?
     @discardableResult func raise(_ window: AXWindow) async -> AXError
+    @discardableResult func setFrontmost(pid: pid_t) async -> AXError
 }
 
 final class AccessibilityClientLive: AccessibilityClient {
@@ -151,6 +152,22 @@ final class AccessibilityClientLive: AccessibilityClient {
         await onAX(pid: window.identity.pid) { [self] in
             guard trusted() else { return .apiDisabled }
             return AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
+        }
+    }
+
+    /// Make another process frontmost without ZoneBox becoming active.
+    /// System-wide kAXFocusedApplicationAttribute is not settable; the
+    /// application kAXFrontmostAttribute is.
+    @discardableResult
+    func setFrontmost(pid: pid_t) async -> AXError {
+        await onAX(pid: pid) { [self] in
+            guard trusted() else { return .apiDisabled }
+            let app = applicationElement(pid: pid)
+            var settable: DarwinBoolean = false
+            let probe = AXUIElementIsAttributeSettable(app, kAXFrontmostAttribute as CFString, &settable)
+            guard probe == .success else { return probe }
+            guard settable.boolValue else { return .attributeUnsupported }
+            return AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         }
     }
 

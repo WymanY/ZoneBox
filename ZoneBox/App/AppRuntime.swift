@@ -84,6 +84,21 @@ final class AppRuntime {
         divider.rebuild(workAreas: displays.workAreas, screens: NSScreen.screens)
         overlay.settings = settings
         overlay.primaryFlipHeight = displays.primaryFlipHeight
+        let workAreasByDisplay = Dictionary(uniqueKeysWithValues: displays.workAreas.map { area in
+            (
+                area.display.id,
+                CoordinateConverter.axRect(
+                    fromAppKit: area.visibleFrameAppKit,
+                    primaryFlipHeight: displays.primaryFlipHeight
+                )
+            )
+        })
+        document.profiles = WorkspaceProfileMigration.resolving(
+            document.profiles,
+            layouts: document.layouts,
+            workAreasByDisplay: workAreasByDisplay,
+            gutter: CGFloat(settings.gutterPoints)
+        )
         persist()
         license.onChange = { [weak self] in
             self?.settingsWindow?.refreshLicenseStatus()

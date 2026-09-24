@@ -26,10 +26,9 @@ public struct HitTester: Sendable {
         )
     }
 
-    /// Keep a window that already occupies a zone unless the pointer has
-    /// clearly entered another zone away from the window. A pointer on or just
-    /// above the dragged window is not a zone choice; the overlay follows
-    /// where most of the window sits. Multi-zone grid spans stay untouched.
+    /// Follow the pointer when it is clearly inside another zone, including on
+    /// the dragged window. Near a seam, keep the zone the window occupies so
+    /// the highlight does not flicker. Multi-zone grid spans stay untouched.
     public func preferringOccupancy(
         _ cursor: SnapTarget,
         at pointAX: CGPoint,
@@ -50,9 +49,6 @@ public struct HitTester: Sendable {
         }
         if cursorZone.zoneID == occupied.zoneID {
             return cursor
-        }
-        if Self.pointerIsNearWindow(pointAX, windowFrameAX: windowFrameAX) {
-            return .zone(occupied)
         }
         if ZoneOccupancy.containsInterior(pointAX, zone: cursorZone.frameAX, inset: occupancyStickyInset) {
             return cursor

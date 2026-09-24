@@ -1121,8 +1121,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let zone = WorkspaceZoneBadgeView(
             text: String(
                 format: L10n.text(.settingsWorkspaceWindowSize),
-                Int((rule.frame.width * 100).rounded()),
-                Int((rule.frame.height * 100).rounded())
+                Int(((rule.frame?.width ?? 0) * 100).rounded()),
+                Int(((rule.frame?.height ?? 0) * 100).rounded())
             )
         )
         zone.translatesAutoresizingMaskIntoConstraints = false

@@ -7,11 +7,38 @@ import Foundation
 /// layout happened to be active.
 public struct AppPlacementRule: Codable, Hashable, Sendable {
     public var bundleID: String
-    public var frame: NormalizedRect
+    public var frame: NormalizedRect?
+    public var zoneID: UUID?
+    public var zoneNumber: Int?
 
-    public init(bundleID: String, frame: NormalizedRect) {
+    public init(bundleID: String, frame: NormalizedRect? = nil, zoneID: UUID? = nil, zoneNumber: Int? = nil) {
         self.bundleID = bundleID
         self.frame = frame
+        self.zoneID = zoneID
+        self.zoneNumber = zoneNumber
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case bundleID
+        case frame
+        case zoneID
+        case zoneNumber
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bundleID = try container.decode(String.self, forKey: .bundleID)
+        frame = try container.decodeIfPresent(NormalizedRect.self, forKey: .frame)
+        zoneID = try container.decodeIfPresent(UUID.self, forKey: .zoneID)
+        zoneNumber = try container.decodeIfPresent(Int.self, forKey: .zoneNumber)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(bundleID, forKey: .bundleID)
+        try container.encodeIfPresent(frame, forKey: .frame)
+        try container.encodeIfPresent(zoneID, forKey: .zoneID)
+        try container.encodeIfPresent(zoneNumber, forKey: .zoneNumber)
     }
 
     /// Two captures of the same desk differ by a few points once a window has
@@ -20,7 +47,8 @@ public struct AppPlacementRule: Codable, Hashable, Sendable {
     public static let matchTolerance: Double = 0.02
 
     public func matches(_ other: AppPlacementRule, tolerance: Double = matchTolerance) -> Bool {
-        bundleID == other.bundleID && frame.isClose(to: other.frame, tolerance: tolerance)
+        guard bundleID == other.bundleID, let frame, let otherFrame = other.frame else { return false }
+        return frame.isClose(to: otherFrame, tolerance: tolerance)
     }
 
     /// Left-to-right, then top-to-bottom, so lists and generated names read the
@@ -28,8 +56,10 @@ public struct AppPlacementRule: Codable, Hashable, Sendable {
     public static func readingOrder(_ rules: [AppPlacementRule]) -> [AppPlacementRule] {
         func bucket(_ value: Double) -> Int { Int((value * 50).rounded()) }
         return rules.enumerated().sorted { lhs, rhs in
-            let left = (bucket(lhs.element.frame.x), bucket(lhs.element.frame.y), lhs.element.bundleID, lhs.offset)
-            let right = (bucket(rhs.element.frame.x), bucket(rhs.element.frame.y), rhs.element.bundleID, rhs.offset)
+            let leftFrame = lhs.element.frame
+            let rightFrame = rhs.element.frame
+            let left = (bucket(leftFrame?.x ?? 0), bucket(leftFrame?.y ?? 0), lhs.element.bundleID, lhs.offset)
+            let right = (bucket(rightFrame?.x ?? 0), bucket(rightFrame?.y ?? 0), rhs.element.bundleID, rhs.offset)
             return left < right
         }.map(\.element)
     }
@@ -38,11 +68,33 @@ public struct AppPlacementRule: Codable, Hashable, Sendable {
 public struct ProfileSection: Codable, Hashable, Sendable {
     public var space: SpaceKey
     /// Captured windows front-to-back.
+    public var layoutID: Layout.ID?
     public var rules: [AppPlacementRule]
 
-    public init(space: SpaceKey, rules: [AppPlacementRule]) {
+    public init(space: SpaceKey, layoutID: Layout.ID? = nil, rules: [AppPlacementRule]) {
         self.space = space
+        self.layoutID = layoutID
         self.rules = rules
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case space
+        case layoutID
+        case rules
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        space = try container.decode(SpaceKey.self, forKey: .space)
+        layoutID = try container.decodeIfPresent(Layout.ID.self, forKey: .layoutID)
+        rules = try container.decode([AppPlacementRule].self, forKey: .rules)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(space, forKey: .space)
+        try container.encodeIfPresent(layoutID, forKey: .layoutID)
+        try container.encode(rules, forKey: .rules)
     }
 }
 

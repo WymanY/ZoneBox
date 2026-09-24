@@ -227,6 +227,8 @@ final class SnapEngine {
                 "assign": assignDesc,
                 "currentFrame": Self.describe(runtime.pendingFrame),
                 "axResolved": "\(runtime.pendingWindow != nil)",
+                "downFrame": Self.describe(downFrame),
+                "catalogOriginal": Self.describe(window.flatMap { runtime.catalog.record(for: $0)?.originalFrameAX }),
             ])
         }
         if isArmed(output.phase) {
@@ -628,6 +630,10 @@ final class SnapEngine {
         var overlayHighlight: SnapTarget?
         var hideOverlay = false
         var pendingAssignmentForApply: PendingLayoutAssignment?
+        let dropAfterApply: WindowIdentity? = effects.compactMap { effect in
+            if case .dropUnsnap(let identity) = effect { return identity }
+            return nil
+        }.first
         for effect in effects {
             switch effect {
             case .none:
@@ -649,10 +655,23 @@ final class SnapEngine {
                 let captured = runtime.pendingWindow
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
+                let capturedDrop = dropAfterApply == identity ? runtime.catalog.record(for: identity) : nil
                 let generation = layoutAssignmentGeneration
                 let diagnosticID = diagnosticActive ? diagnosticSessionID : nil
                 let writeID = UUID().uuidString
                 let requestedAt = ProcessInfo.processInfo.systemUptime
+                if let capturedDrop {
+                    Log.snapDiagnostics.record("unsnap.restore", sessionID: diagnosticID, fields: [
+                        "writeID": writeID,
+                        "requested": Self.describe(rect),
+                        "original": Self.describe(capturedDrop.originalFrameAX),
+                        "snapped": Self.describe(capturedDrop.snappedFrameAX),
+                        "current": Self.describe(runtime.pendingFrame),
+                        "downFrame": Self.describe(downFrame),
+                        "windowPID": "\(identity.pid)",
+                        "windowNumber": "\(identity.windowNumber)",
+                    ])
+                }
                 trace("frame.request", fields: [
                     "writeID": writeID,
                     "requested": Self.describe(rect),
@@ -703,6 +722,16 @@ final class SnapEngine {
                             writeID: writeID
                         )
                     }
+                    if let dropIdentity = UnsnapCatalogPolicy.identityToDrop(
+                        capturedForThisWrite: capturedDrop,
+                        currentRecord: self.runtime.catalog.record(for: identity),
+                        frameApplied: applied,
+                        completionGeneration: generation,
+                        currentGeneration: self.layoutAssignmentGeneration
+                    ) {
+                        self.runtime.catalog.drop(identity: dropIdentity)
+                        self.runtime.refreshDivider()
+                    }
                 }
             case .recordUnsnap(let record):
                 let area = DisplayTargetResolver.workArea(
@@ -713,6 +742,8 @@ final class SnapEngine {
                 runtime.catalog.record(record, displayID: area?.display.id)
                 runtime.noteUserSnapCompleted()
                 runtime.refreshDivider()
+            case .dropUnsnap:
+                break
             case .assignLayout(let layoutID):
                 let pending = PendingLayoutAssignment(
                     layoutID: layoutID,

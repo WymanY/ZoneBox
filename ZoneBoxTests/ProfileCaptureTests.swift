@@ -25,12 +25,12 @@ final class ProfileCaptureTests: XCTestCase {
         XCTAssertEqual(rules.map(\.frame), [NormalizedRect(x: 0, y: 0, width: 1, height: 1)])
     }
 
-    func testCapturedFrameRoundTripsThroughTheSameWorkArea() {
+    func testCapturedFrameRoundTripsThroughTheSameWorkArea() throws {
         let frame = CGRect(x: 317, y: 140, width: 903, height: 611)
         let window = sample(pid: 1, number: 1, bundleID: "app", frame: frame)
 
         let rule = ProfileCapture.rules(windows: [window], workAreaAX: workArea)[0]
-        let restored = rule.frame.denormalize(in: workArea)
+        let restored = try XCTUnwrap(rule.frame).denormalize(in: workArea)
 
         XCTAssertEqual(restored.minX, frame.minX, accuracy: 0.001)
         XCTAssertEqual(restored.minY, frame.minY, accuracy: 0.001)
@@ -139,6 +139,37 @@ final class ProfileCaptureTests: XCTestCase {
         let visible = ProfileCapture.visibleWindowIdentities(frontToBack: [front, back])
 
         XCTAssertEqual(visible, [front.identity, back.identity])
+    }
+
+    func testThisDisplayScopeRequiresWindowsOnThePointerDisplay() {
+        let builtIn = section(display: UUID(), app: "editor")
+        let external = section(display: UUID(), app: "browser")
+        let empty = UUID()
+
+        XCTAssertTrue(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: external.space.displayID
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: empty
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn],
+                pointerDisplayID: builtIn.space.displayID
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: nil
+            )
+        )
     }
 
     func testNewCaptureLimitedToOneDisplayKeepsOnlyThatSection() {

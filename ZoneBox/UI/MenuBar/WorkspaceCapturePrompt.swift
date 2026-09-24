@@ -8,7 +8,8 @@ struct WorkspaceCapturePromptContext: Equatable {
     var thisDisplayID: DisplayIdentity.ID?
     var thisDisplayName: String
 
-    /// A scope choice only exists when more than one display would be saved.
+    /// A scope choice only exists when more than one display would be saved
+    /// and the pointer is on one of those displays.
     var offersDisplayChoice: Bool {
         contentDisplayCount >= 2 && thisDisplayID != nil
     }

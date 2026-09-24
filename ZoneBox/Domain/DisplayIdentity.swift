@@ -161,7 +161,7 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         try container.encode(displays, forKey: .displays)
         try container.encode(assignments, forKey: .assignments)
         try container.encode(recentLayoutIDs, forKey: .recentLayoutIDs)
-        try container.encode(profiles, forKey: .profiles)
+        try container.encode(WorkspaceProfileMigration.stored(from: profiles), forKey: .profiles)
         try container.encodeIfPresent(activeProfileID, forKey: .activeProfileID)
     }
 
