@@ -312,7 +312,176 @@ final class WorkspaceRestoreTests: XCTestCase {
         XCTAssertEqual(WorkspaceRestore.foregroundBundleIDs(["", "   "]), [])
     }
 
+    func testForegroundProcessIDsIncludeBothInstancesOfOneBundle() {
+        let windows = [
+            WindowIdentity(pid: 41, windowNumber: 1, bundleID: "com.example.app"),
+            WindowIdentity(pid: 42, windowNumber: 2, bundleID: "com.example.app"),
+            WindowIdentity(pid: 41, windowNumber: 3, bundleID: "com.example.app"),
+            WindowIdentity(pid: 99, windowNumber: 4, bundleID: "com.other.app"),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.foregroundProcessIDs(windows, bundleID: "com.example.app"),
+            [41, 42]
+        )
+    }
+
     func testRestoredAppsDoNotActivateEveryWindowOnOtherSpaces() {
         XCTAssertFalse(WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps)
+    }
+
+    func testPreferredProcessUsesRestoredWindowPIDInsteadOfHelper() {
+        let windowPID: pid_t = 98973
+        let helperPID: pid_t = 1001
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: helperPID,
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                isRegular: false,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: windowPID,
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.todesktop.230313mzl4w4u92",
+                restoredWindowPIDs: [windowPID],
+                running: running
+            ),
+            windowPID
+        )
+    }
+
+    func testPreferredProcessPrefersRegularVisibleAppWhenWindowPIDIsMissing() {
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: 11,
+                bundleID: "com.google.Chrome",
+                isRegular: false,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 22,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: false,
+                isHidden: true
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 33,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+            WorkspaceRestore.RunningProcess(
+                pid: 44,
+                bundleID: "com.google.Chrome",
+                isRegular: true,
+                isFinished: true,
+                isHidden: false
+            ),
+        ]
+        XCTAssertEqual(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.google.Chrome",
+                restoredWindowPIDs: [],
+                running: running
+            ),
+            33
+        )
+    }
+
+    func testPreferredProcessIgnoresOtherBundlesAndEmptyIDs() {
+        let running = [
+            WorkspaceRestore.RunningProcess(
+                pid: 7,
+                bundleID: "com.tencent.xinWeChat",
+                isRegular: true,
+                isFinished: false,
+                isHidden: false
+            ),
+        ]
+        XCTAssertNil(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "com.google.Chrome",
+                restoredWindowPIDs: [7],
+                running: running
+            )
+        )
+        XCTAssertNil(
+            WorkspaceRestore.preferredProcessIdentifier(
+                bundleID: "  ",
+                restoredWindowPIDs: [7],
+                running: running
+            )
+        )
+    }
+
+    func testActivationOutcomeRecordsRejectionAndFrontmostMismatch() {
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: false,
+                requestedPID: 42,
+                actualFrontmostPID: 7
+            ),
+            .rejected
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedPID: 42,
+                actualFrontmostPID: 7
+            ),
+            .acceptedButFrontmostMismatch
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedPID: 42,
+                actualFrontmostPID: 42
+            ),
+            .acceptedAndFrontmost
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedPID: 42,
+                actualFrontmostPID: nil
+            ),
+            .acceptedButFrontmostMismatch
+        )
+        XCTAssertEqual(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: false,
+                requestedPID: 42,
+                actualFrontmostPID: 42
+            ),
+            .acceptedAndFrontmost
+        )
+        // A helper or another instance can share the bundle ID but not the
+        // restored window's process ID. Keep retrying in that case.
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(
+            WorkspaceRestore.activationOutcome(
+                requestAccepted: true,
+                requestedPID: 42,
+                actualFrontmostPID: 43
+            )
+        ))
+    }
+
+    func testActivationRetryOnlyWhenRequestDidNotLand() {
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(.rejected))
+        XCTAssertTrue(WorkspaceRestore.shouldRetryActivation(.acceptedButFrontmostMismatch))
+        XCTAssertFalse(WorkspaceRestore.shouldRetryActivation(.acceptedAndFrontmost))
+        XCTAssertFalse(WorkspaceRestore.shouldRetryActivation(.noProcess))
+        XCTAssertEqual(WorkspaceRestore.activationSettleDelay, 0.05)
     }
 }

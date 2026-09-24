@@ -16,6 +16,10 @@ public enum WorkspaceRestore {
 
     public static let launchRetryDelay: TimeInterval = 1
 
+    /// FrontmostApplication can lag the activate request. Observe after this
+    /// delay before recording a mismatch or retrying.
+    public static let activationSettleDelay: TimeInterval = 0.05
+
     /// After a running app is reopened, wait this long for a window before
     /// falling back to a Dock-style openApplication nudge.
     public static let reopenNudgeDelay: TimeInterval = 2
@@ -165,8 +169,94 @@ public enum WorkspaceRestore {
         return ordered
     }
 
+    /// Each restored window owner must be activated before its windows are raised.
+    /// Preserve the saved window order while skipping repeated windows of one process.
+    public static func foregroundProcessIDs(_ windows: [WindowIdentity], bundleID: String) -> [pid_t] {
+        var seen = Set<pid_t>()
+        return windows.compactMap { window in
+            guard window.bundleID == bundleID, seen.insert(window.pid).inserted else { return nil }
+            return window.pid
+        }
+    }
+
     /// AXRaise does not lift a window above another application. Restore must
     /// activate each saved app. Activating every window would yank the user
     /// onto another Space, so this stays off for already-placed windows.
     public static var activateAllWindowsWhenForegroundingRestoredApps: Bool { false }
+
+    /// Live process facts used to pick which pid restore should activate.
+    public struct RunningProcess: Equatable, Sendable {
+        public var pid: pid_t
+        public var bundleID: String?
+        public var isRegular: Bool
+        public var isFinished: Bool
+        public var isHidden: Bool
+
+        public init(
+            pid: pid_t,
+            bundleID: String?,
+            isRegular: Bool,
+            isFinished: Bool,
+            isHidden: Bool
+        ) {
+            self.pid = pid
+            self.bundleID = bundleID
+            self.isRegular = isRegular
+            self.isFinished = isFinished
+            self.isHidden = isHidden
+        }
+    }
+
+    public enum ActivationOutcome: Equatable, Sendable {
+        case noProcess
+        case rejected
+        case acceptedButFrontmostMismatch
+        case acceptedAndFrontmost
+    }
+
+    /// Prefer the pid that owns a restored window. Looking up a bundle ID and
+    /// taking the first running process can pick a helper; activating every
+    /// window would pull unsaved windows across Spaces.
+    public static func preferredProcessIdentifier(
+        bundleID: String,
+        restoredWindowPIDs: [pid_t],
+        running: [RunningProcess]
+    ) -> pid_t? {
+        let wanted = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !wanted.isEmpty else { return nil }
+        let live = running.filter { process in
+            !process.isFinished && process.bundleID == wanted
+        }
+        guard !live.isEmpty else { return nil }
+        let windowPIDSet = Set(restoredWindowPIDs)
+        let matchingWindows = live.filter { windowPIDSet.contains($0.pid) }
+        let pool = matchingWindows.isEmpty ? live : matchingWindows
+        return pool.min { lhs, rhs in
+            let lhsWindow = restoredWindowPIDs.firstIndex(of: lhs.pid) ?? Int.max
+            let rhsWindow = restoredWindowPIDs.firstIndex(of: rhs.pid) ?? Int.max
+            if lhsWindow != rhsWindow { return lhsWindow < rhsWindow }
+            if lhs.isRegular != rhs.isRegular { return lhs.isRegular && !rhs.isRegular }
+            if lhs.isHidden != rhs.isHidden { return !lhs.isHidden && rhs.isHidden }
+            return lhs.pid < rhs.pid
+        }?.pid
+    }
+
+    public static func activationOutcome(
+        requestAccepted: Bool,
+        requestedPID: pid_t,
+        actualFrontmostPID: pid_t?
+    ) -> ActivationOutcome {
+        if actualFrontmostPID == requestedPID { return .acceptedAndFrontmost }
+        guard requestAccepted else { return .rejected }
+        return .acceptedButFrontmostMismatch
+    }
+
+    public static func shouldRetryActivation(_ outcome: ActivationOutcome) -> Bool {
+        switch outcome {
+        case .rejected, .acceptedButFrontmostMismatch:
+            return true
+        case .noProcess, .acceptedAndFrontmost:
+            return false
+        }
+    }
 }
