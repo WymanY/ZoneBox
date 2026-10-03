@@ -254,7 +254,7 @@ final class SnapEngine {
             }
         }
         phase = output.phase
-        apply(output.effects)
+        apply(output.effects, cursorArea: cursorArea)
         if phase == .idle {
             trace("drag.end", fields: ["outstandingWrites": "\(outstandingSnapWrites)"])
             diagnosticActive = false
@@ -625,7 +625,7 @@ final class SnapEngine {
         }
     }
 
-    private func apply(_ effects: [SnapEffect]) {
+    private func apply(_ effects: [SnapEffect], cursorArea: WorkArea?) {
         var overlayDisplayID: UUID?
         var overlayHighlight: SnapTarget?
         var hideOverlay = false
@@ -634,6 +634,7 @@ final class SnapEngine {
             if case .dropUnsnap(let identity) = effect { return identity }
             return nil
         }.first
+        var explicitLayoutID: Layout.ID?
         for effect in effects {
             switch effect {
             case .none:
@@ -757,6 +758,7 @@ final class SnapEngine {
            case .selectLayout(let layoutID):
                trace("layout.select", fields: ["layout": layoutID.uuidString, "stripSuppressed": "true"])
                sessionLayoutID = layoutID
+               explicitLayoutID = layoutID
                stripWindowLayoutID = layoutID
                stripOverflowLatch = nil
                stripDropLatch = nil
@@ -774,23 +776,52 @@ final class SnapEngine {
             runtime.closeConsole()
             runtime.overlay.settings = runtime.settings
             runtime.overlay.primaryFlipHeight = runtime.primaryFlipHeight
-            let zones = lastZones
+            var zones = lastZones
+            var presentation = lastPresentation
             // Re-entering sessionContext here used live mouse location and
             // mutated the strip latch a second time, so the overlay could
             // show the new layout's panes with the previous card's highlight.
-            let highlight = SnapLayoutSession.previewHighlight(
+            var highlight = SnapLayoutSession.previewHighlight(
                 overlayHighlight ?? .none,
                 zones: zones,
                 latch: stripDropLatch
             )
+            if let explicitLayoutID {
+                let projectedArea = cursorArea ?? runtime.workAreas.first { $0.display.id == overlayDisplayID }
+                if let projectedArea {
+                    let workAX = CoordinateConverter.axRect(
+                        fromAppKit: projectedArea.visibleFrameAppKit,
+                        primaryFlipHeight: runtime.primaryFlipHeight
+                    )
+                    let preview = SnapLayoutSession.projectExplicitSelection(
+                        selectedLayoutID: explicitLayoutID,
+                        zones: runtime.resolvedZones(for: projectedArea, layoutOverride: explicitLayoutID),
+                        layouts: runtime.allResolvedLayouts(for: projectedArea),
+                        workAreaAppKit: projectedArea.visibleFrameAppKit,
+                        workAreaAX: workAX,
+                        assignedLayoutID: runtime.document.layout(for: projectedArea.display.id)?.id,
+                        previousStartLayoutID: stripWindowStartID,
+                        showLayoutStrip: runtime.settings.showLayoutStrip
+                    )
+                    zones = preview.zones
+                    highlight = preview.highlight
+                    presentation = preview.presentation
+                    lastZones = zones
+                    lastStrip = preview.strip
+                    lastPresentation = presentation
+                    if preview.strip != nil {
+                        stripWindowStartID = preview.stripWindowStartID
+                    }
+                }
+            }
             runtime.overlay.show(
                 displayID: overlayDisplayID,
                 zones: zones,
                 highlight: highlight,
-                presentation: lastPresentation
+                presentation: presentation
             )
             if diagnosticActive {
-                let stripModel = lastPresentation.strip
+                let stripModel = presentation.strip
                 if let geometry = stripModel?.geometry, geometry != diagnosticGeometry {
                     diagnosticGeometry = geometry
                     trace("strip.geometry", fields: [
@@ -1095,7 +1126,12 @@ final class SnapEngine {
             preferForcedLayout: committingStripSelection
         )
 
-        let layoutID = stripDropLatch?.layoutID ?? highlightedLayoutID ?? sessionLayoutID ?? assignedID
+        let layoutID = SnapLayoutSession.layoutIDAfterExplicitSelection(
+            selectedLayoutID: sessionLayoutID,
+            pointerLayoutID: stripDropLatch?.layoutID ?? highlightedLayoutID,
+            suppressStripLatch: suppressStripLatch,
+            pointerInStrip: pointerInStrip
+        ) ?? assignedID
         let zones = runtime.resolvedZones(for: area, layoutOverride: layoutID)
         let stripModel: OverlayStripRenderModel?
         if let strip, runtime.settings.showLayoutStrip {

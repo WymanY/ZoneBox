@@ -1459,6 +1459,165 @@ final class SnapSessionReducerTests: XCTestCase {
             backingScale: 2
         )
     }
+    func testExplicitSelectionProjectsZonesOnTheSameFrame() {
+        let work = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let layouts = sampleLayouts(count: 2, work: work)
+        let l0 = layouts[0]
+        let l1 = layouts[1]
+        let preview = SnapLayoutSession.projectExplicitSelection(
+            selectedLayoutID: l1.layout.id,
+            zones: l1.zones,
+            layouts: layouts,
+            workAreaAppKit: work,
+            workAreaAX: work,
+            assignedLayoutID: l0.layout.id,
+            previousStartLayoutID: l0.layout.id,
+            showLayoutStrip: true
+        )
+        XCTAssertEqual(preview.zones, l1.zones)
+        XCTAssertNotEqual(preview.zones, l0.zones)
+        XCTAssertEqual(preview.highlight, .none)
+        XCTAssertEqual(preview.presentation.strip?.highlightedLayoutID, l1.layout.id)
+        XCTAssertNil(preview.presentation.strip?.highlightedZoneNumber)
+        XCTAssertEqual(preview.strip?.cards.map(\.layoutID), [l0.layout.id, l1.layout.id])
+
+        let hidden = SnapLayoutSession.projectExplicitSelection(
+            selectedLayoutID: l1.layout.id,
+            zones: l1.zones,
+            layouts: layouts,
+            workAreaAppKit: work,
+            workAreaAX: work,
+            assignedLayoutID: l0.layout.id,
+            previousStartLayoutID: l0.layout.id,
+            showLayoutStrip: false
+        )
+        XCTAssertEqual(hidden.zones, l1.zones)
+        XCTAssertNil(hidden.strip)
+        XCTAssertEqual(hidden.highlight, .none)
+    }
+
+    func testExplicitSelectionCyclesForwardAndBack() {
+        let work = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let layouts = sampleLayouts(count: 3, work: work)
+        let ids = layouts.map(\.layout.id)
+        var selected = ids[0]
+        var start: Layout.ID? = ids[0]
+        func project(_ id: Layout.ID) -> SnapLayoutSession.ExplicitLayoutPreview {
+            let zones = layouts.first { $0.layout.id == id }!.zones
+            let preview = SnapLayoutSession.projectExplicitSelection(
+                selectedLayoutID: id,
+                zones: zones,
+                layouts: layouts,
+                workAreaAppKit: work,
+                workAreaAX: work,
+                assignedLayoutID: ids[0],
+                previousStartLayoutID: start,
+                showLayoutStrip: true
+            )
+            start = preview.stripWindowStartID
+            return preview
+        }
+
+        selected = SnapLayoutSession.nextLayoutID(layoutIDs: ids, currentSessionLayoutID: selected, delta: 1)!
+        var preview = project(selected)
+        XCTAssertEqual(preview.zones, layouts[1].zones)
+        XCTAssertEqual(preview.presentation.strip?.highlightedLayoutID, ids[1])
+        XCTAssertNil(preview.presentation.strip?.highlightedZoneNumber)
+        XCTAssertEqual(preview.highlight, .none)
+
+        selected = SnapLayoutSession.nextLayoutID(layoutIDs: ids, currentSessionLayoutID: selected, delta: 1)!
+        preview = project(selected)
+        XCTAssertEqual(preview.zones, layouts[2].zones)
+        XCTAssertEqual(preview.presentation.strip?.highlightedLayoutID, ids[2])
+
+        selected = SnapLayoutSession.nextLayoutID(layoutIDs: ids, currentSessionLayoutID: selected, delta: -1)!
+        preview = project(selected)
+        XCTAssertEqual(preview.zones, layouts[1].zones)
+        XCTAssertEqual(preview.presentation.strip?.highlightedLayoutID, ids[1])
+        XCTAssertNotEqual(preview.zones, layouts[0].zones)
+    }
+
+    func testExplicitSelectionKeepsFocusedCardVisiblePastSixLayouts() {
+        let work = CGRect(x: 0, y: 0, width: 1800, height: 1000)
+        let layouts = sampleLayouts(count: 8, work: work)
+        let selected = layouts[7].layout.id
+        let preview = SnapLayoutSession.projectExplicitSelection(
+            selectedLayoutID: selected,
+            zones: layouts[7].zones,
+            layouts: layouts,
+            workAreaAppKit: work,
+            workAreaAX: work,
+            assignedLayoutID: layouts[0].layout.id,
+            previousStartLayoutID: layouts[0].layout.id,
+            showLayoutStrip: true
+        )
+        let visible = preview.strip?.cards.map(\.layoutID) ?? []
+        XCTAssertEqual(visible.count, LayoutStripGeometry.maxVisibleCards)
+        XCTAssertTrue(visible.contains(selected))
+        XCTAssertFalse(visible.contains(layouts[0].layout.id))
+        XCTAssertEqual(preview.presentation.strip?.highlightedLayoutID, selected)
+        XCTAssertNil(preview.presentation.strip?.highlightedZoneNumber)
+        XCTAssertEqual(preview.zones, layouts[7].zones)
+        XCTAssertNotEqual(preview.zones, layouts[0].zones)
+    }
+
+    func testProjectedSelectionDigitUsesTheNewLayoutZone() {
+        let work = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let layouts = sampleLayouts(count: 2, work: work)
+        let l0 = layouts[0]
+        let l1 = layouts[1]
+        let preview = SnapLayoutSession.projectExplicitSelection(
+            selectedLayoutID: l1.layout.id,
+            zones: l1.zones,
+            layouts: layouts,
+            workAreaAppKit: work,
+            workAreaAX: work,
+            assignedLayoutID: l0.layout.id,
+            previousStartLayoutID: l0.layout.id,
+            showLayoutStrip: true
+        )
+        let kept = SnapLayoutSession.layoutIDAfterExplicitSelection(
+            selectedLayoutID: l1.layout.id,
+            pointerLayoutID: l0.layout.id,
+            suppressStripLatch: true,
+            pointerInStrip: false
+        )
+        XCTAssertEqual(kept, l1.layout.id)
+        XCTAssertEqual(
+            SnapLayoutSession.layoutIDAfterExplicitSelection(
+                selectedLayoutID: l1.layout.id,
+                pointerLayoutID: l0.layout.id,
+                suppressStripLatch: false,
+                pointerInStrip: true
+            ),
+            l0.layout.id
+        )
+
+        var digit = armedReadyInput(phase: .armed(window), kind: .digit(1))
+        digit.resolvedZones = preview.zones
+        digit.sessionLayoutID = kept
+        digit.assignedLayoutID = l0.layout.id
+        digit.layoutIDs = [l0.layout.id, l1.layout.id]
+        digit.pointerInLayoutStrip = false
+        digit.forcedTarget = nil
+        let digitOut = SnapSessionReducer.reduce(digit)
+        XCTAssertTrue(digitOut.effects.contains(.applyFrame(window, l1.zones[0].frameAX)))
+        XCTAssertFalse(digitOut.effects.contains(.applyFrame(window, l0.zones[0].frameAX)))
+    }
+
+    private func sampleLayouts(count: Int, work: CGRect) -> [(layout: Layout, zones: [ResolvedZone])] {
+        (0..<count).map { index in
+            let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])
+            let width = work.width / CGFloat(max(count, 1))
+            let zone = ResolvedZone(
+                zoneID: UUID(),
+                number: 1,
+                frameAX: CGRect(x: CGFloat(index) * width, y: 0, width: width, height: work.height)
+            )
+            return (layout, [zone])
+        }
+    }
+
     func testGridHoverOccupancySticksOnSeam() throws {
         let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
         let spec = GridSpec(
