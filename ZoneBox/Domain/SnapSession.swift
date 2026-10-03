@@ -412,6 +412,96 @@ public enum SnapLayoutSession {
         }
         return (true, false)
     }
+
+    public struct ExplicitLayoutPreview: Equatable, Sendable {
+        public var selectedLayoutID: Layout.ID
+        public var zones: [ResolvedZone]
+        public var highlight: SnapTarget
+        public var strip: LayoutStripGeometry?
+        public var presentation: OverlayPresentation
+        public var stripWindowStartID: Layout.ID?
+
+        public init(
+            selectedLayoutID: Layout.ID,
+            zones: [ResolvedZone],
+            highlight: SnapTarget,
+            strip: LayoutStripGeometry?,
+            presentation: OverlayPresentation,
+            stripWindowStartID: Layout.ID?
+        ) {
+            self.selectedLayoutID = selectedLayoutID
+            self.zones = zones
+            self.highlight = highlight
+            self.strip = strip
+            self.presentation = presentation
+            self.stripWindowStartID = stripWindowStartID
+        }
+    }
+
+    /// Zones and the strip card for a Tab or Shift+Tab selection on this frame.
+    /// The zone highlight stays empty so a pointer still resting on the previous
+    /// card cannot paint that card's pane onto the newly selected layout.
+    public static func projectExplicitSelection(
+        selectedLayoutID: Layout.ID,
+        zones: [ResolvedZone],
+        layouts: [(layout: Layout, zones: [ResolvedZone])],
+        workAreaAppKit: CGRect,
+        workAreaAX: CGRect,
+        assignedLayoutID: Layout.ID?,
+        previousStartLayoutID: Layout.ID?,
+        showLayoutStrip: Bool
+    ) -> ExplicitLayoutPreview {
+        guard showLayoutStrip else {
+            return ExplicitLayoutPreview(
+                selectedLayoutID: selectedLayoutID,
+                zones: zones,
+                highlight: .none,
+                strip: nil,
+                presentation: .snapSession(strip: nil),
+                stripWindowStartID: previousStartLayoutID
+            )
+        }
+        let strip = LayoutStripGeometry.make(
+            workAreaAppKit: workAreaAppKit,
+            layouts: layouts,
+            assignedLayoutID: assignedLayoutID,
+            workAreaAX: workAreaAX,
+            focusedLayoutID: selectedLayoutID,
+            previousStartLayoutID: previousStartLayoutID
+        )
+        let model = OverlayStripRenderModel(
+            geometry: strip,
+            highlightedLayoutID: selectedLayoutID,
+            highlightedZoneNumber: nil
+        )
+        return ExplicitLayoutPreview(
+            selectedLayoutID: selectedLayoutID,
+            zones: zones,
+            highlight: .none,
+            strip: strip,
+            presentation: .snapSession(strip: model),
+            stripWindowStartID: strip.cards.first?.layoutID ?? previousStartLayoutID
+        )
+    }
+
+    /// Layout used to resolve the next sample. suppressStripLatch is the flag
+    /// after acceptingStripHit; this does not run that gate again. While
+    /// suppression holds, a hovered card cannot replace the selection, including
+    /// after the pointer has left the strip.
+    public static func layoutIDAfterExplicitSelection(
+        selectedLayoutID: Layout.ID?,
+        pointerLayoutID: Layout.ID?,
+        suppressStripLatch: Bool,
+        pointerInStrip: Bool
+    ) -> Layout.ID? {
+        if suppressStripLatch {
+            return selectedLayoutID
+        }
+        if pointerInStrip || pointerLayoutID != nil {
+            return pointerLayoutID ?? selectedLayoutID
+        }
+        return selectedLayoutID
+    }
 }
 
 public enum SnapLayoutAssignmentPolicy {
