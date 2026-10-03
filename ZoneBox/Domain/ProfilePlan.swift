@@ -111,7 +111,7 @@ public enum ProfilePlan {
             var targets: [CGRect] = []
             for rule in section.rules {
                 guard let frame = rule.frame else { continue }
-                let target = frame.denormalize(in: workAreaAX)
+                let target = frame.rawFrame(in: workAreaAX)
                 targets.append(target)
                 guard var queue = queues[rule.bundleID], !queue.isEmpty else {
                     if !missing.contains(rule.bundleID) { missing.append(rule.bundleID) }

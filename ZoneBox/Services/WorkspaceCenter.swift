@@ -1429,7 +1429,7 @@ final class WorkspaceCenter {
         }
         let zones = runtime.document.layout(for: placement.displayID)
             .map { runtime.resolvedZones(layout: $0, area: area) } ?? []
-        return (placement.frame.denormalize(in: workAreaAX(for: area)), zones)
+        return (placement.frame.rawFrame(in: workAreaAX(for: area)), zones)
     }
 
     private func resetBaseline() {

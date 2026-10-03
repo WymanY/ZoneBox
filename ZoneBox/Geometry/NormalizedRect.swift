@@ -69,6 +69,18 @@ public struct NormalizedRect: Codable, Hashable, Sendable {
         )
     }
 
+    /// Workspace window geometry. Layout zones keep using `denormalize`, which
+    /// clamps into the work area; a captured window may sit partly or wholly
+    /// outside it and must come back at the same origin and size.
+    public func rawFrame(in workAreaAX: CGRect) -> CGRect {
+        CGRect(
+            x: workAreaAX.minX + x * workAreaAX.width,
+            y: workAreaAX.minY + y * workAreaAX.height,
+            width: width * workAreaAX.width,
+            height: height * workAreaAX.height
+        )
+    }
+
     public static func normalize(_ axRect: CGRect, in workAreaAX: CGRect) -> NormalizedRect {
         guard workAreaAX.width > 0, workAreaAX.height > 0 else {
             return NormalizedRect(x: 0, y: 0, width: 1, height: 1)
@@ -79,5 +91,18 @@ public struct NormalizedRect: Codable, Hashable, Sendable {
             width: axRect.width / workAreaAX.width,
             height: axRect.height / workAreaAX.height
         ).clamped()
+    }
+
+    /// Inverse of `rawFrame` for workspace capture. Does not clamp.
+    public static func rawNormalized(_ axRect: CGRect, in workAreaAX: CGRect) -> NormalizedRect {
+        guard workAreaAX.width > 0, workAreaAX.height > 0 else {
+            return NormalizedRect(x: 0, y: 0, width: 0, height: 0)
+        }
+        return NormalizedRect(
+            x: (axRect.minX - workAreaAX.minX) / workAreaAX.width,
+            y: (axRect.minY - workAreaAX.minY) / workAreaAX.height,
+            width: axRect.width / workAreaAX.width,
+            height: axRect.height / workAreaAX.height
+        )
     }
 }

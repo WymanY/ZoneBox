@@ -248,11 +248,122 @@ final class ProfileCaptureTests: XCTestCase {
         )
     }
 
+    func testCapturedFramesOutsideTheWorkAreaRoundTripThroughStoreAndRestore() throws {
+        let samples: [(bundleID: String, frame: CGRect)] = [
+            ("interior", CGRect(x: 317, y: 140, width: 903, height: 611)),
+            ("partial-top", CGRect(x: 100, y: 0, width: 800, height: 500)),
+            ("partial-right", CGRect(x: 1000, y: 400, width: 600, height: 600)),
+            ("oversized", CGRect(x: -80, y: -40, width: 1800, height: 1200)),
+        ]
+        let windows = samples.enumerated().map { index, sample in
+            self.sample(
+                pid: pid_t(index + 1),
+                number: UInt32(index + 1),
+                bundleID: sample.bundleID,
+                frame: sample.frame
+            )
+        }
+        let rules = ProfileCapture.rules(windows: windows, workAreaAX: workArea)
+        XCTAssertEqual(rules.map(\.bundleID), samples.map(\.bundleID))
+
+        let displayID = UUID()
+        let profile = WorkspaceProfile(
+            name: "Desk",
+            sections: [ProfileSection(space: SpaceKey(displayID: displayID), rules: rules)]
+        )
+        let document = StoreDocument(layouts: [LayoutTemplates.columns(2)], profiles: [profile])
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("zonebox-raw-frame-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        try store.save(document)
+        let loadedProfile = try XCTUnwrap(try store.load().profiles.first)
+        let loadedRules = try XCTUnwrap(loadedProfile.sections.first?.rules)
+        XCTAssertEqual(loadedRules.map(\.bundleID), samples.map(\.bundleID))
+
+        let oversized = try XCTUnwrap(loadedRules.first { $0.bundleID == "oversized" }?.frame)
+        XCTAssertLessThan(oversized.x, 0)
+        XCTAssertGreaterThan(oversized.width, 1)
+        let partialTop = try XCTUnwrap(loadedRules.first { $0.bundleID == "partial-top" }?.frame)
+        XCTAssertLessThan(partialTop.y, 0)
+        let preview = WorkspaceLayoutPreview.snapshot(rules: loadedRules)
+        let oversizedPane = try XCTUnwrap(preview.panes.first { $0.bundleID == "oversized" })
+        XCTAssertEqual(oversizedPane.rect, oversized)
+        XCTAssertLessThan(oversizedPane.rect.x, 0)
+
+        let outcome = ProfilePlan.make(
+            profile: loadedProfile,
+            workAreasBySection: [displayID: workArea],
+            candidates: windows
+        )
+        XCTAssertEqual(outcome.missingBundleIDs, [])
+        let section = try XCTUnwrap(outcome.sections.first)
+        XCTAssertEqual(section.placements.count, samples.count)
+        XCTAssertEqual(section.targetFramesAX.count, samples.count)
+        for (index, sample) in samples.enumerated() {
+            for frame in [section.placements[index].targetFrameAX, section.targetFramesAX[index]] {
+                XCTAssertEqual(frame.minX, sample.frame.minX, accuracy: 0.01)
+                XCTAssertEqual(frame.minY, sample.frame.minY, accuracy: 0.01)
+                XCTAssertEqual(frame.width, sample.frame.width, accuracy: 0.01)
+                XCTAssertEqual(frame.height, sample.frame.height, accuracy: 0.01)
+            }
+        }
+    }
+
+    func testLayoutZonesStillClampIntoTheWorkArea() throws {
+        let partial = layoutZone(
+            NormalizedRect(
+                x: 100.0 / 1440.0,
+                y: (0.0 - 25.0) / 875.0,
+                width: 800.0 / 1440.0,
+                height: 500.0 / 875.0
+            )
+        )
+        let partialFrame = try XCTUnwrap(try resolveLayout(partial, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(partialFrame.minX, 100, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.minY, 25, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.width, 800, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.height, 500, accuracy: 0.01)
+
+        let overflow = layoutZone(
+            NormalizedRect(
+                x: 1000.0 / 1440.0,
+                y: (400.0 - 25.0) / 875.0,
+                width: 600.0 / 1440.0,
+                height: 600.0 / 875.0
+            )
+        )
+        let overflowFrame = try XCTUnwrap(try resolveLayout(overflow, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(overflowFrame.minX, 840, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.minY, 300, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.width, 600, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.height, 600, accuracy: 0.01)
+
+        let huge = layoutZone(
+            NormalizedRect(
+                x: -80.0 / 1440.0,
+                y: (-40.0 - 25.0) / 875.0,
+                width: 1800.0 / 1440.0,
+                height: 1200.0 / 875.0
+            )
+        )
+        let hugeFrame = try XCTUnwrap(try resolveLayout(huge, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(hugeFrame.minX, 0, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.minY, 25, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.width, 1440, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.height, 875, accuracy: 0.01)
+    }
+
     private func section(display: DisplayIdentity.ID, app: String) -> ProfileSection {
         ProfileSection(
             space: SpaceKey(displayID: display),
             rules: [AppPlacementRule(bundleID: app, frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))]
         )
+    }
+
+    private func layoutZone(_ rect: NormalizedRect) -> Layout {
+        Layout(name: "Zone", kind: .canvas, zones: [Zone(number: 1, canvasRect: rect)])
     }
 
     private func sample(pid: pid_t, number: UInt32, bundleID: String?, frame: CGRect) -> ProfileCapture.WindowSample {

@@ -5,9 +5,11 @@ import Foundation
 /// records so a later launch can still read the original zone mapping.
 ///
 /// Geometry is resolved only when a layout, work area, and gutter are all
-/// available. Until then the zone fields stay on the profile and are written
-/// back unchanged, so a missing layout or an early persist cannot bake the
-/// wrong frames or drop a rule the old app could still restore.
+/// available and the rule does not already have a frame. Until then the zone
+/// fields stay on the profile and are written back unchanged, so a missing
+/// layout or an early persist cannot bake the wrong frames or drop a rule the
+/// old app could still restore. A frame that has been resolved is stored and
+/// kept, so a later layout edit or deletion cannot move or drop that position.
 public enum WorkspaceProfileMigration {
     public struct StoredRule: Codable, Equatable, Sendable {
         public var bundleID: String
@@ -148,9 +150,10 @@ public enum WorkspaceProfileMigration {
         }
     }
 
-    /// Fill frames for legacy zone rules when the live work area and gutter
-    /// are known. Zone fields stay so the next save can still write the old
-    /// mapping. Captured frame-only rules are left alone.
+    /// Fill a legacy zone rule's frame once, when the live work area and gutter
+    /// are known and no frame is stored yet. A stored frame stays put. Zone
+    /// fields remain on an unresolved rule so a later launch can still resolve
+    /// it. Captured frame-only rules are left alone.
     public static func resolving(
         _ profile: WorkspaceProfile,
         layouts: [Layout],
@@ -226,20 +229,21 @@ public enum WorkspaceProfileMigration {
         workAreaAX: CGRect?,
         gutter: CGFloat
     ) -> NormalizedRect? {
-        if !isLegacyZoneRule(rule) {
-            return rule.frame
+        if let frame = rule.frame {
+            return frame
         }
         guard let layout,
+              isLegacyZoneRule(rule),
               let workAreaAX,
               workAreaAX.width > 0,
               workAreaAX.height > 0,
               let zones = try? resolveLayout(layout, workAreaAX: workAreaAX, gutter: gutter)
         else {
-            return rule.frame
+            return nil
         }
         let zone = zones.first(where: { $0.zoneID == rule.zoneID })
             ?? zones.first(where: { $0.number == rule.zoneNumber })
-        guard let zone else { return rule.frame }
+        guard let zone else { return nil }
         return NormalizedRect.normalize(zone.frameAX, in: workAreaAX)
     }
 
@@ -263,14 +267,11 @@ public enum WorkspaceProfileMigration {
     }
 
     static func storedRule(from rule: AppPlacementRule) -> StoredRule {
-        if isLegacyZoneRule(rule) {
-            return StoredRule(
-                bundleID: rule.bundleID,
-                frame: nil,
-                zoneID: rule.zoneID,
-                zoneNumber: rule.zoneNumber
-            )
-        }
-        return StoredRule(bundleID: rule.bundleID, frame: rule.frame)
+        StoredRule(
+            bundleID: rule.bundleID,
+            frame: rule.frame,
+            zoneID: rule.zoneID,
+            zoneNumber: rule.zoneNumber
+        )
     }
 }

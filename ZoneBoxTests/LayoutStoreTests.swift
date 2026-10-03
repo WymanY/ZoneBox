@@ -514,4 +514,142 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertTrue(document.deleteLayout(id: first))
         XCTAssertFalse(document.recentLayoutIDs.contains(first))
     }
+
+    func testResolvedLegacyFrameSurvivesLayoutDeletionAndEdits() throws {
+        let columns = LayoutTemplates.columns(2)
+        let other = LayoutTemplates.rows(2)
+        let displayID = UUID()
+        let goneZone = UUID()
+        let workArea = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let gutter: CGFloat = 16
+        let profileID = UUID()
+        let json = Data(
+            """
+            {
+              "schemaVersion": 1,
+              "layouts": \(String(decoding: try JSONEncoder().encode([columns, other]), as: UTF8.self)),
+              "displays": [],
+              "assignments": [],
+              "profiles": [{
+                "id": "\(profileID.uuidString)",
+                "name": "Legacy",
+                "sections": [{
+                  "space": {"displayID": "\(displayID.uuidString)"},
+                  "layoutID": "\(columns.id.uuidString)",
+                  "rules": [
+                    {"bundleID": "left", "zoneID": "\(columns.zones[0].id.uuidString)", "zoneNumber": 1},
+                    {"bundleID": "gone", "zoneID": "\(goneZone.uuidString)", "zoneNumber": 9}
+                  ]
+                }]
+              }]
+            }
+            """.utf8
+        )
+        var document = try JSONDecoder().decode(StoreDocument.self, from: json)
+        let unresolved = try XCTUnwrap(document.profiles.first)
+        XCTAssertNil(unresolved.sections[0].rules[0].frame)
+        XCTAssertEqual(unresolved.sections[0].rules[0].zoneID, columns.zones[0].id)
+        XCTAssertNil(unresolved.sections[0].rules[1].frame)
+        XCTAssertEqual(unresolved.sections[0].rules[1].zoneID, goneZone)
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("zonebox-legacy-frame-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        try store.save(document)
+        let unresolvedJSON = try String(contentsOf: store.fileURL, encoding: .utf8)
+        XCTAssertFalse(unresolvedJSON.contains("\"frame\""))
+        XCTAssertTrue(unresolvedJSON.contains("zoneNumber"))
+
+        let resolved = WorkspaceProfileMigration.resolving(
+            unresolved,
+            layouts: document.layouts,
+            workAreasByDisplay: [displayID: workArea],
+            gutter: gutter
+        )
+        let expected = try XCTUnwrap(resolved.sections[0].rules[0].frame)
+        let zones = try resolveLayout(columns, workAreaAX: workArea, gutter: gutter)
+        XCTAssertEqual(expected, NormalizedRect.normalize(zones[0].frameAX, in: workArea))
+        let unguttered = try XCTUnwrap(LayoutTemplates.thumbnailPanes(for: columns).first { $0.number == 1 }).rect
+        XCTAssertNotEqual(expected, unguttered)
+        XCTAssertEqual(resolved.sections[0].rules[0].zoneID, columns.zones[0].id)
+        XCTAssertNil(resolved.sections[0].rules[1].frame)
+
+        document.profiles = [resolved]
+        try store.save(document)
+        let persisted = try store.load()
+        let persistedRules = try XCTUnwrap(persisted.profiles.first?.sections.first?.rules)
+        XCTAssertEqual(persistedRules[0].frame, expected)
+        XCTAssertEqual(persistedRules[0].zoneID, columns.zones[0].id)
+        XCTAssertNil(persistedRules[1].frame)
+        XCTAssertEqual(persistedRules[1].zoneID, goneZone)
+
+        var edited = persisted
+        let layoutIndex = try XCTUnwrap(edited.layouts.firstIndex { $0.id == columns.id })
+        var layout = edited.layouts[layoutIndex]
+        var grid = try XCTUnwrap(layout.grid)
+        grid.columnWeights = [2_000, 8_000]
+        layout.grid = grid
+        edited.layouts[layoutIndex] = layout
+        var cleared = try XCTUnwrap(edited.profiles.first)
+        cleared.sections[0].rules[0].frame = nil
+        let moved = WorkspaceProfileMigration.resolving(
+            cleared,
+            layouts: edited.layouts,
+            workAreasByDisplay: [displayID: workArea],
+            gutter: gutter
+        )
+        XCTAssertNotEqual(moved.sections[0].rules[0].frame, expected)
+        let kept = WorkspaceProfileMigration.resolving(
+            try XCTUnwrap(edited.profiles.first),
+            layouts: edited.layouts,
+            workAreasByDisplay: [displayID: workArea],
+            gutter: gutter
+        )
+        XCTAssertEqual(kept.sections[0].rules[0].frame, expected)
+        XCTAssertEqual(kept.sections[0].rules[0].zoneID, columns.zones[0].id)
+
+        XCTAssertTrue(edited.deleteLayout(id: columns.id))
+        XCTAssertEqual(edited.profiles.first?.sections.first?.layoutID, columns.id)
+        try store.save(edited)
+        let reloaded = try store.load()
+        XCTAssertFalse(reloaded.layouts.contains { $0.id == columns.id })
+        let afterDelete = WorkspaceProfileMigration.resolving(
+            try XCTUnwrap(reloaded.profiles.first),
+            layouts: reloaded.layouts,
+            workAreasByDisplay: [displayID: workArea],
+            gutter: gutter
+        )
+        let restoredRule = try XCTUnwrap(afterDelete.sections.first?.rules.first)
+        XCTAssertEqual(restoredRule.frame, expected)
+        XCTAssertEqual(restoredRule.zoneID, columns.zones[0].id)
+        XCTAssertEqual(restoredRule.zoneNumber, 1)
+        XCTAssertNil(afterDelete.sections[0].rules[1].frame)
+        XCTAssertEqual(afterDelete.sections[0].rules[1].zoneID, goneZone)
+        XCTAssertEqual(afterDelete.sections[0].layoutID, columns.id)
+
+        let outcome = ProfilePlan.make(
+            profile: afterDelete,
+            workAreasBySection: [displayID: workArea],
+            candidates: [
+                ProfileCapture.WindowSample(
+                    identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "left"),
+                    frameAX: .zero
+                ),
+            ]
+        )
+        XCTAssertEqual(outcome.missingBundleIDs, [])
+        XCTAssertEqual(outcome.skippedDisplayIDs, [])
+        let section = try XCTUnwrap(outcome.sections.first)
+        XCTAssertEqual(section.placements.count, 1)
+        XCTAssertEqual(section.targetFramesAX.count, 1)
+        let expectedAX = zones[0].frameAX
+        for frame in [section.targetFramesAX[0], section.placements[0].targetFrameAX] {
+            XCTAssertEqual(frame.minX, expectedAX.minX, accuracy: 0.05)
+            XCTAssertEqual(frame.minY, expectedAX.minY, accuracy: 0.05)
+            XCTAssertEqual(frame.width, expectedAX.width, accuracy: 0.05)
+            XCTAssertEqual(frame.height, expectedAX.height, accuracy: 0.05)
+        }
+    }
 }

@@ -44,7 +44,7 @@ public enum ProfileCapture {
             guard let bundleID = sample.identity.bundleID, !bundleID.isEmpty else { return nil }
             return AppPlacementRule(
                 bundleID: bundleID,
-                frame: NormalizedRect.normalize(sample.frameAX, in: workAreaAX)
+                frame: NormalizedRect.rawNormalized(sample.frameAX, in: workAreaAX)
             )
         }
     }
