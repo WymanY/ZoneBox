@@ -34,12 +34,15 @@ final class OverlayController {
         }
     }
 
+    /// `showNumbers` overrides the user setting for this presentation only;
+    /// nil follows the setting.
     func show(
         displayID: UUID,
         zones: [ResolvedZone],
         highlight: SnapTarget,
         captureKeys: Bool = false,
-        presentation: OverlayPresentation = .empty
+        presentation: OverlayPresentation = .empty,
+        showNumbers: Bool? = nil
     ) {
         present(
             displayID: displayID,
@@ -47,7 +50,8 @@ final class OverlayController {
             highlight: highlight,
             captureKeys: captureKeys,
             presentation: presentation,
-            isPreview: false
+            isPreview: false,
+            showNumbers: showNumbers
         )
     }
 
@@ -71,11 +75,12 @@ final class OverlayController {
         highlight: SnapTarget,
         captureKeys: Bool = false,
         presentation: OverlayPresentation = .empty,
-        isPreview: Bool
+        isPreview: Bool,
+        showNumbers numbersOverride: Bool? = nil
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
-        let showNumbers = settings.showZoneNumbers
+        let showNumbers = numbersOverride ?? settings.showZoneNumbers
         var needsDisplay = false
         if view.zones != zones {
             view.zones = zones

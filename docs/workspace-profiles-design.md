@@ -1,325 +1,279 @@
-# ZoneBox 工作区方案（Workspace Profiles）技术设计
+# ZoneBox 工作区（Workspace Profiles）技术设计
 
 | 字段 | 值 |
 | --- | --- |
-| **标题** | 多应用固定布局的一键捕获与一键归位 |
-| **状态** | 设计稿（未实现） |
-| **日期** | 2026-09-02 |
-| **作用范围** | 运行时（真实窗口的批量归位 + 新窗口自动进区），跨全部显示器 |
-| **关联文档** | `docs/design.md`（整体架构与"纯函数进 Core、只测 reducer/几何"原则）、`docs/runtime-divider-design.md`（同类设计的写法基准，其 §6.6 的 `WindowCatalog` 扩展与本方案共用） |
+| **标题** | 整桌窗口排布的一键捕获与一键归位 |
+| **状态** | 已实现；2026-09-11 由「应用 → 分区」模型改为「应用 → 窗口位置」模型 |
+| **日期** | 2026-09-02 初稿 · 2026-09-11 改版 |
+| **作用范围** | 运行时（真实窗口的批量归位 + 缺失应用启动补位），跨全部显示器 |
+| **关联文档** | `docs/design.md`（整体架构与"纯函数进 Core、只测 reducer/几何"原则）、`docs/runtime-divider-design.md`（`WindowCatalog` 扩展与本方案共用） |
 
 ---
 
 ## 1. 背景与问题
 
-用户日常有一组固定搭配的应用（例如：编辑器占左侧大区、浏览器右上、终端右下），并希望它们**长期保持同一种布局**。当前 ZoneBox 只支持逐窗口操作：
+用户日常有一组固定搭配的应用（例如：左半屏 Chrome、右半屏 Cursor，第二块屏 WeChat 独占），并希望它们**长期保持同一种排布**。重启、应用更新、投屏、插拔显示器之后窗口位置全乱，逐个窗口重新贴一遍很烦。
 
-1. 重启、应用更新、会议投屏、插拔显示器之后，窗口位置全乱，需要对每个窗口 Shift-drag 或按 `Control+Option+数字` 重新贴一遍；
-2. ZoneBox 记住了"布局长什么样"（`StoreDocument.layouts` + 每显示器 `assignments`），但**不记得"哪个应用住在哪个 zone"**，`WindowCatalog.membership` 只是运行时内存态，重启即失；
-3. 已被砍掉入口的 Organize（`WindowOrganize.isPubliclyAvailable = false`）虽然能批量摆放，但它按**窗口数量**套模板（2 窗 Split 65/35、4 窗 Grid 2×2……），不认应用身份，摆出来的不是用户想要的那套固定搭配。
+初版方案把工作区记成「应用 → 当前布局的某个分区」：捕获时把每个窗口对到当前激活布局里覆盖最多的分区，恢复时再把窗口吸进那个分区。实际使用中它保存的是**布局槽位**而不是用户的窗口：右半屏的 Cursor 被记成「优先3等分」的分区 3，独占整屏的 WeChat 被记成「三列」的分区 1，恢复出来与捕获时完全不同。
 
-目标体验：**把当前摆好的整桌排布存成一个"工作区方案"；之后任何时刻一个快捷键，所有应用窗口回到各自的 zone；方案生效期间，这些应用新开的窗口自动进区；方案里的应用没开的，自动帮忙启动并归位。**
+改版后的原则：**工作区保存的是捕获那一刻每个窗口真实的位置和大小；恢复时原样复现，和当前用哪套布局无关。**
+
+目标体验：把当前摆好的整桌排布存成一个命名工作区；之后任何时刻一个快捷键，所有应用窗口回到各自的位置；工作区里的应用没开的自动启动并补位。
 
 ## 2. 目标 / 非目标
 
 ### 目标
 
-1. **捕获**：一个动作把"当前整桌排布"（每个活跃显示器上：当前布局 + 每个应用窗口落在哪个 zone）存为命名方案，可存多套。
-2. **一键归位（手动，v1 核心）**：快捷键 / 菜单应用某方案——跨全部显示器，把所有匹配窗口事务性地批量移回各自 zone；复用 `WindowOrganizeExecutor` 的回滚与顽固窗口处理。
-3. **缺失应用自动启动**：方案里的应用没在运行时自动启动，窗口出现后补位；有超时和反馈。
-4. **跟随模式（自动，阶段 4）**：方案处于激活态时，方案内应用**新开**的窗口自动进入其指定 zone；用户手动拖走的窗口绝不强拉回。
-5. 多显示器：方案按显示器分节存储，显示器插拔后靠 `DisplayIdentity.bestMatch` 重识别；未接的节跳过并提示。
-6. 不破坏既有交互：拖拽贴靠、QuickSnapper、编辑器、Pin、分隔杆（若已实现）全部行为不变。
+1. **捕获**：一个动作把「当前整桌排布」（每个有窗口的显示器上：每个可见应用窗口相对该显示器可用区域的归一化矩形）存为命名工作区，可存多套。
+2. **一键归位**：快捷键 / 菜单 / HUD 应用某工作区——跨全部显示器，把匹配窗口事务性地批量移回保存的位置；复用 `WindowOrganizeExecutor` 的回滚与顽固窗口处理。
+3. **缺失应用自动启动**：工作区里的应用没在运行时自动启动或重新打开，窗口出现后补位；有超时和反馈。
+4. **多显示器**：按显示器分节存储；默认保存所有有窗口的显示器，也可只保存指针所在的那一屏；显示器插拔后靠 `DisplayIdentity.bestMatch` 重识别，未接的节跳过并提示。
+5. **不与布局耦合**：删除/编辑布局不影响任何工作区；恢复不切换显示器的布局。
+6. 不破坏既有交互：拖拽贴靠、QuickSnapper、编辑器、Pin、分隔杆行为不变。
 
-### 非目标（v1 明确不做）
+### 非目标
 
-- 按窗口标题/文档区分同应用多窗口的**语义**匹配（v1 只按 z-order 顺序消费，标题正则见 §12）。
-- macOS Space（虚拟桌面）级方案；`SpaceKey.spaceUUID` 字段已预留但 v1 恒为 nil。
-- 方案的定时/场景自动切换（接显示器自动应用等，见 §12）。
-- 最小化窗口的自动还原、隐藏应用的 unhide（v1 当缺失处理，见 §8）。
-- 规则的图形化逐条编辑（v1 通过"重新捕获"整体更新，设置页只做重命名/删除/开关）。
+- 按窗口标题/文档区分同应用多窗口的**语义**匹配（只按 z-order 顺序消费，见 §6.2）。
+- macOS Space（虚拟桌面）级工作区；`SpaceKey.spaceUUID` 已预留但恒为 nil。
+- 场景自动切换（接显示器自动应用等）。
+- 「跟随模式」（工作区激活期间新开窗口自动进位）：数据模型不再有分区可跟随，本版不做。
+- 规则的图形化逐条编辑（通过「重新捕获」整体更新，设置页只做重命名/删除/开关）。
 
-## 3. 现状盘点（可复用的既有能力）
-
-| 能力 | 位置 | 说明 |
-| --- | --- | --- |
-| 批量改帧事务引擎 | `Domain/WindowOrganize.swift` → `WindowOrganizeExecutor.execute` | 逐窗写帧、任一拒绝则整批回滚、可替换计划重试、剔除顽固窗口后续跑。**归位执行层直接复用，只需新增一个 acceptance 策略参数（§7.3）。** |
-| 顽固窗口行为分类与缓存 | `WindowOrganize.behavior` + `AppRuntime.organizeBehaviorCache` | compliant / sizeConstrained / positionConstrained / immutable / unstable 五态判定；缓存避免反复试探网易云音乐这类窗口。 |
-| 窗口枚举（z-order） | `CGWindowQuery.windows(excludingPID:)` + `AccessibilityClientLive.resolveAsync(ref:)` | `AppRuntime.snappableWindows(on:)` 已示范"CG 列表 → AX 解析 → 显示器过滤"，front-to-back 顺序天然可用作多窗口消费顺序。 |
-| 写窗口帧 | `AXFrameMutator.setFrame` | 已处理 AXEnhancedUserInterface、min/max clamp、3 次重试；跨显示器移动直接可用（全局 AX 坐标）。 |
-| 帧到位判定 | `WindowOrganize.didApply(_:to:sizeTolerance:originTolerance:)` | 捕获阶段"窗口是否贴在某 zone"复用同一容差比较。 |
-| 布局 → 像素帧 | `resolveLayout` + `AppRuntime.cachedResolvedZones` | 输入 workAreaAX + gutter，输出 zone 帧，带缓存。 |
-| 持久化 | `Services/LayoutStore.swift` + `StoreDocument`（`Domain/DisplayIdentity.swift`） | `decodeIfPresent` + 默认值的前后兼容模式已成惯例（`recentLayoutIDs` 即先例），新增 `profiles` 同法。 |
-| 显示器重识别 | `DisplayIdentity.score/bestMatch` + `DisplayWatcher.refresh` | 方案节以 `DisplayIdentity.ID`（持久 UUID）为键，插拔后自动对上。 |
-| 贴靠归属记录 | `Services/WindowCatalog.swift` | 归位成功后写 `UnsnapRecord` + membership，`snapAdjacent` / 同 zone 轮换 / unsnap 语义自然衔接。 |
-| 结果反馈 HUD | `OrganizeFeedbackController` + `L10n.organize*` | "部分归位/已跳过/恢复" 的 toast 样板与文案结构直接复用。 |
-| 应用生命周期观察 | `AppRuntime.observeSystem` 已挂 `didTerminateApplicationNotification` | 补一个 `didLaunchApplicationNotification` 观察者即可，位置现成。 |
-| 快捷键与自定义 | `HotkeyCenter` + `ShortcutCatalog`（`ShortcutCustomizationID`） | 新增一条 chord 的注册、校验、设置页行、冲突检测全走既有管线。 |
-| 菜单入口 | `MenuBarController.makeMenu` / `MenuBarConsoleController` | Layouts 子菜单的构建模式（representedObject + state 勾选）照搬。 |
-
-**结论：执行、几何、持久化、反馈全部有现成轮子。新增工作集中在"数据模型 + 两个纯函数（捕获推断、归位计划）+ 一个编排服务（WorkspaceCenter）+ 入口"。**
-
-## 4. 方案选型
-
-| 方案 | 描述 | 优点 | 缺点 | 结论 |
-| --- | --- | --- | --- | --- |
-| **A. 隐式 app-zone 记忆** | 仿 FancyZones "app zone history"：每次手动贴靠都记 `bundleID → zone`，应用新窗口/一键恢复都按最后记录走 | 零配置 | 隐式状态易被日常临时操作污染（临时把浏览器拖去投屏区，记录就被改了）；只有"一套"记忆，无法在"编码/写作/会议"多套排布间切换；无整桌快照概念 | 否决（其"新窗口自动进区"的体验由方案 B 的跟随模式覆盖，且以显式方案为准绳，不受日常操作污染） |
-| **B. 显式工作区方案（本设计）** | 用户显式捕获/命名/应用；`bundleID → zoneID` 规则按显示器分节持久化 | 意图明确、可多套、可预测；捕获即配置，无需手填规则 | 需要用户主动存一次 | **采用** |
-| **C. 导出 AppleScript / Shortcuts** | 把排布导出成系统脚本 | 无新 UI | 依赖各应用脚本支持，普适性差；体验割裂 | 否决 |
-| **D. 复活 Organize 按窗口数套模板** | 打开 `isPubliclyAvailable` | 零新代码 | 不认应用身份，结果不是用户那套固定搭配 | 否决（但其执行器全量复用） |
-
-## 5. 总体架构
+## 3. 总体架构
 
 ```
 AppRuntime
- ├─ engine:    SnapEngine            （已有，单窗贴靠）
- ├─ overlay:   OverlayController     （已有，flashZones 复用做归位成功反馈）
- ├─ catalog:   WindowCatalog         （已有，归位后写 membership）
- ├─ workspace: WorkspaceCenter       （新增，Services/WorkspaceCenter.swift）
- │    ├─ capture()                    整桌捕获 → WorkspaceProfile
- │    ├─ apply(profile)               分节事务归位（复用 WindowOrganizeExecutor）
- │    ├─ pending: PendingPlacementBook 待归位登记簿（启动中的应用 / 跟随模式）
- │    └─ census: 1Hz 窗口普查          仅在 pending 非空或跟随模式激活时运行
+ ├─ engine:    SnapEngine                （已有，单窗贴靠）
+ ├─ overlay:   OverlayController         （已有，flashWorkspaceFrames 复用做归位确认闪现）
+ ├─ catalog:   WindowCatalog             （已有，归位后按落点写 membership）
+ ├─ workspace: WorkspaceCenter           （Services/WorkspaceCenter.swift）
+ │    ├─ capture / captureImmediately / updateProfileFromCurrent
+ │    ├─ apply(profileID:)              分节事务归位（复用 WindowOrganizeExecutor）
+ │    ├─ pending: [PendingPlacement]     待归位登记簿（启动中的应用）
+ │    └─ census: 1Hz 窗口普查            仅在 pending 非空时运行
+ ├─ workspaceSwitcher: WorkspaceSwitcherController（UI/Workspace，HUD 切换器）
  └─ document:  StoreDocument
-      └─ profiles: [WorkspaceProfile] （新增字段）+ activeProfileID
+      └─ profiles: [WorkspaceProfile] + activeProfileID
 
-纯逻辑（进 ZoneBoxCore，可无 AppKit 单测）：
- Domain/WorkspaceProfile.swift   数据模型 + StoreDocument 扩展
- Domain/ProfileCapture.swift     窗口帧 × zone 帧 → 规则推断
- Domain/ProfilePlan.swift        规则 × 候选窗口 → placements / missing / pending
+纯逻辑（ZoneBoxCore，无 AppKit，全部单测）：
+ Domain/WorkspaceProfile.swift           数据模型、排布等价、反馈文案
+ Domain/WorkspaceProfileMigration.swift  旧「分区」规则 → 位置规则的解码迁移
+ Domain/ProfileCapture.swift             可见性判定、窗口 → 归一化位置、范围过滤、重捕获合并
+ Domain/ProfilePlan.swift                规则 × 候选窗口 × 实时可用区域 → placements / missing
+ Domain/WorkspaceRestore.swift           启动/重开/超时/显示器重映射策略
+ Domain/WorkspaceSwitcher.swift          HUD 切换器 reducer
+ Domain/WorkspaceLayoutPreview.swift     预览图几何（按保存的位置画窗口）
 ```
 
 `WorkspaceCenter` 与 `PinCenter` 平级，持 `unowned var runtime`，生命周期在 `AppRuntime.start/teardown` 接线。
 
-## 6. 数据模型与持久化
+## 4. 数据模型与持久化
 
 ```swift
 public struct AppPlacementRule: Codable, Hashable, Sendable {
     public var bundleID: String
-    public var zoneID: UUID        // 主键：布局内 zone 的稳定 id
-    public var zoneNumber: Int     // zoneID 失效（布局被编辑）时按编号回退
+    /// 窗口相对显示器可用区域（visibleFrame，去掉菜单栏/Dock）的归一化矩形，0…1。
+    public var frame: NormalizedRect
+    public static let matchTolerance: Double = 0.02
+    public func matches(_ other: AppPlacementRule, tolerance: Double = matchTolerance) -> Bool
+    /// 展示顺序：先按 x 再按 y 分桶，再按 bundleID；存储顺序保持前后层级（front-to-back）。
+    public static func readingOrder(_ rules: [AppPlacementRule]) -> [AppPlacementRule]
 }
 
 public struct ProfileSection: Codable, Hashable, Sendable {
-    public var space: SpaceKey     // 沿用 LayoutAssignment 的键（displayID + 预留 spaceUUID）
-    public var layoutID: Layout.ID
-    public var rules: [AppPlacementRule]  // 有序；同 bundleID 允许多条（多窗口应用）
+    public var space: SpaceKey            // displayID + 预留 spaceUUID
+    public var rules: [AppPlacementRule]  // 有序（front-to-back）；同 bundleID 允许多条
 }
 
 public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
     public var id: UUID
     public var name: String
     public var sections: [ProfileSection]
-    public var launchMissingApps: Bool     // 默认 true
-    public var autoPlaceNewWindows: Bool   // 跟随模式，默认 true（阶段 4 前忽略）
+    public var launchMissingApps: Bool    // 默认 true
     public var createdAt: Date
     public var updatedAt: Date
 }
 ```
 
-`StoreDocument` 新增：
+`StoreDocument`：`profiles: [WorkspaceProfile]`（`decodeIfPresent ?? []`）、`activeProfileID: WorkspaceProfile.ID?`（最近应用的工作区，HUD 默认高亮它）。
+
+- **为什么是归一化矩形而不是像素帧**：同一块显示器上精确还原；换分辩率、换 Dock 位置或菜单栏高度时按比例还原，不会把窗口推出屏幕。`NormalizedRect.normalize(_:in:)` 会把超出可用区域的部分裁到 0…1，最小尺寸 0.02。
+- **为什么规则键是 `bundleID` 而不是 `WindowIdentity`**：pid/windowNumber 重启即变，跨会话唯一稳定且用户可理解的身份就是应用；同应用多窗口靠规则顺序 × z-order 消费（§6.2）。
+- **排布等价**（`WorkspaceProfile.hasSameArrangement`）：忽略节顺序与规则顺序，每条规则在 2% 容差内贪心配对；空工作区永不相等。快捷键「立即保存」用它避免重复保存同一排布。
+- **归一化**（`normalizeReferences`）：只剔除没有规则的节和没有节的工作区，`activeProfileID` 悬空则置 nil。**不再**检查布局引用。
+- **`deleteLayout(id:)` 不再级联**到工作区；删除布局的确认弹窗也不再提示受影响的工作区数。
+
+### 4.1 旧数据迁移（`WorkspaceProfileMigration`）
+
+初版把规则存成 `{bundleID, zoneID, zoneNumber}` 且节上有 `layoutID`。`StoreDocument.init(from:)` 通过宽松 DTO（`StoredProfile / StoredSection / StoredRule`，`frame`、`zoneID`、`zoneNumber`、`layoutID` 全部可选）解码，再按下列规则转换：
+
+1. 规则已有 `frame` → 原样使用。
+2. 否则用节的 `layoutID` 找布局，`LayoutTemplates.thumbnailPanes(for:)` 得到每个分区的画布矩形；先按 `zoneID` 命中，再按 `zoneNumber` 回退，命中的分区矩形即为 `frame`。
+3. 两者都无法解析（布局被删、分区不存在）→ 该规则丢弃；节空则丢节；工作区空则丢工作区。
+
+迁移只能拿到分区几何，拿不到当时真实的窗口位置，所以迁移出来的工作区建议重新捕获一次。重新编码后 JSON 里不再出现 `zoneNumber` / `layoutID`；`schemaVersion` 保持 1。
+
+## 5. 捕获
+
+### 5.1 采样与归属（`WorkspaceCenter.captureSections`）
+
+1. `CGWindowQuery.windows(excludingPID:)` 取 WindowServer 前后序的 layer 0 窗口。
+2. `ProfileCapture.visibleWindowIdentities` 过滤**可见**窗口：不透明前置窗口覆盖其面积 ≥ 25% 即视为被遮住，不入工作区（贴靠相邻窗口常见的 1pt 接缝不算遮挡）。透明度 ≤ 0.01 的窗口忽略。
+3. 排除 `settings.excludedBundleIDs`、无 bundleID 的窗口。
+4. 每个窗口按 `DisplayTargetResolver.workArea(containingWindowFrameAX:)` 归到「占其大部分面积」的显示器，一个显示器一节；节内保持 front-to-back。
+5. `ProfileCapture.rules(windows:workAreaAX:)`：一条规则一个窗口，`frame = NormalizedRect.normalize(窗口 AX 帧, in: 该显示器可用区域 AX 帧)`。**没有任何分区匹配**：跨两个分区、或根本不理布局的窗口，都原样记下。
+
+### 5.2 多显示器范围
+
+默认保存**所有**有窗口的显示器。只有当 ≥ 2 块显示器上都有可保存窗口、且能确定指针所在显示器时，才提供「只保存这一屏（显示器名）」的选择（`WorkspaceCapturePromptContext.offersDisplayChoice`）：
+
+| 入口 | 范围选择方式 |
+| --- | --- |
+| 备用 NSMenu「保存当前排布为工作区…」 | `WorkspaceCapturePrompt` 命名弹窗内的复选框；勾选后建议名只列该屏应用 |
+| HUD 切换器 `S` → 命名 | 命名框下方同名复选框；键盘 `Tab` 切换；头部提示随之显示「Tab 切换只保存这一屏」；摘要行显示所选范围的应用数/显示器数 |
+| 快捷键「立即保存」（默认 ⌃⌥⇧P）、控制台「保存当前排布」按钮 | 无 UI，始终保存全部显示器 |
+
+范围只影响**新建**工作区。「更新为当前排布」（重捕获）按 §5.3 合并。
+
+### 5.3 重捕获合并（`ProfileCapture.mergedRecaptureSections`）
+
+更新已有工作区时只刷新**当前已连接**显示器的节：已连接的节用新捕获替换（该屏没窗口则删掉该节），未连接的节原样保留（在笔记本上单屏更新，不会抹掉外接屏那半）；新出现的显示器追加。若这次什么都没捕到，返回 nil，工作区保持原样并提示「没有可保存的窗口」，**失败的重捕获不会清空工作区**。
+
+### 5.4 命名
+
+建议名由 `WorkspaceProfile.suggestedName(appNames:fallback:)` 生成：按 `AppPlacementRule.readingOrder` 取应用名去重后用「+」连接（如 `Google Chrome+Cursor+WeChat`），超长截断；`LayoutEditTransaction.uniqueName` 去重。「立即保存」若发现已有工作区与当前排布等价（§4），只刷新其 `updatedAt` 并设为 `activeProfileID`，提示「已保存过」。
+
+## 6. 归位
+
+### 6.1 计划（`ProfilePlan.make`，纯函数）
 
 ```swift
-public var profiles: [WorkspaceProfile]          // decodeIfPresent ?? []
-public var activeProfileID: WorkspaceProfile.ID? // 跟随模式锚点，decodeIfPresent
-```
+public static func make(
+    profile: WorkspaceProfile,
+    workAreasBySection: [DisplayIdentity.ID: CGRect],   // 未接显示器缺席
+    candidates: [ProfileCapture.WindowSample]           // 全桌、z-order
+) -> Outcome   // sections: [SectionPlan]、missingBundleIDs、skippedDisplayIDs
 
-- `schemaVersion` 保持 1：旧版本读新文件时未知键被 `Codable` 忽略，不触发 `load()` 的损坏回退；代价是旧版本一旦覆写保存会丢掉 `profiles`（与 `recentLayoutIDs` 引入时的取舍一致，接受并在此注明）。
-- 归一化（仿 `pruneRecentLayoutIDs`，在 `init(from:)` 与变更后调用）：剔除引用不存在布局的 section、剔除空 section、剔除无 section 的 profile、`activeProfileID` 悬空则置 nil。
-- `deleteLayout(id:)` 级联：清掉引用该布局的 section（菜单确认弹窗文案追加提示"N 个工作区方案将受影响"）。
-
-**为什么规则键是 `bundleID` 而不是 `WindowIdentity`**：pid/windowNumber 重启即变，跨会话唯一稳定且用户可理解的身份就是应用；同应用多窗口靠规则顺序 × z-order 消费（§7.2）。
-
-## 7. 详细设计
-
-### 7.1 捕获（ProfileCapture，纯函数）
-
-```swift
-public enum ProfileCapture {
-    public struct WindowSample: Equatable, Sendable {
-        public var identity: WindowIdentity   // bundleID 必须非 nil，否则跳过
-        public var frameAX: CGRect
-    }
-    /// windows 按 z-order（front-to-back）传入；返回按 (zone.number, z-order) 排序的规则
-    public static func rules(
-        windows: [WindowSample],
-        zones: [ResolvedZone]
-    ) -> [AppPlacementRule]
+public struct SectionPlan {
+    var displayID: DisplayIdentity.ID
+    var workAreaAX: CGRect
+    var placements: [WindowOrganizePlacement]   // identity + 目标 AX 帧，直接喂 executor
+    var targetFramesAX: [CGRect]                // 该屏所有保存的位置（含应用未开的），供闪现
 }
 ```
 
-窗口 → zone 判定（对每个窗口取第一个命中）：
+1. 候选窗口按 `bundleID` 分组，**全桌共享**一份队列：双显示器两节都要 Chrome 时各拿一个不同窗口，同一窗口绝不被两条规则占用。
+2. 逐节、逐规则：`target = rule.frame.denormalize(in: 该屏实时可用区域)`。从该 bundle 队列中选窗口时按 `preferredIndex` 打分：已经坐在目标位置的窗口 2 分 > 本屏上的窗口 1 分 > 其它 0 分，同分取最前（z-order）。
+3. 队列空 → 记入 `missingBundleIDs`（去重）；显示器未接 → 记入 `skippedDisplayIDs`。
+4. 不在任何规则里的窗口一律不动。
 
-1. **精确在位**：`WindowOrganize.didApply(frameAX, to: zone.frameAX, sizeTolerance: 28, originTolerance: 28)`——之前用快捷键/拖拽贴上去的窗口走这条。
-2. **多数覆盖**：`intersection(frame, zone.frameAX).area / frame.area ≥ 0.5`，取覆盖率最高的 zone——手摆的"大概在那个区"的窗口也能捕获。
-3. 都不满足 → 该窗口不入方案（桌面上飘着的便签、播放器不被绑架）。
+### 6.2 执行（`WorkspaceCenter.applyNow`）
 
-调用侧（`WorkspaceCenter.capture()`）：遍历 `displays.workAreas` 中每个活跃显示器，取 `document.layout(for:)` 与 `cachedResolvedZones`，窗口集用 `snappableWindows(on:)` 的现成管线；至少一节非空才成方案，否则 beep。默认名 `工作区 N`（`LayoutEditTransaction.uniqueName` 去重）。
+每节独立跑一次 `WindowOrganizeExecutor.execute(acceptance: .placement)`（节间串行）：
 
-### 7.2 归位计划（ProfilePlan，纯函数）
+- `makePlan` 用固定目标帧构造 `WindowOrganizeAttemptPlan`；executor 要求携带一个 `Layout`，这里传该显示器当前布局**仅作占位**，不会 `assign` 也不会 `markLayoutUsed`。
+- `.placement` 语义下 `sizeConstrained`（窗口最小尺寸大于保存尺寸）接受并记 issue，只有 position/immutable/unstable 才拒绝；行为缓存与 Organize 共用。
+- 成功后每个 move 写 `catalog.record(UnsnapRecord(zoneIDs:))`：落点若与该屏当前布局的某个分区重合（`ZoneOccupancy.preferredZone`），就加入该分区的 membership，unsnap / 相邻贴靠 / 同区轮换照常可用；不重合则无归属。
+- 成功或「没有可移动窗口」时 `flashWorkspaceFrames(area:framesAX:)`：把 `targetFramesAX` 作为匿名 `ResolvedZone` 闪现 1.2s，**不显示分区编号**，让用户看到窗口将落在哪里。
+- 全部节完成后：激活每个保存的应用并 raise 其恢复的窗口（AXRaise 不能跨应用抬升，所以要 activate；但不激活全部窗口以免被拽去别的 Space），`activeProfileID = profile.id`，`persist()`，刷新菜单/设置页，重置普查基线，登记缺失应用（§7）。
+- 反馈：`WorkspaceApplyFeedback.make` 汇总「已完整归位 N 个」「X 需要更大空间」「N 个未能移动」「N 个应用未打开 / 正在启动」「N 台显示器未连接」为一条 toast。
 
-```swift
-public enum ProfilePlan {
-    public struct SectionPlan: Equatable, Sendable {
-        public var displayID: DisplayIdentity.ID
-        public var placements: [WindowOrganizePlacement]   // 直接喂 executor
-        public var zoneIDByIdentity: [WindowIdentity: UUID] // 成功后写 catalog membership
-    }
-    public struct Outcome: Equatable, Sendable {
-        public var sections: [SectionPlan]
-        public var missingBundleIDs: [String]        // 无在运行窗口可消费的规则
-        public var staleRules: [AppPlacementRule]    // zoneID 与 zoneNumber 都失效
-        public var skippedDisplayIDs: [DisplayIdentity.ID]  // 显示器未接
-    }
-    public static func make(
-        profile: WorkspaceProfile,
-        zonesBySection: [DisplayIdentity.ID: [ResolvedZone]],  // 未接显示器缺席
-        candidates: [ProfileCapture.WindowSample]              // 全桌、z-order
-    ) -> Outcome
-}
-```
+### 6.3 显示器重映射（`WorkspaceRestore.remappedSections`）
 
-匹配算法：
+当保存的显示器**全部**都不在线（合盖/外出只带笔记本），把第一节映射到当前显示器恢复；只要有任一保存的显示器仍在线，未接的节就保持原 displayID 并被跳过，不会抢占兄弟显示器。
 
-1. 候选窗口按 `bundleID` 分组为 FIFO 队列（保持 z-order，最前窗口最先被消费）。**全桌共享一份队列**：双显示器两节都要 Chrome 时各拿一个不同窗口，同一窗口绝不被两条规则占用。
-2. 逐节、逐规则：`zoneID` 在该节布局中找 zone；找不到则按 `zoneNumber` 回退；再找不到 → 记入 `staleRules`。
-3. 规则从其 bundle 队列 `popFirst()`：拿到 → `WindowOrganizePlacement(identity, zone.frameAX)`；队列空 → 记入 `missingBundleIDs`（去重）。
-4. 不在任何规则里的窗口一律不动（与 Organize 的"全场重排"根本区别）。
+## 7. 缺失应用：启动并补位
 
-### 7.3 事务执行与 acceptance 扩展
-
-每节独立跑一次 `WindowOrganizeExecutor.execute`（节间串行，先主屏后副屏）：
-
-- `windows`：该节 placements 覆盖的 `(identity, AXWindow)`，AX 句柄经 `ax.window(matching:)` 解析，解析失败进 `initialSkipped`。
-- `makePlan`：`{ actives in WindowOrganizeAttemptPlan(layout: sectionLayout, placements: 原 placements 过滤到 actives, workAreaAX: workAX) }`——zone 帧固定，剔除谁都不影响别人，天然满足 executor "每个 active 必有 placement" 的校验。
-- `makeFallbackPlan`：nil（无降级布局的概念，被拒窗口由 executor 主循环剔除后重跑即可）。
-- `applyFrame`：复用 `AppRuntime.applyOrganizeFrame`（写帧 + 两次 120ms 采样判稳定性）。
-- 行为缓存：读写同一个 `organizeBehaviorCache`，已知 immutable/unstable 的窗口直接进 `initialSkipped`，不再骚扰。
-
-**唯一的 Core 改动**——executor 现有 `accepts()` 对 `sizeConstrained` 仅在"唯一主区"放行，其余触发整批回滚再重排；这是 Organize 语义（模板要重选）。归位语义不同：zone 是用户钦定的，一个终端改不了大小不应让其它五个窗口回滚重来一遍（可见闪动）。故增加参数：
-
-```swift
-public enum WindowOrganizeAcceptance: Sendable {
-    case organize   // 现状，默认值，Organize 与既有测试零变化
-    case placement  // sizeConstrained 一律接受并记 issue；仅 position/immutable/unstable 拒绝
-}
-public static func execute<Handle>(..., acceptance: WindowOrganizeAcceptance = .organize, ...)
-```
-
-成功后收尾（每节）：
-
-1. 每个 move 写 `catalog.record(UnsnapRecord(..., zoneIDs: [zoneID]), displayID:)`——`originalFrameAX` 用 move 的原帧，unsnap / `snapAdjacent` / 同 zone 轮换全部自然工作；
-2. `document.assign(layoutID:, to: displayID)` + `markLayoutUsed`——归位隐含"这块屏现在用这套布局"；
-3. `flashZones(area:layout:duration: 1.2)` 闪一次确认；
-4. 不做 raise/activate 链（保持用户当前焦点，与 Organize 抬升首窗的行为刻意不同）。
-
-全部节完成后：`document.activeProfileID = profile.id`，`persist()`，`menuBar?.reloadMenu()`；issues / skipped / missing 汇总进一条 `OrganizeFeedbackController` toast（挂在鼠标所在屏）。
-
-### 7.4 缺失应用：启动并补位（PendingPlacementBook）
-
-`ProfilePlan.Outcome.missingBundleIDs` 非空且 `profile.launchMissingApps`：
+`Outcome.missingBundleIDs` 非空且 `profile.launchMissingApps`：
 
 ```swift
 struct PendingPlacement {
     var bundleID: String
-    var zoneID: UUID
+    var frame: NormalizedRect        // 保存的位置，窗口出现时再对实时可用区域反算
     var displayID: DisplayIdentity.ID
-    var expiresAt: Date          // now + 15s
+    var expiresAt: Date              // now + 45s（WorkspaceRestore.launchTimeout）
 }
 ```
 
-1. 对每个缺失 bundleID：`NSWorkspace.shared.urlForApplication(withBundleIdentifier:)` 找不到 → 直接反馈"未安装"；找到 → `openApplication(at:configuration:)`，`configuration.activates = false`（不抢焦点）。
-2. 对应规则（该 bundleID 的全部规则，含多窗口）登记进 `pending`，并启动**普查循环**：1Hz 调 `query.windows(excludingPID:)`（实测 ~1.3ms）＋ 与上一帧 diff。
-3. 新窗口的 bundleID 命中 pending → `ax.resolveAsync` → 连续两拍帧稳定（应用启动时常自行挪一次窗）→ 单窗 `setFrame` 到 zone 帧 + 写 catalog → 移除该条 pending。
-4. 到期未出窗（LSUIElement、登录弹窗卡住等）→ 移除并追加一条 toast"××未能归位"。
-5. pending 清空且跟随模式未激活 → 普查循环停止，零静息开销。
+1. `ProfilePlan.openAction`：应用未运行 → `openApplication`（不抢焦点），失败最多重试 3 次；已运行但无窗口 → 发 reopen 事件，2s 内仍无窗口再用 openApplication 补一下。找不到应用 → 直接提示「未安装」。
+2. 该 bundleID 的全部规则（含多窗口）登记进 `pending`，启动 1Hz 普查：`CGWindowQuery` diff 上一帧。
+3. 新窗口的 bundleID 命中 pending → AX 解析 → 连续两拍帧稳定 → 单窗写帧到 `frame.denormalize(in: 实时可用区域)` + 写 catalog → 移除该条 pending。被拒绝（窗口还在自调尺寸）最多重试 3 次，之后忽略该窗口但保留 pending；忽略过的窗口尺寸变化 ≥ 80pt（启动图变成文档窗口）会被重新接纳。
+4. 同 bundleID 的辅助进程退出不会取消 pending（1.5s 后复查是否真的没有该应用在跑）。
+5. 到期未出窗 → 移除并提示「××未能归位」；pending 清空后普查停止，零静息开销。
 
-### 7.5 跟随模式（阶段 4，autoPlaceNewWindows）
-
-- 激活条件：`document.activeProfileID` 指向的 profile 开了 `autoPlaceNewWindows`。普查循环常驻 1Hz（与 §7.4 同一循环、同一 diff）。
-- 触发：普查发现**新出现**的 `WindowIdentity`，其 bundleID 在活跃 profile 当前显示器可达的规则里 → 取该 bundleID 的**首条规则** zone，两拍稳定后单窗写帧 + 写 catalog。
-- 三条纪律（防"绑架感"）：
-  1. 只管**新**窗口——已存在窗口哪怕被用户拖走也绝不拉回；
-  2. 普查 diff 的基线在每次 apply 后重置为当时全量窗口集；
-  3. `engine.isSessionActive`（用户正在拖拽/QuickSnapper）或 `isEditorOpen` 时，本拍跳过，窗口留到下一拍再处理。
-- 停用入口：菜单"停用工作区"、应用另一 profile（自动切换锚点）、删除活跃 profile。
-
-### 7.6 入口
+## 8. 入口
 
 | 入口 | 行为 |
 | --- | --- |
-| 菜单（console + VoiceOver fallback NSMenu 双份，仿 Layouts 子菜单） | "工作区"子菜单：每个 profile 一项（点击即 apply，活跃者打勾）；分隔线；"保存当前排布为工作区…"（弹一个命名 alert）；"更新〈活跃方案〉为当前排布"；"停用自动归位"；"管理…"（跳设置页） |
-| 快捷键 | 新增 `applyWorkspaceHotkey`，默认 **Control+Option+P**（keyCode 35，与现有默认 chord 无冲突，仍走 `ShortcutCatalog.validate` 冲突检测）：应用 `activeProfileID` ?? 最近更新的 profile；无 profile 时 beep。`ShortcutCustomizationID` 增加 `applyWorkspace`，设置页 Keyboard 行、L10n（EN + zh-Hans，`L10nTests` 会强制补齐）随管线自动铺开 |
-| 多方案选择 HUD（阶段 3 可选） | 复用 QuickSnapper 的 reducer + overlay captureKeys 模式：呼出后按 1…9 选 profile；v1 先不做，菜单已可选 |
-| 设置页新 Tab「工作区」 | 列表（名称、显示器数、应用数、`launchMissingApps` / `autoPlaceNewWindows` 开关）、重命名、删除、"用当前排布重新捕获" |
+| 控制台（`MenuBarConsoleController` + `WorkspaceConsoleStrip`） | 工作区卡片：点击应用；卡片菜单更新/重命名/删除；「保存当前排布」按钮立即以建议名保存并进入行内重命名 |
+| 备用 NSMenu（VoiceOver 回退，`MenuBarController`） | 「工作区」子菜单：每个工作区一项（活跃者打勾）、「保存当前排布为工作区…」（命名弹窗，含只保存这一屏复选框）、「更新〈活跃工作区〉」 |
+| 快捷键 | `applyWorkspace` 默认 ⌃⌥P：呼出 HUD 切换器，再按一次应用高亮项；`captureWorkspace` 默认 ⌃⌥⇧P：立即保存。均走 `ShortcutCatalog` 冲突校验与设置页自定义 |
+| HUD 切换器（`WorkspaceSwitcherReducer` + `WorkspaceSwitcherController`） | 浏览：1–9 / 方向键 / Tab / ⏎ 应用，`U` 更新高亮项，`S` 进入命名，Esc 关闭。命名：⏎ 保存，Esc 返回浏览，`Tab` 或复选框切换「只保存这一屏」（未编辑过的建议名跟随范围切换；手输的名字不动），应用数为 0 时保存 beep |
+| 设置页「工作区」Tab | 卡片列表（名称、每屏「显示器 · N 个窗口」、位置示意图、每个应用旁 `W% × H%` 徽标）、重命名、删除、「用当前排布重新捕获」、`launchMissingApps` 开关 |
 
-### 7.7 互斥与安全（关键正确性点）
+HUD 切换器 reducer 输入除 `captureCount / suggestedName`（全桌）外还带 `displayChoice: WorkspaceSwitcherDisplayChoice?`（指针所在屏的 id、建议名、应用数），只在提供范围选择时非 nil；命名阶段 `thisDisplayOnly` 只有在 `displayChoice` 仍存在时才生效——保存瞬间显示器被拔掉则自动退回全桌。
+
+所有入口共用 `StoreDocument.orderedProfilesForSettings()` 的顺序：`activeProfileID` 指向的工作区永远排第 1（编号 1），其余按存储顺序（新建追加末尾）；应用或保存只把那一张卡移到最前，存储数组本身不变。
+
+## 9. 互斥与安全
 
 | 冲突点 | 处理 |
 | --- | --- |
-| 与 Organize / 另一次归位并发 | 复用 `isOrganizingWindows` 这把事务门（`beginOrganizingWindows/finishOrganizingWindows` 提为通用 `beginWindowTransaction`），同一时刻全桌至多一个批量改帧事务 |
-| 用户正在拖拽 / QuickSnapper | apply 前检查 `engine.isSessionActive`，活跃则 beep 不执行；跟随模式如 §7.5 跳拍 |
-| 编辑器打开 | 与 Organize 相同：beep + 不执行 |
-| Accessibility 未授权 | `trust.isTrusted()` 失败 → `openAccessibility()` 引导（与 Organize 相同） |
-| 归位进行中显示器插拔 | executor 单节原子；节开始前校验 `displays.isActive(displayID:)`，`didChangeScreenParametersNotification` 里让 pending 重挂显示器（重算 zone 帧），拿不到则丢弃该 pending |
-| 应用退出 | 已有 `didTerminateApplicationNotification` → `catalog.drop(pid:)`；pending 里同 bundleID 条目一并清除 |
-| 锁屏/休眠 | `hideAllOverlays()` 已有；普查循环在 `screensDidSleep` 暂停、唤醒恢复 |
-| 排除名单 | `settings.excludedBundleIDs` 内的应用捕获与归位一律跳过（AX 层已过滤，纯函数层再兜一层） |
+| 与 Organize / 另一次归位并发 | `beginWindowTransaction` 事务门，同一时刻全桌至多一个批量改帧事务 |
+| 用户正在拖拽 / QuickSnapper / 编辑器打开 | 捕获与归位前检查 `runtime.mode == .idle`，否则 beep 不执行 |
+| Accessibility 未授权 | `isTrusted()` 失败 → `openAccessibility()` 引导 |
+| 归位进行中显示器插拔 | 节开始前校验 `isActive(displayID:)`；pending 在窗口出现时才对实时可用区域反算，显示器没了则丢弃该 pending |
+| 应用退出 | `didTerminateApplicationNotification` → `catalog.drop(pid:)`；pending 按 §7.4 复查 |
+| 排除名单 | `settings.excludedBundleIDs` 内的应用捕获与归位一律跳过 |
 
-## 8. 边界情况
+## 10. 边界情况
 
 | 场景 | 行为 |
 | --- | --- |
-| 同应用多窗口（如两个 Chrome 窗） | 捕获生成两条规则（不同 zone）；归位按 z-order 消费：最前窗进第一条规则的 zone。窗口比规则多 → 多余的不动；比规则少 → 差额进 missing（不再启动新实例，只提示） |
-| 两条规则指向同一 zone | 合法（堆叠）；catalog membership 使同 zone 轮换（`cycleWindowsInFocusedZone`）直接可用 |
-| 窗口最小尺寸 > zone | `AXFrameMutator` clamp 到 minSize，acceptance `.placement` 接受并记 issue，toast 提示"××需要更大空间"（复用 `L10n.organizeNeedsSpace`） |
-| 最小化窗口 | `AccessibilityClientLive.makeWindow` 已过滤 AXMinimized → 当缺失处理进 missing 提示；不自动 de-minimize（v1，见 §12） |
-| 窗口在别的 Space / 全屏 | CG onScreenOnly 枚举不到 → 当缺失；不做跨 Space 搬运（AX 做不到），提示即可 |
-| 应用无 bundleID / LSUIElement 无窗 | 捕获跳过；启动补位走 15s 超时提示 |
-| 布局被编辑（zone 增删、重新编号） | `zoneID` 优先精确匹配；被删则 `zoneNumber` 回退（`packedNumbers` 保证 1…N 紧凑）；双失效 → staleRule，toast 建议重新捕获 |
-| 布局被删除 | `deleteLayout` 级联清 section（§6），确认弹窗提示受影响方案数 |
-| 显示器未接（带着笔记本出门） | 该节跳过 + toast"××显示器未连接，已跳过 N 个窗口"；笔记本内屏节正常归位 |
-| 显示器换了但同型号 | `DisplayIdentity.bestMatch` 打分重识别，沿用既有语义，方案无感 |
-| apply 时窗口恰好被关闭 | `readFrame` 返回 nil → executor 记 skipped，其余照常 |
+| 同应用多窗口 | 捕获生成多条规则（各自位置）；归位按「已在位 > 本屏 > z-order」消费。窗口比规则多 → 多余的不动；比规则少 → 差额进 missing（提示，不再启动新实例） |
+| 重叠窗口 | 都保存，保持前后层级；预览从后到前绘制，被完全盖住的窗口不画图标；恢复后按保存的层级 raise |
+| 窗口最小尺寸 > 保存尺寸 | `AXFrameMutator` clamp 到 minSize，`.placement` 接受并记 issue，toast「××需要更大空间」 |
+| 最小化 / 隐藏应用的窗口 | 归位时对保存的应用取消最小化 / unhide 后再消费；原生全屏或其它 Space 的窗口不可达，只提示 |
+| 应用无 bundleID / LSUIElement 无窗 | 捕获跳过；启动补位走 45s 超时提示 |
+| 布局被编辑或删除 | 与工作区无关，无影响 |
+| 显示器未接 | 该节跳过 + toast「N 台显示器未连接」；全部未接时第一节映射到当前屏（§6.3） |
+| 显示器换了但同型号 | `DisplayIdentity.bestMatch` 打分重识别 |
+| 不同分辩率 / Dock 位置 | 归一化矩形对实时可用区域反算，按比例还原 |
 | 旧版本 ZoneBox 覆写 store.json | `profiles` 丢失（Codable 忽略未知键后重编码）；接受，与 `recentLayoutIDs` 先例一致 |
+| 旧「分区」格式的工作区 | 启动解码时按 §4.1 迁移为位置规则；建议重新捕获 |
 
-## 9. 性能预算
+## 11. 性能预算
 
-- **静息（无 pending、无跟随模式）**：零开销，无定时器。
-- **捕获**：一次 CG 枚举 + N 次 AX resolve/readFrame，与一次 Organize 同量级（< 100ms，8 窗）。
-- **归位**：瓶颈是 `setFrame`（每窗 16–50ms，AX 队列串行）+ 判稳采样 240ms/窗 → 8 窗全桌 ≈ 2–3s，executor 期间事务门挡住重入；acceptance `.placement` 把"整批回滚重跑"从常见路径中移除。
-- **普查循环**：1Hz × ~1.3ms `CGWindowListCopyWindowInfo`，只在 pending 非空或跟随模式激活时运行；diff 是集合运算，微秒级。
+- **静息（无 pending）**：零开销，无定时器。
+- **捕获预览**（应用数、建议名、这一屏的应用数/建议名）：一次 CG 枚举（~1.3ms）+ 几何归一化，无 AX 调用，共用同一次枚举；HUD 命名阶段每次按键都重算一次。**正式捕获**多一轮按应用的 AX 枚举，与一次 Organize 同量级。
+- **归位**：瓶颈是 `setFrame`（每窗 16–50ms，AX 队列串行）+ 判稳采样 → 8 窗全桌 ≈ 2–3s；`.placement` 把「整批回滚重跑」从常见路径中移除。
+- **普查循环**：1Hz × ~1.3ms `CGWindowListCopyWindowInfo`，只在 pending 非空时运行。
 
-## 10. 测试方案
+## 12. 测试
 
-Core（无 AppKit，进 `ZoneBoxTests`，`make test`）：
+Core（`ZoneBoxTests`，`make test`）：
 
-1. **`ProfileCaptureTests`**（新）：精确在位命中；50% 覆盖率阈值边界；两 zone 重叠取覆盖率高者；无 bundleID / 不达阈值跳过；输出排序稳定。
-2. **`ProfilePlanTests`**（新）：同 bundleID 多规则按 z-order 消费且跨节不重复占用；missing 去重；zoneID → zoneNumber 回退；双失效进 staleRules；未接显示器进 skippedDisplayIDs；placements 与输入 zones 帧一致。
-3. **`WindowOrganizeTests`** 补充：`acceptance: .placement` 下 sizeConstrained 不触发回滚、issue 照记；默认参数行为与现有断言完全一致（回归保障）。
-4. **`LayoutStoreTests` / StoreDocument**：`profiles` 编解码 round-trip；无 `profiles` 键的旧 JSON 正常解出空数组；归一化剔除悬空 section/profile/activeProfileID；`deleteLayout` 级联。
-5. **`ShortcutCatalogTests`**：`applyWorkspace` 的默认 chord、冲突校验、reset 路径。
+1. **`ProfileCaptureTests`**：窗口按实际位置保存而非分区（左半 Chrome → `(0,0,0.5,1)`，右半 Cursor → `(0.5,0,0.5,1)`，独占 → `(0,0,1,1)`）；归一化/反算往返精度；z-order 保持；无 bundleID / 零可用区域 → 空；重叠窗口都保存；`readingOrder`；`matches` 容差；可见性（遮挡 ≥ 25% 才算）；范围过滤与重捕获合并（未接节保留、空捕获返回 nil）。
+2. **`ProfilePlanTests`**：跨节共享队列不重复占用窗口；缺失 / 未接显示器 / `targetFramesAX`；位置随实时可用区域缩放；已在位窗口优先、本屏优先、其余按 z-order；`restorableBundleIDs`、`openAction`。
+3. **`WorkspaceRestoreTests`**：启动/重开/放弃策略、超时常量、合盖重映射、兄弟显示器不被抢占、重映射后仍能计划与启动缺失应用。
+4. **`WorkspaceSwitcherTests`**：浏览/命名状态机；`toggleCaptureScope` 无范围选择时忽略、有选择时翻转并在建议名未被编辑时跟随、手输名字保留；只保存这一屏时 `capture(displayID:)` 带该屏 id、该屏应用数为 0 时 beep、范围选择消失时退回全桌；排布等价忽略顺序与 2% 抖动、不同显示器/位置/数量不等价。
+5. **`WorkspaceLayoutPreviewTests`**：预览按位置从后到前绘制、被盖住的窗口不画图标、过小窗口不画图标、图标落在窗口内。
+6. **`LayoutStoreTests`**：`profiles` 往返、空节剔除；旧 zoneID/zoneNumber JSON 迁移（id 优先、编号回退、无法解析丢弃、重编码不含 `zoneNumber`）；删除布局不影响工作区；`mergeDisplay` 迁移节。
+7. **`WorkspaceApplyFeedbackTests` / `L10nTests`**：反馈文案组合与中英文案。
 
 手工验收清单：
 
-- 双显示器摆好 6 窗 → 捕获 → 全部窗口拖乱、换到另一屏 → 快捷键 → 全部跨屏回位、布局 assignment 同步、flashZones 出现。
-- 退出其中两个应用 → 归位 → 应用被自动启动、窗口出现后 2s 内落进各自 zone、无焦点抢占。
-- 网易云音乐（sizeConstrained）在方案里 → 其余窗口不回滚不闪动，toast 提示需要更大空间。
-- 跟随模式开：新开一个方案内应用窗口 → 自动进区；手动把它拖走 → 不被拉回。
-- 拔掉外接屏 → 归位 → 内屏节正常，toast 提示跳过外接屏节。
-- Organize（若开发开关打开）与归位互斥，同时触发只跑一个。
+- 双显示器摆好窗口（例如左 Chrome / 右 Cursor，第二屏 WeChat 独占）→ 保存 → 设置页每个应用旁的 `W% × H%` 与示意图和实际一致 → 拖乱、换屏 → 快捷键 → 全部回到原位，闪现的是恢复位置而不是分区编号，显示器布局未被切换。
+- HUD `S` 命名时两屏都有窗口：出现「只保存这一屏」复选框，Tab 切换后建议名与摘要随之变化；保存后设置页只有一节。
+- 退出其中两个应用 → 归位 → 应用被自动启动、窗口出现后落到保存位置、无焦点抢占。
+- 最小尺寸受限的应用在工作区里 → 其余窗口不回滚不闪动，toast 提示需要更大空间。
+- 拔掉外接屏 → 归位 → 内屏节正常，toast 提示跳过；在单屏上「更新」工作区，外接屏那一节仍保留。
+- 用初版保存的旧 store.json 启动 → 工作区可见、无 `layoutID`，位置为原分区几何；重新捕获后为真实位置。
 
-## 11. 实施拆分（建议 4 个 PR）
+## 13. 未来扩展
 
-1. **PR-1 Core**：`Domain/WorkspaceProfile.swift`（模型 + StoreDocument 扩展与归一化）、`Domain/ProfileCapture.swift`、`Domain/ProfilePlan.swift`、executor `acceptance` 参数 + 上述全部单测。无 UI 风险。
-2. **PR-2 手动闭环**：`Services/WorkspaceCenter.swift`（capture/apply/收尾/反馈）、事务门通用化、菜单"工作区"子菜单（console + fallback）、`applyWorkspace` 快捷键全管线、L10n 文案。**发布即解决"一个个调窗口"的核心痛点。**
-3. **PR-3 缺失应用补位**：PendingPlacementBook + 1Hz 普查循环 + 启动/超时/反馈；设置页「工作区」管理 Tab。
-4. **PR-4 跟随模式**：activeProfile 语义、新窗口自动进区、三条纪律、（可选）QuickSnapper 式方案选择 HUD。
-
-## 12. 未来扩展
-
-- **标题正则规则**：`AppPlacementRule` 加可选 `titlePattern`，解决"Chrome 的工作窗 vs 娱乐窗"语义区分（FancyZones app rules 同构）。
-- **Space 级方案**：`SpaceKey.spaceUUID` 已在键上预留，接私有 CGS API 或 `NSWorkspace.activeSpace` 变化通知。
-- **场景自动切换**：接上外接屏 / 时间段 / 手动 Focus 模式 → 自动 apply 对应 profile（`didChangeScreenParametersNotification` 已有挂点）。
-- **最小化/隐藏还原**：归位时对 AXMinimized 窗口先 `AXUIElementSetAttributeValue(kAXMinimizedAttribute, false)`、对 hidden 应用 `NSRunningApplication.unhide`。
-- **导入导出**：profile 的 JSON 导出/导入，便于多机同步。
+- **标题正则规则**：`AppPlacementRule` 加可选 `titlePattern`，区分「Chrome 的工作窗 vs 娱乐窗」。
+- **Space 级工作区**：`SpaceKey.spaceUUID` 已预留。
+- **场景自动切换**：接上外接屏 / 时间段 → 自动应用对应工作区（`didChangeScreenParametersNotification` 已有挂点）。
+- **跟随模式**：工作区激活期间，其应用新开的窗口自动放到该应用的首条保存位置。
+- **导入导出**：工作区 JSON 导出/导入，便于多机同步。

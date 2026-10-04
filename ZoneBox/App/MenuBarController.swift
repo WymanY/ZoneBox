@@ -566,8 +566,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc
     private func captureWorkspace(_ sender: NSMenuItem) {
-        guard let name = promptWorkspaceName(initial: runtime.workspace.suggestedCaptureName()) else { return }
-        runtime.workspace.capture(name: name)
+        let prompt = WorkspaceCapturePrompt(
+            context: runtime.workspace.capturePromptContext(),
+            suggestedName: { [runtime] in runtime.workspace.suggestedCaptureName(displayID: $0) }
+        )
+        guard let request = prompt.run() else { return }
+        runtime.workspace.capture(name: request.name, displayID: request.displayID)
     }
 
     @objc
@@ -577,24 +581,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
               let profile = runtime.document.profiles.first(where: { $0.id == id })
         else { return }
         runtime.workspace.capture(name: profile.name, replacing: profile.id)
-    }
-
-    private func promptWorkspaceName(initial: String = "") -> String? {
-        let alert = NSAlert()
-        alert.messageText = L10n.text(.workspaceNameTitle)
-        alert.informativeText = L10n.text(.workspaceNameMessage)
-        let field = NSTextField(string: initial)
-        field.placeholderString = L10n.text(.workspaceNamePlaceholder)
-        field.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
-        alert.accessoryView = field
-        alert.addButton(withTitle: L10n.text(.workspaceSave))
-        alert.addButton(withTitle: L10n.text(.editorCancel))
-        alert.window.initialFirstResponder = field
-        if !initial.isEmpty {
-            field.selectText(nil)
-        }
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        return field.stringValue
     }
 
     @objc
@@ -609,13 +595,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let name = L10n.layoutDisplayName(layout.name)
         let alert = NSAlert()
         alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
-        let affected = runtime.document.profiles.filter { profile in
-            profile.sections.contains(where: { $0.layoutID == layout.id })
-        }.count
-        alert.informativeText = affected == 0
-            ? L10n.text(.menuDeleteLayoutMessage)
-            : L10n.text(.menuDeleteLayoutMessage) + " "
-                + String(format: L10n.text(.workspaceLayoutDeleteImpact), affected)
+        alert.informativeText = L10n.text(.menuDeleteLayoutMessage)
         alert.alertStyle = .warning
         alert.addButton(withTitle: L10n.text(.menuDeleteLayoutConfirm))
         alert.addButton(withTitle: L10n.text(.editorCancel))

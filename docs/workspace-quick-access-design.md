@@ -3,8 +3,8 @@
 | 字段 | 值 |
 | --- | --- |
 | **标题** | 工作区的一键应用与一键保存：切换器 HUD、直接捕获快捷键、控制台卡片区块 |
-| **状态** | 设计稿（未实现），§10 两项决策待确认 |
-| **日期** | 2026-09-10 |
+| **状态** | 已实现；2026-09-11 补充：工作区改为保存窗口位置（见 `workspace-profiles-design.md`），HUD `S` 命名态新增「只保存这一屏」范围切换 |
+| **日期** | 2026-09-10 · 2026-09-11 更新 |
 | **作用范围** | 工作区（Workspace Profiles）的「应用」与「保存」入口；不改捕获推断与归位引擎 |
 | **关联文档** | `docs/workspace-profiles-design.md`（数据模型、捕获、归位事务）、`docs/layout-picker-design.md`（reducer-only 测试原则、HUD 先例）、`docs/runtime-architecture.md`（RuntimeMode 归属） |
 
@@ -35,11 +35,11 @@
 | --- | --- | --- |
 | HUD + 数字键选择模式 | `Domain/QuickSnapper.swift`（`QuickSnapperReducer`，纯函数 + 单测）、`SnapEngine.handleQuickSnapper`、`HotkeyCenter.handleKeyEvent` 的「HUD 显示时拦截数字 / Tab / Esc」分支 | 切换器 HUD 的 reducer 与键路由同构照搬 |
 | 不抢焦点的可收键面板 | `MenuBarConsoleController` 的 `ConsolePanel`：`.nonactivatingPanel` + `canBecomeKey` | HUD 面板基类 |
-| 工作区缩略图 | `Domain/WorkspaceLayoutPreview.swift` + `UI/Settings/WorkspaceLayoutPreviewView.swift`（布局示意 + zone 内应用图标，设置页已在用） | HUD 与控制台卡片 |
+| 工作区缩略图 | `Domain/WorkspaceLayoutPreview.swift` + `UI/Settings/WorkspaceLayoutPreviewView.swift`（按保存的窗口位置画矩形 + 应用图标，设置页已在用） | HUD 与控制台卡片 |
 | 控制台卡片与网格 | `LayoutCardView` / `LayoutGridView` | 控制台工作区区块 |
 | toast（可带两个动作按钮） | `UI/Overlay/OrganizeFeedbackController.swift`（`restoreTitle` / `ignoreTitle`） | 「已更新」+ 撤销 |
 | 快捷键管线 | `ShortcutCatalog` + `ShortcutCustomizationID` + `HotkeyCenter` | 新增一条 chord 自动铺到设置页 Keyboard、快捷键面板、冲突校验、`L10nTests` |
-| 方案顺序 | `StoreDocument.profiles` 数组序已持久化，`orderedProfilesForSettings()` 即数组序 | 稳定编号 |
+| 方案顺序 | `StoreDocument.profiles` 数组序已持久化，`orderedProfilesForSettings()` 在其上把 `activeProfileID` 提到最前 | 当前 = 1 号，其余编号稳定 |
 | 更新语义 | `WorkspaceCenter.capture(name:replacing:)` | HUD `U` / 卡片菜单「更新」共用 |
 
 ## 2. 目标 / 非目标
@@ -72,7 +72,8 @@
 | C2 HUD 内 `S` 保存 + 行内命名 | 采用，P0 | 键盘全流程不断 |
 | C3 控制台「+ 保存当前」即时保存 | 采用，P1 | |
 | 模态命名弹窗 | 淘汰（VoiceOver 备用菜单保留） | 被行内命名与「先存后改名」替代 |
-| 按 `updatedAt` 排序 | 淘汰 | 编号会漂移；改为手动稳定顺序 |
+| 按 `updatedAt` 排序 | 淘汰 | 每次应用/更新都整体重排，编号漂移 |
+| 纯数组稳定序（初版实现） | 2026-09-11 调整 | 用户期望「当前」在第 1 位；改为**当前置顶 + 其余保持数组序**，一次只动一张卡 |
 
 ## 4. 交互规格
 
@@ -96,13 +97,13 @@
 - 卡片网格：每行 3 张，最多 9 张带编号；第 10 张起只能方向键 + `⏎`。每张卡片：
   - 左上编号徽标 `1`…`9`（= 数字键）；
   - 名称（单行截断）；
-  - 预览：每个 section 一张 `WorkspaceLayoutPreviewView`（≤ 2 台显示器并排，更多显示 `+N`），zone 内画应用图标；
+  - 预览：每个 section 一张 `WorkspaceLayoutPreviewView`（≤ 2 台显示器并排，更多显示 `+N`），按保存位置画窗口并放应用图标；
   - 底部应用图标行（≤ 5 + `+N`）；
   - 「当前」徽标（`activeProfileID`）；
   - P2：若配了独立快捷键，显示 chord 字形；
   - 该 section 的显示器当前未连接（不在 `runtime.workAreas`）→ 灰显 + `⚠` 角标。
 - 默认高亮：`activeProfileID` 对应卡片，无则第 1 张。
-- 空状态：一张虚线「按 S 保存当前排布」卡片 + 一行说明「先把窗口放进分区，再保存」。同时充当功能发现。
+- 空状态：一张虚线「按 S 保存当前排布」卡片 + 一行说明「先摆好窗口，再保存」。同时充当功能发现。
 
 **按键（HUD 显示中）**
 
@@ -129,11 +130,11 @@
 
 | 路径 | 流程 | 成本 |
 | --- | --- | --- |
-| HUD 内 `S` | 卡片区切换为保存态：行内文本框（预填 `suggestedCaptureName()`，全选）+ 实时摘要「将保存 N 个应用 · M 台显示器」（复用建议命名那一趟 `collectVisibleSamples()` + `captureSections()`）。`⏎` 保存并关闭，`Esc` 回到列表。N = 0 时文本框禁用、摘要变「没有窗口位于分区内」、`⏎` 只 beep | 3 键 |
+| HUD 内 `S` | 卡片区切换为保存态：行内文本框（预填建议名，全选）+ 实时摘要「将保存 N 个应用 · M 台显示器」（`WorkspaceCenter.captureSummary()`，一次 `collectVisibleSamples()` + `captureSections()` 同时算出全桌与这一屏的应用数/建议名）。`⏎` 保存并关闭，`Esc` 回到列表。N = 0 时文本框禁用、摘要变「没有可保存的窗口」、`⏎` 只 beep。当 ≥ 2 台显示器都有窗口且能确定指针所在屏时，文本框下方出现「只保存这一屏（显示器名）」复选框，`Tab` 或点击切换（头部提示变为「⏎ 保存 · Tab 切换只保存这一屏 · Esc 返回」）；未编辑过的建议名跟随范围切换，手输的名字不动；摘要与 N = 0 判定按所选范围计算 | 3 键 |
 | 直接快捷键 `⌃⌥⇧P`（新 `captureWorkspace`，可自定义） | 立即以建议名保存，不问名字。toast「已保存为 “Xcode+Safari” · ⌃⌥P 可随时恢复」 | 1 键 |
 | 控制台「+ 保存当前」（P1） | 同上；保存后新卡片出现并进入行内重命名，`Esc` 保留建议名 | 2 次点击 |
 
-**去重规则**：纯函数 `WorkspaceProfile.hasSameArrangement(as:)`（各 section 的 `displayID`、`layoutID`、规则集合一致，与规则顺序无关）。与某已有方案完全相同 → 不新建，把该方案设为 active、刷新 `updatedAt`，toast「当前排布已保存为 “X”」。连按 `⌃⌥⇧P` 不会产生 `X 2`、`X 3`。
+**去重规则**：纯函数 `WorkspaceProfile.hasSameArrangement(as:)`（各 section 的 `displayID` 一致、规则在 2% 容差内一一配对，与规则顺序无关）。与某已有方案完全相同 → 不新建，把该方案设为 active、刷新 `updatedAt`，toast「当前排布已保存为 “X”」。连按 `⌃⌥⇧P` 不会产生 `X 2`、`X 3`。
 
 **命名冲突**：仍用 `LayoutEditTransaction.uniqueName`。
 
@@ -170,9 +171,9 @@
 
 | 文件 | 改动 |
 | --- | --- |
-| `Domain/WorkspaceSwitcher.swift`（新） | `WorkspaceSwitcherPhase { hidden, browsing(highlight: Int), naming(text: String, highlight: Int) }`；`Event { invoke, digit(Int), move(dx: Int, dy: Int), confirm, beginSave, textChanged(String), save, update, dismiss }`；`Effect { show, hide, apply(WorkspaceProfile.ID), capture(name: String), updateProfile(WorkspaceProfile.ID), beep }`；`Input`（phase、event、profileIDs、activeProfileID、isIdle、trusted、captureCount）。`WorkspaceSwitcherReducer.reduce` + 3 列网格导航 helper |
+| `Domain/WorkspaceSwitcher.swift`（新） | `WorkspaceSwitcherPhase { hidden, browsing(highlight: Int), naming(text: String, highlight: Int, thisDisplayOnly: Bool = false) }`；`Event { invoke, digit(Int), move(dx: Int, dy: Int), confirm, beginSave, textChanged(String), toggleCaptureScope, save, update, dismiss }`；`Effect { show, hide, apply(WorkspaceProfile.ID), capture(name: String, displayID: DisplayIdentity.ID? = nil), updateProfile(WorkspaceProfile.ID), beep }`；`Input`（phase、event、profileIDs、activeProfileID、isIdle、trusted、captureCount、suggestedName、`displayChoice: WorkspaceSwitcherDisplayChoice?`——指针所在屏的 id / 建议名 / 应用数，仅在提供范围选择时非 nil）。`WorkspaceSwitcherReducer.reduce` + 3 列网格导航 helper |
 | `Domain/WorkspaceProfile.swift` | `hasSameArrangement(as:)`；P2 `hotkey: KeyChord?` |
-| `Domain/DisplayIdentity.swift` | P2 `moveProfile(id:to:)`；`orderedProfilesForSettings()` 维持数组序 |
+| `Domain/DisplayIdentity.swift` | P2 `moveProfile(id:to:)`；`orderedProfilesForSettings()` = 活跃工作区置顶 + 其余数组序（存储顺序本身不变） |
 | `Domain/ShortcutCatalog.swift` | `captureWorkspaceHotkeyID = 111`、`ShortcutCustomizationID.captureWorkspace`、对应 `ShortcutSpec`；`applyWorkspace` 标题 key 文案改「工作区切换器」；P2 profile chord 参与 `carbonHotkeys` 与 `validate` |
 | `Domain/AppSettings.swift` | `captureWorkspaceHotkey: KeyChord`（默认 `⌃⌥⇧P`，`decodeIfPresent` 回落默认值） |
 | `Domain/L10n.swift` | 新文案 EN + zh-Hans（`L10nTests` 强制齐全） |
@@ -182,8 +183,8 @@
 | 文件 | 改动 |
 | --- | --- |
 | `UI/Workspace/WorkspaceSwitcherController.swift`（新） | 面板（照 `ConsolePanel` 模式：`.borderless, .nonactivatingPanel`、`canBecomeKey`、`.floating`、`.canJoinAllSpaces`）、卡片视图（复用 `WorkspaceLayoutPreviewView`）、行内命名框；键事件喂 reducer，effects 落地。通过 `RuntimeHost.swift` 新窄协议 `WorkspaceSwitcherHosting` 访问 runtime，不持有具体 `AppRuntime` |
-| `Services/WorkspaceCenter.swift` | 新增 `captureImmediately()`（建议名 + 去重）、`capturePreview() -> (applicationCount: Int, displayCount: Int)`、`updateProfileFromCurrent(id:)` 带撤销快照；apply 前先隐藏 HUD |
-| `Services/HotkeyCenter.swift` | `applyWorkspaceHotkeyID`：HUD 未显示 → `.invoke`，已显示 → `.confirm`；`captureWorkspaceHotkeyID` → `captureImmediately()`；`handleKeyEvent` 新增 `switcher.isShowing` 分支拦截数字 / `⏎` / `Esc` / `S` / `U` / 方向键 / Tab（本地 monitor 吞掉、全局不吞，与 Quick Snapper 同权衡）；Escape 路由新增 `.dismissWorkspaceSwitcher` |
+| `Services/WorkspaceCenter.swift` | 新增 `captureImmediately()`（建议名 + 去重）、`capturePreview() -> (applicationCount: Int, displayCount: Int)`、`captureSummary() -> WorkspaceCaptureSummary`（全桌 + 这一屏的应用数/建议名，供 HUD 命名态）、`updateProfileFromCurrent(id:)` 带撤销快照；apply 前先隐藏 HUD |
+| `Services/HotkeyCenter.swift` | `applyWorkspaceHotkeyID`：HUD 未显示 → `.invoke`，已显示 → `.confirm`；`captureWorkspaceHotkeyID` → `captureImmediately()`；`handleKeyEvent` 新增 `switcher.isShowing` 分支拦截数字 / `⏎` / `Esc` / `S` / `U` / 方向键 / Tab（本地 monitor 吞掉、全局不吞，与 Quick Snapper 同权衡）；命名态只拦 `⏎`（保存）与 `Tab`（`.toggleCaptureScope`），其余键交给文本框；Escape 路由新增 `.dismissWorkspaceSwitcher` |
 | `UI/MenuBar/MenuBarConsoleController.swift`（P1） | 工作区区块、卡片、`+`、卡片菜单；删除 footer `NSMenu` 相关方法 |
 | `App/MenuBarController.swift` | 备用菜单编号；P2 `⌥` 点击 |
 | `UI/Settings/SettingsWindowController.swift`（P2） | 录制器、上下移、「应用」按钮；Keyboard 页因 `ShortcutCatalog` 自动多一行 |
@@ -209,7 +210,7 @@ HotkeyCenter.handleKeyEvent(数字 n, switcher.isShowing) ─.digit(n)─▶ red
 | --- | --- |
 | `⌃⌥P` | 工作区切换器（原「应用当前工作区」）；见 §10 决策 1 |
 | `⌃⌥⇧P` | 保存当前排布为工作区（新，可自定义）。已核对与现有 `⌃⌥` + 数字 / Z / U / O / P / [ / ] / Space / `/` 无冲突 |
-| 排序 | `profiles` 数组稳定序，新建追加末尾；HUD / 控制台 / 备用菜单 / 设置页一致 |
+| 排序 | 「当前」（`activeProfileID`）永远第 1 张，其余按 `profiles` 数组序（新建追加末尾）；应用或保存只把那一张移到最前。HUD / 控制台 / 备用菜单 / 设置页一致；控制台条会把当前卡片滚到可见 |
 | HUD 位置 | 鼠标所在显示器居中 |
 | 每方案快捷键 | 无，P2 由用户自配 |
 | 新增偏好开关 | 不增加。单方案用户按 `⌃⌥P ⏎`（或再按一次 `⌃⌥P`），或在 P2 配独立快捷键 |
@@ -234,8 +235,8 @@ HotkeyCenter.handleKeyEvent(数字 n, switcher.isShowing) ─.digit(n)─▶ red
 
 ### 8.1 单测（Core，`make test`）
 
-- `WorkspaceSwitcherReducerTests`（新）：invoke 默认高亮 = active / 首项；digit 越界忽略；digit 命中 → `[.hide, .apply]`；confirm 应用高亮项；move 网格环绕（3 列）；beginSave → naming；save 空名 → beep；save → `[.hide, .capture(name)]`；update → `[.updateProfile(highlight)]`；dismiss；非 idle / 未 trusted → 不显示且不产生 effect；HUD 显示中再收到 invoke 等价 confirm；captureCount = 0 时 save → beep。
-- `WorkspaceProfileTests`：`hasSameArrangement` 与规则顺序无关；显示器或布局不同判不同；空 sections 不相等。
+- `WorkspaceSwitcherTests`：invoke 默认高亮 = active / 首项；digit 越界忽略；digit 命中 → `[.hide, .apply]`；confirm 应用高亮项；move 网格环绕（3 列）；beginSave → naming；save 空名 → beep；save → `[.hide, .capture(name, displayID: nil)]`；update → `[.updateProfile(highlight)]`；dismiss；非 idle / 未 trusted → 不显示且不产生 effect；HUD 显示中再收到 invoke 等价 confirm；captureCount = 0 时 save → beep；`toggleCaptureScope` 无 `displayChoice` 时忽略、有则翻转并让未编辑的建议名跟随、手输名字保留；只保存这一屏时 `capture(displayID:)` 带该屏 id、该屏应用数为 0 时 beep、`displayChoice` 消失时退回全桌。
+- `WorkspaceProfileArrangementTests`：`hasSameArrangement` 与规则顺序无关且容忍 2% 抖动；显示器、位置或应用数不同判不同；空 sections 不相等。
 - `ShortcutCatalogTests`：`captureWorkspace` 默认 `⌃⌥⇧P`、与现有无冲突、reset 路径；P2 profile chord 冲突双向检测。
 - `AppSettings` 解码：旧 JSON 无 `captureWorkspaceHotkey` → 默认值。
 - `L10nTests` 自动强制新 key 双语齐全。
@@ -246,7 +247,8 @@ HotkeyCenter.handleKeyEvent(数字 n, switcher.isShowing) ─.digit(n)─▶ red
 1. 有 3 个方案，任意应用前台：`⌃⌥P` → HUD 出现、前台应用不失活 → 按 `2` → HUD 消失 → 窗口归位 → toast；`activeProfileID` 变为 2 号。
 2. `⌃⌥P`、`⌃⌥P` → 应用高亮（active）项。
 3. `⌃⌥P`、`S` → 文本框预填 `A+B`，摘要 N/M 正确 → `⏎` → 新卡片出现在末尾编号 4 → 排布不动再按 `⌃⌥⇧P` → 不新建，toast 提示已存在。
-4. 没有窗口在分区：`⌃⌥⇧P` → toast「没有可保存的窗口」；HUD `S` 态文本框禁用。
+4. 没有可保存的窗口：`⌃⌥⇧P` → toast「没有可保存的窗口」；HUD `S` 态文本框禁用。
+4a. 两台显示器都有窗口：`⌃⌥P`、`S` → 文本框下方出现「只保存这一屏（显示器名）」→ `Tab` → 复选框勾上、建议名只列该屏应用、摘要变「… · 1 台显示器」→ `⏎` → 新工作区只有一节；再 `Tab` 一次可切回全桌。
 5. 控制台：图标 → 点卡片 3 → 应用（2 次点击）；「+ 保存当前」→ 新卡片 + 行内重命名；`…` → 更新 / 重命名 / 删除。
 6. 拖拽中或编辑器打开时按 `⌃⌥P` → beep，无 HUD。
 7. VoiceOver 开启：右键菜单显示「1. …」，保存仍为模态命名。

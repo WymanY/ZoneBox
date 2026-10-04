@@ -139,20 +139,46 @@ public enum WorkspaceRestore {
         }
     }
 
-    public static func shouldAssignLayout(displayAvailable: Bool, layoutExists: Bool) -> Bool {
-        displayAvailable && layoutExists
+    /// Captured windows are stored front-to-back. Activation and raise must
+    /// run back-to-front so the originally frontmost window stays on top.
+    public static func stackingOrder<T>(_ frontToBack: [T]) -> [T] {
+        Array(frontToBack.reversed())
     }
 
-    /// Flash the saved layout even when every window is still launching, so the
-    /// user can see the display switch before apps finish opening.
-    public static func shouldFlashAssignedLayout(
-        displayAvailable: Bool,
-        layoutExists: Bool,
-        organizeSucceeded: Bool,
-        noMovableWindows: Bool
-    ) -> Bool {
-        shouldAssignLayout(displayAvailable: displayAvailable, layoutExists: layoutExists)
-            && (organizeSucceeded || noMovableWindows)
+    /// Unique items in the order of their last occurrence. Used on a
+    /// back-to-front list so an interleaved A, B, A capture activates B then A.
+    public static func lastOccurrenceOrder<T: Hashable>(_ items: [T]) -> [T] {
+        var lastIndex: [T: Int] = [:]
+        for (index, item) in items.enumerated() {
+            lastIndex[item] = index
+        }
+        return items.enumerated().compactMap { index, item in
+            lastIndex[item] == index ? item : nil
+        }
+    }
+
+    /// Bundle activation order for a front-to-back capture. Each bundle is
+    /// taken at its last back-to-front occurrence, so the originally frontmost
+    /// app is activated last.
+    public static func restoreActivationBundleIDs(_ frontToBack: [String]) -> [String] {
+        let normalized = frontToBack.compactMap { raw -> String? in
+            let bundleID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return bundleID.isEmpty ? nil : bundleID
+        }
+        return lastOccurrenceOrder(stackingOrder(normalized))
+    }
+
+    /// Process activation order for one bundle in a front-to-back capture.
+    /// Last back-to-front occurrence wins, matching restoreActivationBundleIDs.
+    public static func restoreActivationProcessIDs(
+        _ frontToBack: [WindowIdentity],
+        bundleID: String
+    ) -> [pid_t] {
+        let pids = stackingOrder(frontToBack).compactMap { window -> pid_t? in
+            guard window.bundleID == bundleID, window.pid > 0 else { return nil }
+            return window.pid
+        }
+        return lastOccurrenceOrder(pids)
     }
 
     /// Unique bundle IDs in first-seen order. Restore activates this sequence
@@ -174,7 +200,7 @@ public enum WorkspaceRestore {
     public static func foregroundProcessIDs(_ windows: [WindowIdentity], bundleID: String) -> [pid_t] {
         var seen = Set<pid_t>()
         return windows.compactMap { window in
-            guard window.bundleID == bundleID, seen.insert(window.pid).inserted else { return nil }
+            guard window.bundleID == bundleID, window.pid > 0, seen.insert(window.pid).inserted else { return nil }
             return window.pid
         }
     }

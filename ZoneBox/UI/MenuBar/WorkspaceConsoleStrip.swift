@@ -24,6 +24,10 @@ final class WorkspaceConsoleStrip: NSView {
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
+        scroll.horizontalScroller = ThinOverlayScroller()
+        scroll.horizontalScroller?.controlSize = .mini
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.contentInsets = NSEdgeInsets()
         scroll.horizontalScrollElasticity = .allowed
         let clip = NSClipView()
         clip.drawsBackground = false
@@ -48,7 +52,6 @@ final class WorkspaceConsoleStrip: NSView {
     func reload(
         profiles: [WorkspaceProfile],
         activeID: WorkspaceProfile.ID?,
-        layouts: [Layout.ID: Layout],
         connectedDisplayIDs: Set<DisplayIdentity.ID>,
         beginRename: WorkspaceProfile.ID? = nil
     ) {
@@ -71,7 +74,6 @@ final class WorkspaceConsoleStrip: NSView {
                     number: index < 9 ? index + 1 : nil,
                     isCurrent: profile.id == activeID,
                     disconnected: profile.sections.contains { !connectedDisplayIDs.contains($0.space.displayID) },
-                    layout: profile.sections.first.flatMap { layouts[$0.layoutID] },
                     applicationInfo: info,
                     isRenaming: renamingID == profile.id
                 )
@@ -90,7 +92,6 @@ final class WorkspaceConsoleStrip: NSView {
                     self.reload(
                         profiles: profiles,
                         activeID: activeID,
-                        layouts: layouts,
                         connectedDisplayIDs: connectedDisplayIDs
                     )
                 }
@@ -100,8 +101,14 @@ final class WorkspaceConsoleStrip: NSView {
         }
         row.layoutSubtreeIfNeeded()
         row.setFrameSize(NSSize(width: max(row.fittingSize.width, bounds.width), height: Metrics.height))
-        if let renamingID, let card = row.arrangedSubviews.compactMap({ $0 as? WorkspaceConsoleCard }).first(where: { $0.profileID == renamingID }) {
+        let cards = row.arrangedSubviews.compactMap { $0 as? WorkspaceConsoleCard }
+        if let renamingID, let card = cards.first(where: { $0.profileID == renamingID }) {
             card.focusNameField()
+            card.scrollToVisible(card.bounds)
+        } else if let card = cards.first(where: { $0.profileID == activeID }) {
+            // The strip may have been scrolled away earlier; the card in use
+            // (always first) must not sit hidden off the leading edge.
+            card.scrollToVisible(card.bounds)
         }
     }
 
@@ -169,7 +176,6 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
         number: Int?,
         isCurrent: Bool,
         disconnected: Bool,
-        layout: Layout?,
         applicationInfo: [String: (name: String, icon: NSImage?)],
         isRenaming: Bool
     ) {
@@ -188,7 +194,6 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
         )
 
         let preview = WorkspaceLayoutPreviewView(
-            layout: layout,
             rules: profile.sections.first?.rules ?? [],
             applicationInfo: applicationInfo,
             canvasSize: NSSize(width: 84, height: 40)

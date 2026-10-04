@@ -102,6 +102,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case workspaceCapturedTitle
     case workspaceUpdatedTitle
     case workspaceCapturedDetail
+    case workspaceCapturedDisplaysDetail
+    case workspaceCaptureThisDisplayOnly
     case workspaceCaptureEmptyTitle
     case workspaceCaptureEmptyDetail
     case workspaceAppliedTitle
@@ -109,15 +111,15 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case workspaceMovedDetail
     case workspaceSizeConstrainedDetail
     case workspaceMissingDetail
-    case workspaceStaleDetail
     case workspaceDisplaysSkippedDetail
     case workspaceWindowsSkippedDetail
     case workspaceAppMissingTitle
     case workspaceAppNotInstalledDetail
     case workspaceLaunchTimeoutDetail
-    case workspaceLayoutDeleteImpact
     case workspaceSwitcherTitle
     case workspaceSwitcherHint
+    case workspaceSwitcherNamingHint
+    case workspaceSwitcherNamingScopeHint
     case workspaceSwitcherCurrent
     case workspaceSwitcherEmptyAction
     case workspaceSwitcherEmptyDetail
@@ -252,9 +254,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsWorkspaceShowDetails
     case settingsWorkspaceHideDetails
     case settingsWorkspaceSectionSummary
-    case settingsWorkspaceZone
+    case settingsWorkspaceWindowSize
     case settingsWorkspaceUnavailableDisplay
-    case settingsWorkspaceUnavailableLayout
     case settingsWorkspaceActive
     case settingsWorkspaceLayoutPreview
     case settingsAccessGranted
@@ -499,6 +500,29 @@ public enum L10n {
         String(format: text(.settingsShakeIntensity, language: language), locale: language.locale, value)
     }
 
+    public static func workspaceCapturedDetail(
+        name: String,
+        displayCount: Int,
+        applicationCount: Int,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        if displayCount >= 2 {
+            return String(
+                format: text(.workspaceCapturedDisplaysDetail, language: language),
+                locale: language.locale,
+                name,
+                displayCount,
+                applicationCount
+            )
+        }
+        return String(
+            format: text(.workspaceCapturedDetail, language: language),
+            locale: language.locale,
+            name,
+            applicationCount
+        )
+    }
+
     public static func unpinAll(_ count: Int, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.menuUnpinAllWindows, language: language), locale: language.locale, count)
     }
@@ -699,34 +723,36 @@ public enum L10n {
         .organizeIgnoreAction: "Ignore %@",
         .organizeClose: "Close",
         .workspaceNameTitle: "Save Workspace",
-        .workspaceNameMessage: "Name this arrangement of apps and zones.",
+        .workspaceNameMessage: "Name this arrangement of app windows.",
         .workspaceNamePlaceholder: "Workspace name",
         .workspaceSave: "Save",
         .workspaceDefaultName: "Workspace",
         .workspaceCapturedTitle: "Workspace saved",
         .workspaceUpdatedTitle: "Workspace updated",
         .workspaceCapturedDetail: "%@ includes %d applications.",
+        .workspaceCapturedDisplaysDetail: "%@: %d displays · %d applications",
+        .workspaceCaptureThisDisplayOnly: "Only this display (%@)",
         .workspaceCaptureEmptyTitle: "Nothing to save",
-        .workspaceCaptureEmptyDetail: "Place at least one application window mostly inside a zone, then try again.",
+        .workspaceCaptureEmptyDetail: "Open at least one application window on a connected display, then try again.",
         .workspaceAppliedTitle: "Workspace applied",
         .workspaceApplyPartialTitle: "Workspace partially applied",
         .workspaceMovedDetail: "%d windows fully placed.",
-        .workspaceSizeConstrainedDetail: "%@ was moved into place, but its minimum window size is larger than the zone.",
+        .workspaceSizeConstrainedDetail: "%@ was moved into place, but its minimum window size is larger than the saved size.",
         .workspaceMissingDetail: "%d applications have missing windows.",
-        .workspaceStaleDetail: "%d rules need recapturing.",
         .workspaceDisplaysSkippedDetail: "%d disconnected displays were skipped.",
         .workspaceWindowsSkippedDetail: "%d windows could not be moved.",
         .workspaceAppMissingTitle: "Application could not be placed",
         .workspaceAppNotInstalledDetail: "%@ is not installed.",
         .workspaceLaunchTimeoutDetail: "%@ did not open a window in time.",
-        .workspaceLayoutDeleteImpact: "%d workspace profiles will be affected.",
         .workspaceSwitcherTitle: "Workspaces",
         .workspaceSwitcherHint: "1–9 apply · ⏎ apply highlighted · S save current · U update highlighted · Esc",
+        .workspaceSwitcherNamingHint: "⏎ save · Esc back",
+        .workspaceSwitcherNamingScopeHint: "⏎ save · Tab only this display · Esc back",
         .workspaceSwitcherCurrent: "Current",
         .workspaceSwitcherEmptyAction: "Press S to save the current arrangement",
-        .workspaceSwitcherEmptyDetail: "Place windows into zones, then save.",
+        .workspaceSwitcherEmptyDetail: "Arrange your windows, then save.",
         .workspaceSwitcherSaveSummary: "Will save %d apps · %d displays",
-        .workspaceSwitcherSaveEmpty: "No windows are inside zones",
+        .workspaceSwitcherSaveEmpty: "No windows to save",
         .workspaceSwitcherDisconnected: "This display is disconnected",
         .workspaceAlreadySavedTitle: "Current arrangement is already “%@”",
         .workspaceCapturedHotkeyDetail: "%@ restores this anytime",
@@ -855,12 +881,11 @@ public enum L10n {
         .settingsWorkspaceSummary: "%d displays · %d applications",
         .settingsWorkspaceShowDetails: "Show details",
         .settingsWorkspaceHideDetails: "Hide details",
-        .settingsWorkspaceSectionSummary: "%@ · %@",
-        .settingsWorkspaceZone: "Zone %d",
+        .settingsWorkspaceSectionSummary: "%@ · %d windows",
+        .settingsWorkspaceWindowSize: "%d%% × %d%%",
         .settingsWorkspaceUnavailableDisplay: "Unavailable display",
-        .settingsWorkspaceUnavailableLayout: "Unavailable layout",
         .settingsWorkspaceActive: "Last applied",
-        .settingsWorkspaceLayoutPreview: "Restore layout schematic",
+        .settingsWorkspaceLayoutPreview: "Restored window positions",
         .settingsAccessGranted: "Accessibility allowed",
         .settingsAccessRequired: "Accessibility required",
         .settingsManageAccess: "Manage…",
@@ -1151,34 +1176,36 @@ public enum L10n {
         .organizeIgnoreAction: "以后忽略 %@",
         .organizeClose: "关闭",
         .workspaceNameTitle: "保存工作区",
-        .workspaceNameMessage: "为这组应用与分区排布命名。",
+        .workspaceNameMessage: "为当前的应用窗口排布命名。",
         .workspaceNamePlaceholder: "工作区名称",
         .workspaceSave: "保存",
         .workspaceDefaultName: "工作区",
         .workspaceCapturedTitle: "工作区已保存",
         .workspaceUpdatedTitle: "工作区已更新",
         .workspaceCapturedDetail: "“%@”包含 %d 个应用。",
+        .workspaceCapturedDisplaysDetail: "“%@”：%d 台显示器 · %d 个应用",
+        .workspaceCaptureThisDisplayOnly: "只保存这一屏（%@）",
         .workspaceCaptureEmptyTitle: "没有可保存的窗口",
-        .workspaceCaptureEmptyDetail: "请先把至少一个应用窗口大部分放入分区，再重试。",
+        .workspaceCaptureEmptyDetail: "请先在已连接的显示器上打开至少一个应用窗口，再重试。",
         .workspaceAppliedTitle: "工作区已归位",
         .workspaceApplyPartialTitle: "工作区已部分归位",
         .workspaceMovedDetail: "已完整归位 %d 个窗口。",
-        .workspaceSizeConstrainedDetail: "%@已移动到位，但其最小窗口尺寸大于当前分区。",
+        .workspaceSizeConstrainedDetail: "%@已移动到位，但其最小窗口尺寸大于保存时的尺寸。",
         .workspaceMissingDetail: "%d 个应用缺少窗口。",
-        .workspaceStaleDetail: "%d 条规则需要重新捕获。",
         .workspaceDisplaysSkippedDetail: "已跳过 %d 台未连接显示器。",
         .workspaceWindowsSkippedDetail: "%d 个窗口无法移动。",
         .workspaceAppMissingTitle: "应用未能归位",
         .workspaceAppNotInstalledDetail: "未安装 %@。",
         .workspaceLaunchTimeoutDetail: "%@ 未在限定时间内打开窗口。",
-        .workspaceLayoutDeleteImpact: "%d 个工作区方案将受影响。",
         .workspaceSwitcherTitle: "工作区",
         .workspaceSwitcherHint: "1–9 应用 · ⏎ 应用高亮项 · S 保存当前 · U 更新高亮项 · Esc",
+        .workspaceSwitcherNamingHint: "⏎ 保存 · Esc 返回",
+        .workspaceSwitcherNamingScopeHint: "⏎ 保存 · Tab 切换只保存这一屏 · Esc 返回",
         .workspaceSwitcherCurrent: "当前",
         .workspaceSwitcherEmptyAction: "按 S 保存当前排布",
-        .workspaceSwitcherEmptyDetail: "先把窗口放进分区，再保存。",
+        .workspaceSwitcherEmptyDetail: "先摆好窗口，再保存。",
         .workspaceSwitcherSaveSummary: "将保存 %d 个应用 · %d 台显示器",
-        .workspaceSwitcherSaveEmpty: "没有窗口位于分区内",
+        .workspaceSwitcherSaveEmpty: "没有可保存的窗口",
         .workspaceSwitcherDisconnected: "该显示器当前未连接",
         .workspaceAlreadySavedTitle: "当前排布已保存为 “%@”",
         .workspaceCapturedHotkeyDetail: "%@ 可随时恢复",
@@ -1307,12 +1334,11 @@ public enum L10n {
         .settingsWorkspaceSummary: "%d 台显示器 · %d 个应用",
         .settingsWorkspaceShowDetails: "查看详情",
         .settingsWorkspaceHideDetails: "收起详情",
-        .settingsWorkspaceSectionSummary: "%@ · %@",
-        .settingsWorkspaceZone: "分区 %d",
+        .settingsWorkspaceSectionSummary: "%@ · %d 个窗口",
+        .settingsWorkspaceWindowSize: "%d%% × %d%%",
         .settingsWorkspaceUnavailableDisplay: "不可用的显示器",
-        .settingsWorkspaceUnavailableLayout: "不可用的布局",
         .settingsWorkspaceActive: "最近应用",
-        .settingsWorkspaceLayoutPreview: "恢复布局示意",
+        .settingsWorkspaceLayoutPreview: "恢复位置示意",
         .settingsAccessGranted: "辅助功能权限：已授权",
         .settingsAccessRequired: "需要辅助功能权限",
         .settingsManageAccess: "管理权限…",

@@ -34,7 +34,7 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
             }
         }
         let profiles = runtime.document.orderedProfilesForSettings()
-        let preview = runtime.workspace.capturePreview()
+        let summary = runtime.workspace.captureSummary()
         let output = WorkspaceSwitcherReducer.reduce(
             WorkspaceSwitcherInput(
                 phase: phase,
@@ -43,12 +43,20 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
                 activeProfileID: runtime.document.activeProfileID,
                 isIdle: runtime.mode == .idle && !runtime.isEditorOpen,
                 trusted: runtime.isTrusted(),
-                captureCount: preview.applicationCount,
-                suggestedName: runtime.workspace.suggestedCaptureName()
+                captureCount: summary.applicationCount,
+                suggestedName: summary.suggestedName,
+                displayChoice: summary.switcherDisplayChoice
             )
         )
-        if case .naming(let text, _) = output.phase, event == .beginSave {
+        switch (event, output.phase) {
+        case (.beginSave, .naming(let text, _, _)):
             namingSeed = text
+        case (.toggleCaptureScope, .naming(_, _, let thisDisplayOnly)):
+            // An emptied field is re-seeded with the suggestion for the scope
+            // that will actually be saved.
+            namingSeed = (thisDisplayOnly ? summary.thisDisplay?.suggestedName : nil) ?? summary.suggestedName
+        default:
+            break
         }
         phase = output.phase
         perform(output.effects)
@@ -95,8 +103,8 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
             case .apply(let id):
                 runtime.closeConsole()
                 runtime.workspace.apply(profileID: id)
-            case .capture(let name):
-                runtime.workspace.capture(name: name)
+            case .capture(let name, let displayID):
+                runtime.workspace.capture(name: name, displayID: displayID)
             case .updateProfile(let id):
                 runtime.workspace.updateProfileFromCurrent(id: id)
             case .beep:
@@ -241,8 +249,14 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         switch phase {
         case .hidden:
             break
-        case .naming(let text, _):
-            cardHost.addArrangedSubview(makeNamingView(text: text))
+        case .naming(let text, _, let thisDisplayOnly):
+            let summary = runtime.workspace.captureSummary()
+            hintLabel?.stringValue = L10n.text(
+                summary.thisDisplay == nil ? .workspaceSwitcherNamingHint : .workspaceSwitcherNamingScopeHint
+            )
+            cardHost.addArrangedSubview(
+                makeNamingView(text: text, summary: summary, thisDisplayOnly: thisDisplayOnly)
+            )
         case .browsing(let highlight):
             let profiles = runtime.document.orderedProfilesForSettings()
             if profiles.isEmpty {
@@ -279,37 +293,71 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         }
     }
 
-    private func makeNamingView(text: String) -> NSView {
+    private func makeNamingView(
+        text: String,
+        summary: WorkspaceCaptureSummary,
+        thisDisplayOnly: Bool
+    ) -> NSView {
         let field = NSTextField(string: text.isEmpty ? namingSeed : text)
         field.font = .systemFont(ofSize: 14)
         field.placeholderString = L10n.text(.workspaceNamePlaceholder)
         field.translatesAutoresizingMaskIntoConstraints = false
         field.heightAnchor.constraint(equalToConstant: 24).isActive = true
         nameField = field
-        let preview = runtime.workspace.capturePreview()
-        let summary = NSTextField(wrappingLabelWithString: summaryText(preview))
-        summary.font = .systemFont(ofSize: 12)
-        summary.textColor = preview.applicationCount == 0 ? .systemOrange : .secondaryLabelColor
-        summaryLabel = summary
-        field.isEnabled = preview.applicationCount > 0
-        let stack = NSStackView(views: [field, summary])
+
+        // The scope the reducer will save: the pointer's display only while a
+        // choice exists, otherwise every display that holds windows.
+        let scoped = thisDisplayOnly ? summary.thisDisplay : nil
+        let applicationCount = scoped?.applicationCount ?? summary.applicationCount
+        let displayCount = scoped == nil ? summary.displayCount : 1
+        let summaryLabel = NSTextField(
+            wrappingLabelWithString: summaryText(applicationCount: applicationCount, displayCount: displayCount)
+        )
+        summaryLabel.font = .systemFont(ofSize: 12)
+        summaryLabel.textColor = applicationCount == 0 ? .systemOrange : .secondaryLabelColor
+        self.summaryLabel = summaryLabel
+        field.isEnabled = applicationCount > 0
+
+        var views: [NSView] = [field]
+        if let thisDisplay = summary.thisDisplay {
+            let checkbox = NSButton(
+                checkboxWithTitle: String(
+                    format: L10n.text(.workspaceCaptureThisDisplayOnly),
+                    thisDisplay.name
+                ),
+                target: self,
+                action: #selector(captureScopeToggled)
+            )
+            checkbox.state = thisDisplayOnly ? .on : .off
+            checkbox.font = .systemFont(ofSize: 12)
+            checkbox.refusesFirstResponder = true
+            views.append(checkbox)
+        }
+        views.append(summaryLabel)
+
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         field.widthAnchor.constraint(equalToConstant: Metrics.contentWidth).isActive = true
-        summary.widthAnchor.constraint(equalToConstant: Metrics.contentWidth).isActive = true
+        summaryLabel.widthAnchor.constraint(equalToConstant: Metrics.contentWidth).isActive = true
         return stack
     }
 
-    private func summaryText(_ preview: (applicationCount: Int, displayCount: Int)) -> String {
-        if preview.applicationCount == 0 {
+    @objc
+    private func captureScopeToggled() {
+        handle(.toggleCaptureScope)
+    }
+
+    private func summaryText(applicationCount: Int, displayCount: Int) -> String {
+        if applicationCount == 0 {
             return L10n.text(.workspaceSwitcherSaveEmpty)
         }
         return String(
             format: L10n.text(.workspaceSwitcherSaveSummary),
-            preview.applicationCount,
-            preview.displayCount
+            applicationCount,
+            displayCount
         )
     }
 
@@ -333,7 +381,6 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
             highlighted: highlighted,
             isCurrent: profile.id == runtime.document.activeProfileID,
             disconnected: disconnected,
-            layouts: Dictionary(uniqueKeysWithValues: runtime.document.layouts.map { ($0.id, $0) }),
             applicationInfo: applicationInfo(for: profile),
             onSelect: { [weak self] in
                 self?.phase = .hidden
@@ -474,7 +521,13 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
         field.delegate = self
         if field.isEnabled {
             panel.makeFirstResponder(field)
-            field.selectText(nil)
+            // A suggestion is selected so typing replaces it; a name the user
+            // typed keeps the caret at its end across scope toggles.
+            if field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) == seed {
+                field.selectText(nil)
+            } else if let editor = field.currentEditor() {
+                editor.selectedRange = NSRange(location: (field.stringValue as NSString).length, length: 0)
+            }
         }
         ignoreNameFieldChanges = false
     }
@@ -639,7 +692,6 @@ private final class SwitcherProfileCard: NSView {
         highlighted: Bool,
         isCurrent: Bool,
         disconnected: Bool,
-        layouts: [Layout.ID: Layout],
         applicationInfo: [String: (name: String, icon: NSImage?)],
         onSelect: @escaping () -> Void,
         onUpdate: @escaping () -> Void,
@@ -661,12 +713,12 @@ private final class SwitcherProfileCard: NSView {
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         setAccessibilityRole(.button)
-        build(layouts: layouts, applicationInfo: applicationInfo)
+        build(applicationInfo: applicationInfo)
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func build(layouts: [Layout.ID: Layout], applicationInfo: [String: (name: String, icon: NSImage?)]) {
+    private func build(applicationInfo: [String: (name: String, icon: NSImage?)]) {
         let previewRow = NSStackView()
         previewRow.orientation = .horizontal
         previewRow.spacing = 4
@@ -674,7 +726,6 @@ private final class SwitcherProfileCard: NSView {
         let sections = Array(profile.sections.prefix(2))
         for section in sections {
             let preview = WorkspaceLayoutPreviewView(
-                layout: layouts[section.layoutID],
                 rules: section.rules,
                 applicationInfo: applicationInfo,
                 canvasSize: NSSize(width: 64, height: 36)

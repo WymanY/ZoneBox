@@ -2,74 +2,83 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class ProfileCaptureTests: XCTestCase {
-    private let leftID = UUID()
-    private let rightID = UUID()
+    private let workArea = CGRect(x: 0, y: 25, width: 1440, height: 875)
 
-    func testExactAndMajorityCoverageProduceStableZoneThenZOrderRules() {
-        let zones = [
-            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 500)),
-            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 500)),
-        ]
-        let frontRight = sample(pid: 1, number: 10, bundleID: "browser", frame: CGRect(x: 500, y: 0, width: 500, height: 500))
-        let backLeft = sample(pid: 2, number: 20, bundleID: "editor", frame: CGRect(x: 0, y: 0, width: 500, height: 500))
-        let secondRight = sample(pid: 3, number: 30, bundleID: "terminal", frame: CGRect(x: 490, y: 0, width: 510, height: 500))
+    func testWindowsAreSavedWhereTheyAreNotWhereTheActiveLayoutZonesAre() {
+        // Left half + right half on a display whose active layout is a
+        // 1 | 2/3 split: the halves must survive as halves.
+        let chrome = sample(pid: 1, number: 1, bundleID: "com.google.Chrome", frame: CGRect(x: 0, y: 25, width: 720, height: 875))
+        let cursor = sample(pid: 2, number: 2, bundleID: "com.todesktop.230313mzl4w4u92", frame: CGRect(x: 720, y: 25, width: 720, height: 875))
 
-        let rules = ProfileCapture.rules(windows: [frontRight, backLeft, secondRight], zones: zones)
+        let rules = ProfileCapture.rules(windows: [chrome, cursor], workAreaAX: workArea)
 
-        XCTAssertEqual(rules.map(\.bundleID), ["editor", "browser"])
-        XCTAssertEqual(rules.map(\.zoneID), [leftID, rightID])
+        XCTAssertEqual(rules.map(\.bundleID), ["com.google.Chrome", "com.todesktop.230313mzl4w4u92"])
+        XCTAssertEqual(rules[0].frame, NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))
+        XCTAssertEqual(rules[1].frame, NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1))
     }
 
-    func testCoverageThresholdAndMissingBundleIDAreSkipped() {
-        let zones = [ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100))]
-        let filling = sample(pid: 1, number: 1, bundleID: "kept", frame: CGRect(x: 0, y: 0, width: 100, height: 100))
-        let mostlyOutside = sample(pid: 2, number: 2, bundleID: "skipped", frame: CGRect(x: 51, y: 0, width: 100, height: 100))
-        let anonymous = sample(pid: 3, number: 3, bundleID: nil, frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    func testFullScreenWindowIsSavedAsTheWholeWorkArea() {
+        let weChat = sample(pid: 1, number: 1, bundleID: "com.tencent.xinWeChat", frame: workArea)
 
-        XCTAssertEqual(ProfileCapture.rules(windows: [filling, mostlyOutside, anonymous], zones: zones).map(\.bundleID), ["kept"])
+        let rules = ProfileCapture.rules(windows: [weChat], workAreaAX: workArea)
+
+        XCTAssertEqual(rules.map(\.frame), [NormalizedRect(x: 0, y: 0, width: 1, height: 1)])
     }
 
-    func testHighestCoverageWinsWhenZonesOverlap() {
-        let zones = [
-            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 0, width: 100, height: 100)),
-            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 40, y: 0, width: 100, height: 100)),
-        ]
-        let window = sample(pid: 1, number: 1, bundleID: "app", frame: CGRect(x: 40, y: 0, width: 100, height: 100))
-        XCTAssertEqual(ProfileCapture.rules(windows: [window], zones: zones).map(\.zoneID), [rightID])
+    func testCapturedFrameRoundTripsThroughTheSameWorkArea() throws {
+        let frame = CGRect(x: 317, y: 140, width: 903, height: 611)
+        let window = sample(pid: 1, number: 1, bundleID: "app", frame: frame)
+
+        let rule = ProfileCapture.rules(windows: [window], workAreaAX: workArea)[0]
+        let restored = try XCTUnwrap(rule.frame).denormalize(in: workArea)
+
+        XCTAssertEqual(restored.minX, frame.minX, accuracy: 0.001)
+        XCTAssertEqual(restored.minY, frame.minY, accuracy: 0.001)
+        XCTAssertEqual(restored.width, frame.width, accuracy: 0.001)
+        XCTAssertEqual(restored.height, frame.height, accuracy: 0.001)
     }
 
-    func testFrontmostPairBeatsBackgroundFullscreenWindow() {
-        let zones = [
-            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 31, width: 709, height: 804)),
-            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 709, y: 31, width: 731, height: 804)),
-        ]
-        let chatGPT = sample(pid: 1, number: 1, bundleID: "com.openai.codex", frame: CGRect(x: 0, y: 31, width: 716, height: 804))
-        let notes = sample(pid: 2, number: 2, bundleID: "com.apple.Notes", frame: CGRect(x: 716, y: 31, width: 724, height: 804))
-        let aDrive = sample(pid: 3, number: 3, bundleID: "com.alicloud.smartdrive", frame: CGRect(x: 0, y: 31, width: 1440, height: 805))
+    func testRulesKeepZOrderAndSkipWindowsWithoutBundleID() {
+        let front = sample(pid: 1, number: 1, bundleID: "front", frame: CGRect(x: 800, y: 100, width: 400, height: 400))
+        let anonymous = sample(pid: 2, number: 2, bundleID: nil, frame: CGRect(x: 0, y: 25, width: 400, height: 400))
+        let back = sample(pid: 3, number: 3, bundleID: "back", frame: CGRect(x: 0, y: 25, width: 400, height: 400))
 
-        let rules = ProfileCapture.rules(windows: [chatGPT, notes, aDrive], zones: zones)
+        let rules = ProfileCapture.rules(windows: [front, anonymous, back], workAreaAX: workArea)
 
-        XCTAssertEqual(rules.map(\.bundleID), ["com.openai.codex", "com.apple.Notes"])
-        XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2])
+        XCTAssertEqual(rules.map(\.bundleID), ["front", "back"])
+        XCTAssertEqual(ProfileCapture.rules(windows: [front], workAreaAX: .zero), [])
     }
 
-    func testStackedWindowsOnColumnsThreeCaptureEachPane() {
-        let left = UUID()
-        let middle = UUID()
-        let right = UUID()
-        let zones = [
-            ResolvedZone(zoneID: left, number: 1, frameAX: CGRect(x: 0, y: 31, width: 480, height: 804)),
-            ResolvedZone(zoneID: middle, number: 2, frameAX: CGRect(x: 480, y: 31, width: 480, height: 804)),
-            ResolvedZone(zoneID: right, number: 3, frameAX: CGRect(x: 960, y: 31, width: 480, height: 804)),
-        ]
-        let chatGPT = sample(pid: 1, number: 1, bundleID: "com.openai.codex", frame: CGRect(x: 0, y: 31, width: 718, height: 806))
-        let notes = sample(pid: 2, number: 2, bundleID: "com.apple.Notes", frame: CGRect(x: 718, y: 31, width: 722, height: 456))
-        let cursor = sample(pid: 3, number: 3, bundleID: "com.todesktop.230313mzl4w4u92", frame: CGRect(x: 718, y: 487, width: 722, height: 350))
+    func testOverlappingWindowsAreBothSaved() {
+        let front = sample(pid: 1, number: 1, bundleID: "front", frame: CGRect(x: 0, y: 25, width: 900, height: 875))
+        let back = sample(pid: 2, number: 2, bundleID: "back", frame: CGRect(x: 600, y: 25, width: 840, height: 875))
 
-        let rules = ProfileCapture.rules(windows: [chatGPT, notes, cursor], zones: zones)
+        XCTAssertEqual(
+            ProfileCapture.rules(windows: [front, back], workAreaAX: workArea).map(\.bundleID),
+            ["front", "back"]
+        )
+    }
 
-        XCTAssertEqual(Set(rules.map(\.bundleID)), ["com.openai.codex", "com.apple.Notes", "com.todesktop.230313mzl4w4u92"])
-        XCTAssertEqual(Set(rules.map(\.zoneNumber)), [1, 2, 3])
+    func testReadingOrderGoesLeftToRightThenTopToBottom() {
+        let topRight = AppPlacementRule(bundleID: "c", frame: NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 0.5))
+        let bottomRight = AppPlacementRule(bundleID: "b", frame: NormalizedRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5))
+        let left = AppPlacementRule(bundleID: "a", frame: NormalizedRect(x: 0.004, y: 0.01, width: 0.5, height: 1))
+
+        XCTAssertEqual(
+            AppPlacementRule.readingOrder([bottomRight, topRight, left]).map(\.bundleID),
+            ["a", "c", "b"]
+        )
+    }
+
+    func testRuleMatchingToleratesSmallDriftOnly() {
+        let rule = AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1))
+        let nudged = AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0.51, y: 0.01, width: 0.49, height: 0.99))
+        let moved = AppPlacementRule(bundleID: "app", frame: NormalizedRect(x: 0.4, y: 0, width: 0.5, height: 1))
+        let otherApp = AppPlacementRule(bundleID: "other", frame: rule.frame)
+
+        XCTAssertTrue(rule.matches(nudged))
+        XCTAssertFalse(rule.matches(moved))
+        XCTAssertFalse(rule.matches(otherApp))
     }
 
     func testMaximizedFrontWindowHidesCoveredSnappedWindows() {
@@ -117,30 +126,6 @@ final class ProfileCaptureTests: XCTestCase {
         XCTAssertEqual(visible, [left.identity, right.identity])
     }
 
-    func testAdjacentSnappedWindowsAreBothCaptured() {
-        let zones = [
-            ResolvedZone(zoneID: leftID, number: 1, frameAX: CGRect(x: 0, y: 31, width: 709, height: 804)),
-            ResolvedZone(zoneID: rightID, number: 2, frameAX: CGRect(x: 709, y: 31, width: 731, height: 804)),
-        ]
-        let left = sample(
-            pid: 1,
-            number: 1,
-            bundleID: "com.openai.codex",
-            frame: CGRect(x: 0, y: 31, width: 709, height: 804)
-        )
-        let right = sample(
-            pid: 2,
-            number: 2,
-            bundleID: "com.apple.Notes",
-            frame: CGRect(x: 708, y: 31, width: 732, height: 804)
-        )
-
-        let rules = ProfileCapture.rules(windows: [left, right], zones: zones)
-
-        XCTAssertEqual(rules.map(\.bundleID), ["com.openai.codex", "com.apple.Notes"])
-        XCTAssertEqual(rules.map(\.zoneNumber), [1, 2])
-    }
-
     func testTransparentFrontWindowDoesNotHideBackWindow() {
         let front = visibility(
             pid: 1,
@@ -156,15 +141,229 @@ final class ProfileCaptureTests: XCTestCase {
         XCTAssertEqual(visible, [front.identity, back.identity])
     }
 
-    func testFrontmostRulePerZoneRepairsOlderDuplicateAssignments() {
-        let front = AppPlacementRule(bundleID: "factory", zoneID: rightID, zoneNumber: 2)
-        let hidden = AppPlacementRule(bundleID: "browser", zoneID: rightID, zoneNumber: 2)
-        let other = AppPlacementRule(bundleID: "editor", zoneID: leftID, zoneNumber: 1)
+    func testThisDisplayScopeRequiresWindowsOnThePointerDisplay() {
+        let builtIn = section(display: UUID(), app: "editor")
+        let external = section(display: UUID(), app: "browser")
+        let empty = UUID()
+
+        XCTAssertTrue(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: external.space.displayID
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: empty
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn],
+                pointerDisplayID: builtIn.space.displayID
+            )
+        )
+        XCTAssertFalse(
+            ProfileCapture.offersThisDisplayScope(
+                sections: [builtIn, external],
+                pointerDisplayID: nil
+            )
+        )
+    }
+
+    func testNewCaptureLimitedToOneDisplayKeepsOnlyThatSection() {
+        let builtIn = section(display: UUID(), app: "editor")
+        let external = section(display: UUID(), app: "browser")
 
         XCTAssertEqual(
-            ProfileCapture.frontmostRulesPerZone([front, hidden, other]),
-            [front, other]
+            ProfileCapture.sections([builtIn, external], limitedTo: external.space.displayID),
+            [external]
         )
+        XCTAssertEqual(ProfileCapture.sections([builtIn, external], limitedTo: nil), [builtIn, external])
+        XCTAssertEqual(ProfileCapture.sections([builtIn, external], limitedTo: UUID()), [])
+    }
+
+    func testRecaptureRefreshesConnectedDisplayAndKeepsUnpluggedSection() {
+        let builtInID = UUID()
+        let externalID = UUID()
+        let oldBuiltIn = section(display: builtInID, app: "notes")
+        let external = section(display: externalID, app: "browser")
+        let newBuiltIn = section(display: builtInID, app: "editor")
+
+        XCTAssertEqual(
+            ProfileCapture.mergedRecaptureSections(
+                existing: [oldBuiltIn, external],
+                captured: [newBuiltIn],
+                availableDisplayIDs: [builtInID]
+            ),
+            [newBuiltIn, external]
+        )
+    }
+
+    func testRecaptureDropsAConnectedDisplayThatNoLongerHoldsWindows() {
+        let builtInID = UUID()
+        let externalID = UUID()
+        let oldBuiltIn = section(display: builtInID, app: "notes")
+        let oldExternal = section(display: externalID, app: "browser")
+        let newExternal = section(display: externalID, app: "terminal")
+
+        XCTAssertEqual(
+            ProfileCapture.mergedRecaptureSections(
+                existing: [oldBuiltIn, oldExternal],
+                captured: [newExternal],
+                availableDisplayIDs: [builtInID, externalID]
+            ),
+            [newExternal]
+        )
+    }
+
+    func testRecaptureAddsANewlyConnectedDisplayAfterExistingSections() {
+        let builtInID = UUID()
+        let externalID = UUID()
+        let oldBuiltIn = section(display: builtInID, app: "notes")
+        let newBuiltIn = section(display: builtInID, app: "notes")
+        let newExternal = section(display: externalID, app: "browser")
+
+        XCTAssertEqual(
+            ProfileCapture.mergedRecaptureSections(
+                existing: [oldBuiltIn],
+                captured: [newExternal, newBuiltIn],
+                availableDisplayIDs: [builtInID, externalID]
+            ),
+            [newBuiltIn, newExternal]
+        )
+    }
+
+    func testRecaptureWithNothingCapturedLeavesTheProfileUntouched() {
+        let builtInID = UUID()
+        let existing = [section(display: builtInID, app: "notes"), section(display: UUID(), app: "browser")]
+
+        XCTAssertNil(
+            ProfileCapture.mergedRecaptureSections(
+                existing: existing,
+                captured: [],
+                availableDisplayIDs: [builtInID]
+            )
+        )
+    }
+
+    func testCapturedFramesOutsideTheWorkAreaRoundTripThroughStoreAndRestore() throws {
+        let samples: [(bundleID: String, frame: CGRect)] = [
+            ("interior", CGRect(x: 317, y: 140, width: 903, height: 611)),
+            ("partial-top", CGRect(x: 100, y: 0, width: 800, height: 500)),
+            ("partial-right", CGRect(x: 1000, y: 400, width: 600, height: 600)),
+            ("oversized", CGRect(x: -80, y: -40, width: 1800, height: 1200)),
+        ]
+        let windows = samples.enumerated().map { index, sample in
+            self.sample(
+                pid: pid_t(index + 1),
+                number: UInt32(index + 1),
+                bundleID: sample.bundleID,
+                frame: sample.frame
+            )
+        }
+        let rules = ProfileCapture.rules(windows: windows, workAreaAX: workArea)
+        XCTAssertEqual(rules.map(\.bundleID), samples.map(\.bundleID))
+
+        let displayID = UUID()
+        let profile = WorkspaceProfile(
+            name: "Desk",
+            sections: [ProfileSection(space: SpaceKey(displayID: displayID), rules: rules)]
+        )
+        let document = StoreDocument(layouts: [LayoutTemplates.columns(2)], profiles: [profile])
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("zonebox-raw-frame-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        try store.save(document)
+        let loadedProfile = try XCTUnwrap(try store.load().profiles.first)
+        let loadedRules = try XCTUnwrap(loadedProfile.sections.first?.rules)
+        XCTAssertEqual(loadedRules.map(\.bundleID), samples.map(\.bundleID))
+
+        let oversized = try XCTUnwrap(loadedRules.first { $0.bundleID == "oversized" }?.frame)
+        XCTAssertLessThan(oversized.x, 0)
+        XCTAssertGreaterThan(oversized.width, 1)
+        let partialTop = try XCTUnwrap(loadedRules.first { $0.bundleID == "partial-top" }?.frame)
+        XCTAssertLessThan(partialTop.y, 0)
+        let preview = WorkspaceLayoutPreview.snapshot(rules: loadedRules)
+        let oversizedPane = try XCTUnwrap(preview.panes.first { $0.bundleID == "oversized" })
+        XCTAssertEqual(oversizedPane.rect, oversized)
+        XCTAssertLessThan(oversizedPane.rect.x, 0)
+
+        let outcome = ProfilePlan.make(
+            profile: loadedProfile,
+            workAreasBySection: [displayID: workArea],
+            candidates: windows
+        )
+        XCTAssertEqual(outcome.missingBundleIDs, [])
+        let section = try XCTUnwrap(outcome.sections.first)
+        XCTAssertEqual(section.placements.count, samples.count)
+        XCTAssertEqual(section.targetFramesAX.count, samples.count)
+        for (index, sample) in samples.enumerated() {
+            for frame in [section.placements[index].targetFrameAX, section.targetFramesAX[index]] {
+                XCTAssertEqual(frame.minX, sample.frame.minX, accuracy: 0.01)
+                XCTAssertEqual(frame.minY, sample.frame.minY, accuracy: 0.01)
+                XCTAssertEqual(frame.width, sample.frame.width, accuracy: 0.01)
+                XCTAssertEqual(frame.height, sample.frame.height, accuracy: 0.01)
+            }
+        }
+    }
+
+    func testLayoutZonesStillClampIntoTheWorkArea() throws {
+        let partial = layoutZone(
+            NormalizedRect(
+                x: 100.0 / 1440.0,
+                y: (0.0 - 25.0) / 875.0,
+                width: 800.0 / 1440.0,
+                height: 500.0 / 875.0
+            )
+        )
+        let partialFrame = try XCTUnwrap(try resolveLayout(partial, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(partialFrame.minX, 100, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.minY, 25, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.width, 800, accuracy: 0.01)
+        XCTAssertEqual(partialFrame.height, 500, accuracy: 0.01)
+
+        let overflow = layoutZone(
+            NormalizedRect(
+                x: 1000.0 / 1440.0,
+                y: (400.0 - 25.0) / 875.0,
+                width: 600.0 / 1440.0,
+                height: 600.0 / 875.0
+            )
+        )
+        let overflowFrame = try XCTUnwrap(try resolveLayout(overflow, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(overflowFrame.minX, 840, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.minY, 300, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.width, 600, accuracy: 0.01)
+        XCTAssertEqual(overflowFrame.height, 600, accuracy: 0.01)
+
+        let huge = layoutZone(
+            NormalizedRect(
+                x: -80.0 / 1440.0,
+                y: (-40.0 - 25.0) / 875.0,
+                width: 1800.0 / 1440.0,
+                height: 1200.0 / 875.0
+            )
+        )
+        let hugeFrame = try XCTUnwrap(try resolveLayout(huge, workAreaAX: workArea, gutter: 0).first).frameAX
+        XCTAssertEqual(hugeFrame.minX, 0, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.minY, 25, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.width, 1440, accuracy: 0.01)
+        XCTAssertEqual(hugeFrame.height, 875, accuracy: 0.01)
+    }
+
+    private func section(display: DisplayIdentity.ID, app: String) -> ProfileSection {
+        ProfileSection(
+            space: SpaceKey(displayID: display),
+            rules: [AppPlacementRule(bundleID: app, frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))]
+        )
+    }
+
+    private func layoutZone(_ rect: NormalizedRect) -> Layout {
+        Layout(name: "Zone", kind: .canvas, zones: [Zone(number: 1, canvasRect: rect)])
     }
 
     private func sample(pid: pid_t, number: UInt32, bundleID: String?, frame: CGRect) -> ProfileCapture.WindowSample {

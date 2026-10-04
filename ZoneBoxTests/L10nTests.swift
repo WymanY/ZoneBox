@@ -50,7 +50,7 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.organizeClose, language: .chineseSimplified), "关闭")
         XCTAssertEqual(
             L10n.workspaceSizeConstrained("阿里云盘", language: .chineseSimplified),
-            "阿里云盘已移动到位，但其最小窗口尺寸大于当前分区。"
+            "阿里云盘已移动到位，但其最小窗口尺寸大于保存时的尺寸。"
         )
     }
 
@@ -119,16 +119,20 @@ final class L10nTests: XCTestCase {
             "管理已保存的整桌排布。切换只在当次执行，不会持续固定窗口。"
         )
         XCTAssertEqual(
-            String(format: L10n.text(.settingsWorkspaceZone, language: .chineseSimplified), 2),
-            "分区 2"
+            String(format: L10n.text(.settingsWorkspaceWindowSize, language: .chineseSimplified), 50, 100),
+            "50% × 100%"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsWorkspaceSectionSummary, language: .chineseSimplified), "Mi Monitor", 1),
+            "Mi Monitor · 1 个窗口"
         )
         XCTAssertEqual(
             L10n.text(.settingsWorkspaceLayoutPreview, language: .english),
-            "Restore layout schematic"
+            "Restored window positions"
         )
         XCTAssertEqual(
             L10n.text(.settingsWorkspaceLayoutPreview, language: .chineseSimplified),
-            "恢复布局示意"
+            "恢复位置示意"
         )
         XCTAssertEqual(
             L10n.text(.settingsHoverPinDetail, language: .english),
@@ -217,6 +221,21 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(
             LanguageCenter.resolveEffective(preference: .system, preferred: ["zh-CN"]),
             .chineseSimplified
+        )
+    }
+
+    func testWorkspaceCapturedDetailReportsDisplaysOnlyForMultipleSections() {
+        XCTAssertEqual(
+            L10n.workspaceCapturedDetail(name: "Xcode+Safari", displayCount: 1, applicationCount: 2, language: .english),
+            "Xcode+Safari includes 2 applications."
+        )
+        XCTAssertEqual(
+            L10n.workspaceCapturedDetail(name: "Xcode+Safari", displayCount: 2, applicationCount: 3, language: .english),
+            "Xcode+Safari: 2 displays · 3 applications"
+        )
+        XCTAssertEqual(
+            L10n.workspaceCapturedDetail(name: "Xcode+Safari", displayCount: 2, applicationCount: 3, language: .chineseSimplified),
+            "“Xcode+Safari”：2 台显示器 · 3 个应用"
         )
     }
 
