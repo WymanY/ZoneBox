@@ -100,7 +100,10 @@ protocol DragRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayC
 }
 
 @MainActor
-protocol DividerRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeWindowCataloging, RuntimeLayoutMutating, RuntimeWindowMutating {}
+protocol DividerRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeSettingsReading, RuntimeWindowCataloging, RuntimeLayoutMutating, RuntimeWindowMutating {
+    var organizeFeedback: OrganizeFeedbackController { get }
+    func applicationName(for identity: WindowIdentity) -> String
+}
 
 @MainActor
 protocol PinRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayCatalog, RuntimeWindowMutating, RuntimeChromeNotifying {

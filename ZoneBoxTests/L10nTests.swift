@@ -52,6 +52,16 @@ final class L10nTests: XCTestCase {
             L10n.workspaceSizeConstrained("阿里云盘", language: .chineseSimplified),
             "阿里云盘已移动到位，但其最小窗口尺寸大于保存时的尺寸。"
         )
+        XCTAssertEqual(L10n.text(.dividerMinWidthTitle, language: .english), "Width stopped here")
+        XCTAssertEqual(L10n.text(.dividerMinHeightTitle, language: .chineseSimplified), "高度停在这里")
+        XCTAssertEqual(
+            L10n.dividerMinWidth("Safari", points: 400, language: .english),
+            "Safari stayed at 400 pt wide, so the divider stopped."
+        )
+        XCTAssertEqual(
+            L10n.dividerMinHeight("备忘录", points: 300, language: .chineseSimplified),
+            "备忘录 停在 300 pt 高，分隔线因此停住。"
+        )
     }
 
     func testConsoleCopy() {

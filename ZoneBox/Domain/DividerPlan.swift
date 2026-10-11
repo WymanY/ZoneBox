@@ -52,6 +52,31 @@ public struct DividerHandleSpec: Equatable, Sendable {
     }
 }
 
+public struct DividerMinSizeStop: Equatable, Sendable {
+    public struct Window: Equatable, Sendable {
+        public var identity: WindowIdentity
+        public var limit: CGFloat
+        /// True only when the completed AX frame itself shows how far the
+        /// window refused to shrink. A learned clamp without that frame is
+        /// not an exact intrinsic size.
+        public var observed: Bool
+
+        public init(identity: WindowIdentity, limit: CGFloat, observed: Bool = true) {
+            self.identity = identity
+            self.limit = limit
+            self.observed = observed
+        }
+    }
+
+    public var axis: GridAxis
+    public var windows: [Window]
+
+    public init(axis: GridAxis, windows: [Window]) {
+        self.axis = axis
+        self.windows = windows
+    }
+}
+
 public enum DividerPlan {
     public static let inPlaceSizeTolerance: CGFloat = 28
     public static let inPlaceOriginTolerance: CGFloat = 28
@@ -208,6 +233,308 @@ public enum DividerPlan {
         return zip(start.zones, end.zones).contains { lhs, rhs in
             lhs.id != rhs.id || lhs.canvasRect != rhs.canvasRect
         }
+    }
+
+    public static func observingMinSize(
+        _ minSizes: [UUID: CGSize],
+        zoneID: UUID,
+        requested: CGRect,
+        actual: CGRect,
+        axis: GridAxis,
+        tolerance: CGFloat = AXFrameMutation.successTolerance
+    ) -> [UUID: CGSize] {
+        var next = minSizes
+        var size = next[zoneID] ?? .zero
+        switch axis {
+        case .vertical:
+            guard actual.width > requested.width + tolerance else { return minSizes }
+            size.width = max(size.width, actual.width)
+        case .horizontal:
+            guard actual.height > requested.height + tolerance else { return minSizes }
+            size.height = max(size.height, actual.height)
+        }
+        next[zoneID] = size
+        return next
+    }
+
+    /// Explains a stopped divider only when a completed AX write refused to
+    /// shrink and that refusal is what held the seam. A missing write, a write
+    /// that matched the request, or a pointer that never reached the learned
+    /// bound is not evidence of a minimum size.
+    ///
+    /// `requestedLayout` must be the pointer's raw line, not a layout already
+    /// clamped to a learned minimum. `refusals` are completed writes whose
+    /// actual frame stayed larger than the frame that write asked for.
+    public static func minSizeStop(
+        handle: DividerHandleSpec,
+        requestedLayout: Layout,
+        appliedLayout: Layout,
+        requestedFrames: [UUID: CGRect],
+        actualFrames: [UUID: CGRect],
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        tolerance: CGFloat = AXFrameMutation.successTolerance
+    ) -> DividerMinSizeStop? {
+        let refusals = Dictionary(uniqueKeysWithValues: handle.slots.compactMap { slot -> (UUID, CGSize)? in
+            guard let requested = requestedFrames[slot.zoneID],
+                  let actual = actualFrames[slot.zoneID]
+            else { return nil }
+            let observed = observingMinSize(
+                [:],
+                zoneID: slot.zoneID,
+                requested: requested,
+                actual: actual,
+                axis: handle.axis,
+                tolerance: tolerance
+            )
+            guard let learned = observed[slot.zoneID] else { return nil }
+            return (slot.zoneID, learned)
+        })
+        return minSizeStop(
+            handle: handle,
+            requestedLayout: requestedLayout,
+            appliedLayout: appliedLayout,
+            refusals: refusals,
+            workAreaAX: workAreaAX,
+            gutter: gutter,
+            tolerance: tolerance
+        )
+    }
+
+    public static func minSizeStop(
+        handle: DividerHandleSpec,
+        requestedLayout: Layout,
+        appliedLayout: Layout,
+        refusals: [UUID: CGSize],
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        tolerance: CGFloat = AXFrameMutation.successTolerance
+    ) -> DividerMinSizeStop? {
+        guard geometryChanged(from: requestedLayout, to: appliedLayout),
+              let requestedLine = normalizedLine(of: handle, in: requestedLayout, workAreaAX: workAreaAX),
+              let appliedLine = normalizedLine(of: handle, in: appliedLayout, workAreaAX: workAreaAX),
+              abs(requestedLine - appliedLine) > 0.000_001
+        else { return nil }
+
+        let movingTowardTrailing = requestedLine > appliedLine
+        var blocked: [DividerMinSizeStop.Window] = []
+        for slot in handle.slots {
+            guard let learned = refusals[slot.zoneID] else { continue }
+            let shrinking = movingTowardTrailing == slotIsTrailing(slot, handle: handle, layout: appliedLayout)
+            let limit: CGFloat
+            switch handle.axis {
+            case .vertical:
+                limit = learned.width
+            case .horizontal:
+                limit = learned.height
+            }
+            guard shrinking, limit > tolerance else { continue }
+            guard let unconstrained = movedLayout(appliedLayout, handle: handle, toNormalized: requestedLine),
+                  !satisfiesMinSizes(
+                    unconstrained,
+                    handle: handle,
+                    workAreaAX: workAreaAX,
+                    gutter: gutter,
+                    minSizes: [slot.zoneID: learned]
+                  )
+            else { continue }
+            blocked.append(DividerMinSizeStop.Window(identity: slot.identity, limit: limit, observed: true))
+        }
+        guard !blocked.isEmpty else { return nil }
+        return DividerMinSizeStop(axis: handle.axis, windows: blocked)
+    }
+
+    /// Keeps a completed shrink refusal only while the pointer is still past
+    /// the seam that refusal is holding. Backing away from that seam drops
+    /// the evidence so a later release does not explain a stop the user left.
+    public static func retainedMinSizeRefusals(
+        _ refusals: [UUID: CGSize],
+        handle: DividerHandleSpec,
+        pointerLayout: Layout?,
+        appliedLayout: Layout,
+        workAreaAX: CGRect
+    ) -> [UUID: CGSize] {
+        guard let pointerLayout,
+              let pointerLine = normalizedLine(of: handle, in: pointerLayout, workAreaAX: workAreaAX),
+              let appliedLine = normalizedLine(of: handle, in: appliedLayout, workAreaAX: workAreaAX),
+              abs(pointerLine - appliedLine) > 0.000_001
+        else { return [:] }
+        let pushingPast = pointerLine > appliedLine
+        var kept: [UUID: CGSize] = [:]
+        for slot in handle.slots {
+            guard let refusal = refusals[slot.zoneID] else { continue }
+            let trailing = slotIsTrailing(slot, handle: handle, layout: appliedLayout)
+            let stillPushingInto = pushingPast == trailing
+            if stillPushingInto {
+                kept[slot.zoneID] = refusal
+            }
+        }
+        return kept
+    }
+
+    public static func mergingMinSize(
+        _ minSizes: [UUID: CGSize],
+        zoneID: UUID,
+        minSize: CGSize
+    ) -> [UUID: CGSize] {
+        var next = minSizes
+        let current = next[zoneID] ?? .zero
+        next[zoneID] = CGSize(
+            width: max(current.width, minSize.width),
+            height: max(current.height, minSize.height)
+        )
+        return next
+    }
+
+    public static func normalizedLine(
+        of handle: DividerHandleSpec,
+        in layout: Layout,
+        workAreaAX: CGRect
+    ) -> Double? {
+        if layout.kind == .grid, let spec = layout.grid {
+            switch handle.axis {
+            case .vertical:
+                let marks = prefix(spec.columnWeights)
+                guard handle.afterIndex + 1 < marks.count else { return nil }
+                return marks[handle.afterIndex + 1]
+            case .horizontal:
+                let marks = prefix(spec.rowWeights)
+                guard handle.afterIndex + 1 < marks.count else { return nil }
+                return marks[handle.afterIndex + 1]
+            }
+        }
+        guard handle.slots.count >= 2,
+              let first = layout.zones.first(where: { $0.id == handle.slots[0].zoneID })?.canvasRect,
+              let second = layout.zones.first(where: { $0.id == handle.slots[1].zoneID })?.canvasRect
+        else { return nil }
+        switch handle.axis {
+        case .vertical:
+            let left = first.midX <= second.midX ? first : second
+            return left.x + left.width
+        case .horizontal:
+            let top = first.midY <= second.midY ? first : second
+            return top.y + top.height
+        }
+    }
+
+    public static func clampedMovedLayout(
+        _ layout: Layout,
+        handle: DividerHandleSpec,
+        toNormalized t: Double,
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        minSizes: [UUID: CGSize]
+    ) -> Layout? {
+        let requested = movedLayout(layout, handle: handle, toNormalized: t)
+        if minSizes.isEmpty { return requested }
+        if let requested, satisfiesMinSizes(
+            requested,
+            handle: handle,
+            workAreaAX: workAreaAX,
+            gutter: gutter,
+            minSizes: minSizes
+        ) {
+            return requested
+        }
+
+        guard let originT = normalizedLine(of: handle, in: layout, workAreaAX: workAreaAX) else {
+            return requested
+        }
+        let movingTowardTrailing = t >= originT
+        var low = min(originT, t)
+        var high = max(originT, t)
+        var best = movedLayout(layout, handle: handle, toNormalized: originT) ?? layout
+        for _ in 0..<40 {
+            let mid = (low + high) / 2
+            guard let candidate = movedLayout(layout, handle: handle, toNormalized: mid) else {
+                if movingTowardTrailing {
+                    high = mid
+                } else {
+                    low = mid
+                }
+                continue
+            }
+            if satisfiesMinSizes(
+                candidate,
+                handle: handle,
+                workAreaAX: workAreaAX,
+                gutter: gutter,
+                minSizes: minSizes
+            ) {
+                best = candidate
+                if movingTowardTrailing {
+                    low = mid
+                } else {
+                    high = mid
+                }
+            } else if movingTowardTrailing {
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+        return best
+    }
+
+    public static func clamping(
+        _ pending: Layout,
+        toHandle handle: DividerHandleSpec,
+        from base: Layout,
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        minSizes: [UUID: CGSize]
+    ) -> Layout {
+        guard let t = normalizedLine(of: handle, in: pending, workAreaAX: workAreaAX) else {
+            return pending
+        }
+        return clampedMovedLayout(
+            base,
+            handle: handle,
+            toNormalized: t,
+            workAreaAX: workAreaAX,
+            gutter: gutter,
+            minSizes: minSizes
+        ) ?? pending
+    }
+
+    public static func layoutMatchingActualFrames(
+        _ layout: Layout,
+        handle: DividerHandleSpec,
+        actualFrames: [UUID: CGRect],
+        workAreaAX: CGRect
+    ) -> Layout? {
+        guard let sides = partitionedActualFrames(
+            handle: handle,
+            layout: layout,
+            actualFrames: actualFrames,
+            workAreaAX: workAreaAX
+        ) else { return nil }
+        let line: CGFloat
+        switch handle.axis {
+        case .vertical:
+            let leftEdge = sides.leading.map(\.maxX).max() ?? 0
+            let rightEdge = sides.trailing.map(\.minX).min() ?? 0
+            let gap = rightEdge - leftEdge
+            guard abs(gap) <= seamGapTolerance else { return nil }
+            line = (leftEdge + rightEdge) / 2
+        case .horizontal:
+            let topEdge = sides.leading.map(\.maxY).max() ?? 0
+            let bottomEdge = sides.trailing.map(\.minY).min() ?? 0
+            let gap = bottomEdge - topEdge
+            guard abs(gap) <= seamGapTolerance else { return nil }
+            line = (topEdge + bottomEdge) / 2
+        }
+        let point: CGPoint
+        switch handle.axis {
+        case .vertical:
+            point = CGPoint(x: line, y: workAreaAX.midY)
+        case .horizontal:
+            point = CGPoint(x: workAreaAX.midX, y: line)
+        }
+        guard let t = normalizedPosition(of: point, axis: handle.axis, in: workAreaAX) else {
+            return nil
+        }
+        return movedLayout(layout, handle: handle, toNormalized: t)
     }
 }
 
@@ -569,6 +896,121 @@ private extension DividerPlan {
         case .horizontal:
             return workAreaAX.minX...workAreaAX.maxX
         }
+    }
+
+    static func partitionedActualFrames(
+        handle: DividerHandleSpec,
+        layout: Layout,
+        actualFrames: [UUID: CGRect],
+        workAreaAX: CGRect
+    ) -> (leading: [CGRect], trailing: [CGRect])? {
+        guard let t = normalizedLine(of: handle, in: layout, workAreaAX: workAreaAX) else {
+            return nil
+        }
+        let seam: CGFloat
+        switch handle.axis {
+        case .vertical:
+            seam = workAreaAX.minX + CGFloat(t) * workAreaAX.width
+        case .horizontal:
+            seam = workAreaAX.minY + CGFloat(t) * workAreaAX.height
+        }
+        var leading: [CGRect] = []
+        var trailing: [CGRect] = []
+        for slot in handle.slots {
+            guard let frame = actualFrames[slot.zoneID] else { continue }
+            switch handle.axis {
+            case .vertical:
+                if frame.midX <= seam {
+                    leading.append(frame)
+                } else {
+                    trailing.append(frame)
+                }
+            case .horizontal:
+                if frame.midY <= seam {
+                    leading.append(frame)
+                } else {
+                    trailing.append(frame)
+                }
+            }
+        }
+        guard !leading.isEmpty, !trailing.isEmpty else { return nil }
+        return (leading, trailing)
+    }
+
+    static func satisfiesMinSizes(
+        _ layout: Layout,
+        handle: DividerHandleSpec,
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        minSizes: [UUID: CGSize]
+    ) -> Bool {
+        let resolved = (try? resolveLayout(layout, workAreaAX: workAreaAX, gutter: gutter)) ?? []
+        let frames = Dictionary(uniqueKeysWithValues: resolved.map { ($0.zoneID, $0.frameAX) })
+        for slot in handle.slots {
+            guard let minSize = minSizes[slot.zoneID], let frame = frames[slot.zoneID] else { continue }
+            switch handle.axis {
+            case .vertical:
+                if minSize.width > 0, frame.width + 0.5 < minSize.width {
+                    return false
+                }
+            case .horizontal:
+                if minSize.height > 0, frame.height + 0.5 < minSize.height {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    static func slotIsTrailing(
+        _ slot: DividerHandleSlot,
+        handle: DividerHandleSpec,
+        layout: Layout
+    ) -> Bool {
+        if layout.kind == .grid, let spec = layout.grid,
+           let zoneIndex = layout.zones.firstIndex(where: { $0.id == slot.zoneID }) {
+            return gridSlotIsTrailing(zoneIndex: zoneIndex, handle: handle, spec: spec)
+        }
+        guard let rect = layout.zones.first(where: { $0.id == slot.zoneID })?.canvasRect else {
+            return false
+        }
+        let others = handle.slots.compactMap { other -> NormalizedRect? in
+            guard other.zoneID != slot.zoneID else { return nil }
+            return layout.zones.first(where: { $0.id == other.zoneID })?.canvasRect
+        }
+        guard !others.isEmpty else { return false }
+        switch handle.axis {
+        case .vertical:
+            let neighbor = others.map(\.midX).reduce(0, +) / CGFloat(others.count)
+            return rect.midX > neighbor
+        case .horizontal:
+            let neighbor = others.map(\.midY).reduce(0, +) / CGFloat(others.count)
+            return rect.midY > neighbor
+        }
+    }
+
+    /// Grid zones have no canvas rect. A slot is trailing only when every cell
+    /// of that zone sits strictly past this seam, so a merged zone that also
+    /// occupies the leading side is not treated as the window being shrunk.
+    static func gridSlotIsTrailing(
+        zoneIndex: Int,
+        handle: DividerHandleSpec,
+        spec: GridSpec
+    ) -> Bool {
+        var matched = 0
+        var pastSeam = 0
+        for row in 0..<spec.rows {
+            for column in 0..<spec.columns where spec.cellMap[row][column] == zoneIndex {
+                matched += 1
+                switch handle.axis {
+                case .vertical:
+                    if column > handle.afterIndex { pastSeam += 1 }
+                case .horizontal:
+                    if row > handle.afterIndex { pastSeam += 1 }
+                }
+            }
+        }
+        return matched > 0 && pastSeam == matched
     }
 
     static func prefix(_ weights: [Int]) -> [Double] {

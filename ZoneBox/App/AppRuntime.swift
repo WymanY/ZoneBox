@@ -1001,7 +1001,7 @@ final class AppRuntime {
         return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 
-    private func applicationName(for identity: WindowIdentity) -> String {
+    func applicationName(for identity: WindowIdentity) -> String {
         NSRunningApplication(processIdentifier: identity.pid)?.localizedName
             ?? identity.bundleID
             ?? L10n.text(.organizeNoWindowsTitle)
