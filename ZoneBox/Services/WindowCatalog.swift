@@ -14,19 +14,30 @@ final class WindowCatalog {
     }
 
     @discardableResult
+    func beginInteraction(identity: WindowIdentity) -> UInt64 {
+        state.beginInteraction(identity: identity)
+    }
+
+    func interactionToken(for identity: WindowIdentity) -> UInt64? {
+        state.interactionToken(for: identity)
+    }
+
+    @discardableResult
     func completeApply(
         identity: WindowIdentity,
         requestedFrame: CGRect,
         appliedFrame: CGRect?,
         capturedDrop: UnsnapRecord?,
-        capturedSnap: UnsnapRecord?
+        capturedSnap: UnsnapRecord?,
+        capturedInteractionToken: UInt64? = nil
     ) -> Bool {
         state.completeApply(
             identity: identity,
             requestedFrame: requestedFrame,
             appliedFrame: appliedFrame,
             capturedDrop: capturedDrop,
-            capturedSnap: capturedSnap
+            capturedSnap: capturedSnap,
+            capturedInteractionToken: capturedInteractionToken
         )
     }
 

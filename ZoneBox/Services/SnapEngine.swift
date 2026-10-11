@@ -174,6 +174,9 @@ final class SnapEngine {
             downLocation = event.locationAppKit
             downFrame = runtime.pendingFrame
             activeWindow = runtime.pendingWindow?.identity ?? runtime.pendingIdentity
+            if let activeWindow {
+                runtime.catalog.beginInteraction(identity: activeWindow)
+            }
         }
         let output = SnapSessionReducer.reduce(input)
         if isArmed(output.phase), !diagnosticActive {
@@ -677,6 +680,7 @@ final class SnapEngine {
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
                 let capturedDrop = dropAfterApply == identity ? runtime.catalog.record(for: identity) : nil
+                let capturedInteractionToken = capturedDrop == nil ? nil : runtime.catalog.interactionToken(for: identity)
                 let capturedSnap = capturedDrop == nil && snapIdentities.contains(identity)
                     ? runtime.catalog.record(for: identity)
                     : nil
@@ -751,7 +755,8 @@ final class SnapEngine {
                         requestedFrame: rect,
                         appliedFrame: appliedFrame,
                         capturedDrop: capturedDrop,
-                        capturedSnap: capturedSnap
+                        capturedSnap: capturedSnap,
+                        capturedInteractionToken: capturedInteractionToken
                     ) {
                         self.runtime.refreshDivider()
                     }

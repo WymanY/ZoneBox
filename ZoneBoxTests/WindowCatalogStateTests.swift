@@ -566,6 +566,116 @@ final class WindowCatalogStateTests: XCTestCase {
         XCTAssertEqual(state.records[identity]?.originalFrameAX, resized)
         XCTAssertEqual(state.records[identity]?.snappedFrameAX, nextRequested)
     }
+
+    func testSameWindowInteractionWithoutReplacementKeepsRestoreRecord() {
+        var state = WindowCatalogState()
+        let identity = WindowIdentity(pid: 41, windowNumber: 41)
+        let displayID = UUID()
+        let original = CGRect(x: 40, y: 40, width: 500, height: 400)
+        let snapped = CGRect(x: 0, y: 31, width: 720, height: 869)
+        let restore = CGRect(x: 220, y: 180, width: 500, height: 400)
+        state.record(
+            UnsnapRecord(
+                identity: identity,
+                originalFrameAX: original,
+                snappedFrameAX: snapped,
+                zoneIDs: [UUID()],
+                snappedAt: Date(timeIntervalSince1970: 41)
+            ),
+            displayID: displayID
+        )
+        let firstDrag = state.beginInteraction(identity: identity)
+        let capturedDrop = state.records[identity]
+        let secondDrag = state.beginInteraction(identity: identity)
+
+        XCTAssertNotEqual(firstDrag, secondDrag)
+        XCTAssertFalse(
+            state.completeApply(
+                identity: identity,
+                requestedFrame: restore,
+                appliedFrame: restore,
+                capturedDrop: capturedDrop,
+                capturedSnap: nil,
+                capturedInteractionToken: firstDrag
+            )
+        )
+        XCTAssertEqual(state.records[identity], capturedDrop)
+        XCTAssertEqual(state.interactionToken(for: identity), secondDrag)
+    }
+
+    func testOtherWindowInteractionStillDropsCompletedRestore() {
+        var state = WindowCatalogState()
+        let identity = WindowIdentity(pid: 42, windowNumber: 42)
+        let other = WindowIdentity(pid: 43, windowNumber: 43)
+        let displayID = UUID()
+        let original = CGRect(x: 40, y: 40, width: 500, height: 400)
+        let snapped = CGRect(x: 0, y: 31, width: 720, height: 869)
+        let restore = CGRect(x: 220, y: 180, width: 500, height: 400)
+        state.record(
+            UnsnapRecord(
+                identity: identity,
+                originalFrameAX: original,
+                snappedFrameAX: snapped,
+                zoneIDs: [UUID()],
+                snappedAt: Date(timeIntervalSince1970: 42)
+            ),
+            displayID: displayID
+        )
+        let firstDrag = state.beginInteraction(identity: identity)
+        let capturedDrop = state.records[identity]
+        _ = state.beginInteraction(identity: other)
+
+        XCTAssertTrue(
+            state.completeApply(
+                identity: identity,
+                requestedFrame: restore,
+                appliedFrame: restore,
+                capturedDrop: capturedDrop,
+                capturedSnap: nil,
+                capturedInteractionToken: firstDrag
+            )
+        )
+        XCTAssertNil(state.records[identity])
+        XCTAssertNil(state.interactionToken(for: identity))
+        XCTAssertNotNil(state.interactionToken(for: other))
+    }
+
+    func testRebuiltWindowDoesNotReuseDroppedInteractionToken() {
+        var state = WindowCatalogState()
+        let identity = WindowIdentity(pid: 44, windowNumber: 44)
+        let other = WindowIdentity(pid: 45, windowNumber: 45)
+        let displayID = UUID()
+        let record = UnsnapRecord(
+            identity: identity,
+            originalFrameAX: CGRect(x: 40, y: 40, width: 500, height: 400),
+            snappedFrameAX: CGRect(x: 0, y: 31, width: 720, height: 869),
+            zoneIDs: [UUID()],
+            snappedAt: Date(timeIntervalSince1970: 44)
+        )
+        let restore = CGRect(x: 220, y: 180, width: 500, height: 400)
+        state.record(record, displayID: displayID)
+        let stale = state.beginInteraction(identity: identity)
+        let otherToken = state.beginInteraction(identity: other)
+        state.drop(pid: identity.pid)
+        XCTAssertNil(state.records[identity])
+        XCTAssertNil(state.interactionToken(for: identity))
+        XCTAssertEqual(state.interactionToken(for: other), otherToken)
+
+        state.record(record, displayID: displayID)
+        let rebuilt = state.beginInteraction(identity: identity)
+        XCTAssertNotEqual(stale, rebuilt)
+        XCTAssertFalse(
+            state.completeApply(
+                identity: identity,
+                requestedFrame: restore,
+                appliedFrame: restore,
+                capturedDrop: record,
+                capturedSnap: nil,
+                capturedInteractionToken: stale
+            )
+        )
+        XCTAssertEqual(state.records[identity], record)
+    }
 }
 
 private final class CatalogAXFrameWriter: AXFrameWriting {

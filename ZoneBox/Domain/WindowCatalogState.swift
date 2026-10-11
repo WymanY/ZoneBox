@@ -19,6 +19,10 @@ public struct WindowCatalogState: Equatable, Sendable {
     /// snappedAt of a snap whose AX apply has not finished. A same-window
     /// record keeps the previous original while this is current.
     private var pendingSnappedAt: [WindowIdentity: Date] = [:]
+    /// Current drag token for each window. The counter only moves forward, so
+    /// clearing a token on drop cannot be reused by the next cycle.
+    private var interactionTokens: [WindowIdentity: UInt64] = [:]
+    private var nextInteractionToken: UInt64 = 0
 
     public init(
         records: [WindowIdentity: UnsnapRecord] = [:],
@@ -59,16 +63,32 @@ public struct WindowCatalogState: Equatable, Sendable {
         }
     }
 
+    /// A left-down on this window. The returned token identifies that drag
+    /// until another left-down on the same identity replaces it.
+    @discardableResult
+    public mutating func beginInteraction(identity: WindowIdentity) -> UInt64 {
+        nextInteractionToken &+= 1
+        interactionTokens[identity] = nextInteractionToken
+        return nextInteractionToken
+    }
+
+    public func interactionToken(for identity: WindowIdentity) -> UInt64? {
+        interactionTokens[identity]
+    }
+
     /// AX completion for a snap or restore. Restore drops only when the
-    /// requested frame landed and this identity was not replaced. Snap stores
-    /// the applied frame only while this write still owns the captured record.
+    /// requested frame landed, this identity was not replaced, and the drag
+    /// token captured for this restore still matches. Another window's drag
+    /// does not change this token. Snap stores the applied frame only while
+    /// this write still owns the captured record.
     @discardableResult
     public mutating func completeApply(
         identity: WindowIdentity,
         requestedFrame: CGRect,
         appliedFrame: CGRect?,
         capturedDrop: UnsnapRecord?,
-        capturedSnap: UnsnapRecord?
+        capturedSnap: UnsnapRecord?,
+        capturedInteractionToken: UInt64? = nil
     ) -> Bool {
         if let dropIdentity = UnsnapCatalogPolicy.identityToDrop(
             capturedForThisWrite: capturedDrop,
@@ -76,8 +96,10 @@ public struct WindowCatalogState: Equatable, Sendable {
             requestedFrame: requestedFrame,
             appliedFrame: appliedFrame
         ) {
-            drop(identity: dropIdentity)
-            return true
+            if interactionTokens[identity] == capturedInteractionToken {
+                drop(identity: dropIdentity)
+                return true
+            }
         }
         if let capturedSnap,
            capturedSnap.identity == identity,
@@ -102,12 +124,14 @@ public struct WindowCatalogState: Equatable, Sendable {
         records = records.filter { $0.key.pid != pid }
         membership = membership.filter { $0.key.pid != pid }
         pendingSnappedAt = pendingSnappedAt.filter { $0.key.pid != pid }
+        interactionTokens = interactionTokens.filter { $0.key.pid != pid }
     }
 
     public mutating func drop(identity: WindowIdentity) {
         records[identity] = nil
         membership[identity] = nil
         pendingSnappedAt[identity] = nil
+        interactionTokens[identity] = nil
     }
 
     public func zoneID(for identity: WindowIdentity, displayID: UUID) -> UUID? {
