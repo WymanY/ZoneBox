@@ -94,6 +94,11 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case organizeRestoreAction
     case organizeIgnoreAction
     case organizeClose
+    case dividerMinWidthTitle
+    case dividerMinHeightTitle
+    case dividerMinWidthDetail
+    case dividerMinHeightDetail
+    case dividerMinSizeUnknownDetail
     case workspaceNameTitle
     case workspaceNameMessage
     case workspaceNamePlaceholder
@@ -613,6 +618,39 @@ public enum L10n {
         String(format: text(.organizeIgnoredDetail, language: language), locale: language.locale, appName)
     }
 
+    public static func dividerMinWidth(
+        _ appName: String,
+        points: Int,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        String(
+            format: text(.dividerMinWidthDetail, language: language),
+            locale: language.locale,
+            appName,
+            points
+        )
+    }
+
+    public static func dividerMinHeight(
+        _ appName: String,
+        points: Int,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        String(
+            format: text(.dividerMinHeightDetail, language: language),
+            locale: language.locale,
+            appName,
+            points
+        )
+    }
+
+    public static func dividerMinSizeUnknown(
+        _ appName: String,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        String(format: text(.dividerMinSizeUnknownDetail, language: language), locale: language.locale, appName)
+    }
+
     public static func workspaceSizeConstrained(
         _ appName: String,
         language: AppLanguage = LanguageCenter.language
@@ -722,6 +760,11 @@ public enum L10n {
         .organizeRestoreAction: "Restore Layout",
         .organizeIgnoreAction: "Ignore %@",
         .organizeClose: "Close",
+        .dividerMinWidthTitle: "Width stopped here",
+        .dividerMinHeightTitle: "Height stopped here",
+        .dividerMinWidthDetail: "%@ stayed at %d pt wide, so the divider stopped.",
+        .dividerMinHeightDetail: "%@ stayed at %d pt tall, so the divider stopped.",
+        .dividerMinSizeUnknownDetail: "%@ cannot be resized any further, so the divider stopped.",
         .workspaceNameTitle: "Save Workspace",
         .workspaceNameMessage: "Name this arrangement of app windows.",
         .workspaceNamePlaceholder: "Workspace name",
@@ -1175,6 +1218,11 @@ public enum L10n {
         .organizeRestoreAction: "恢复原布局",
         .organizeIgnoreAction: "以后忽略 %@",
         .organizeClose: "关闭",
+        .dividerMinWidthTitle: "宽度停在这里",
+        .dividerMinHeightTitle: "高度停在这里",
+        .dividerMinWidthDetail: "%@ 停在 %d pt 宽，分隔线因此停住。",
+        .dividerMinHeightDetail: "%@ 停在 %d pt 高，分隔线因此停住。",
+        .dividerMinSizeUnknownDetail: "%@ 不能再缩小，分隔线因此停住。",
         .workspaceNameTitle: "保存工作区",
         .workspaceNameMessage: "为当前的应用窗口排布命名。",
         .workspaceNamePlaceholder: "工作区名称",

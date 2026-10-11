@@ -14,11 +14,17 @@ final class DividerController {
     private var writeTask: Task<Void, Never>?
     private var writeTaskID: UUID?
     private var latestDragLayout: Layout?
+    private var latestRequestedLayout: Layout?
+    private var latestRequestedFrames: [UUID: CGRect] = [:]
+    private var latestActualFrames: [UUID: CGRect] = [:]
+    private var pointerRequestedLayout: Layout?
+    private var completedRefusals: [UUID: CGSize] = [:]
     private var committing = false
     private let query = CGWindowQuery()
     private var dragMonitors: [Any] = []
 
     var isDragging: Bool { drag != nil }
+    private var gutterPoints: CGFloat { CGFloat(runtime.settings.gutterPoints) }
 
     func start() {
         guard refreshTimer == nil else { return }
@@ -129,6 +135,11 @@ final class DividerController {
         }
         writeTaskID = nil
         latestDragLayout = nil
+        latestRequestedLayout = nil
+        latestRequestedFrames = [:]
+        latestActualFrames = [:]
+        pointerRequestedLayout = nil
+        completedRefusals = [:]
         drag = nil
         committing = false
         for view in views.values.flatMap({ $0 }) {
@@ -234,6 +245,8 @@ final class DividerController {
             windows: [:]
         )
         latestDragLayout = layout
+        pointerRequestedLayout = nil
+        completedRefusals = [:]
         Log.divider.info("Divider drag began display=\(displayID.uuidString, privacy: .public) axis=\(String(describing: handle.axis), privacy: .public) after=\(handle.afterIndex, privacy: .public)")
         installDragMonitors()
         windowResolutionTask = Task { @MainActor [weak self] in
@@ -311,22 +324,29 @@ final class DividerController {
             axis: current.handle.axis,
             in: current.workAreaAX
         ) else { return }
-        guard let next = DividerPlan.movedLayout(
+        guard let next = DividerPlan.clampedMovedLayout(
             current.baseLayout,
             handle: current.handle,
-            toNormalized: t
+            toNormalized: t,
+            workAreaAX: current.workAreaAX,
+            gutter: gutterPoints,
+            minSizes: current.minSizes
         ) else { return }
+        if let raw = DividerPlan.movedLayout(current.baseLayout, handle: current.handle, toNormalized: t) {
+            pointerRequestedLayout = raw
+        }
         current.latestLayout = next
         drag = current
         enqueueWrite(next)
     }
 
-    private func previewHandle(from current: DragState) {
+    private func previewHandle(from current: DragState, actuals: [UUID: CGRect] = [:]) {
         var frames: [UUID: CGRect] = [:]
         var snapped: [UUID: [WindowIdentity]] = [:]
         for slot in current.handle.slots {
-            let actual = query.frameAX(ofWindow: slot.identity.windowNumber)
-            frames[slot.zoneID] = actual
+            if let actual = actuals[slot.zoneID] ?? query.frameAX(ofWindow: slot.identity.windowNumber) {
+                frames[slot.zoneID] = actual
+            }
             snapped[slot.zoneID] = [slot.identity]
         }
         let nextHandles = DividerPlan.handles(
@@ -381,17 +401,75 @@ final class DividerController {
             let resolved = (try? resolveLayout(
                 layout,
                 workAreaAX: current.workAreaAX,
-                gutter: CGFloat(runtime.settings.gutterPoints)
+                gutter: gutterPoints
             )) ?? []
             let frames = Dictionary(uniqueKeysWithValues: resolved.map { ($0.zoneID, $0.frameAX) })
+            var minSizes = current.minSizes
+            var actuals: [UUID: CGRect] = [:]
+            latestRequestedLayout = layout
+            latestRequestedFrames = frames
+            var refusals = completedRefusals
             for slot in current.handle.slots {
                 guard let window = current.windows[slot.identity],
                       let frame = frames[slot.zoneID]
                 else { continue }
-                _ = await runtime.applyFrame(frame, of: window, sessionID: current.id, generation: generation)
+                guard let actual = await runtime.applyFrame(
+                    frame,
+                    of: window,
+                    sessionID: current.id,
+                    generation: generation
+                ) else { continue }
+                actuals[slot.zoneID] = actual
+                minSizes = DividerPlan.observingMinSize(
+                    minSizes,
+                    zoneID: slot.zoneID,
+                    requested: frame,
+                    actual: actual,
+                    axis: current.handle.axis
+                )
+                refusals = DividerPlan.observingMinSize(
+                    refusals,
+                    zoneID: slot.zoneID,
+                    requested: frame,
+                    actual: actual,
+                    axis: current.handle.axis
+                )
             }
-            guard !Task.isCancelled, let latest = drag, latest.id == dragID else { break }
-            previewHandle(from: latest)
+            guard !Task.isCancelled, var latest = drag, latest.id == dragID else { break }
+            latestActualFrames = actuals
+            completedRefusals = refusals
+            latest.minSizes = minSizes
+            latest.latestLayout = DividerPlan.clamping(
+                latest.latestLayout,
+                toHandle: latest.handle,
+                from: latest.baseLayout,
+                workAreaAX: latest.workAreaAX,
+                gutter: gutterPoints,
+                minSizes: minSizes
+            )
+            let clampedWritten = DividerPlan.clamping(
+                layout,
+                toHandle: latest.handle,
+                from: latest.baseLayout,
+                workAreaAX: latest.workAreaAX,
+                gutter: gutterPoints,
+                minSizes: minSizes
+            )
+            if let pending = latestDragLayout {
+                latestDragLayout = DividerPlan.clamping(
+                    pending,
+                    toHandle: latest.handle,
+                    from: latest.baseLayout,
+                    workAreaAX: latest.workAreaAX,
+                    gutter: gutterPoints,
+                    minSizes: minSizes
+                )
+            } else if DividerPlan.geometryChanged(from: layout, to: clampedWritten) {
+                latest.latestLayout = clampedWritten
+                latestDragLayout = clampedWritten
+            }
+            drag = latest
+            previewHandle(from: latest, actuals: actuals)
             if latestDragLayout.map({ !DividerPlan.geometryChanged(from: layout, to: $0) }) == true {
                 latestDragLayout = nil
             }
@@ -427,7 +505,41 @@ final class DividerController {
             await inflight.value
         }
         guard let current = drag else { return }
-        let finalLayout = current.latestLayout
+        var actuals: [UUID: CGRect] = [:]
+        for slot in current.handle.slots {
+            if let window = current.windows[slot.identity] {
+                if let frame = await runtime.ax.frame(of: window) {
+                    actuals[slot.zoneID] = frame
+                }
+            } else {
+                if let frame = query.frameAX(ofWindow: slot.identity.windowNumber) {
+                    actuals[slot.zoneID] = frame
+                }
+            }
+        }
+        var finalLayout = DividerPlan.clamping(
+            current.latestLayout,
+            toHandle: current.handle,
+            from: current.baseLayout,
+            workAreaAX: current.workAreaAX,
+            gutter: gutterPoints,
+            minSizes: current.minSizes
+        )
+        if let matched = DividerPlan.layoutMatchingActualFrames(
+            current.baseLayout,
+            handle: current.handle,
+            actualFrames: actuals,
+            workAreaAX: current.workAreaAX
+        ) {
+            finalLayout = DividerPlan.clamping(
+                matched,
+                toHandle: current.handle,
+                from: current.baseLayout,
+                workAreaAX: current.workAreaAX,
+                gutter: gutterPoints,
+                minSizes: current.minSizes
+            )
+        }
         if DividerPlan.geometryChanged(from: current.baseLayout, to: finalLayout) {
             _ = runtime.saveLayout(finalLayout, to: current.displayID)
             Log.divider.info("Divider committed display=\(current.displayID.uuidString, privacy: .public)")
@@ -435,17 +547,29 @@ final class DividerController {
         let resolved = (try? resolveLayout(
             finalLayout,
             workAreaAX: current.workAreaAX,
-            gutter: CGFloat(runtime.settings.gutterPoints)
+            gutter: gutterPoints
         )) ?? []
         let frames = Dictionary(uniqueKeysWithValues: resolved.map { ($0.zoneID, $0.frameAX) })
+        let refusals = DividerPlan.retainedMinSizeRefusals(
+            completedRefusals,
+            handle: current.handle,
+            pointerLayout: pointerRequestedLayout,
+            appliedLayout: finalLayout,
+            workAreaAX: current.workAreaAX
+        )
+        if let requestedLayout = pointerRequestedLayout,
+           let stop = DividerPlan.minSizeStop(
+            handle: current.handle,
+            requestedLayout: requestedLayout,
+            appliedLayout: finalLayout,
+            refusals: refusals,
+            workAreaAX: current.workAreaAX,
+            gutter: gutterPoints
+        ) {
+            showMinSizeFeedback(stop, on: current.displayID)
+        }
         for slot in current.handle.slots {
-            let actual: CGRect?
-            if let window = current.windows[slot.identity] {
-                actual = await runtime.ax.frame(of: window)
-            } else {
-                actual = query.frameAX(ofWindow: slot.identity.windowNumber)
-            }
-            let frame = actual ?? frames[slot.zoneID] ?? .zero
+            let frame = actuals[slot.zoneID] ?? frames[slot.zoneID] ?? .zero
             runtime.catalog.updateSnappedFrame(
                 frame,
                 for: slot.identity,
@@ -457,6 +581,11 @@ final class DividerController {
         runtime.end(.divide)
         drag = nil
         latestDragLayout = nil
+        latestRequestedLayout = nil
+        latestRequestedFrames = [:]
+        latestActualFrames = [:]
+        pointerRequestedLayout = nil
+        completedRefusals = [:]
         writeTask = nil
         writeTaskID = nil
         current.view.resetInteraction()
@@ -526,6 +655,30 @@ final class DividerController {
             view.highlightedIndex = nil
         }
     }
+
+    private func showMinSizeFeedback(_ stop: DividerMinSizeStop, on displayID: UUID) {
+        guard let screen = runtime.screen(for: displayID), let window = stop.windows.first else { return }
+        let name = runtime.applicationName(for: window.identity)
+        let points = Int(window.limit.rounded())
+        let title: String
+        let detail: String
+        switch stop.axis {
+        case .vertical:
+            title = L10n.text(.dividerMinWidthTitle)
+            detail = window.observed && points > 0
+                ? L10n.dividerMinWidth(name, points: points)
+                : L10n.dividerMinSizeUnknown(name)
+        case .horizontal:
+            title = L10n.text(.dividerMinHeightTitle)
+            detail = window.observed && points > 0
+                ? L10n.dividerMinHeight(name, points: points)
+                : L10n.dividerMinSizeUnknown(name)
+        }
+        runtime.organizeFeedback.show(
+            OrganizeFeedback(tone: .warning, title: title, detail: detail),
+            on: screen
+        )
+    }
 }
 
 private struct DragState {
@@ -538,4 +691,5 @@ private struct DragState {
     var latestLayout: Layout
     var workAreaAX: CGRect
     var windows: [WindowIdentity: AXWindow]
+    var minSizes: [UUID: CGSize] = [:]
 }
