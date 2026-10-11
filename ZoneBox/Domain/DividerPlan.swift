@@ -440,10 +440,28 @@ public enum DividerPlan {
         guard let originT = normalizedLine(of: handle, in: layout, workAreaAX: workAreaAX) else {
             return requested
         }
+        let originLayout = movedLayout(layout, handle: handle, toNormalized: originT) ?? layout
+        if !satisfiesMinSizes(
+            originLayout,
+            handle: handle,
+            workAreaAX: workAreaAX,
+            gutter: gutter,
+            minSizes: minSizes
+        ) {
+            return layoutPastInvalidBase(
+                layout,
+                handle: handle,
+                requestedT: t,
+                fallback: originLayout,
+                workAreaAX: workAreaAX,
+                gutter: gutter,
+                minSizes: minSizes
+            )
+        }
         let movingTowardTrailing = t >= originT
         var low = min(originT, t)
         var high = max(originT, t)
-        var best = movedLayout(layout, handle: handle, toNormalized: originT) ?? layout
+        var best = originLayout
         for _ in 0..<40 {
             let mid = (low + high) / 2
             guard let candidate = movedLayout(layout, handle: handle, toNormalized: mid) else {
@@ -474,6 +492,56 @@ public enum DividerPlan {
             }
         }
         return best
+    }
+
+    /// The base seam itself misses a learned minimum, so the feasible interval
+    /// may sit past that seam. Leading and trailing limits are each monotonic
+    /// inside the adjacent track (or canvas pair); their overlap is the only
+    /// legal correction. An empty overlap keeps the existing base fallback.
+    private static func layoutPastInvalidBase(
+        _ layout: Layout,
+        handle: DividerHandleSpec,
+        requestedT: Double,
+        fallback: Layout,
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        minSizes: [UUID: CGSize]
+    ) -> Layout {
+        guard let domain = movableSeamDomain(layout, handle: handle) else { return fallback }
+        guard let lower = lowestSeam(in: domain, layout: layout, handle: handle, meets: { candidate in
+            sideMeetsMinimum(
+                candidate,
+                handle: handle,
+                workAreaAX: workAreaAX,
+                gutter: gutter,
+                minSizes: minSizes,
+                trailing: false
+            )
+        }),
+        let upper = highestSeam(in: domain, layout: layout, handle: handle, meets: { candidate in
+            sideMeetsMinimum(
+                candidate,
+                handle: handle,
+                workAreaAX: workAreaAX,
+                gutter: gutter,
+                minSizes: minSizes,
+                trailing: true
+            )
+        }),
+        lower <= upper + 0.000_001
+        else { return fallback }
+
+        let target = min(max(requestedT, lower), upper)
+        guard let corrected = movedLayout(layout, handle: handle, toNormalized: target),
+              satisfiesMinSizes(
+                corrected,
+                handle: handle,
+                workAreaAX: workAreaAX,
+                gutter: gutter,
+                minSizes: minSizes
+              )
+        else { return fallback }
+        return corrected
     }
 
     public static func clamping(
@@ -539,6 +607,114 @@ public enum DividerPlan {
 }
 
 private extension DividerPlan {
+    static func movableSeamDomain(_ layout: Layout, handle: DividerHandleSpec) -> ClosedRange<Double>? {
+        if layout.kind == .grid, let spec = layout.grid {
+            let weights = handle.axis == .vertical ? spec.columnWeights : spec.rowWeights
+            guard handle.afterIndex >= 0, handle.afterIndex + 1 < weights.count else { return nil }
+            let start = prefix(weights)[handle.afterIndex]
+            let pairSum = weights[handle.afterIndex] + weights[handle.afterIndex + 1]
+            let unit = Double(GridEditing.weightTotal)
+            let lower = start + Double(GridEditing.minWeight) / unit
+            let upper = start + Double(pairSum - GridEditing.minWeight) / unit
+            guard upper > lower else { return nil }
+            return lower...upper
+        }
+        guard handle.slots.count >= 2,
+              let first = layout.zones.first(where: { $0.id == handle.slots[0].zoneID })?.canvasRect,
+              let second = layout.zones.first(where: { $0.id == handle.slots[1].zoneID })?.canvasRect
+        else { return nil }
+        let minimum = ZoneSplit.minSize
+        switch handle.axis {
+        case .vertical:
+            let left = first.midX <= second.midX ? first : second
+            let right = left.midX == first.midX ? second : first
+            let lower = Double(left.x) + minimum
+            let upper = Double(right.x + right.width) - minimum
+            guard upper > lower else { return nil }
+            return lower...upper
+        case .horizontal:
+            let top = first.midY <= second.midY ? first : second
+            let bottom = top.midY == first.midY ? second : first
+            let lower = Double(top.y) + minimum
+            let upper = Double(bottom.y + bottom.height) - minimum
+            guard upper > lower else { return nil }
+            return lower...upper
+        }
+    }
+
+    static func sideMeetsMinimum(
+        _ layout: Layout,
+        handle: DividerHandleSpec,
+        workAreaAX: CGRect,
+        gutter: CGFloat,
+        minSizes: [UUID: CGSize],
+        trailing: Bool
+    ) -> Bool {
+        let resolved = (try? resolveLayout(layout, workAreaAX: workAreaAX, gutter: gutter)) ?? []
+        let frames = Dictionary(uniqueKeysWithValues: resolved.map { ($0.zoneID, $0.frameAX) })
+        for slot in handle.slots {
+            guard slotIsTrailing(slot, handle: handle, layout: layout) == trailing else { continue }
+            guard let minSize = minSizes[slot.zoneID], let frame = frames[slot.zoneID] else { continue }
+            switch handle.axis {
+            case .vertical:
+                if minSize.width > 0, frame.width + 0.5 < minSize.width { return false }
+            case .horizontal:
+                if minSize.height > 0, frame.height + 0.5 < minSize.height { return false }
+            }
+        }
+        return true
+    }
+
+    static func lowestSeam(
+        in domain: ClosedRange<Double>,
+        layout: Layout,
+        handle: DividerHandleSpec,
+        meets: (Layout) -> Bool
+    ) -> Double? {
+        func ok(_ seam: Double) -> Bool {
+            guard let candidate = movedLayout(layout, handle: handle, toNormalized: seam) else { return false }
+            return meets(candidate)
+        }
+        guard ok(domain.upperBound) else { return nil }
+        if ok(domain.lowerBound) { return domain.lowerBound }
+        var low = domain.lowerBound
+        var high = domain.upperBound
+        for _ in 0..<40 {
+            let mid = (low + high) / 2
+            if ok(mid) {
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+        return high
+    }
+
+    static func highestSeam(
+        in domain: ClosedRange<Double>,
+        layout: Layout,
+        handle: DividerHandleSpec,
+        meets: (Layout) -> Bool
+    ) -> Double? {
+        func ok(_ seam: Double) -> Bool {
+            guard let candidate = movedLayout(layout, handle: handle, toNormalized: seam) else { return false }
+            return meets(candidate)
+        }
+        guard ok(domain.lowerBound) else { return nil }
+        if ok(domain.upperBound) { return domain.upperBound }
+        var low = domain.lowerBound
+        var high = domain.upperBound
+        for _ in 0..<40 {
+            let mid = (low + high) / 2
+            if ok(mid) {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        return low
+    }
+
     static func verticalHandles(
         layout: Layout,
         spec: GridSpec,

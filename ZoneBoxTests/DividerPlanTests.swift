@@ -1033,6 +1033,199 @@ final class DividerPlanTests: XCTestCase {
         XCTAssertEqual(merged[zoneID]?.height, 90)
     }
 
+    /// A snapped seam can already be narrower than the learned minimum. Dragging
+    /// further into that side used to search only back to the invalid base and
+    /// return it. The feasible seam is past the base, including when the two
+    /// mins leave only a narrow interval.
+    func testClampSearchesPastAnUndersizedBase() throws {
+        let columns = LayoutTemplates.columns(2)
+        let vertical = try verticalHandle(for: columns)
+        let narrowLeft = try XCTUnwrap(DividerPlan.movedLayout(columns, handle: vertical, toNormalized: 0.30))
+        let leftMin = [columns.zones[0].id: CGSize(width: 350, height: 0)]
+        let expandedLeft = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowLeft,
+                handle: vertical,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: leftMin
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: expandedLeft, gutter: 0).width, 350, accuracy: 2)
+        let reversedLeft = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowLeft,
+                handle: vertical,
+                toNormalized: 0.70,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: leftMin
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: reversedLeft, gutter: 0).width, 700, accuracy: 2)
+
+        let narrowRight = try XCTUnwrap(DividerPlan.movedLayout(columns, handle: vertical, toNormalized: 0.70))
+        let expandedRight = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowRight,
+                handle: vertical,
+                toNormalized: 0.90,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [columns.zones[1].id: CGSize(width: 350, height: 0)]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[1].id, in: expandedRight, gutter: 0).width, 350, accuracy: 2)
+
+        let rows = LayoutTemplates.rows(2)
+        let horizontal = try horizontalHandle(for: rows)
+        let narrowTop = try XCTUnwrap(DividerPlan.movedLayout(rows, handle: horizontal, toNormalized: 0.375))
+        let expandedTop = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowTop,
+                handle: horizontal,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [rows.zones[0].id: CGSize(width: 0, height: 350)]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(rows.zones[0].id, in: expandedTop, gutter: 0).height, 350, accuracy: 2)
+
+        let narrowBottom = try XCTUnwrap(DividerPlan.movedLayout(rows, handle: horizontal, toNormalized: 0.625))
+        let expandedBottom = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowBottom,
+                handle: horizontal,
+                toNormalized: 0.90,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [rows.zones[1].id: CGSize(width: 0, height: 350)]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(rows.zones[1].id, in: expandedBottom, gutter: 0).height, 350, accuracy: 2)
+
+        let tight = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowLeft,
+                handle: vertical,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [
+                    columns.zones[0].id: CGSize(width: 490, height: 0),
+                    columns.zones[1].id: CGSize(width: 505, height: 0),
+                ]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: tight, gutter: 0).width, 490, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(try resolvedFrame(columns.zones[1].id, in: tight, gutter: 0).width + 0.5, 505)
+
+        let opposite = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowLeft,
+                handle: vertical,
+                toNormalized: 0.05,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [
+                    columns.zones[0].id: CGSize(width: 350, height: 0),
+                    columns.zones[1].id: CGSize(width: 600, height: 0),
+                ]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: opposite, gutter: 0).width, 350, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(try resolvedFrame(columns.zones[1].id, in: opposite, gutter: 0).width + 0.5, 600)
+
+        let canvas = Layout(
+            name: "Narrow Canvas",
+            kind: .canvas,
+            zones: [
+                Zone(number: 1, canvasRect: NormalizedRect(x: 0, y: 0, width: 0.30, height: 1)),
+                Zone(number: 2, canvasRect: NormalizedRect(x: 0.30, y: 0, width: 0.70, height: 1)),
+            ]
+        )
+        let canvasHandle = DividerHandleSpec(
+            axis: .vertical,
+            afterIndex: 0,
+            lineAX: work.minX + 300,
+            spanAX: work.minY...work.maxY,
+            slots: [
+                DividerHandleSlot(zoneID: canvas.zones[0].id, identity: identities(count: 1)[0]),
+                DividerHandleSlot(zoneID: canvas.zones[1].id, identity: WindowIdentity(pid: 2, windowNumber: 2)),
+            ]
+        )
+        let canvasExpanded = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                canvas,
+                handle: canvasHandle,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [canvas.zones[0].id: CGSize(width: 350, height: 0)]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(canvas.zones[0].id, in: canvasExpanded, gutter: 0).width, 350, accuracy: 2)
+
+        let canvasRows = Layout(
+            name: "Narrow Canvas Rows",
+            kind: .canvas,
+            zones: [
+                Zone(number: 1, canvasRect: NormalizedRect(x: 0, y: 0, width: 1, height: 0.375)),
+                Zone(number: 2, canvasRect: NormalizedRect(x: 0, y: 0.375, width: 1, height: 0.625)),
+            ]
+        )
+        let canvasRowHandle = DividerHandleSpec(
+            axis: .horizontal,
+            afterIndex: 0,
+            lineAX: work.minY + 300,
+            spanAX: work.minX...work.maxX,
+            slots: [
+                DividerHandleSlot(zoneID: canvasRows.zones[0].id, identity: identities(count: 1)[0]),
+                DividerHandleSlot(zoneID: canvasRows.zones[1].id, identity: WindowIdentity(pid: 2, windowNumber: 2)),
+            ]
+        )
+        let canvasBottom = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                canvasRows,
+                handle: canvasRowHandle,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [canvasRows.zones[0].id: CGSize(width: 0, height: 350)]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(canvasRows.zones[0].id, in: canvasBottom, gutter: 0).height, 350, accuracy: 2)
+
+        let impossible = try XCTUnwrap(
+            DividerPlan.clampedMovedLayout(
+                narrowLeft,
+                handle: vertical,
+                toNormalized: 0.10,
+                workAreaAX: work,
+                gutter: 0,
+                minSizes: [
+                    columns.zones[0].id: CGSize(width: 700, height: 0),
+                    columns.zones[1].id: CGSize(width: 400, height: 0),
+                ]
+            )
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: impossible, gutter: 0).width, 300, accuracy: 2)
+        let impossibleAgain = DividerPlan.clamping(
+            impossible,
+            toHandle: vertical,
+            from: narrowLeft,
+            workAreaAX: work,
+            gutter: 0,
+            minSizes: [
+                columns.zones[0].id: CGSize(width: 700, height: 0),
+                columns.zones[1].id: CGSize(width: 400, height: 0),
+            ]
+        )
+        XCTAssertEqual(try resolvedFrame(columns.zones[0].id, in: impossibleAgain, gutter: 0).width, 300, accuracy: 2)
+    }
+
     private func handles(
         for layout: Layout,
         snapped: [UUID: [WindowIdentity]],
