@@ -542,20 +542,48 @@ public enum SnapLayoutAssignmentPolicy {
 public enum UnsnapCatalogPolicy {
     public static let sizeTolerance: CGFloat = 8
 
-    /// A failed or superseded write must not clear the current snap cycle.
+    public static func frameMatches(_ actual: CGRect?, requested: CGRect) -> Bool {
+        guard let actual else { return false }
+        return max(
+            RectMath.chebyshev(actual.origin, requested.origin),
+            RectMath.chebyshevSize(actual.size, requested.size)
+        ) <= sizeTolerance
+    }
+
+    /// A failed, partial, or superseded restore must not clear the current snap
+    /// cycle. Another window's drag is not supersession; only a newer record
+    /// for this identity replaces the captured restore.
     public static func identityToDrop(
         capturedForThisWrite: UnsnapRecord?,
         currentRecord: UnsnapRecord?,
-        frameApplied: Bool,
-        completionGeneration: Int,
-        currentGeneration: Int
+        requestedFrame: CGRect,
+        appliedFrame: CGRect?
     ) -> WindowIdentity? {
-        guard frameApplied,
-              completionGeneration == currentGeneration,
-              let capturedForThisWrite,
-              currentRecord == capturedForThisWrite
+        guard let capturedForThisWrite,
+              currentRecord == capturedForThisWrite,
+              frameMatches(appliedFrame, requested: requestedFrame)
         else { return nil }
         return capturedForThisWrite.identity
+    }
+
+    /// Drag snaps record the requested zone before AX returns. Store the live
+    /// frame only while this write still owns the captured catalog record.
+    public static func appliedSnappedFrame(
+        capturedSnap: UnsnapRecord?,
+        currentRecord: UnsnapRecord?,
+        requestedFrame: CGRect,
+        appliedFrame: CGRect?
+    ) -> CGRect? {
+        guard let capturedSnap,
+              let currentRecord,
+              capturedSnap.identity == currentRecord.identity,
+              capturedSnap.snappedAt == currentRecord.snappedAt,
+              capturedSnap.zoneIDs == currentRecord.zoneIDs,
+              capturedSnap.snappedFrameAX == currentRecord.snappedFrameAX,
+              capturedSnap.snappedFrameAX == requestedFrame,
+              let appliedFrame
+        else { return nil }
+        return appliedFrame
     }
 
     /// Mouse-down CG can briefly report a work-area-sized frame. Prefer the

@@ -258,23 +258,26 @@ final class SnapSessionReducerTests: XCTestCase {
                                   snappedFrameAX: frame, zoneIDs: [UUID()])
         var newer = record
         newer.snappedAt = record.snappedAt.addingTimeInterval(1)
-        func completion(_ current: UnsnapRecord?, applied: Bool = true, generation: Int = 1) -> WindowIdentity? {
+        func completion(_ current: UnsnapRecord?, applied: CGRect?) -> WindowIdentity? {
             UnsnapCatalogPolicy.identityToDrop(
-                capturedForThisWrite: record, currentRecord: current,
-                frameApplied: applied, completionGeneration: 1, currentGeneration: generation
+                capturedForThisWrite: record,
+                currentRecord: current,
+                requestedFrame: frame,
+                appliedFrame: applied
             )
         }
         var catalog = WindowCatalogState()
         catalog.record(record, displayID: UUID())
-        if let identity = completion(catalog.records[window], applied: false) {
+        if let identity = completion(catalog.records[window], applied: nil) {
             catalog.drop(identity: identity)
         }
         XCTAssertEqual(catalog.records[window], record)
         XCTAssertNotNil(catalog.membership[window])
-        XCTAssertNil(completion(record, generation: 2))
-        XCTAssertNil(completion(newer))
-        XCTAssertNil(completion(nil))
-        if let identity = completion(catalog.records[window]) {
+        XCTAssertEqual(completion(record, applied: frame), window)
+        XCTAssertNil(completion(newer, applied: frame))
+        XCTAssertNil(completion(nil, applied: frame))
+        XCTAssertNil(completion(record, applied: CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height - 40)))
+        if let identity = completion(catalog.records[window], applied: frame) {
             catalog.drop(identity: identity)
         }
         XCTAssertNil(catalog.records[window])

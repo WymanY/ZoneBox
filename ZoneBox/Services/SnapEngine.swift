@@ -625,6 +625,17 @@ final class SnapEngine {
         }
     }
 
+    private func recordUnsnap(_ record: UnsnapRecord) {
+        let area = DisplayTargetResolver.workArea(
+            containingWindowFrameAX: record.snappedFrameAX,
+            from: runtime.workAreas,
+            primaryFlipHeight: runtime.primaryFlipHeight
+        )
+        runtime.catalog.record(record, displayID: area?.display.id, awaitingApply: true)
+        runtime.noteUserSnapCompleted()
+        runtime.refreshDivider()
+    }
+
     private func apply(_ effects: [SnapEffect], cursorArea: WorkArea?) {
         var overlayDisplayID: UUID?
         var overlayHighlight: SnapTarget?
@@ -634,6 +645,15 @@ final class SnapEngine {
             if case .dropUnsnap(let identity) = effect { return identity }
             return nil
         }.first
+        let snapIdentities = Set(effects.compactMap { effect -> WindowIdentity? in
+            if case .recordUnsnap(let record) = effect { return record.identity }
+            return nil
+        })
+        for effect in effects {
+            if case .recordUnsnap(let record) = effect {
+                recordUnsnap(record)
+            }
+        }
         var explicitLayoutID: Layout.ID?
         for effect in effects {
             switch effect {
@@ -657,6 +677,9 @@ final class SnapEngine {
                 let pending = pendingAssignmentForApply
                 pendingAssignmentForApply = nil
                 let capturedDrop = dropAfterApply == identity ? runtime.catalog.record(for: identity) : nil
+                let capturedSnap = capturedDrop == nil && snapIdentities.contains(identity)
+                    ? runtime.catalog.record(for: identity)
+                    : nil
                 let generation = layoutAssignmentGeneration
                 let diagnosticID = diagnosticActive ? diagnosticSessionID : nil
                 let writeID = UUID().uuidString
@@ -723,26 +746,18 @@ final class SnapEngine {
                             writeID: writeID
                         )
                     }
-                    if let dropIdentity = UnsnapCatalogPolicy.identityToDrop(
-                        capturedForThisWrite: capturedDrop,
-                        currentRecord: self.runtime.catalog.record(for: identity),
-                        frameApplied: applied,
-                        completionGeneration: generation,
-                        currentGeneration: self.layoutAssignmentGeneration
+                    if self.runtime.catalog.completeApply(
+                        identity: identity,
+                        requestedFrame: rect,
+                        appliedFrame: appliedFrame,
+                        capturedDrop: capturedDrop,
+                        capturedSnap: capturedSnap
                     ) {
-                        self.runtime.catalog.drop(identity: dropIdentity)
                         self.runtime.refreshDivider()
                     }
                 }
-            case .recordUnsnap(let record):
-                let area = DisplayTargetResolver.workArea(
-                    containingWindowFrameAX: record.snappedFrameAX,
-                    from: runtime.workAreas,
-                    primaryFlipHeight: runtime.primaryFlipHeight
-                )
-                runtime.catalog.record(record, displayID: area?.display.id)
-                runtime.noteUserSnapCompleted()
-                runtime.refreshDivider()
+            case .recordUnsnap:
+                break
             case .dropUnsnap:
                 break
             case .assignLayout(let layoutID):

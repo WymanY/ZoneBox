@@ -5,12 +5,29 @@ import ZoneBoxCore
 final class WindowCatalog {
     private var state = WindowCatalogState()
 
-    func record(_ value: UnsnapRecord, displayID: UUID?) {
-        state.record(value, displayID: displayID)
+    func record(_ value: UnsnapRecord, displayID: UUID?, awaitingApply: Bool = false) {
+        state.record(value, displayID: displayID, awaitingApply: awaitingApply)
     }
 
     func record(for identity: WindowIdentity) -> UnsnapRecord? {
         state.records[identity]
+    }
+
+    @discardableResult
+    func completeApply(
+        identity: WindowIdentity,
+        requestedFrame: CGRect,
+        appliedFrame: CGRect?,
+        capturedDrop: UnsnapRecord?,
+        capturedSnap: UnsnapRecord?
+    ) -> Bool {
+        state.completeApply(
+            identity: identity,
+            requestedFrame: requestedFrame,
+            appliedFrame: appliedFrame,
+            capturedDrop: capturedDrop,
+            capturedSnap: capturedSnap
+        )
     }
 
     func drop(pid: pid_t) {
