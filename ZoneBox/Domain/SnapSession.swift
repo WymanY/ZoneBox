@@ -114,6 +114,12 @@ public struct StripEntryGate: Equatable, Sendable {
         case overflow(Int)
     }
 
+    /// Engine events that must not let a still-pending hover become the selection.
+    public enum Interrupt: Equatable, Sendable {
+        case mouseUp
+        case digit
+    }
+
     private enum Phase: Equatable, Sendable {
         case idle
         case candidate(Target, startedAt: TimeInterval)
@@ -134,6 +140,20 @@ public struct StripEntryGate: Equatable, Sendable {
         sawEmptyContent = false
         engaged = false
         latchedOverflow = nil
+    }
+
+    /// Mouse-up drops only a pending candidate and keeps a confirmed selection.
+    /// A digit uses the same full reset as leaving the strip: the cell under
+    /// the pointer becomes a spawn and cannot re-arm until the pointer leaves.
+    public mutating func prepare(_ interrupt: Interrupt) {
+        switch interrupt {
+        case .mouseUp:
+            if case .candidate = phase {
+                phase = engaged ? .confirmed : .idle
+            }
+        case .digit:
+            reset()
+        }
     }
 
     public mutating func advance(

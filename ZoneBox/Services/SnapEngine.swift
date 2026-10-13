@@ -130,6 +130,7 @@ final class SnapEngine {
                 pointerTrace.removeFirst(pointerTrace.count - 64)
             }
         }
+        prepareStripEntryInterrupt(for: event.kind)
         let session = sessionContext(
             at: event.locationAppKit,
             area: cursorArea,
@@ -892,6 +893,22 @@ final class SnapEngine {
 
     private func clearStripEntry() {
         stripEntryGate.reset()
+        stripEntryRefresh?.cancel()
+        stripEntryRefresh = nil
+    }
+
+    /// Runs before sessionContext. Mouse-up only cancels a pending candidate.
+    /// Every digit resets the gate, including an invalid number that does not
+    /// apply a frame, and both cancel a refresh that has not sampled yet.
+    private func prepareStripEntryInterrupt(for kind: SnapMouseEvent.Kind) {
+        switch kind {
+        case .leftUp:
+            stripEntryGate.prepare(.mouseUp)
+        case .digit:
+            stripEntryGate.prepare(.digit)
+        default:
+            return
+        }
         stripEntryRefresh?.cancel()
         stripEntryRefresh = nil
     }
