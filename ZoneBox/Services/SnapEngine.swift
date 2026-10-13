@@ -29,6 +29,9 @@ final class SnapEngine {
     private var stripLatchHistory = StripDropLatchHistory()
     private var suppressStripLatch = false
     var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    private var stripEntryGate = StripEntryGate()
+    private var stripEntryRefresh: Task<Void, Never>?
+    private var lastSnapModifiers: SnapModifiers = []
     private var quickSnapperLayoutID: Layout.ID?
     private var pendingLayoutAssignment: PendingLayoutAssignment?
     private var layoutAssignmentGeneration = 0
@@ -82,6 +85,7 @@ final class SnapEngine {
         diagnosticInput = String(describing: event.kind)
         diagnosticSource = source
         diagnosticPoint = event.locationAppKit
+        lastSnapModifiers = event.modifiers
         if event.kind == .leftDown {
             runtime.dismissWorkspaceSwitcher()
         }
@@ -119,7 +123,8 @@ final class SnapEngine {
                 current: layoutAssignmentGeneration,
                 startingNewDrag: true
             )
-        } else if event.kind == .leftDragged {
+            clearStripEntry()
+        } else if event.kind == .leftDragged, source != "strip-entry" {
             pointerTrace.append(event.locationAppKit)
             if pointerTrace.count > 64 {
                 pointerTrace.removeFirst(pointerTrace.count - 64)
@@ -253,6 +258,7 @@ final class SnapEngine {
                     stripLatchHistory = StripDropLatchHistory()
                     sessionLayoutID = next.sessionLayoutID
                     suppressStripLatch = true
+                    clearStripEntry()
                 }
             }
         }
@@ -784,6 +790,7 @@ final class SnapEngine {
                stripDropLatch = nil
                stripLatchHistory = StripDropLatchHistory()
                 suppressStripLatch = true
+                clearStripEntry()
            }
         }
         if hideOverlay {
@@ -878,9 +885,36 @@ final class SnapEngine {
        stripDropLatch = nil
        stripLatchHistory = StripDropLatchHistory()
         suppressStripLatch = false
-       lastPresentation = .empty
-       quickSnapperLayoutID = nil
-   }
+        lastPresentation = .empty
+        quickSnapperLayoutID = nil
+        clearStripEntry()
+    }
+
+    private func clearStripEntry() {
+        stripEntryGate.reset()
+        stripEntryRefresh?.cancel()
+        stripEntryRefresh = nil
+    }
+
+    private func scheduleStripEntryRefresh(_ remaining: TimeInterval?) {
+        stripEntryRefresh?.cancel()
+        stripEntryRefresh = nil
+        guard let remaining, remaining > 0 else { return }
+        let generation = layoutAssignmentGeneration
+        let delay = remaining + 0.015
+        stripEntryRefresh = Task { @MainActor in
+            let nanoseconds = UInt64(delay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            guard generation == self.layoutAssignmentGeneration, self.isArmed(self.phase) else { return }
+            let event = SnapMouseEvent(
+                kind: .leftDragged,
+                locationAppKit: NSEvent.mouseLocation,
+                modifiers: self.lastSnapModifiers
+            )
+            self.handleMouse(event, source: "strip-entry")
+        }
+    }
 
     private struct PendingLayoutAssignment {
         var layoutID: Layout.ID
@@ -967,6 +1001,7 @@ final class SnapEngine {
            stripDropLatch = nil
            stripLatchHistory = StripDropLatchHistory()
             suppressStripLatch = false
+            clearStripEntry()
        } else if lastCursorDisplayID == nil {
            lastCursorDisplayID = area?.display.id
        }
@@ -982,9 +1017,17 @@ final class SnapEngine {
         var highlightedZoneNumber: Int?
         var hoveredOverflow: LayoutStripOverflowHover?
         var hitLatch: StripDropLatch?
+        var candidateOverflow: LayoutStripOverflowHover?
+        var candidateLayoutID: Layout.ID?
+        var candidateZoneNumber: Int?
+        var pendingOverflow: Int?
+        var pendingMini: (layoutID: Layout.ID, zoneNumber: Int)?
+        var entry = StripEntryOutput.empty
+        let clock = now()
         if !isArmed(phase) {
             stripDropLatch = nil
             stripLatchHistory = StripDropLatchHistory()
+            clearStripEntry()
         }
         if runtime.settings.showLayoutStrip, let area, isArmed(phase) {
             let workAX = CoordinateConverter.axRect(
@@ -1000,48 +1043,13 @@ final class SnapEngine {
                 previousStartLayoutID: stripWindowStartID
             )
             stripWindowStartID = strip?.cards.first?.layoutID
-            if var visibleStrip = strip, visibleStrip.containsDropLinger(pointAppKit) {
+            if let visibleStrip = strip, visibleStrip.containsDropLinger(pointAppKit) {
                 pointerOnStrip = visibleStrip.contains(pointAppKit)
                 pointerInStrip = true
-                let probePoint = visibleStrip.dropProbePoint(
-                    for: pointAppKit,
-                    preservingLayoutID: stripDropLatch?.layoutID,
-                    zoneNumber: stripDropLatch?.zone.number
-                )
                 let overflowDelta = pointerOnStrip ? visibleStrip.hitOverflow(at: pointAppKit) : nil
-                if let overflowDelta {
-                    hoveredOverflow = overflowDelta > 0 ? .next : .previous
-                    let visibleIDs = visibleStrip.cards.map { $0.layoutID }
-                    let edgeID = overflowDelta > 0 ? visibleIDs.last : visibleIDs.first
-                    let neighborID = LayoutStripGeometry.neighborLayoutID(of: edgeID, in: layoutIDs, delta: overflowDelta)
-                    if let neighborID, stripOverflowLatch != overflowDelta {
-                        stripOverflowLatch = overflowDelta
-                        stripWindowLayoutID = neighborID
-                        visibleStrip = LayoutStripGeometry.make(
-                            workAreaAppKit: area.visibleFrameAppKit,
-                            layouts: layouts,
-                            assignedLayoutID: assignedID,
-                            workAreaAX: workAX,
-                            focusedLayoutID: neighborID,
-                            previousStartLayoutID: visibleStrip.cards.first?.layoutID
-                        )
-                    }
-                    if let revealed = overflowDelta > 0 ? visibleStrip.cards.last : visibleStrip.cards.first {
-                        highlightedLayoutID = revealed.layoutID
-                    }
-                } else {
-                    stripOverflowLatch = nil
-                    let hitPoint = pointerOnStrip ? pointAppKit : probePoint
-                    if let hit = visibleStrip.hitZone(at: hitPoint),
-                       let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
-                       let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
-                        hitLatch = StripDropLatch(layoutID: hit.layoutID, zone: zone)
-                    } else {
-                        highlightedLayoutID = SnapLayoutSession.acceptedHighlight(
-                            pointerOnStrip: pointerOnStrip,
-                            hitCard: visibleStrip.hitCard(at: pointerOnStrip ? pointAppKit : probePoint)
-                        )
-                    }
+                pendingOverflow = overflowDelta
+                if overflowDelta == nil {
+                    pendingMini = pointerOnStrip ? visibleStrip.hitMiniZone(at: pointAppKit) : nil
                 }
                 strip = visibleStrip
                 stripWindowStartID = visibleStrip.cards.first?.layoutID
@@ -1052,16 +1060,76 @@ final class SnapEngine {
             stripOverflowLatch = nil
         }
 
-        let rawHit = hitLatch
         let gate = SnapLayoutSession.acceptingStripHit(
             suppressStripLatch: suppressStripLatch,
             pointerInStrip: pointerInStrip
         )
         suppressStripLatch = gate.suppressStripLatch
+        if isArmed(phase) {
+            entry = stripEntryGate.advance(
+                miniZone: pendingMini,
+                overflow: pendingOverflow,
+                now: clock,
+                suppress: !gate.acceptHit
+            )
+        }
+        candidateLayoutID = entry.candidateLayoutID
+        candidateZoneNumber = entry.candidateZoneNumber
+        if let delta = entry.candidateOverflow {
+            candidateOverflow = delta > 0 ? .next : .previous
+        }
         if !gate.acceptHit {
             hitLatch = nil
             highlightedLayoutID = nil
             highlightedZoneNumber = nil
+        } else if let overflowDelta = entry.confirmedOverflow, let area, let currentStrip = strip {
+            hoveredOverflow = overflowDelta > 0 ? .next : .previous
+            let workAX = CoordinateConverter.axRect(
+                fromAppKit: area.visibleFrameAppKit,
+                primaryFlipHeight: runtime.primaryFlipHeight
+            )
+            let visibleIDs = currentStrip.cards.map(\.layoutID)
+            let edgeID = overflowDelta > 0 ? visibleIDs.last : visibleIDs.first
+            let neighborID = LayoutStripGeometry.neighborLayoutID(of: edgeID, in: layoutIDs, delta: overflowDelta)
+            if let neighborID, stripOverflowLatch != overflowDelta {
+                stripOverflowLatch = overflowDelta
+                stripWindowLayoutID = neighborID
+                strip = LayoutStripGeometry.make(
+                    workAreaAppKit: area.visibleFrameAppKit,
+                    layouts: layouts,
+                    assignedLayoutID: assignedID,
+                    workAreaAX: workAX,
+                    focusedLayoutID: neighborID,
+                    previousStartLayoutID: currentStrip.cards.first?.layoutID
+                )
+            }
+            if let revealedStrip = strip {
+                let revealed = overflowDelta > 0 ? revealedStrip.cards.last : revealedStrip.cards.first
+                highlightedLayoutID = revealed?.layoutID
+                stripWindowStartID = revealedStrip.cards.first?.layoutID
+            }
+        } else if entry.isConfirmed, let currentStrip = strip {
+            if pendingOverflow == nil {
+                stripOverflowLatch = nil
+            }
+            let probePoint = currentStrip.dropProbePoint(
+                for: pointAppKit,
+                preservingLayoutID: stripDropLatch?.layoutID,
+                zoneNumber: stripDropLatch?.zone.number
+            )
+            let hitPoint = pointerOnStrip ? pointAppKit : probePoint
+            if let hit = currentStrip.hitZone(at: hitPoint),
+               let layout = layouts.first(where: { $0.layout.id == hit.layoutID }),
+               let zone = layout.zones.first(where: { $0.number == hit.zoneNumber }) {
+                hitLatch = StripDropLatch(layoutID: hit.layoutID, zone: zone)
+            } else {
+                highlightedLayoutID = SnapLayoutSession.acceptedHighlight(
+                    pointerOnStrip: pointerOnStrip,
+                    hitCard: currentStrip.hitCard(at: pointerOnStrip ? pointAppKit : probePoint)
+                )
+            }
+        } else {
+            stripOverflowLatch = nil
         }
         hitLatch = SnapLayoutSession.acceptedStripHit(
             hit: hitLatch,
@@ -1075,7 +1143,7 @@ final class SnapEngine {
         if committingStripSelection, stripDropLatch != nil {
             hitLatch = nil
         }
-
+        let rawHit = hitLatch
         let liveZone: ResolvedZone?
         if let previous = stripDropLatch,
            let layout = layouts.first(where: { $0.layout.id == previous.layoutID }) {
@@ -1095,13 +1163,12 @@ final class SnapEngine {
             liveZone = nil
         }
         let frameLatch = SnapLayoutSession.stripDropLatch(
-            pointerInStrip: pointerInStrip,
-            hit: hitLatch,
-            previous: stripDropLatch,
-            liveZoneInLatchedLayout: liveZone,
-            lingerNearStrip: strip?.containsDropLinger(pointAppKit) == true
+            pointerInStrip: entry.isConfirmed && pointerInStrip,
+            hit: entry.isConfirmed ? hitLatch : nil,
+            previous: entry.isConfirmed ? stripDropLatch : nil,
+            liveZoneInLatchedLayout: entry.isConfirmed ? liveZone : nil,
+            lingerNearStrip: entry.isConfirmed && strip?.containsDropLinger(pointAppKit) == true
         )
-        let clock = now()
         let historyBeforeUpdate = stripLatchHistory
         if committingStripSelection {
             let beforeCommit = stripLatchHistory
@@ -1159,10 +1226,18 @@ final class SnapEngine {
                 geometry: strip,
                 highlightedLayoutID: highlightedLayoutID ?? layoutID,
                 highlightedZoneNumber: highlightedZoneNumber,
-                hoveredOverflow: hoveredOverflow
+                hoveredOverflow: hoveredOverflow,
+                candidateLayoutID: candidateLayoutID,
+                candidateZoneNumber: candidateZoneNumber,
+                candidateOverflow: candidateOverflow
             )
         } else {
             stripModel = nil
+        }
+        if committingStripSelection {
+            scheduleStripEntryRefresh(nil)
+        } else {
+            scheduleStripEntryRefresh(entry.remainingDwell)
         }
         return SessionContext(
             layoutID: layoutID,
@@ -1170,7 +1245,7 @@ final class SnapEngine {
             layoutIDs: layoutIDs,
             zones: zones,
             strip: strip,
-            pointerInStrip: pointerInStrip,
+            pointerInStrip: entry.isConfirmed && pointerInStrip,
             forcedTarget: forcedTarget,
             presentation: OverlayPresentation.snapSession(strip: stripModel)
         )

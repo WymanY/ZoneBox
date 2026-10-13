@@ -31,5 +31,15 @@ final class OverlayPresentationTests: XCTestCase {
         XCTAssertNil(idle.hoveredOverflow)
         XCTAssertEqual(hovered.hoveredOverflow, .next)
         XCTAssertNotEqual(idle, hovered)
+        let candidate = OverlayStripRenderModel(
+            geometry: geometry,
+            candidateLayoutID: UUID(),
+            candidateZoneNumber: 2,
+            candidateOverflow: .previous
+        )
+        XCTAssertNil(idle.candidateLayoutID)
+        XCTAssertEqual(candidate.candidateZoneNumber, 2)
+        XCTAssertEqual(candidate.candidateOverflow, .previous)
+        XCTAssertNotEqual(idle, candidate)
     }
 }

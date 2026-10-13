@@ -122,6 +122,32 @@ final class LayoutStripGeometryTests: XCTestCase {
         let hit = geometry.hitZone(at: gap)
         XCTAssertEqual(hit?.layoutID, right.id)
         XCTAssertEqual(hit?.zoneNumber, 1)
+        XCTAssertNil(geometry.hitMiniZone(at: gap))
+    }
+
+    func testHitMiniZoneIgnoresChromeAndLinger() {
+        let workAppKit = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let workAX = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let layout = Layout(name: "Split", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: workAppKit,
+            layouts: [
+                (layout, [
+                    ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800)),
+                    ResolvedZone(zoneID: UUID(), number: 2, frameAX: CGRect(x: 500, y: 0, width: 500, height: 800)),
+                ]),
+            ],
+            assignedLayoutID: layout.id,
+            workAreaAX: workAX
+        )
+        let mini = geometry.cards[0].zones[1].frameAppKit
+        let hit = geometry.hitMiniZone(at: CGPoint(x: mini.midX, y: mini.midY))
+        XCTAssertEqual(hit?.layoutID, layout.id)
+        XCTAssertEqual(hit?.zoneNumber, 2)
+
+        let below = CGPoint(x: mini.midX, y: geometry.frameAppKit.minY - 24)
+        XCTAssertTrue(geometry.containsDropLinger(below))
+        XCTAssertNil(geometry.hitMiniZone(at: below))
     }
 
     func testOverflowTruncatesToSixCards() {
