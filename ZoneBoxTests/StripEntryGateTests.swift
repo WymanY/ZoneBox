@@ -193,6 +193,58 @@ final class StripEntryGateTests: XCTestCase {
         XCTAssertEqual(reentered.remainingDwell, StripEntryGate.dwellDuration)
     }
 
+    func testCycleLayoutAfterThresholdBeforeRefreshDoesNotConfirmOrRearm() {
+        var refresh = pendingZone(layoutB, zoneNumber: 1)
+        let confirmedByRefresh = refresh.advance(
+            miniZone: zone(layoutB, 1),
+            overflow: nil,
+            now: pendingConfirmTime,
+            suppress: false
+        )
+        XCTAssertTrue(confirmedByRefresh.isConfirmed)
+        XCTAssertEqual(confirmedByRefresh.acceptedLayoutID, layoutB)
+
+        var gate = pendingZone(layoutB, zoneNumber: 1)
+        gate.prepare(.cycleLayout)
+        let sameCellPolls = [0.0, 0.05, StripEntryGate.dwellDuration, 0.5]
+        for offset in sameCellPolls {
+            let poll = gate.advance(
+                miniZone: zone(layoutB, 1),
+                overflow: nil,
+                now: pendingConfirmTime + offset,
+                suppress: false
+            )
+            XCTAssertFalse(poll.isConfirmed)
+            XCTAssertNil(poll.candidateLayoutID)
+            XCTAssertNil(poll.acceptedLayoutID)
+            XCTAssertNil(poll.remainingDwell)
+        }
+
+        let left = gate.advance(miniZone: nil, overflow: nil, now: pendingConfirmTime + 0.6, suppress: false)
+        XCTAssertFalse(left.isConfirmed)
+        let reentered = gate.advance(
+            miniZone: zone(layoutB, 1),
+            overflow: nil,
+            now: pendingConfirmTime + 0.61,
+            suppress: false
+        )
+        XCTAssertFalse(reentered.isConfirmed)
+        XCTAssertEqual(reentered.candidateLayoutID, layoutB)
+        XCTAssertEqual(reentered.remainingDwell, StripEntryGate.dwellDuration)
+    }
+
+    func testCycleLayoutKeepsAlreadyConfirmedSelection() {
+        var gate = StripEntryGate()
+        confirm(zone: zone(layoutB, 1), on: &gate, at: 1)
+        gate.prepare(.cycleLayout)
+        let kept = gate.advance(miniZone: zone(layoutB, 1), overflow: nil, now: 2, suppress: false)
+        XCTAssertTrue(kept.isConfirmed)
+        XCTAssertEqual(kept.acceptedLayoutID, layoutB)
+        XCTAssertEqual(kept.acceptedZoneNumber, 1)
+        XCTAssertNil(kept.candidateLayoutID)
+        XCTAssertNil(kept.remainingDwell)
+    }
+
     private func zone(_ layoutID: UUID, _ number: Int) -> (layoutID: Layout.ID, zoneNumber: Int) {
         (layoutID, number)
     }
@@ -200,11 +252,13 @@ final class StripEntryGateTests: XCTestCase {
     /// Past the 0.20 confirm threshold and before the engine refresh at remaining + 0.015.
     private var pendingConfirmTime: TimeInterval { 1.01 + StripEntryGate.dwellDuration + 0.005 }
 
-    private func pendingZone() -> StripEntryGate {
+    private func pendingZone(_ layoutID: Layout.ID? = nil, zoneNumber: Int = 2) -> StripEntryGate {
+        let layoutID = layoutID ?? layoutA
         var gate = StripEntryGate()
         _ = gate.advance(miniZone: nil, overflow: nil, now: 1, suppress: false)
-        let pending = gate.advance(miniZone: zone(layoutA, 2), overflow: nil, now: 1.01, suppress: false)
-        XCTAssertEqual(pending.candidateZoneNumber, 2)
+        let pending = gate.advance(miniZone: zone(layoutID, zoneNumber), overflow: nil, now: 1.01, suppress: false)
+        XCTAssertEqual(pending.candidateLayoutID, layoutID)
+        XCTAssertEqual(pending.candidateZoneNumber, zoneNumber)
         XCTAssertEqual(pending.remainingDwell, StripEntryGate.dwellDuration)
         XCTAssertFalse(pending.isConfirmed)
         return gate

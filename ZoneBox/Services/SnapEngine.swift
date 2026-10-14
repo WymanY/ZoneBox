@@ -900,12 +900,16 @@ final class SnapEngine {
     /// Runs before sessionContext. Mouse-up only cancels a pending candidate.
     /// Every digit resets the gate, including an invalid number that does not
     /// apply a frame, and both cancel a refresh that has not sampled yet.
+    /// Tab/scroll resets a still-pending candidate before sessionContext, so
+    /// the hovered mini-zone cannot become the layout the cycle steps from.
     private func prepareStripEntryInterrupt(for kind: SnapMouseEvent.Kind) {
         switch kind {
         case .leftUp:
             stripEntryGate.prepare(.mouseUp)
         case .digit:
             stripEntryGate.prepare(.digit)
+        case .cycleLayout:
+            stripEntryGate.prepare(.cycleLayout)
         default:
             return
         }
