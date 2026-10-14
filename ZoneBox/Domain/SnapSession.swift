@@ -61,6 +61,242 @@ public struct StripDropLatchHistory: Equatable, Sendable {
     }
 }
 
+/// Confirms that the pointer meant to use the layout strip before a mini-zone
+/// may take over the drag. Crossing a card on the way to a real overlay pane
+/// must not switch layouts.
+public struct StripEntryOutput: Equatable, Sendable {
+    public var isConfirmed: Bool
+    public var candidateLayoutID: Layout.ID?
+    public var candidateZoneNumber: Int?
+    public var acceptedLayoutID: Layout.ID?
+    public var acceptedZoneNumber: Int?
+    public var candidateOverflow: Int?
+    public var confirmedOverflow: Int?
+    public var remainingDwell: TimeInterval?
+
+    public static let empty = StripEntryOutput(
+        isConfirmed: false,
+        candidateLayoutID: nil,
+        candidateZoneNumber: nil,
+        acceptedLayoutID: nil,
+        acceptedZoneNumber: nil,
+        candidateOverflow: nil,
+        confirmedOverflow: nil,
+        remainingDwell: nil
+    )
+
+    public init(
+        isConfirmed: Bool,
+        candidateLayoutID: Layout.ID?,
+        candidateZoneNumber: Int?,
+        acceptedLayoutID: Layout.ID?,
+        acceptedZoneNumber: Int?,
+        candidateOverflow: Int?,
+        confirmedOverflow: Int?,
+        remainingDwell: TimeInterval?
+    ) {
+        self.isConfirmed = isConfirmed
+        self.candidateLayoutID = candidateLayoutID
+        self.candidateZoneNumber = candidateZoneNumber
+        self.acceptedLayoutID = acceptedLayoutID
+        self.acceptedZoneNumber = acceptedZoneNumber
+        self.candidateOverflow = candidateOverflow
+        self.confirmedOverflow = confirmedOverflow
+        self.remainingDwell = remainingDwell
+    }
+}
+
+public struct StripEntryGate: Equatable, Sendable {
+    public static let dwellDuration: TimeInterval = 0.20
+
+    public enum Target: Equatable, Sendable {
+        case zone(layoutID: Layout.ID, zoneNumber: Int)
+        case overflow(Int)
+    }
+
+    /// Engine events that must not let a still-pending hover become the selection.
+    public enum Interrupt: Equatable, Sendable {
+        case mouseUp
+        case digit
+        case cycleLayout
+    }
+
+    private enum Phase: Equatable, Sendable {
+        case idle
+        case candidate(Target, startedAt: TimeInterval)
+        case confirmed
+    }
+
+    private var phase: Phase = .idle
+    private var spawnOccupant: Target?
+    private var sawEmptyContent = false
+    private var engaged = false
+    private var latchedOverflow: Int?
+
+    public init() {}
+
+    public mutating func reset() {
+        phase = .idle
+        spawnOccupant = nil
+        sawEmptyContent = false
+        engaged = false
+        latchedOverflow = nil
+    }
+
+    /// Mouse-up drops only a pending candidate and keeps a confirmed selection.
+    /// A digit uses the same full reset as leaving the strip: the cell under
+    /// the pointer becomes a spawn and cannot re-arm until the pointer leaves.
+    /// Tab/scroll resets an unengaged pending candidate the same way, so the
+    /// dwell threshold cannot confirm it before the cycle reads the layout.
+    /// Canceling a pending candidate keeps an already confirmed selection.
+    public mutating func prepare(_ interrupt: Interrupt) {
+        switch interrupt {
+        case .mouseUp:
+            if case .candidate = phase {
+                phase = engaged ? .confirmed : .idle
+            }
+        case .digit:
+            reset()
+        case .cycleLayout:
+            if case .candidate = phase {
+                if engaged {
+                    phase = .confirmed
+                } else {
+                    reset()
+                }
+            }
+        }
+    }
+
+    public mutating func advance(
+        miniZone: (layoutID: Layout.ID, zoneNumber: Int)?,
+        overflow: Int?,
+        now: TimeInterval,
+        suppress: Bool
+    ) -> StripEntryOutput {
+        if suppress {
+            reset()
+            return .empty
+        }
+
+        let current: Target?
+        if let overflow {
+            current = .overflow(overflow)
+        } else if let miniZone {
+            current = .zone(layoutID: miniZone.layoutID, zoneNumber: miniZone.zoneNumber)
+        } else {
+            current = nil
+        }
+
+        if current == nil {
+            sawEmptyContent = true
+            spawnOccupant = nil
+        }
+
+        switch phase {
+        case .idle:
+            return enterFromIdle(current, now: now)
+        case .candidate(let target, let started):
+            return holdCandidate(current, target: target, started: started, now: now)
+        case .confirmed:
+            return holdConfirmed(current, now: now)
+        }
+    }
+
+    private mutating func enterFromIdle(_ current: Target?, now: TimeInterval) -> StripEntryOutput {
+        guard let current else { return output(confirmed: engaged) }
+        if !sawEmptyContent, spawnOccupant == nil {
+            spawnOccupant = current
+            return output(confirmed: engaged)
+        }
+        if current == spawnOccupant {
+            return output(confirmed: engaged)
+        }
+        phase = .candidate(current, startedAt: now)
+        spawnOccupant = nil
+        return output(candidate: current, remaining: Self.dwellDuration, confirmed: engaged)
+    }
+
+    private mutating func holdCandidate(
+        _ current: Target?,
+        target: Target,
+        started: TimeInterval,
+        now: TimeInterval
+    ) -> StripEntryOutput {
+        guard let current else {
+            phase = engaged ? .confirmed : .idle
+            return output(confirmed: engaged)
+        }
+        if current != target {
+            phase = .candidate(current, startedAt: now)
+            return output(candidate: current, remaining: Self.dwellDuration, confirmed: engaged)
+        }
+        let elapsed = now - started
+        if elapsed + 0.000_001 >= Self.dwellDuration {
+            return confirm(current)
+        }
+        return output(candidate: current, remaining: Self.dwellDuration - elapsed, confirmed: engaged)
+    }
+
+    private mutating func holdConfirmed(_ current: Target?, now: TimeInterval) -> StripEntryOutput {
+        guard let current else {
+            latchedOverflow = nil
+            return output(confirmed: true)
+        }
+        if case .overflow(let delta) = current {
+            if latchedOverflow == delta {
+                return output(confirmedTarget: current)
+            }
+            latchedOverflow = nil
+            phase = .candidate(current, startedAt: now)
+            return output(candidate: current, remaining: Self.dwellDuration, confirmed: true)
+        }
+        latchedOverflow = nil
+        return confirm(current)
+    }
+
+    private mutating func confirm(_ current: Target) -> StripEntryOutput {
+        phase = .confirmed
+        engaged = true
+        if case .overflow(let delta) = current {
+            latchedOverflow = delta
+        } else {
+            latchedOverflow = nil
+        }
+        return output(confirmedTarget: current)
+    }
+
+    private func output(
+        candidate: Target? = nil,
+        remaining: TimeInterval? = nil,
+        confirmed: Bool = false,
+        confirmedTarget: Target? = nil
+    ) -> StripEntryOutput {
+        var out = StripEntryOutput.empty
+        out.isConfirmed = confirmed || confirmedTarget != nil
+        if let candidate {
+            switch candidate {
+            case .zone(let id, let number):
+                out.candidateLayoutID = id
+                out.candidateZoneNumber = number
+            case .overflow(let delta):
+                out.candidateOverflow = delta
+            }
+        }
+        out.remainingDwell = remaining
+        if let confirmedTarget {
+            switch confirmedTarget {
+            case .zone(let id, let number):
+                out.acceptedLayoutID = id
+                out.acceptedZoneNumber = number
+            case .overflow(let delta):
+                out.confirmedOverflow = delta
+            }
+        }
+        return out
+    }
+}
+
 public struct UnsnapRecord: Sendable, Equatable {
     public var identity: WindowIdentity
     public var originalFrameAX: CGRect

@@ -433,6 +433,141 @@ final class SnapSessionReducerTests: XCTestCase {
         XCTAssertEqual(SnapSessionReducer.reduce(resizing).effects, [])
     }
 
+    func testCycleDuringPendingStripDwellUsesCurrentLayout() {
+        let layoutA = Layout(name: "A", kind: .canvas, zones: []).id
+        let layoutB = Layout(name: "B", kind: .canvas, zones: []).id
+        let layoutC = Layout(name: "C", kind: .canvas, zones: []).id
+        let ids = [layoutA, layoutB, layoutC]
+        let started = 1.01
+        let pendingTime = started + StripEntryGate.dwellDuration + 0.005
+        func pendingGate() -> StripEntryGate {
+            var gate = StripEntryGate()
+            _ = gate.advance(miniZone: nil, overflow: nil, now: 1, suppress: false)
+            _ = gate.advance(miniZone: (layoutB, 1), overflow: nil, now: started, suppress: false)
+            return gate
+        }
+        func layoutAfter(_ entry: StripEntryOutput, selected: Layout.ID) -> Layout.ID? {
+            SnapLayoutSession.layoutIDAfterExplicitSelection(
+                selectedLayoutID: selected,
+                pointerLayoutID: entry.acceptedLayoutID,
+                suppressStripLatch: false,
+                pointerInStrip: true
+            )
+        }
+        func cycle(_ delta: Int, from layoutID: Layout.ID) -> Layout.ID? {
+            var input = armedReadyInput(phase: .armed(window), kind: .cycleLayout(delta))
+            input.layoutIDs = ids
+            input.sessionLayoutID = layoutID
+            input.assignedLayoutID = layoutA
+            return SnapSessionReducer.reduce(input).effects.compactMap { effect in
+                if case .selectLayout(let id) = effect { return id }
+                return nil
+            }.first
+        }
+
+        var raced = pendingGate()
+        let racedEntry = raced.advance(miniZone: (layoutB, 1), overflow: nil, now: pendingTime, suppress: false)
+        XCTAssertEqual(racedEntry.acceptedLayoutID, layoutB)
+        XCTAssertEqual(cycle(1, from: layoutAfter(racedEntry, selected: layoutA)!), layoutC)
+
+        var gate = pendingGate()
+        gate.prepare(.cycleLayout)
+        let entry = gate.advance(miniZone: (layoutB, 1), overflow: nil, now: pendingTime, suppress: false)
+        XCTAssertFalse(entry.isConfirmed)
+        XCTAssertNil(entry.acceptedLayoutID)
+        let selected = layoutAfter(entry, selected: layoutA)
+        XCTAssertEqual(selected, layoutA)
+        XCTAssertEqual(cycle(1, from: selected!), layoutB)
+        XCTAssertEqual(cycle(-1, from: selected!), layoutC)
+
+        var confirmed = StripEntryGate()
+        _ = confirmed.advance(miniZone: nil, overflow: nil, now: 1, suppress: false)
+        _ = confirmed.advance(miniZone: (layoutB, 1), overflow: nil, now: 1, suppress: false)
+        let done = confirmed.advance(miniZone: (layoutB, 1), overflow: nil, now: 1.21, suppress: false)
+        XCTAssertEqual(done.acceptedLayoutID, layoutB)
+        confirmed.prepare(.cycleLayout)
+        let kept = confirmed.advance(miniZone: (layoutB, 1), overflow: nil, now: 2, suppress: false)
+        XCTAssertEqual(kept.acceptedLayoutID, layoutB)
+        let confirmedLayout = layoutAfter(kept, selected: layoutA)
+        XCTAssertEqual(confirmedLayout, layoutB)
+        XCTAssertEqual(cycle(1, from: confirmedLayout!), layoutC)
+        XCTAssertEqual(cycle(-1, from: confirmedLayout!), layoutA)
+    }
+
+    func testCycleDuringPendingOverflowDwellKeepsConfirmedLayout() {
+        let layoutA = Layout(name: "A", kind: .canvas, zones: []).id
+        let layoutB = Layout(name: "B", kind: .canvas, zones: []).id
+        let layoutC = Layout(name: "C", kind: .canvas, zones: []).id
+        let ids = [layoutA, layoutB, layoutC]
+        let overflowStarted = 2.0
+        let pendingTime = overflowStarted + StripEntryGate.dwellDuration + 0.005
+        let zoneB = ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: 0, y: 0, width: 500, height: 800))
+        let confirmedLatch = StripDropLatch(layoutID: layoutB, zone: zoneB)
+
+        func confirmedThenOverflow() -> StripEntryGate {
+            var gate = StripEntryGate()
+            _ = gate.advance(miniZone: nil, overflow: nil, now: 1, suppress: false)
+            _ = gate.advance(miniZone: (layoutB, 1), overflow: nil, now: 1, suppress: false)
+            let done = gate.advance(miniZone: (layoutB, 1), overflow: nil, now: 1.21, suppress: false)
+            XCTAssertEqual(done.acceptedLayoutID, layoutB)
+            let pending = gate.advance(miniZone: nil, overflow: 1, now: overflowStarted, suppress: false)
+            XCTAssertTrue(pending.isConfirmed)
+            XCTAssertEqual(pending.candidateOverflow, 1)
+            XCTAssertNil(pending.confirmedOverflow)
+            return gate
+        }
+
+        func cycle(_ delta: Int, from layoutID: Layout.ID) -> Layout.ID? {
+            var input = armedReadyInput(phase: .armed(window), kind: .cycleLayout(delta))
+            input.layoutIDs = ids
+            input.sessionLayoutID = layoutID
+            input.assignedLayoutID = layoutA
+            return SnapSessionReducer.reduce(input).effects.compactMap { effect in
+                if case .selectLayout(let id) = effect { return id }
+                return nil
+            }.first
+        }
+
+        func layoutAfterCancel(_ entry: StripEntryOutput) -> Layout.ID? {
+            let latch = SnapLayoutSession.stripDropLatch(
+                pointerInStrip: entry.isConfirmed,
+                hit: nil,
+                previous: entry.isConfirmed ? confirmedLatch : nil,
+                liveZoneInLatchedLayout: nil,
+                lingerNearStrip: entry.isConfirmed
+            )
+            let session = SnapLayoutSession.sessionLayoutIDForPointer(
+                forcedLayoutID: latch?.layoutID,
+                currentSessionLayoutID: layoutA,
+                assignedLayoutID: layoutA,
+                lockedTarget: nil,
+                preferForcedLayout: false
+            )
+            return SnapLayoutSession.layoutIDAfterExplicitSelection(
+                selectedLayoutID: session,
+                pointerLayoutID: latch?.layoutID,
+                suppressStripLatch: false,
+                pointerInStrip: true
+            )
+        }
+
+        var raced = confirmedThenOverflow()
+        let racedEntry = raced.advance(miniZone: nil, overflow: 1, now: pendingTime, suppress: false)
+        XCTAssertEqual(racedEntry.confirmedOverflow, 1)
+
+        var gate = confirmedThenOverflow()
+        gate.prepare(.cycleLayout)
+        let entry = gate.advance(miniZone: nil, overflow: 1, now: pendingTime, suppress: false)
+        XCTAssertTrue(entry.isConfirmed)
+        XCTAssertNil(entry.confirmedOverflow)
+        XCTAssertEqual(entry.candidateOverflow, 1)
+        XCTAssertEqual(entry.remainingDwell, StripEntryGate.dwellDuration)
+        let selected = layoutAfterCancel(entry)
+        XCTAssertEqual(selected, layoutB)
+        XCTAssertEqual(cycle(1, from: selected!), layoutC)
+        XCTAssertEqual(cycle(-1, from: selected!), layoutA)
+    }
+
     func testCrossLayoutDropAssignsLayout() {
         let assigned = Layout(name: "Half", kind: .canvas, zones: [])
         let third = Layout(name: "Third", kind: .canvas, zones: [])

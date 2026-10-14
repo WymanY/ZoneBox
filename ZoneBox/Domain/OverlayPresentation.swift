@@ -6,17 +6,26 @@ public struct OverlayStripRenderModel: Equatable, Sendable {
     public var highlightedLayoutID: Layout.ID?
     public var highlightedZoneNumber: Int?
     public var hoveredOverflow: LayoutStripOverflowHover?
+    public var candidateLayoutID: Layout.ID?
+    public var candidateZoneNumber: Int?
+    public var candidateOverflow: LayoutStripOverflowHover?
 
     public init(
         geometry: LayoutStripGeometry,
         highlightedLayoutID: Layout.ID? = nil,
         highlightedZoneNumber: Int? = nil,
-        hoveredOverflow: LayoutStripOverflowHover? = nil
+        hoveredOverflow: LayoutStripOverflowHover? = nil,
+        candidateLayoutID: Layout.ID? = nil,
+        candidateZoneNumber: Int? = nil,
+        candidateOverflow: LayoutStripOverflowHover? = nil
     ) {
         self.geometry = geometry
         self.highlightedLayoutID = highlightedLayoutID
         self.highlightedZoneNumber = highlightedZoneNumber
         self.hoveredOverflow = hoveredOverflow
+        self.candidateLayoutID = candidateLayoutID
+        self.candidateZoneNumber = candidateZoneNumber
+        self.candidateOverflow = candidateOverflow
     }
 }
 

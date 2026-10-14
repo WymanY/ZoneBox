@@ -222,10 +222,8 @@ public struct LayoutStripGeometry: Equatable, Sendable {
     }
 
     public func hitZone(at pointAppKit: CGPoint) -> (layoutID: Layout.ID, zoneNumber: Int)? {
-        for card in cards {
-            for zone in card.zones where zone.frameAppKit.contains(pointAppKit) {
-                return (card.layoutID, zone.number)
-            }
+        if let hit = hitMiniZone(at: pointAppKit) {
+            return hit
         }
         guard let card = cards.first(where: { $0.frameAppKit.contains(pointAppKit) }),
               let zone = Self.nearestZone(in: card.zones, to: pointAppKit)
@@ -233,6 +231,17 @@ public struct LayoutStripGeometry: Equatable, Sendable {
             return nil
         }
         return (card.layoutID, zone.number)
+    }
+
+    /// Only the thumbnail panes themselves. Card titles, padding, and the
+    /// linger band below the bar must not start a strip selection.
+    public func hitMiniZone(at pointAppKit: CGPoint) -> (layoutID: Layout.ID, zoneNumber: Int)? {
+        for card in cards {
+            for zone in card.zones where zone.frameAppKit.contains(pointAppKit) {
+                return (card.layoutID, zone.number)
+            }
+        }
+        return nil
     }
 
     public func hitCard(at pointAppKit: CGPoint) -> Layout.ID? {

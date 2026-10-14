@@ -120,6 +120,9 @@ final class ZoneOverlayView: NSView {
             for zone in card.zones {
                 var pane = convertFromScreen(zone.frameAppKit).insetBy(dx: 1, dy: 1)
                 let highlighted = selected && strip.highlightedZoneNumber == zone.number
+                let candidated = !highlighted
+                    && card.layoutID == strip.candidateLayoutID
+                    && strip.candidateZoneNumber == zone.number
                 if highlighted {
                     let cx = pane.midX
                     let cy = pane.midY
@@ -139,6 +142,9 @@ final class ZoneOverlayView: NSView {
                 if highlighted {
                     NSColor.white.setStroke()
                     zonePath.lineWidth = 2.4
+                } else if candidated {
+                    NSColor.white.withAlphaComponent(0.9).setStroke()
+                    zonePath.lineWidth = 1.6
                 } else {
                     NSColor.white.withAlphaComponent(selected ? 0.42 : 0.28).setStroke()
                     zonePath.lineWidth = 0.8
@@ -162,10 +168,20 @@ final class ZoneOverlayView: NSView {
         }
 
         if let overflow = geometry.overflowFrameAppKit {
-            drawOverflow(overflow, symbol: "›", hovered: strip.hoveredOverflow == .next)
+            drawOverflow(
+                overflow,
+                symbol: "›",
+                hovered: strip.hoveredOverflow == .next,
+                candidate: strip.candidateOverflow == .next
+            )
         }
         if let overflow = geometry.leadingOverflowFrameAppKit {
-            drawOverflow(overflow, symbol: "‹", hovered: strip.hoveredOverflow == .previous)
+            drawOverflow(
+                overflow,
+                symbol: "‹",
+                hovered: strip.hoveredOverflow == .previous,
+                candidate: strip.candidateOverflow == .previous
+            )
         }
         if strip.hoveredOverflow == .next, let overflow = geometry.overflowFrameAppKit {
             drawOverflowTooltip(overflow, text: L10n.text(.layoutStripNext))
@@ -174,12 +190,13 @@ final class ZoneOverlayView: NSView {
         }
     }
 
-    private func drawOverflow(_ frameAppKit: CGRect, symbol: String, hovered: Bool) {
+    private func drawOverflow(_ frameAppKit: CGRect, symbol: String, hovered: Bool, candidate: Bool = false) {
         let local = convertFromScreen(frameAppKit)
-        NSColor.white.withAlphaComponent(hovered ? 0.32 : 0.18).setFill()
+        let fill: CGFloat = hovered ? 0.32 : (candidate ? 0.26 : 0.18)
+        NSColor.white.withAlphaComponent(fill).setFill()
         let path = NSBezierPath(roundedRect: local, xRadius: 8, yRadius: 8)
         path.fill()
-        NSColor.white.withAlphaComponent(hovered ? 0.55 : 0.35).setStroke()
+        NSColor.white.withAlphaComponent(hovered ? 0.55 : (candidate ? 0.48 : 0.35)).setStroke()
         path.lineWidth = 1
         path.stroke()
         let label = symbol as NSString
