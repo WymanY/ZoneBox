@@ -146,9 +146,9 @@ public struct StripEntryGate: Equatable, Sendable {
     /// Mouse-up drops only a pending candidate and keeps a confirmed selection.
     /// A digit uses the same full reset as leaving the strip: the cell under
     /// the pointer becomes a spawn and cannot re-arm until the pointer leaves.
-    /// Tab/scroll resets a still-pending candidate the same way, so the dwell
-    /// threshold cannot confirm it before the cycle reads the current layout.
-    /// An already confirmed selection stays confirmed.
+    /// Tab/scroll resets an unengaged pending candidate the same way, so the
+    /// dwell threshold cannot confirm it before the cycle reads the layout.
+    /// Canceling a pending candidate keeps an already confirmed selection.
     public mutating func prepare(_ interrupt: Interrupt) {
         switch interrupt {
         case .mouseUp:
@@ -159,7 +159,11 @@ public struct StripEntryGate: Equatable, Sendable {
             reset()
         case .cycleLayout:
             if case .candidate = phase {
-                reset()
+                if engaged {
+                    phase = .confirmed
+                } else {
+                    reset()
+                }
             }
         }
     }

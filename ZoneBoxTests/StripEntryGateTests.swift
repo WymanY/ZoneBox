@@ -245,6 +245,37 @@ final class StripEntryGateTests: XCTestCase {
         XCTAssertNil(kept.remainingDwell)
     }
 
+    func testCycleLayoutDuringPendingOverflowKeepsConfirmedSelection() {
+        let lateTime = 2 + StripEntryGate.dwellDuration + 0.005
+        for delta in [1, -1] {
+            var early = StripEntryGate()
+            confirm(zone: zone(layoutB, 1), on: &early, at: 1)
+            let pending = early.advance(miniZone: nil, overflow: delta, now: 2, suppress: false)
+            XCTAssertTrue(pending.isConfirmed)
+            XCTAssertEqual(pending.candidateOverflow, delta)
+            XCTAssertNil(pending.confirmedOverflow)
+            early.prepare(.cycleLayout)
+            let canceledEarly = early.advance(miniZone: nil, overflow: delta, now: 2.05, suppress: false)
+            XCTAssertTrue(canceledEarly.isConfirmed)
+            XCTAssertNil(canceledEarly.confirmedOverflow)
+            XCTAssertEqual(canceledEarly.candidateOverflow, delta)
+            XCTAssertEqual(canceledEarly.remainingDwell, StripEntryGate.dwellDuration)
+
+            var late = StripEntryGate()
+            confirm(zone: zone(layoutB, 1), on: &late, at: 1)
+            _ = late.advance(miniZone: nil, overflow: delta, now: 2, suppress: false)
+            var raced = late
+            let paged = raced.advance(miniZone: nil, overflow: delta, now: lateTime, suppress: false)
+            XCTAssertEqual(paged.confirmedOverflow, delta)
+            late.prepare(.cycleLayout)
+            let canceledLate = late.advance(miniZone: nil, overflow: delta, now: lateTime, suppress: false)
+            XCTAssertTrue(canceledLate.isConfirmed)
+            XCTAssertNil(canceledLate.confirmedOverflow)
+            XCTAssertEqual(canceledLate.candidateOverflow, delta)
+            XCTAssertEqual(canceledLate.remainingDwell, StripEntryGate.dwellDuration)
+        }
+    }
+
     private func zone(_ layoutID: UUID, _ number: Int) -> (layoutID: Layout.ID, zoneNumber: Int) {
         (layoutID, number)
     }
