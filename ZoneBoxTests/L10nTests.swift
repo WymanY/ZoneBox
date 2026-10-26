@@ -265,6 +265,23 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.welcomeStepOf(2, 6, language: .chineseSimplified), "第 2 步，共 6 步")
     }
 
+    func testUpdateCopy() {
+        XCTAssertEqual(L10n.text(.menuCheckForUpdates, language: .english), "Check for Updates…")
+        XCTAssertEqual(L10n.text(.menuCheckForUpdates, language: .chineseSimplified), "检查更新…")
+        XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .english), "Update Available…")
+        XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .chineseSimplified), "有可用更新…")
+        XCTAssertEqual(L10n.text(.settingsAutomaticUpdates, language: .english), "Check for updates automatically")
+        XCTAssertEqual(L10n.text(.settingsDownloadUpdate, language: .chineseSimplified), "下载")
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateAvailable, language: .english), "0.5.1"),
+            "Version 0.5.1 is available."
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateAvailable, language: .chineseSimplified), "0.5.1"),
+            "发现新版本 0.5.1。"
+        )
+    }
+
     func testOnboardingCopyDoesNotMentionXcode() {
         XCTAssertEqual(
             L10n.text(.onboardingStep2Title, language: .english),

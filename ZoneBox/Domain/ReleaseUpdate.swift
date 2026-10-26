@@ -1,0 +1,304 @@
+import CryptoKit
+import Foundation
+
+public enum UpdateArchitecture: String, Sendable, Equatable {
+    case arm64
+    case x86_64
+}
+
+public struct GitHubReleaseAsset: Equatable, Sendable {
+    public var name: String
+    public var size: Int
+    public var browserDownloadURL: URL
+    public var digest: String?
+
+    public init(name: String, size: Int, browserDownloadURL: URL, digest: String? = nil) {
+        self.name = name
+        self.size = size
+        self.browserDownloadURL = browserDownloadURL
+        self.digest = digest
+    }
+}
+
+public struct GitHubRelease: Equatable, Sendable {
+    public var tagName: String
+    public var name: String?
+    public var draft: Bool
+    public var prerelease: Bool
+    public var assets: [GitHubReleaseAsset]
+
+    public init(tagName: String, name: String? = nil, draft: Bool, prerelease: Bool, assets: [GitHubReleaseAsset]) {
+        self.tagName = tagName
+        self.name = name
+        self.draft = draft
+        self.prerelease = prerelease
+        self.assets = assets
+    }
+}
+
+public struct UpdateOffer: Equatable, Sendable {
+    public var currentVersion: AppVersion
+    public var latestVersion: AppVersion
+    public var tagName: String
+    public var asset: GitHubReleaseAsset
+    public var expectedSHA256: String
+
+    public init(
+        currentVersion: AppVersion,
+        latestVersion: AppVersion,
+        tagName: String,
+        asset: GitHubReleaseAsset,
+        expectedSHA256: String
+    ) {
+        self.currentVersion = currentVersion
+        self.latestVersion = latestVersion
+        self.tagName = tagName
+        self.asset = asset
+        self.expectedSHA256 = expectedSHA256
+    }
+}
+
+public enum UpdateRejection: Equatable, Sendable {
+    case unreadableCurrentVersion
+    case unreadableReleaseVersion
+    case draft
+    case prerelease
+    case notNewer(current: AppVersion, latest: AppVersion)
+    case noMacInstaller
+    case missingDigest
+    case invalidAssetSize
+}
+
+public enum ReleaseEvaluation: Equatable, Sendable {
+    case upToDate(current: AppVersion, latest: AppVersion)
+    case available(UpdateOffer)
+    case rejected(UpdateRejection)
+}
+
+public enum ReleaseParseError: Error, Equatable {
+    case invalidJSON
+}
+
+public enum UpdateValidationError: Error, Equatable {
+    case missingFile
+    case unreadable
+    case sizeMismatch(expected: Int, actual: Int)
+    case digestMismatch
+}
+
+public enum UpdateDigest {
+    public static func parse(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return nil }
+        let hex: String
+        if trimmed.hasPrefix("sha256:") {
+            hex = String(trimmed.dropFirst(7))
+        } else {
+            hex = trimmed
+        }
+        guard hex.count == 64, hex.allSatisfy({ $0.isHexDigit }) else { return nil }
+        return hex
+    }
+
+    public static func sha256Hex(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    public static func sha256Hex(ofFile url: URL) throws -> String {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url, options: [.mappedIfSafe])
+        } catch {
+            throw UpdateValidationError.unreadable
+        }
+        return sha256Hex(of: data)
+    }
+}
+
+public enum UpdateSchedule {
+    public static let successfulInterval: TimeInterval = 24 * 60 * 60
+    public static let minimumRetryInterval: TimeInterval = 15 * 60
+
+    public static func shouldAutomaticallyCheck(
+        enabled: Bool,
+        lastCheckAt: Date?,
+        lastSuccessfulCheckAt: Date?,
+        now: Date
+    ) -> Bool {
+        guard enabled else { return false }
+        if let success = lastSuccessfulCheckAt, now.timeIntervalSince(success) < successfulInterval {
+            return false
+        }
+        if let last = lastCheckAt, now.timeIntervalSince(last) < minimumRetryInterval {
+            return false
+        }
+        return true
+    }
+}
+
+public enum ReleaseUpdateSelector {
+    public static func parseRelease(from data: Data) throws -> GitHubRelease {
+        let decoder = JSONDecoder()
+        do {
+            let dto = try decoder.decode(GitHubReleaseDTO.self, from: data)
+            return dto.makeRelease()
+        } catch {
+            throw ReleaseParseError.invalidJSON
+        }
+    }
+
+    public static func evaluate(
+        release: GitHubRelease,
+        currentVersion rawCurrent: String,
+        architecture: UpdateArchitecture
+    ) -> ReleaseEvaluation {
+        guard let current = AppVersion.parse(rawCurrent) else {
+            return .rejected(.unreadableCurrentVersion)
+        }
+        if release.draft { return .rejected(.draft) }
+        if release.prerelease { return .rejected(.prerelease) }
+        guard let latest = AppVersion.parse(release.tagName) ?? release.name.flatMap(AppVersion.parse) else {
+            return .rejected(.unreadableReleaseVersion)
+        }
+        guard latest.isStable else { return .rejected(.prerelease) }
+        if latest == current {
+            return .upToDate(current: current, latest: latest)
+        }
+        guard current < latest else {
+            return .rejected(.notNewer(current: current, latest: latest))
+        }
+        guard let asset = selectAsset(from: release.assets, version: latest, architecture: architecture) else {
+            return .rejected(.noMacInstaller)
+        }
+        guard asset.size > 0 else { return .rejected(.invalidAssetSize) }
+        guard let digest = UpdateDigest.parse(asset.digest) else { return .rejected(.missingDigest) }
+        return .available(
+            UpdateOffer(
+                currentVersion: current,
+                latestVersion: latest,
+                tagName: release.tagName,
+                asset: asset,
+                expectedSHA256: digest
+            )
+        )
+    }
+
+    public static func evaluate(
+        json: Data,
+        currentVersion: String,
+        architecture: UpdateArchitecture
+    ) throws -> ReleaseEvaluation {
+        evaluate(release: try parseRelease(from: json), currentVersion: currentVersion, architecture: architecture)
+    }
+
+    public static func selectAsset(
+        from assets: [GitHubReleaseAsset],
+        version: AppVersion,
+        architecture: UpdateArchitecture
+    ) -> GitHubReleaseAsset? {
+        let installers = assets.filter(isMacInstaller)
+        guard !installers.isEmpty else { return nil }
+        let archSpecific = installers.filter { assetArchitecture($0) == architecture }
+        if let chosen = preferredInstaller(archSpecific, version: version) {
+            return chosen
+        }
+        let universal = installers.filter { assetArchitecture($0) == nil }
+        return preferredInstaller(universal, version: version)
+    }
+
+    public static func validateDownloadedFile(
+        at url: URL,
+        expectedSize: Int,
+        expectedSHA256: String
+    ) throws {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            throw UpdateValidationError.missingFile
+        }
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        let actual = values.fileSize ?? 0
+        guard actual == expectedSize else {
+            throw UpdateValidationError.sizeMismatch(expected: expectedSize, actual: actual)
+        }
+        let hex = try UpdateDigest.sha256Hex(ofFile: url)
+        guard hex == expectedSHA256.lowercased() else {
+            throw UpdateValidationError.digestMismatch
+        }
+    }
+
+    public static func isMacInstaller(_ asset: GitHubReleaseAsset) -> Bool {
+        let name = asset.name.lowercased()
+        guard !name.isEmpty, !name.hasPrefix(".") else { return false }
+        if name.contains("source") { return false }
+        if name.contains("sha256") || name.contains("checksum") { return false }
+        if name.hasSuffix(".txt") || name.hasSuffix("sums") { return false }
+        if name.hasSuffix(".zip") || name.hasSuffix(".tar") || name.hasSuffix(".tar.gz") || name.hasSuffix(".tgz") {
+            return false
+        }
+        return name.hasSuffix(".dmg")
+    }
+
+    private static func preferredInstaller(_ assets: [GitHubReleaseAsset], version: AppVersion) -> GitHubReleaseAsset? {
+        guard !assets.isEmpty else { return nil }
+        let versionToken = version.description.lowercased()
+        let matchingVersion = assets.filter { $0.name.lowercased().contains(versionToken) }
+        let pool = matchingVersion.isEmpty ? assets : matchingVersion
+        let named = pool.filter { $0.name.lowercased().hasPrefix("zonebox") }
+        return (named.isEmpty ? pool : named).max { lhs, rhs in
+            if lhs.size != rhs.size { return lhs.size < rhs.size }
+            return lhs.name < rhs.name
+        }
+    }
+
+    private static func assetArchitecture(_ asset: GitHubReleaseAsset) -> UpdateArchitecture? {
+        let name = asset.name.lowercased()
+        let arm = name.contains("arm64") || name.contains("apple-silicon") || name.contains("applesilicon")
+        let intel = name.contains("x86_64") || name.contains("intel")
+        if arm && !intel { return .arm64 }
+        if intel && !arm { return .x86_64 }
+        return nil
+    }
+}
+
+private struct GitHubReleaseDTO: Decodable {
+    var tagName: String
+    var name: String?
+    var draft: Bool?
+    var prerelease: Bool?
+    var assets: [Asset]?
+
+    enum CodingKeys: String, CodingKey {
+        case name, draft, prerelease, assets
+        case tagName = "tag_name"
+    }
+
+    struct Asset: Decodable {
+        var name: String
+        var size: Int
+        var browserDownloadURL: URL
+        var digest: String?
+
+        enum CodingKeys: String, CodingKey {
+            case name, size, digest
+            case browserDownloadURL = "browser_download_url"
+        }
+    }
+
+    func makeRelease() -> GitHubRelease {
+        GitHubRelease(
+            tagName: tagName,
+            name: name,
+            draft: draft ?? false,
+            prerelease: prerelease ?? false,
+            assets: (assets ?? []).map {
+                GitHubReleaseAsset(
+                    name: $0.name,
+                    size: $0.size,
+                    browserDownloadURL: $0.browserDownloadURL,
+                    digest: $0.digest
+                )
+            }
+        )
+    }
+}

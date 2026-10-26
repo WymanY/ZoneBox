@@ -49,6 +49,17 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
     private var hoverPinSwitch: NSSwitch?
+    private var automaticUpdatesSwitch: NSSwitch?
+    private var updateCurrentLabel: NSTextField?
+    private var updateLatestLabel: NSTextField?
+    private var updateStatusLabel: NSTextField?
+    private var updateProgress: NSProgressIndicator?
+    private var updateCheckButton: NSButton?
+    private var updateDownloadButton: NSButton?
+    private var updateCancelButton: NSButton?
+    private var updateRetryButton: NSButton?
+    private var updateRevealButton: NSButton?
+    private var updateOpenButton: NSButton?
     private var licenseStatusLabel: NSTextField?
     private var licenseKeyField: LicenseKeyTextField?
     private var licenseFeedbackRow: NSStackView?
@@ -86,8 +97,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         if window == nil { window = makeWindow() }
         applyPresentation()
         refreshAccessStatus()
+        refreshUpdateStatus()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func showGeneral() {
+        selectedCategory = .general
+        showWindow()
+        categoryControl?.selectedSegment = SettingsCategory.general.rawValue
+        for (candidate, page) in pageViews { page.isHidden = candidate != .general }
+        refreshUpdateStatus()
+        updatePreview()
     }
 
     func showWorkspaces() {
@@ -324,6 +345,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         )
         hoverPinSwitch = hoverPin
 
+        let automatic = settingSwitch(
+            titleKey: .settingsAutomaticUpdates,
+            on: runtime.settings.automaticUpdatesEnabled,
+            action: #selector(toggleAutomaticUpdates(_:))
+        )
+        automaticUpdatesSwitch = automatic
+
         return makeGroupedRows([
             makeSettingRow(symbol: "globe", titleKey: .settingsLanguage, detailKey: .settingsLanguageDetail, trailing: popup),
             makeSettingRow(
@@ -335,6 +363,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 badgeKey: .settingsBeta
             ),
             makeSettingRow(symbol: "power", titleKey: .settingsLaunchAtLogin, detailKey: .settingsLaunchAtLoginDetail, trailing: login),
+            makeSettingRow(
+                symbol: "arrow.clockwise",
+                titleKey: .settingsAutomaticUpdates,
+                detailKey: .settingsAutomaticUpdatesDetail,
+                trailing: automatic
+            ),
+            makeUpdateStatusRow(),
             makeSettingRow(
                 symbol: "questionmark.circle",
                 titleKey: .settingsWelcomeTour,
@@ -1794,8 +1829,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
+        automaticUpdatesSwitch?.setAccessibilityLabel(L10n.text(.settingsAutomaticUpdates))
         refreshLicenseStatus()
         refreshLoginSwitch()
+        refreshUpdateStatus()
         shakeIntensityLabel?.stringValue = L10n.shakeIntensity(runtime.settings.shakeIntensity)
         shakeIntensityHint?.stringValue = L10n.text(.settingsShakeIntensityHint)
         shakeIntensitySlider?.setAccessibilityLabel(L10n.text(.settingsShakeIntensityHint))
@@ -2024,6 +2061,174 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         gutterLabel?.stringValue = value
         gutterSlider?.setAccessibilityLabel(value)
         gutterSlider?.setAccessibilityValue(value)
+    }
+
+    private func makeUpdateStatusRow() -> NSView {
+        let current = NSTextField(labelWithString: "")
+        current.font = .systemFont(ofSize: 12)
+        current.textColor = .secondaryLabelColor
+        current.alignment = .left
+        updateCurrentLabel = current
+
+        let latest = NSTextField(labelWithString: "")
+        latest.font = .systemFont(ofSize: 12)
+        latest.textColor = .secondaryLabelColor
+        latest.alignment = .left
+        updateLatestLabel = latest
+
+        let status = NSTextField(wrappingLabelWithString: "")
+        status.font = .systemFont(ofSize: 12)
+        status.textColor = .labelColor
+        status.alignment = .left
+        updateStatusLabel = status
+
+        let progress = NSProgressIndicator()
+        progress.style = .bar
+        progress.minValue = 0
+        progress.maxValue = 1
+        progress.isIndeterminate = false
+        progress.isDisplayedWhenStopped = false
+        progress.controlSize = .small
+        progress.translatesAutoresizingMaskIntoConstraints = false
+        progress.heightAnchor.constraint(equalToConstant: 12).isActive = true
+        updateProgress = progress
+
+        let check = localizedButton(.settingsCheckForUpdates, action: #selector(checkForUpdatesNow))
+        let download = localizedButton(.settingsDownloadUpdate, action: #selector(downloadUpdate))
+        let cancel = localizedButton(.settingsCancelUpdate, action: #selector(cancelUpdateDownload))
+        let retry = localizedButton(.settingsRetryUpdate, action: #selector(retryUpdate))
+        let reveal = localizedButton(.settingsShowInstaller, action: #selector(revealDownloadedUpdate))
+        let open = localizedButton(.settingsOpenInstaller, action: #selector(openDownloadedUpdate))
+        for button in [check, download, cancel, retry, reveal, open] {
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+        }
+        updateCheckButton = check
+        updateDownloadButton = download
+        updateCancelButton = cancel
+        updateRetryButton = retry
+        updateRevealButton = reveal
+        updateOpenButton = open
+
+        let actions = NSStackView(views: [check, download, cancel, retry, reveal, open])
+        actions.orientation = .horizontal
+        actions.alignment = .centerY
+        actions.spacing = 8
+
+        let footer = NSStackView(views: [current, latest, status, progress, actions])
+        footer.orientation = .vertical
+        footer.alignment = .leading
+        footer.spacing = 6
+        refreshUpdateStatus()
+        return makeSettingRow(
+            symbol: "square.and.arrow.down",
+            titleKey: .settingsUpdates,
+            detailKey: nil,
+            trailing: NSView(),
+            footer: footer
+        )
+    }
+
+    func refreshUpdateStatus() {
+        automaticUpdatesSwitch?.state = runtime.settings.automaticUpdatesEnabled ? .on : .off
+        let locale = LanguageCenter.language.locale
+        let current = runtime.updates.currentVersionText
+        updateCurrentLabel?.stringValue = String(format: L10n.text(.settingsUpdateCurrent), locale: locale, current)
+        var latest = L10n.text(.settingsUpdateUnknown)
+        if let known = runtime.updates.record.lastKnownLatestVersion, !known.isEmpty {
+            latest = known
+        }
+        var status = ""
+        var checking = false
+        var downloading = false
+        var available = false
+        var downloaded = false
+        var failed = false
+        var fraction = 0.0
+        switch runtime.updates.phase {
+        case .idle:
+            break
+        case .checking:
+            checking = true
+            status = L10n.text(.settingsUpdateChecking)
+        case .upToDate(_, let value):
+            latest = value
+            status = L10n.text(.settingsUpdateUpToDate)
+        case .available(let offer):
+            available = true
+            latest = offer.latestVersion.description
+            status = String(format: L10n.text(.settingsUpdateAvailable), locale: locale, offer.latestVersion.description)
+        case .downloading(let offer, let received, let expected):
+            downloading = true
+            latest = offer.latestVersion.description
+            let total = expected > 0 ? expected : Int64(offer.asset.size)
+            fraction = total > 0 ? Double(received) / Double(total) : 0
+            let percent = Int((fraction * 100).rounded())
+            status = String(format: L10n.text(.settingsUpdateDownloading), locale: locale, percent)
+        case .downloaded(let offer, _):
+            downloaded = true
+            latest = offer.latestVersion.description
+            status = L10n.text(.settingsUpdateDownloaded)
+        case .failed(let message, _):
+            failed = true
+            status = message
+        }
+        updateLatestLabel?.stringValue = String(format: L10n.text(.settingsUpdateLatest), locale: locale, latest)
+        updateStatusLabel?.stringValue = status
+        updateStatusLabel?.isHidden = status.isEmpty
+        updateProgress?.doubleValue = fraction
+        if downloading {
+            updateProgress?.startAnimation(nil)
+        } else {
+            updateProgress?.stopAnimation(nil)
+        }
+        updateProgress?.isHidden = !downloading
+        updateCheckButton?.isEnabled = !checking && !downloading
+        updateCheckButton?.isHidden = downloading
+        updateDownloadButton?.isHidden = !available
+        updateCancelButton?.isHidden = !downloading
+        updateRetryButton?.isHidden = !failed
+        updateRevealButton?.isHidden = !downloaded
+        updateOpenButton?.isHidden = !downloaded
+    }
+
+    @objc private func toggleAutomaticUpdates(_ sender: NSSwitch) {
+        runtime.setAutomaticUpdatesEnabled(sender.state == .on)
+    }
+
+    @objc private func checkForUpdatesNow() {
+        Task { await runtime.updates.checkNow() }
+    }
+
+    @objc private func downloadUpdate() {
+        guard case .available(let offer) = runtime.updates.phase else { return }
+        let alert = NSAlert()
+        alert.messageText = L10n.text(.settingsUpdateConfirmTitle)
+        alert.informativeText = String(
+            format: L10n.text(.settingsUpdateConfirmMessage),
+            locale: LanguageCenter.language.locale,
+            offer.latestVersion.description
+        )
+        alert.addButton(withTitle: L10n.text(.settingsDownloadUpdate))
+        alert.addButton(withTitle: L10n.text(.settingsCancelUpdate))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        Task { await runtime.updates.download(offer) }
+    }
+
+    @objc private func cancelUpdateDownload() {
+        runtime.updates.cancelDownload()
+    }
+
+    @objc private func retryUpdate() {
+        runtime.updates.retry()
+    }
+
+    @objc private func revealDownloadedUpdate() {
+        runtime.updates.revealInstaller()
+    }
+
+    @objc private func openDownloadedUpdate() {
+        runtime.updates.openInstaller()
     }
 
     @objc private func toggleLogin(_ sender: NSSwitch) {

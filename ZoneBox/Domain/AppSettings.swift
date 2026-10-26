@@ -31,6 +31,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var snapDialogs: Bool
     public var excludedBundleIDs: [String]
     public var launchAtLogin: Bool
+    public var automaticUpdatesEnabled: Bool
     public var hoverPinEnabled: Bool
     public var uiLanguage: AppLanguagePreference
     public var showLayoutStrip: Bool
@@ -87,6 +88,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             AppIdentity.debugBundleID,
         ],
         launchAtLogin: false,
+        automaticUpdatesEnabled: true,
         hoverPinEnabled: true,
         uiLanguage: .system,
         showLayoutStrip: true,
@@ -142,6 +144,7 @@ extension AppSettings {
             try c.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? defaults.excludedBundleIDs
         )
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
+        automaticUpdatesEnabled = try c.decodeIfPresent(Bool.self, forKey: .automaticUpdatesEnabled) ?? defaults.automaticUpdatesEnabled
         hoverPinEnabled = try c.decodeIfPresent(Bool.self, forKey: .hoverPinEnabled) ?? defaults.hoverPinEnabled
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         showLayoutStrip = try c.decodeIfPresent(Bool.self, forKey: .showLayoutStrip) ?? defaults.showLayoutStrip
