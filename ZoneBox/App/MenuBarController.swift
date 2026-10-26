@@ -385,8 +385,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         let current = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
             .flatMap { runtime.document.layout(for: $0.display.id) }?.id
+        let names = runtime.document.presentationNames()
         for layout in runtime.document.layouts {
-            let item = NSMenuItem(title: L10n.layoutDisplayName(layout.name), action: #selector(selectLayout(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: names[layout.id] ?? L10n.layoutDisplayName(layout.name), action: #selector(selectLayout(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = layout.id.uuidString
             item.state = layout.id == current ? .on : .off
@@ -634,7 +635,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func confirmAndDelete(_ layout: Layout) {
-        let name = L10n.layoutDisplayName(layout.name)
+        let name = runtime.document.presentationName(for: layout.id)
         let alert = NSAlert()
         alert.messageText = String(format: L10n.text(.menuDeleteLayoutTitle), name)
         alert.informativeText = L10n.text(.menuDeleteLayoutMessage)

@@ -239,4 +239,298 @@ final class LayoutStripGeometryTests: XCTestCase {
         )
         XCTAssertNil(LayoutStripGeometry.neighborLayoutID(of: layouts[7].0.id, in: layouts.map(\.0.id), delta: 1))
     }
+
+    func testIdenticalClonesWithDifferentUUIDsCollapseToOneCard() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let zones = evenColumns(in: work)
+        let first = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let clone = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        XCTAssertNotEqual(first.id, clone.id)
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(first, zones), (clone, evenColumns(in: work))],
+            assignedLayoutID: first.id,
+            workAreaAX: work,
+            language: .english
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutID), [first.id])
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["Columns 2"])
+        XCTAssertTrue(geometry.cards[0].isAssigned)
+        let mini = geometry.cards[0].zones[0].frameAppKit
+        let hit = geometry.hitZone(at: CGPoint(x: mini.midX, y: mini.midY))
+        XCTAssertEqual(hit?.layoutID, first.id)
+        XCTAssertNil(geometry.overflowFrameAppKit)
+    }
+
+    func testSameNameDifferentGeometryGetsStableNumberingIncludingTheFirst() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let even = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let wide = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let persisted = [even.id, wide.id]
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (even, evenColumns(in: work)),
+                (wide, splitColumns(left: 700, in: work)),
+            ],
+            assignedLayoutID: even.id,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutID), [even.id, wide.id])
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["两列1", "两列2"])
+    }
+
+    func testUniqueNamesStayUnnumbered() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let left = Layout(name: "Left", kind: .canvas, zones: [])
+        let right = Layout(name: "Right", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (left, evenColumns(in: work)),
+                (right, [ResolvedZone(zoneID: UUID(), number: 1, frameAX: work)]),
+            ],
+            assignedLayoutID: left.id,
+            workAreaAX: work,
+            language: .english
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["Left", "Right"])
+    }
+
+    func testAssignedCloneIsPreferredRepresentative() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let older = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let assigned = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let prepared = LayoutStripGeometry.preparedLayouts(
+            layouts: [
+                (older, evenColumns(in: work)),
+                (assigned, evenColumns(in: work)),
+            ],
+            assignedLayoutID: assigned.id,
+            language: .english
+        )
+        XCTAssertEqual(prepared.layouts.map(\.layout.id), [assigned.id])
+        XCTAssertEqual(prepared.representativeID(for: older.id), assigned.id)
+        XCTAssertEqual(prepared.representativeID(for: assigned.id), assigned.id)
+
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (older, evenColumns(in: work)),
+                (assigned, evenColumns(in: work)),
+            ],
+            assignedLayoutID: assigned.id,
+            workAreaAX: work,
+            focusedLayoutID: older.id,
+            language: .english
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutID), [assigned.id])
+        XCTAssertTrue(geometry.cards[0].isAssigned)
+    }
+
+    func testNumberingFollowsPersistedOrderAcrossMRUResort() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let even = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let wide = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let persisted = [even.id, wide.id]
+        let mruFirst = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (wide, splitColumns(left: 700, in: work)),
+                (even, evenColumns(in: work)),
+            ],
+            assignedLayoutID: wide.id,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(mruFirst.cards.map(\.layoutID), [wide.id, even.id])
+        XCTAssertEqual(mruFirst.cards.map(\.layoutName), ["两列2", "两列1"])
+
+        let assignedFirst = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (even, evenColumns(in: work)),
+                (wide, splitColumns(left: 700, in: work)),
+            ],
+            assignedLayoutID: even.id,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(assignedFirst.cards.map(\.layoutID), [even.id, wide.id])
+        XCTAssertEqual(assignedFirst.cards.map(\.layoutName), ["两列1", "两列2"])
+    }
+
+    func testDifferentNamesSameShapeStayDistinct() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let columns = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let custom = Layout(name: "Work", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (columns, evenColumns(in: work)),
+                (custom, evenColumns(in: work)),
+            ],
+            assignedLayoutID: columns.id,
+            workAreaAX: work,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutID), [columns.id, custom.id])
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["两列", "Work"])
+    }
+
+    func testDedupedListDrivesOverflowPaging() {
+        let work = CGRect(x: 0, y: 0, width: 1600, height: 900)
+        var layouts: [(Layout, [ResolvedZone])] = (0..<6).map { index in
+            let layout = Layout(name: "L\(index)", kind: .canvas, zones: [])
+            return (layout, [ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: CGFloat(index) * 10, y: 0, width: 100, height: 100))])
+        }
+        let original = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let clone = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let even = evenColumns(in: work)
+        layouts.append((original, even))
+        layouts.append((clone, evenColumns(in: work)))
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            workAreaAX: work,
+            language: .english
+        )
+        XCTAssertEqual(geometry.cards.count, LayoutStripGeometry.maxVisibleCards)
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["L0", "L1", "L2", "L3", "L4", "L5"])
+        XCTAssertNotNil(geometry.overflowFrameAppKit)
+        let prepared = LayoutStripGeometry.preparedLayouts(
+            layouts: layouts,
+            assignedLayoutID: layouts[0].0.id,
+            language: .english
+        )
+        XCTAssertEqual(prepared.layouts.count, 7)
+        XCTAssertEqual(prepared.representativeID(for: clone.id), original.id)
+        XCTAssertEqual(
+            LayoutStripGeometry.neighborLayoutID(
+                of: prepared.layouts[5].layout.id,
+                in: prepared.layouts.map(\.layout.id),
+                delta: 1
+            ),
+            original.id
+        )
+    }
+
+    func testNumberingUsesGroupPersistedIdentityWhenAssignedCloneChanges() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let a1 = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let shapeB = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let a2 = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let persisted = [a1.id, shapeB.id, a2.id]
+        let even = evenColumns(in: work)
+        let wide = splitColumns(left: 700, in: work)
+
+        let a1Assigned = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(a1, even), (shapeB, wide), (a2, even)],
+            assignedLayoutID: a1.id,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(a1Assigned.cards.map(\.layoutID), [a1.id, shapeB.id])
+        XCTAssertEqual(a1Assigned.cards.map(\.layoutName), ["两列1", "两列2"])
+        XCTAssertTrue(a1Assigned.cards[0].isAssigned)
+
+        let a2Assigned = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(a2, even), (shapeB, wide), (a1, even)],
+            assignedLayoutID: a2.id,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(a2Assigned.cards.map(\.layoutID), [a2.id, shapeB.id])
+        XCTAssertEqual(a2Assigned.cards.map(\.layoutName), ["两列1", "两列2"])
+        XCTAssertTrue(a2Assigned.cards[0].isAssigned)
+        XCTAssertEqual(a2Assigned.cards[0].layoutID, a2.id)
+    }
+
+    func testNumberingStaysStableWhenCloneGroupMRUChangesWithoutAssignment() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let a1 = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let shapeB = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let a2 = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let persisted = [a1.id, shapeB.id, a2.id]
+        let even = evenColumns(in: work)
+        let wide = splitColumns(left: 700, in: work)
+
+        let mruA2 = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(a2, even), (shapeB, wide), (a1, even)],
+            assignedLayoutID: nil,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(mruA2.cards.map(\.layoutID), [a2.id, shapeB.id])
+        XCTAssertEqual(mruA2.cards.map(\.layoutName), ["两列1", "两列2"])
+        XCTAssertFalse(mruA2.cards[0].isAssigned)
+
+        let mruA1 = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(a1, even), (shapeB, wide), (a2, even)],
+            assignedLayoutID: nil,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(mruA1.cards.map(\.layoutID), [a1.id, shapeB.id])
+        XCTAssertEqual(mruA1.cards.map(\.layoutName), ["两列1", "两列2"])
+
+        let mruBFirst = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [(shapeB, wide), (a2, even), (a1, even)],
+            assignedLayoutID: nil,
+            workAreaAX: work,
+            persistedLayoutIDs: persisted,
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(mruBFirst.cards.map(\.layoutID), [shapeB.id, a2.id])
+        XCTAssertEqual(mruBFirst.cards.map(\.layoutName), ["两列2", "两列1"])
+    }
+
+    func testNumberingSkipsAnExistingSuffixedDisplayName() {
+        let work = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let even = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let wide = Layout(name: "Columns 2", kind: .canvas, zones: [])
+        let taken = Layout(name: "两列1", kind: .canvas, zones: [])
+        let geometry = LayoutStripGeometry.make(
+            workAreaAppKit: work,
+            layouts: [
+                (even, evenColumns(in: work)),
+                (wide, splitColumns(left: 700, in: work)),
+                (taken, [ResolvedZone(zoneID: UUID(), number: 1, frameAX: work)]),
+            ],
+            assignedLayoutID: even.id,
+            workAreaAX: work,
+            persistedLayoutIDs: [even.id, wide.id, taken.id],
+            language: .chineseSimplified
+        )
+        XCTAssertEqual(geometry.cards.map(\.layoutName), ["两列2", "两列3", "两列1"])
+    }
+
+    private func evenColumns(in work: CGRect) -> [ResolvedZone] {
+        splitColumns(left: work.width / 2, in: work)
+    }
+
+    private func splitColumns(left: CGFloat, in work: CGRect) -> [ResolvedZone] {
+        [
+            ResolvedZone(zoneID: UUID(), number: 1, frameAX: CGRect(x: work.minX, y: work.minY, width: left, height: work.height)),
+            ResolvedZone(
+                zoneID: UUID(),
+                number: 2,
+                frameAX: CGRect(x: work.minX + left, y: work.minY, width: work.width - left, height: work.height)
+            ),
+        ]
+    }
 }

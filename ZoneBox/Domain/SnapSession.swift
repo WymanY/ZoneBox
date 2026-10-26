@@ -685,7 +685,9 @@ public enum SnapLayoutSession {
         workAreaAX: CGRect,
         assignedLayoutID: Layout.ID?,
         previousStartLayoutID: Layout.ID?,
-        showLayoutStrip: Bool
+        showLayoutStrip: Bool,
+        persistedLayoutIDs: [Layout.ID] = [],
+        language: AppLanguage = LanguageCenter.language
     ) -> ExplicitLayoutPreview {
         guard showLayoutStrip else {
             return ExplicitLayoutPreview(
@@ -697,17 +699,26 @@ public enum SnapLayoutSession {
                 stripWindowStartID: previousStartLayoutID
             )
         }
+        let prepared = LayoutStripGeometry.preparedLayouts(
+            layouts: layouts,
+            assignedLayoutID: assignedLayoutID,
+            persistedLayoutIDs: persistedLayoutIDs,
+            language: language
+        )
+        let focusedID = prepared.representativeID(for: selectedLayoutID) ?? selectedLayoutID
         let strip = LayoutStripGeometry.make(
             workAreaAppKit: workAreaAppKit,
             layouts: layouts,
             assignedLayoutID: assignedLayoutID,
             workAreaAX: workAreaAX,
-            focusedLayoutID: selectedLayoutID,
-            previousStartLayoutID: previousStartLayoutID
+            focusedLayoutID: focusedID,
+            previousStartLayoutID: prepared.representativeID(for: previousStartLayoutID),
+            persistedLayoutIDs: persistedLayoutIDs,
+            language: language
         )
         let model = OverlayStripRenderModel(
             geometry: strip,
-            highlightedLayoutID: selectedLayoutID,
+            highlightedLayoutID: focusedID,
             highlightedZoneNumber: nil
         )
         return ExplicitLayoutPreview(

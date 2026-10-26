@@ -652,4 +652,65 @@ final class LayoutStoreTests: XCTestCase {
             XCTAssertEqual(frame.height, expectedAX.height, accuracy: 0.05)
         }
     }
+
+    func testCollapseKeepsDistinctSplitsAndRetargetsTheIdenticalCopy() {
+        var custom = LayoutTemplates.columns(2)
+        custom.grid?.columnWeights = [5_663, 4_337]
+        let even = LayoutTemplates.columns(2)
+        let copy = LayoutTemplates.columns(2)
+        let displayA = UUID()
+        let displayB = UUID()
+        var document = StoreDocument(layouts: [custom, even, copy])
+        document.assign(layoutID: even.id, to: displayA)
+        document.assign(layoutID: copy.id, to: displayB)
+        document.markLayoutUsed(copy.id)
+
+        document.collapseIdenticalLayouts()
+
+        XCTAssertEqual(document.layouts.map(\.id), [custom.id, even.id])
+        XCTAssertEqual(document.layout(for: displayA)?.id, even.id)
+        XCTAssertEqual(document.layout(for: displayB)?.id, even.id)
+        XCTAssertEqual(document.recentLayoutIDs, [even.id])
+        let names = document.presentationNames(language: .chineseSimplified)
+        XCTAssertEqual(names[custom.id], "两列1")
+        XCTAssertEqual(names[even.id], "两列2")
+    }
+
+    func testCollapseLeavesDifferentNamesAlone() {
+        let columns = LayoutTemplates.columns(2)
+        var renamed = columns
+        renamed.id = UUID()
+        renamed.name = "Wide Pair"
+        var document = StoreDocument(layouts: [columns, renamed])
+
+        document.collapseIdenticalLayouts()
+
+        XCTAssertEqual(Set(document.layouts.map(\.id)), Set([columns.id, renamed.id]))
+    }
+
+    func testNewDisplayReusesTheExistingDefaultLayout() {
+        let existing = LayoutTemplates.columns(2)
+        var document = StoreDocument(layouts: [existing])
+        let display = UUID()
+
+        document.assignDefaultLayout(to: display, width: 1_440, height: 900)
+
+        XCTAssertEqual(document.layouts.map(\.id), [existing.id])
+        XCTAssertEqual(document.layout(for: display)?.id, existing.id)
+    }
+
+    func testNewDisplayKeepsACustomSplitAndAddsTheDefaultBesideIt() {
+        var custom = LayoutTemplates.columns(2)
+        custom.grid?.columnWeights = [7_000, 3_000]
+        var document = StoreDocument(layouts: [custom])
+        let display = UUID()
+
+        document.assignDefaultLayout(to: display, width: 1_440, height: 900)
+
+        XCTAssertEqual(document.layouts.count, 2)
+        XCTAssertEqual(document.layouts[0].id, custom.id)
+        XCTAssertNotEqual(document.layout(for: display)?.id, custom.id)
+        XCTAssertEqual(document.layout(for: display)?.grid?.columnWeights, [5_000, 5_000])
+    }
+
 }

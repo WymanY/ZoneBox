@@ -116,13 +116,24 @@ final class OverlayController {
                 panels[previousDisplayID]?.orderOut(nil)
             }
             visibleDisplayID = displayID
-            panel.orderFrontRegardless()
             needsDisplay = true
         }
-        panel.orderFrontRegardless()
+        let decision = OverlayStackingPolicy.present(
+            isPreview: isPreview,
+            alreadyVisible: isAlreadyVisible,
+            stackingMatches: isAlreadyVisible && isPreviewVisible == isPreview
+        )
+        panel.applyStacking(decision.kind)
+        // Avoid repeated window ordering while the system owns title-bar
+        // tracking. Previews still restack to cover the console / welcome.
+        if decision.restack {
+            panel.orderFrontRegardless()
+        }
         if needsDisplay {
             view.needsDisplay = true
-            view.displayIfNeeded()
+            if decision.flushDisplay {
+                view.displayIfNeeded()
+            }
         }
         if captureKeys {
             grabKeys()

@@ -685,6 +685,7 @@ private final class SwitcherProfileCard: NSView {
     let onDelete: () -> Void
     private var hovering = false
     private let menuButton = NSButton()
+    private var currentTrailing: NSLayoutConstraint?
 
     init(
         profile: WorkspaceProfile,
@@ -795,9 +796,14 @@ private final class SwitcherProfileCard: NSView {
             current.textColor = .controlAccentColor
             current.translatesAutoresizingMaskIntoConstraints = false
             addSubview(current)
+            current.lineBreakMode = .byTruncatingTail
+            current.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            let trailing = current.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8)
+            currentTrailing = trailing
             NSLayoutConstraint.activate([
-                current.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+                trailing,
                 current.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+                current.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 22),
             ])
         }
         if disconnected {
@@ -843,12 +849,14 @@ private final class SwitcherProfileCard: NSView {
     override func mouseEntered(with event: NSEvent) {
         hovering = true
         menuButton.isHidden = false
+        currentTrailing?.constant = -26
         needsDisplay = true
     }
 
     override func mouseExited(with event: NSEvent) {
         hovering = false
         menuButton.isHidden = true
+        currentTrailing?.constant = -8
         needsDisplay = true
     }
 

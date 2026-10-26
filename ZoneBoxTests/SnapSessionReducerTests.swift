@@ -1206,11 +1206,35 @@ final class SnapSessionReducerTests: XCTestCase {
         input.event.locationAppKit = ShakeDetectorTests.shakeTrace().last!
         let out = SnapSessionReducer.reduce(input)
         XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
         switch out.phase {
         case .armed, .highlighting:
             break
         default:
             XCTFail("expected armed/highlighting, got \(out.phase)")
+        }
+    }
+
+    func testShakeArmedDragKeepsOverlayWithoutApplyingFrame() {
+        let zone = ResolvedZone(
+            zoneID: UUID(),
+            number: 1,
+            frameAX: CGRect(x: 16, y: 16, width: 668, height: 768)
+        )
+        var input = armedReadyInput(phase: .highlighting(window, .zone(zone)), kind: .leftDragged)
+        input.resolvedZones = [zone]
+        input.stickyArm = true
+        input.event.modifiers = []
+        input.event.locationAppKit = CGPoint(x: 120, y: 80)
+        let out = SnapSessionReducer.reduce(input)
+        XCTAssertTrue(out.effects.contains { if case .showOverlay = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains { if case .applyFrame = $0 { return true }; return false })
+        XCTAssertFalse(out.effects.contains(.hideOverlay))
+        switch out.phase {
+        case .armed, .highlighting:
+            break
+        default:
+            XCTFail("expected overlay to stay armed, got \(out.phase)")
         }
     }
 
