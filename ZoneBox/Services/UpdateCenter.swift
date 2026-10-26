@@ -150,6 +150,9 @@ final class UpdateCenter {
             phase = .failed(message: message(for: error), retry: .check)
             Log.update.error("Update check failed error=\(error.localizedDescription, privacy: .public)")
         }
+        if case .failed(_, .check) = phase {
+            restoreDownloadedIfNeeded()
+        }
         persist()
         notify()
     }
