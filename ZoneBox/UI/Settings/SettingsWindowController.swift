@@ -49,7 +49,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var shortcutsButton: NSButton?
     private var loginSwitch: NSSwitch?
     private var hoverPinSwitch: NSSwitch?
-    private var automaticUpdatesSwitch: NSSwitch?
+    private var updateCheckFrequencyPopup: NSPopUpButton?
+    private var updateCheckFrequencyDetailLabel: NSTextField?
     private var updateCurrentLabel: NSTextField?
     private var updateLatestLabel: NSTextField?
     private var updateStatusLabel: NSTextField?
@@ -345,12 +346,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         )
         hoverPinSwitch = hoverPin
 
-        let automatic = settingSwitch(
-            titleKey: .settingsAutomaticUpdates,
-            on: runtime.settings.automaticUpdatesEnabled,
-            action: #selector(toggleAutomaticUpdates(_:))
-        )
-        automaticUpdatesSwitch = automatic
+        let frequency = NSPopUpButton(frame: .zero, pullsDown: false)
+        frequency.target = self
+        frequency.action = #selector(updateCheckFrequencyChanged(_:))
+        frequency.controlSize = .regular
+        frequency.translatesAutoresizingMaskIntoConstraints = false
+        frequency.widthAnchor.constraint(equalToConstant: 168).isActive = true
+        updateCheckFrequencyPopup = frequency
+        reloadUpdateCheckFrequencyPopup()
 
         return makeGroupedRows([
             makeSettingRow(symbol: "globe", titleKey: .settingsLanguage, detailKey: .settingsLanguageDetail, trailing: popup),
@@ -367,7 +370,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 symbol: "arrow.clockwise",
                 titleKey: .settingsAutomaticUpdates,
                 detailKey: .settingsAutomaticUpdatesDetail,
-                trailing: automatic
+                trailing: frequency,
+                bindDetail: { [weak self] label in self?.updateCheckFrequencyDetailLabel = label }
             ),
             makeUpdateStatusRow(),
             makeSettingRow(
@@ -1310,7 +1314,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         detailKey: L10nKey?,
         trailing: NSView,
         footer: NSView? = nil,
-        badgeKey: L10nKey? = nil
+        badgeKey: L10nKey? = nil,
+        bindDetail: ((NSTextField) -> Void)? = nil
     ) -> NSView {
         let icon = SettingsRowIconView(
             image: customIcon ?? NSImage(
@@ -1350,6 +1355,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             let label = localizedWrappingLabel(detailKey, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
             label.maximumNumberOfLines = badgeKey == nil ? 2 : 3
             label.alignment = .left
+            bindDetail?(label)
             detail = label
         } else {
             detail = nil
@@ -1829,7 +1835,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
-        automaticUpdatesSwitch?.setAccessibilityLabel(L10n.text(.settingsAutomaticUpdates))
+        reloadUpdateCheckFrequencyPopup()
         refreshLicenseStatus()
         refreshLoginSwitch()
         refreshUpdateStatus()
@@ -1857,6 +1863,44 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         case .system: 0
         case .english: 1
         case .chineseSimplified: 2
+        }
+    }
+
+    private func reloadUpdateCheckFrequencyPopup() {
+        guard let popup = updateCheckFrequencyPopup else { return }
+        let selected = runtime.settings.updateCheckFrequency
+        popup.removeAllItems()
+        for frequency in UpdateCheckFrequency.allCases {
+            popup.addItem(withTitle: L10n.text(Self.updateCheckFrequencyTitleKey(frequency)))
+            popup.lastItem?.representedObject = frequency.rawValue
+        }
+        if let index = UpdateCheckFrequency.allCases.firstIndex(of: selected) {
+            popup.selectItem(at: index)
+        }
+        popup.setAccessibilityLabel(L10n.text(.settingsAutomaticUpdates))
+        applyUpdateCheckFrequencyDetail()
+    }
+
+    private func applyUpdateCheckFrequencyDetail() {
+        let key = Self.updateCheckFrequencyDetailKey(runtime.settings.updateCheckFrequency)
+        updateCheckFrequencyDetailLabel?.stringValue = L10n.text(key)
+    }
+
+    private static func updateCheckFrequencyTitleKey(_ frequency: UpdateCheckFrequency) -> L10nKey {
+        switch frequency {
+        case .onLaunch: .settingsUpdateCheckOnLaunch
+        case .daily: .settingsUpdateCheckDaily
+        case .weekly: .settingsUpdateCheckWeekly
+        case .manual: .settingsUpdateCheckManual
+        }
+    }
+
+    private static func updateCheckFrequencyDetailKey(_ frequency: UpdateCheckFrequency) -> L10nKey {
+        switch frequency {
+        case .onLaunch: .settingsUpdateCheckOnLaunchDetail
+        case .daily: .settingsUpdateCheckDailyDetail
+        case .weekly: .settingsUpdateCheckWeeklyDetail
+        case .manual: .settingsUpdateCheckManualDetail
         }
     }
 
@@ -2130,7 +2174,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     }
 
     func refreshUpdateStatus() {
-        automaticUpdatesSwitch?.state = runtime.settings.automaticUpdatesEnabled ? .on : .off
+        reloadUpdateCheckFrequencyPopup()
         let locale = LanguageCenter.language.locale
         let current = runtime.updates.currentVersionText
         updateCurrentLabel?.stringValue = String(format: L10n.text(.settingsUpdateCurrent), locale: locale, current)
@@ -2192,8 +2236,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         updateOpenButton?.isHidden = !downloaded
     }
 
-    @objc private func toggleAutomaticUpdates(_ sender: NSSwitch) {
-        runtime.setAutomaticUpdatesEnabled(sender.state == .on)
+    @objc private func updateCheckFrequencyChanged(_ sender: NSPopUpButton) {
+        guard let raw = sender.selectedItem?.representedObject as? String,
+              let frequency = UpdateCheckFrequency(rawValue: raw)
+        else { return }
+        runtime.setUpdateCheckFrequency(frequency)
+        applyUpdateCheckFrequencyDetail()
     }
 
     @objc private func checkForUpdatesNow() {

@@ -107,7 +107,7 @@ final class AppRuntime {
             self?.pinHover.settingsChanged()
         }
         license.start()
-        updates.automaticUpdatesEnabled = { [weak self] in self?.settings.automaticUpdatesEnabled ?? true }
+        updates.updateCheckFrequency = { [weak self] in self?.settings.updateCheckFrequency ?? .daily }
         updates.onChange = { [weak self] in
             self?.settingsWindow?.refreshUpdateStatus()
             self?.reloadMenu()
@@ -207,12 +207,10 @@ final class AppRuntime {
         }
     }
 
-    func setAutomaticUpdatesEnabled(_ enabled: Bool) {
-        settings.automaticUpdatesEnabled = enabled
+    func setUpdateCheckFrequency(_ frequency: UpdateCheckFrequency) {
+        settings.updateCheckFrequency = frequency
         persistSettings()
-        if enabled {
-            Task { await updates.checkIfDue() }
-        }
+        Task { await updates.checkIfDue() }
     }
 
     func openKeyboardSettings() {
@@ -1562,6 +1560,10 @@ final class AppRuntime {
     }
 
 #if DEBUG
+    func openMenuBarConsoleForDebug() {
+        menuBar?.showConsole()
+    }
+
     /// Debug builds accept workspace commands over distributed notifications so
     /// capture/restore can be exercised from a script without synthesizing
     /// hotkeys (which needs Accessibility for the sending process):

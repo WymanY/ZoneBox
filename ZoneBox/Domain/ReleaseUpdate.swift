@@ -116,24 +116,123 @@ public enum UpdateDigest {
     }
 }
 
+public enum UpdateCheckFrequency: String, Codable, Sendable, Equatable, CaseIterable {
+    case onLaunch
+    case daily
+    case weekly
+    case manual
+}
+
+public enum HomeUpdateLiveState: Equatable, Sendable {
+    case none
+    case checking
+    case upToDate
+    case available(version: String)
+    case downloading(version: String, percent: Int)
+    case downloaded(version: String)
+    case checkFailed
+    case downloadFailed(version: String)
+}
+
+public enum HomeUpdateNotice: Equatable, Sendable {
+    case available(version: String)
+    case downloading(version: String, percent: Int)
+    case downloaded(version: String)
+    case downloadFailed(version: String)
+    case knownNewer(version: String)
+
+    public var version: String {
+        switch self {
+        case .available(let version),
+             .downloading(let version, _),
+             .downloaded(let version),
+             .downloadFailed(let version),
+             .knownNewer(let version):
+            return version
+        }
+    }
+
+    public var needsOfferRefresh: Bool {
+        if case .knownNewer = self { return true }
+        return false
+    }
+
+    public static func make(
+        currentVersion: String,
+        lastKnownLatestVersion: String?,
+        live: HomeUpdateLiveState
+    ) -> HomeUpdateNotice? {
+        switch live {
+        case .upToDate:
+            return nil
+        case .available(let version):
+            return .available(version: version)
+        case .downloading(let version, let percent):
+            return .downloading(version: version, percent: min(max(percent, 0), 100))
+        case .downloaded(let version):
+            return .downloaded(version: version)
+        case .downloadFailed(let version):
+            return .downloadFailed(version: version)
+        case .none, .checking, .checkFailed:
+            guard let cached = cachedNewerVersion(
+                currentVersion: currentVersion,
+                lastKnownLatestVersion: lastKnownLatestVersion
+            ) else {
+                return nil
+            }
+            return .knownNewer(version: cached)
+        }
+    }
+
+    public static func cachedNewerVersion(
+        currentVersion: String,
+        lastKnownLatestVersion: String?
+    ) -> String? {
+        guard let raw = lastKnownLatestVersion?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        guard let current = AppVersion.parse(currentVersion), let latest = AppVersion.parse(raw) else {
+            return nil
+        }
+        guard current < latest else { return nil }
+        return latest.description
+    }
+}
+
 public enum UpdateSchedule {
-    public static let successfulInterval: TimeInterval = 24 * 60 * 60
+    public static let dailyInterval: TimeInterval = 24 * 60 * 60
+    public static let weeklyInterval: TimeInterval = 7 * 24 * 60 * 60
     public static let minimumRetryInterval: TimeInterval = 15 * 60
 
     public static func shouldAutomaticallyCheck(
-        enabled: Bool,
+        frequency: UpdateCheckFrequency,
         lastCheckAt: Date?,
         lastSuccessfulCheckAt: Date?,
-        now: Date
+        now: Date,
+        launchCheckSatisfied: Bool
     ) -> Bool {
-        guard enabled else { return false }
-        if let success = lastSuccessfulCheckAt, now.timeIntervalSince(success) < successfulInterval {
+        switch frequency {
+        case .manual:
             return false
+        case .onLaunch:
+            return !launchCheckSatisfied
+        case .daily:
+            guard backoffElapsed(lastCheckAt, now: now) else { return false }
+            return intervalElapsed(lastSuccessfulCheckAt, interval: dailyInterval, now: now)
+        case .weekly:
+            guard backoffElapsed(lastCheckAt, now: now) else { return false }
+            return intervalElapsed(lastSuccessfulCheckAt, interval: weeklyInterval, now: now)
         }
-        if let last = lastCheckAt, now.timeIntervalSince(last) < minimumRetryInterval {
-            return false
-        }
-        return true
+    }
+
+    private static func backoffElapsed(_ lastCheckAt: Date?, now: Date) -> Bool {
+        guard let last = lastCheckAt else { return true }
+        return now.timeIntervalSince(last) >= minimumRetryInterval
+    }
+
+    private static func intervalElapsed(_ lastSuccessfulCheckAt: Date?, interval: TimeInterval, now: Date) -> Bool {
+        guard let success = lastSuccessfulCheckAt else { return true }
+        return now.timeIntervalSince(success) >= interval
     }
 }
 

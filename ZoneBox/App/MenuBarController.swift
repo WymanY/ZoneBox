@@ -79,6 +79,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         console?.close()
     }
 
+    func showConsole() {
+        guard let button = statusItem?.button else { return }
+        if usesFallbackMenu { return }
+        console?.show(from: button)
+    }
+
     func pulseStatusItem() {
         guard let button = statusItem?.button else { return }
         button.alphaValue = 1

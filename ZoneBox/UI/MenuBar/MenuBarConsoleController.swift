@@ -25,9 +25,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var workspaceStrip: WorkspaceConsoleStrip?
     private var switcherHintLabel: NSTextField?
     private var settingsButton: NSButton?
+    private var updateNoticeButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
     private var appliedNewButtonTitle: String?
+    private var layoutRenderSignature = ""
     private var eventMonitors: [Any] = []
     private var activationObservers: [NSObjectProtocol] = []
     private weak var statusButton: NSStatusBarButton?
@@ -72,9 +74,13 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     func reload() {
         guard isShown else { return }
+        let responder = panel?.firstResponder
         applyContent()
         if let statusButton {
             applyPanelFrame(under: statusButton)
+        }
+        if let panel, let view = responder as? NSView, view.window === panel {
+            panel.makeFirstResponder(view)
         }
     }
 
@@ -141,6 +147,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(makeWorkspaceHeader())
         stack.addArrangedSubview(makeWorkspaceStrip())
         stack.addArrangedSubview(makeSeparator())
+        stack.addArrangedSubview(makeUpdateNoticeButton())
         stack.addArrangedSubview(makeFooter())
 
         root.translatesAutoresizingMaskIntoConstraints = true
@@ -388,6 +395,22 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return row
     }
 
+    private func makeUpdateNoticeButton() -> NSButton {
+        let button = NSButton(title: "", target: self, action: #selector(openUpdateNotice))
+        button.bezelStyle = .rounded
+        button.controlSize = .regular
+        button.imagePosition = .imageLeading
+        button.imageHugsTitle = true
+        button.imageScaling = .scaleProportionallyDown
+        button.refusesFirstResponder = true
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: Metrics.updateNoticeHeight).isActive = true
+        button.isHidden = true
+        updateNoticeButton = button
+        return button
+    }
+
     private func makeSeparator() -> NSView {
         let line = NSBox()
         line.boxType = .separator
@@ -418,7 +441,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
         switcherHintLabel?.stringValue = String(format: L10n.text(.consoleSwitcherHint), chord)
 
-        rebuildLayoutViews(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
+        applyUpdateNotice()
+        let currentID = area.flatMap { runtime.document.layout(for: $0.display.id) }?.id
+        rebuildLayoutViewsIfNeeded(currentID: currentID)
         reloadWorkspaceStrip()
         gridHeightConstraint?.constant = gridHeight()
     }
@@ -448,6 +473,22 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         newButton.imageHugsTitle = true
         newButton.contentTintColor = .controlAccentColor
         newButton.invalidateIntrinsicContentSize()
+    }
+
+    private func rebuildLayoutViewsIfNeeded(currentID: UUID?) {
+        let layouts = runtime.document.layouts
+        let signature = [
+            LanguageCenter.language.rawValue,
+            currentID?.uuidString ?? "",
+            layouts.map { "\($0.id.uuidString):\($0.name):\($0.zones.count)" }.joined(separator: ","),
+            String(runtime.settings.gutterPoints),
+            String(runtime.settings.showZoneNumbers),
+        ].joined(separator: "|")
+        if signature == layoutRenderSignature, featuredLayoutHost?.subviews.isEmpty == false {
+            return
+        }
+        layoutRenderSignature = signature
+        rebuildLayoutViews(currentID: currentID)
     }
 
     private func rebuildLayoutViews(currentID: UUID?) {
@@ -506,8 +547,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             Metrics.sectionHeaderHeight,
             Metrics.workspaceStripHeight,
             1,
-            Metrics.footerHeight,
         ]
+        if updateNoticeButton?.isHidden == false {
+            visibleHeights.append(Metrics.updateNoticeHeight)
+        }
+        visibleHeights.append(Metrics.footerHeight)
         if runtime.trust.showsMenuBarWarning() {
             visibleHeights.insert(Metrics.warningHeight, at: 1)
         }
@@ -738,6 +782,61 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         dismiss(handoff: { [runtime] in runtime.openSettings() })
     }
 
+    @objc
+    private func openUpdateNotice() {
+        let check = runtime.updates.homeNotice?.needsOfferRefresh == true
+        dismiss(handoff: { [runtime] in runtime.openUpdateSettings(check: check) })
+    }
+
+    private func applyUpdateNotice() {
+        guard let button = updateNoticeButton else { return }
+        guard let notice = runtime.updates.homeNotice else {
+            button.isHidden = true
+            button.title = ""
+            button.image = nil
+            button.toolTip = nil
+            return
+        }
+        let title = updateNoticeTitle(notice)
+        button.title = title
+        button.image = NSImage(systemSymbolName: updateNoticeSymbol(notice), accessibilityDescription: title)
+        button.contentTintColor = updateNoticeTint(notice)
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        button.setAccessibilityRole(.button)
+        button.isHidden = false
+    }
+
+    private func updateNoticeTitle(_ notice: HomeUpdateNotice) -> String {
+        let locale = LanguageCenter.language.locale
+        switch notice {
+        case .available(let version), .knownNewer(let version):
+            return String(format: L10n.text(.consoleUpdateAvailable), locale: locale, version)
+        case .downloading(let version, let percent):
+            return String(format: L10n.text(.consoleUpdateDownloading), locale: locale, version, percent)
+        case .downloaded(let version):
+            return String(format: L10n.text(.consoleUpdateDownloaded), locale: locale, version)
+        case .downloadFailed(let version):
+            return String(format: L10n.text(.consoleUpdateDownloadFailed), locale: locale, version)
+        }
+    }
+
+    private func updateNoticeSymbol(_ notice: HomeUpdateNotice) -> String {
+        switch notice {
+        case .available, .knownNewer: return "square.and.arrow.down"
+        case .downloading: return "arrow.down.circle"
+        case .downloaded: return "checkmark.circle"
+        case .downloadFailed: return "exclamationmark.circle"
+        }
+    }
+
+    private func updateNoticeTint(_ notice: HomeUpdateNotice) -> NSColor {
+        switch notice {
+        case .downloadFailed: return .systemOrange
+        default: return .controlAccentColor
+        }
+    }
+
     fileprivate func handleSettingsKeyEquivalent(_ event: NSEvent) -> Bool {
         guard event.type == .keyDown else { return false }
         let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
@@ -873,6 +972,7 @@ private enum Metrics {
     static let featuredHeight: CGFloat = 120
     static let sectionHeaderHeight: CGFloat = 18
     static let footerHeight: CGFloat = 24
+    static let updateNoticeHeight: CGFloat = 28
     static let columns = 2
     static let columnSpacing: CGFloat = 8
     static let rowSpacing: CGFloat = 10

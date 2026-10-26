@@ -171,33 +171,120 @@ final class ReleaseUpdateTests: XCTestCase {
     func testAutomaticCheckCadence() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         XCTAssertFalse(
-            UpdateSchedule.shouldAutomaticallyCheck(enabled: false, lastCheckAt: nil, lastSuccessfulCheckAt: nil, now: now)
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .manual,
+                lastCheckAt: nil,
+                lastSuccessfulCheckAt: nil,
+                now: now,
+                launchCheckSatisfied: false
+            )
         )
         XCTAssertTrue(
-            UpdateSchedule.shouldAutomaticallyCheck(enabled: true, lastCheckAt: nil, lastSuccessfulCheckAt: nil, now: now)
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .daily,
+                lastCheckAt: nil,
+                lastSuccessfulCheckAt: nil,
+                now: now,
+                launchCheckSatisfied: false
+            )
         )
         XCTAssertFalse(
             UpdateSchedule.shouldAutomaticallyCheck(
-                enabled: true,
+                frequency: .daily,
                 lastCheckAt: now.addingTimeInterval(-60),
                 lastSuccessfulCheckAt: nil,
-                now: now
+                now: now,
+                launchCheckSatisfied: false
             )
         )
         XCTAssertFalse(
             UpdateSchedule.shouldAutomaticallyCheck(
-                enabled: true,
-                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.successfulInterval),
+                frequency: .daily,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
                 lastSuccessfulCheckAt: now.addingTimeInterval(-60 * 60),
-                now: now
+                now: now,
+                launchCheckSatisfied: false
             )
         )
         XCTAssertTrue(
             UpdateSchedule.shouldAutomaticallyCheck(
-                enabled: true,
-                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.successfulInterval),
-                lastSuccessfulCheckAt: now.addingTimeInterval(-UpdateSchedule.successfulInterval),
-                now: now
+                frequency: .daily,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertFalse(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .weekly,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-6 * 24 * 60 * 60),
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertTrue(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .weekly,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.weeklyInterval),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-UpdateSchedule.weeklyInterval),
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertTrue(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-60),
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertFalse(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-UpdateSchedule.weeklyInterval),
+                now: now,
+                launchCheckSatisfied: true
+            )
+        )
+        XCTAssertTrue(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: now.addingTimeInterval(-60),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-60),
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertTrue(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: now.addingTimeInterval(-60),
+                lastSuccessfulCheckAt: nil,
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertFalse(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: now.addingTimeInterval(-60),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-60),
+                now: now,
+                launchCheckSatisfied: true
+            )
+        )
+        XCTAssertFalse(
+            UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .daily,
+                lastCheckAt: now.addingTimeInterval(-60),
+                lastSuccessfulCheckAt: now.addingTimeInterval(-UpdateSchedule.dailyInterval),
+                now: now,
+                launchCheckSatisfied: false
             )
         )
     }
@@ -221,12 +308,72 @@ final class ReleaseUpdateTests: XCTestCase {
 
     func testAutomaticUpdatesDefaultOnForLegacySettings() throws {
         XCTAssertTrue(AppSettings.default.automaticUpdatesEnabled)
+        XCTAssertEqual(AppSettings.default.updateCheckFrequency, .daily)
         var settings = AppSettings.default
         settings.automaticUpdatesEnabled = false
         let data = try JSONEncoder().encode(settings)
-        XCTAssertFalse(try JSONDecoder().decode(AppSettings.self, from: data).automaticUpdatesEnabled)
-        let legacy = try JSONDecoder().decode(AppSettings.self, from: Data("{\"schemaVersion\":1}".utf8))
-        XCTAssertTrue(legacy.automaticUpdatesEnabled)
+        let disabled = try JSONDecoder().decode(AppSettings.self, from: data)
+        XCTAssertFalse(disabled.automaticUpdatesEnabled)
+        XCTAssertEqual(disabled.updateCheckFrequency, .manual)
+        let missing = try JSONDecoder().decode(AppSettings.self, from: Data("{\"schemaVersion\":1}".utf8))
+        XCTAssertTrue(missing.automaticUpdatesEnabled)
+        XCTAssertEqual(missing.updateCheckFrequency, .daily)
+        let legacyOff = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1,\"automaticUpdatesEnabled\":false}".utf8)
+        )
+        XCTAssertEqual(legacyOff.updateCheckFrequency, .manual)
+        XCTAssertFalse(legacyOff.automaticUpdatesEnabled)
+        let unknown = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1,\"updateCheckFrequency\":\"monthly\"}".utf8)
+        )
+        XCTAssertEqual(unknown.updateCheckFrequency, .daily)
+        XCTAssertTrue(unknown.automaticUpdatesEnabled)
+    }
+
+    func testUpdateCheckFrequencyRoundTripsAllCases() throws {
+        for frequency in UpdateCheckFrequency.allCases {
+            var settings = AppSettings.default
+            settings.updateCheckFrequency = frequency
+            let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+            XCTAssertEqual(decoded.updateCheckFrequency, frequency)
+            XCTAssertEqual(decoded.automaticUpdatesEnabled, frequency != .manual)
+        }
+    }
+
+    func testHomeNoticeUsesCachedNewerVersionWhenIdle() {
+        XCTAssertEqual(
+            HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "0.5.1", live: .none),
+            .knownNewer(version: "0.5.1")
+        )
+        XCTAssertEqual(
+            HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "0.5.1", live: .checking),
+            .knownNewer(version: "0.5.1")
+        )
+        XCTAssertEqual(
+            HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "0.5.1", live: .checkFailed),
+            .knownNewer(version: "0.5.1")
+        )
+        XCTAssertNil(HomeUpdateNotice.make(currentVersion: "0.5.1", lastKnownLatestVersion: "0.5.1", live: .none))
+        XCTAssertNil(HomeUpdateNotice.make(currentVersion: "0.5.1", lastKnownLatestVersion: "0.5.0", live: .none))
+        XCTAssertNil(HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: nil, live: .checkFailed))
+        XCTAssertNil(HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "nope", live: .none))
+        XCTAssertNil(HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "0.5.1", live: .upToDate))
+        XCTAssertEqual(
+            HomeUpdateNotice.make(currentVersion: "0.5.0", lastKnownLatestVersion: "0.5.1", live: .available(version: "0.5.1")),
+            .available(version: "0.5.1")
+        )
+        XCTAssertEqual(
+            HomeUpdateNotice.make(
+                currentVersion: "0.5.0",
+                lastKnownLatestVersion: "0.5.1",
+                live: .downloadFailed(version: "0.5.1")
+            ),
+            .downloadFailed(version: "0.5.1")
+        )
+        XCTAssertTrue(HomeUpdateNotice.knownNewer(version: "0.5.1").needsOfferRefresh)
+        XCTAssertFalse(HomeUpdateNotice.available(version: "0.5.1").needsOfferRefresh)
     }
 
     func testDownloadedInstallerRecordRoundTripsAndLegacyOmitsIt() throws {

@@ -80,6 +80,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleSaveWorkspace
     case consoleManageWorkspaces
     case consoleSwitcherHint
+    case consoleUpdateAvailable
+    case consoleUpdateDownloading
+    case consoleUpdateDownloaded
+    case consoleUpdateDownloadFailed
     case layoutStripPrevious
     case layoutStripNext
     case organizeAdjustedTitle
@@ -229,6 +233,14 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsLaunchAtLoginDetail
     case settingsHoverPinDetail
     case settingsAutomaticUpdatesDetail
+    case settingsUpdateCheckOnLaunch
+    case settingsUpdateCheckDaily
+    case settingsUpdateCheckWeekly
+    case settingsUpdateCheckManual
+    case settingsUpdateCheckOnLaunchDetail
+    case settingsUpdateCheckDailyDetail
+    case settingsUpdateCheckWeeklyDetail
+    case settingsUpdateCheckManualDetail
     case settingsUpdates
     case settingsCheckForUpdates
     case settingsDownloadUpdate
@@ -777,6 +789,10 @@ public enum L10n {
         .consoleSaveWorkspace: "Save Current",
         .consoleManageWorkspaces: "Manage…",
         .consoleSwitcherHint: "%@ switcher",
+        .consoleUpdateAvailable: "Version %@ available",
+        .consoleUpdateDownloading: "Downloading %@… %d%%",
+        .consoleUpdateDownloaded: "%@ installer is ready",
+        .consoleUpdateDownloadFailed: "Could not download %@. Retry in Settings",
         .layoutStripPrevious: "Previous layouts",
         .layoutStripNext: "Next layouts",
         .organizeAdjustedTitle: "Arrangement adjusted",
@@ -857,7 +873,11 @@ public enum L10n {
         .settingsOpenAccess: "Open Accessibility Settings",
         .settingsLaunchAtLogin: "Launch at login",
         .settingsHoverPin: "Show a pin button when hovering a window title bar",
-        .settingsAutomaticUpdates: "Check for updates automatically",
+        .settingsAutomaticUpdates: "Check for updates",
+        .settingsUpdateCheckOnLaunch: "Every Launch",
+        .settingsUpdateCheckDaily: "Daily (Default)",
+        .settingsUpdateCheckWeekly: "Weekly",
+        .settingsUpdateCheckManual: "Manually Only",
         .settingsBeta: "Beta",
         .settingsLanguage: "Language",
         .settingsLanguageSystem: "Follow System",
@@ -925,6 +945,10 @@ public enum L10n {
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
         .settingsAutomaticUpdatesDetail: "Look for a new stable release in the background about once a day. Downloads still wait for you.",
+        .settingsUpdateCheckOnLaunchDetail: "Check once after ZoneBox starts. Wake and activation do not check again until the next launch. Downloads still wait for you.",
+        .settingsUpdateCheckDailyDetail: "Look for a new stable release in the background about once a day. Downloads still wait for you.",
+        .settingsUpdateCheckWeeklyDetail: "Look for a new stable release in the background about once a week. Downloads still wait for you.",
+        .settingsUpdateCheckManualDetail: "Do not check in the background. Use Check Now when you want to look for a new version.",
         .settingsUpdates: "Updates",
         .settingsCheckForUpdates: "Check Now",
         .settingsDownloadUpdate: "Download",
@@ -1266,6 +1290,10 @@ public enum L10n {
         .consoleSaveWorkspace: "保存当前",
         .consoleManageWorkspaces: "管理…",
         .consoleSwitcherHint: "%@ 切换器",
+        .consoleUpdateAvailable: "发现新版本 %@",
+        .consoleUpdateDownloading: "正在下载 %@… %d%%",
+        .consoleUpdateDownloaded: "%@ 安装包已就绪",
+        .consoleUpdateDownloadFailed: "无法下载 %@，点击重试",
         .layoutStripPrevious: "上一组布局",
         .layoutStripNext: "下一组布局",
         .organizeAdjustedTitle: "已调整整理方式",
@@ -1346,7 +1374,11 @@ public enum L10n {
         .settingsOpenAccess: "打开辅助功能设置",
         .settingsLaunchAtLogin: "登录时启动",
         .settingsHoverPin: "悬停窗口标题栏时显示置顶按钮",
-        .settingsAutomaticUpdates: "自动检查更新",
+        .settingsAutomaticUpdates: "检查更新",
+        .settingsUpdateCheckOnLaunch: "每次启动",
+        .settingsUpdateCheckDaily: "每天（默认）",
+        .settingsUpdateCheckWeekly: "每周",
+        .settingsUpdateCheckManual: "仅手动",
         .settingsBeta: "Beta",
         .settingsLanguage: "语言",
         .settingsLanguageSystem: "跟随系统",
@@ -1414,6 +1446,10 @@ public enum L10n {
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
         .settingsAutomaticUpdatesDetail: "大约每天在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckOnLaunchDetail: "启动后检查一次。唤醒和激活不会再检查，直到下次启动。下载仍需你确认。",
+        .settingsUpdateCheckDailyDetail: "大约每天在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckWeeklyDetail: "大约每周在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckManualDetail: "不在后台检查。需要时请使用「立即检查」。",
         .settingsUpdates: "更新",
         .settingsCheckForUpdates: "立即检查",
         .settingsDownloadUpdate: "下载",

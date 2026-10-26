@@ -31,7 +31,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var snapDialogs: Bool
     public var excludedBundleIDs: [String]
     public var launchAtLogin: Bool
-    public var automaticUpdatesEnabled: Bool
+    public var automaticUpdatesEnabled: Bool {
+        didSet { syncFrequencyFromLegacyToggle() }
+    }
+    public var updateCheckFrequency: UpdateCheckFrequency {
+        didSet { syncAutomaticUpdatesEnabled() }
+    }
     public var hoverPinEnabled: Bool
     public var uiLanguage: AppLanguagePreference
     public var showLayoutStrip: Bool
@@ -89,6 +94,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         ],
         launchAtLogin: false,
         automaticUpdatesEnabled: true,
+        updateCheckFrequency: .daily,
         hoverPinEnabled: true,
         uiLanguage: .system,
         showLayoutStrip: true,
@@ -144,7 +150,14 @@ extension AppSettings {
             try c.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? defaults.excludedBundleIDs
         )
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
-        automaticUpdatesEnabled = try c.decodeIfPresent(Bool.self, forKey: .automaticUpdatesEnabled) ?? defaults.automaticUpdatesEnabled
+        if let raw = try c.decodeIfPresent(String.self, forKey: .updateCheckFrequency) {
+            updateCheckFrequency = UpdateCheckFrequency(rawValue: raw) ?? .daily
+        } else if let enabled = try c.decodeIfPresent(Bool.self, forKey: .automaticUpdatesEnabled) {
+            updateCheckFrequency = enabled ? .daily : .manual
+        } else {
+            updateCheckFrequency = .daily
+        }
+        automaticUpdatesEnabled = updateCheckFrequency != .manual
         hoverPinEnabled = try c.decodeIfPresent(Bool.self, forKey: .hoverPinEnabled) ?? defaults.hoverPinEnabled
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         showLayoutStrip = try c.decodeIfPresent(Bool.self, forKey: .showLayoutStrip) ?? defaults.showLayoutStrip
@@ -178,5 +191,20 @@ extension AppSettings {
             ids.append(identity)
         }
         return ids
+    }
+
+    mutating func syncAutomaticUpdatesEnabled() {
+        let enabled = updateCheckFrequency != .manual
+        guard automaticUpdatesEnabled != enabled else { return }
+        automaticUpdatesEnabled = enabled
+    }
+
+    mutating func syncFrequencyFromLegacyToggle() {
+        if automaticUpdatesEnabled {
+            guard updateCheckFrequency == .manual else { return }
+            updateCheckFrequency = .daily
+        } else if updateCheckFrequency != .manual {
+            updateCheckFrequency = .manual
+        }
     }
 }

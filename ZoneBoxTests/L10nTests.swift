@@ -270,7 +270,13 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.menuCheckForUpdates, language: .chineseSimplified), "检查更新…")
         XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .english), "Update Available…")
         XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .chineseSimplified), "有可用更新…")
-        XCTAssertEqual(L10n.text(.settingsAutomaticUpdates, language: .english), "Check for updates automatically")
+        XCTAssertEqual(L10n.text(.settingsAutomaticUpdates, language: .english), "Check for updates")
+        XCTAssertEqual(L10n.text(.settingsUpdateCheckDaily, language: .chineseSimplified), "每天（默认）")
+        XCTAssertEqual(L10n.text(.settingsUpdateCheckManual, language: .english), "Manually Only")
+        XCTAssertEqual(
+            String(format: L10n.text(.consoleUpdateAvailable, language: .chineseSimplified), "0.5.1"),
+            "发现新版本 0.5.1"
+        )
         XCTAssertEqual(L10n.text(.settingsDownloadUpdate, language: .chineseSimplified), "下载")
         XCTAssertEqual(
             String(format: L10n.text(.settingsUpdateAvailable, language: .english), "0.5.1"),

@@ -47,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.arguments.contains("--open-settings") {
             DispatchQueue.main.async { [runtime] in runtime.openSettings() }
         }
+        if ProcessInfo.processInfo.arguments.contains("--open-console") {
+            DispatchQueue.main.async { [runtime] in runtime.openMenuBarConsoleForDebug() }
+        }
 #endif
     }
 

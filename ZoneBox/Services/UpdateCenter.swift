@@ -27,10 +27,11 @@ final class UpdateCenter {
     private var pollTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var checkGeneration = 0
+    private var launchCheckSatisfied = false
     private(set) var record: UpdateRecord
     private(set) var phase: Phase = .idle
     var onChange: (() -> Void)?
-    var automaticUpdatesEnabled: () -> Bool = { true }
+    var updateCheckFrequency: () -> UpdateCheckFrequency = { .daily }
     var currentVersion: () -> String = {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
@@ -50,6 +51,37 @@ final class UpdateCenter {
     }
 
     var currentVersionText: String { currentVersion() }
+
+    var homeNotice: HomeUpdateNotice? {
+        HomeUpdateNotice.make(
+            currentVersion: currentVersion(),
+            lastKnownLatestVersion: record.lastKnownLatestVersion,
+            live: liveState
+        )
+    }
+
+    private var liveState: HomeUpdateLiveState {
+        switch phase {
+        case .idle:
+            return .none
+        case .checking:
+            return .checking
+        case .upToDate:
+            return .upToDate
+        case .available(let offer):
+            return .available(version: offer.latestVersion.description)
+        case .downloading(let offer, let received, let expected):
+            let total = expected > 0 ? expected : Int64(offer.asset.size)
+            let percent = total > 0 ? Int((Double(received) / Double(total) * 100).rounded()) : 0
+            return .downloading(version: offer.latestVersion.description, percent: percent)
+        case .downloaded(let offer, _):
+            return .downloaded(version: offer.latestVersion.description)
+        case .failed(_, .check):
+            return .checkFailed
+        case .failed(_, .download(let offer)):
+            return .downloadFailed(version: offer.latestVersion.description)
+        }
+    }
 
     func start() {
         restoreDownloadedIfNeeded()
@@ -72,21 +104,29 @@ final class UpdateCenter {
 
     func checkIfDue() async {
         let due = UpdateSchedule.shouldAutomaticallyCheck(
-            enabled: automaticUpdatesEnabled(),
+            frequency: updateCheckFrequency(),
             lastCheckAt: record.lastCheckAt,
             lastSuccessfulCheckAt: record.lastSuccessfulCheckAt,
-            now: Date()
+            now: Date(),
+            launchCheckSatisfied: launchCheckSatisfied
         )
         guard due else { return }
-        await checkNow()
+        await checkNow(markLaunchSatisfied: true)
     }
 
     func checkNow() async {
+        await checkNow(markLaunchSatisfied: false)
+    }
+
+    private func checkNow(markLaunchSatisfied: Bool) async {
         switch phase {
         case .checking, .downloading:
             return
         default:
             break
+        }
+        if markLaunchSatisfied {
+            launchCheckSatisfied = true
         }
         checkGeneration += 1
         let generation = checkGeneration
@@ -235,6 +275,7 @@ final class UpdateCenter {
 
     private func apply(_ evaluation: ReleaseEvaluation) {
         record.lastSuccessfulCheckAt = Date()
+        launchCheckSatisfied = true
         switch evaluation {
         case .upToDate(let current, let latest):
             record.lastKnownLatestVersion = latest.description
