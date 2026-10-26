@@ -265,6 +265,60 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.welcomeStepOf(2, 6, language: .chineseSimplified), "第 2 步，共 6 步")
     }
 
+    func testUpdateCopy() {
+        XCTAssertEqual(L10n.text(.menuCheckForUpdates, language: .english), "Check for Updates…")
+        XCTAssertEqual(L10n.text(.menuCheckForUpdates, language: .chineseSimplified), "检查更新…")
+        XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .english), "Update Available…")
+        XCTAssertEqual(L10n.text(.menuUpdateAvailable, language: .chineseSimplified), "有可用更新…")
+        XCTAssertEqual(L10n.text(.settingsAutomaticUpdates, language: .english), "Check for updates")
+        XCTAssertEqual(L10n.text(.settingsUpdateCheckDaily, language: .chineseSimplified), "每天（默认）")
+        XCTAssertEqual(L10n.text(.settingsUpdateCheckManual, language: .english), "Manually Only")
+        XCTAssertEqual(
+            String(format: L10n.text(.consoleUpdateAvailable, language: .chineseSimplified), "0.5.1"),
+            "发现新版本 0.5.1"
+        )
+        XCTAssertEqual(L10n.text(.consoleUpdateAvailableTitle, language: .chineseSimplified), "发现新版本")
+        XCTAssertEqual(
+            String(format: L10n.text(.consoleUpdateAvailableDetail, language: .chineseSimplified), "0.5.1"),
+            "0.5.1 现已可用"
+        )
+        XCTAssertEqual(L10n.text(.consoleUpdateActionView, language: .english), "View Update")
+        XCTAssertEqual(L10n.text(.consoleUpdateActionProgress, language: .chineseSimplified), "查看进度")
+        XCTAssertEqual(L10n.text(.consoleUpdateActionInstaller, language: .chineseSimplified), "查看安装包")
+        XCTAssertEqual(L10n.text(.consoleUpdateActionDetails, language: .english), "View Details")
+        XCTAssertEqual(L10n.text(.settingsDownloadUpdate, language: .chineseSimplified), "下载")
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsDownloadUpdateVersion, language: .english), "0.5.1"),
+            "Download 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsDownloadUpdateVersion, language: .chineseSimplified), "0.5.1"),
+            "下载 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateCurrent, language: .chineseSimplified), "0.5.0"),
+            "当前版本 0.5.0"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateLatest, language: .english), "0.5.1"),
+            "Update to 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateLatest, language: .chineseSimplified), "0.5.1"),
+            "可更新至 0.5.1"
+        )
+        XCTAssertEqual(L10n.text(.settingsUpdateNotChecked, language: .english), "Not checked yet")
+        XCTAssertEqual(L10n.text(.settingsUpdateNotChecked, language: .chineseSimplified), "尚未检查")
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateAvailable, language: .english), "0.5.1"),
+            "Version 0.5.1 is available."
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateAvailable, language: .chineseSimplified), "0.5.1"),
+            "发现新版本 0.5.1。"
+        )
+    }
+
     func testOnboardingCopyDoesNotMentionXcode() {
         XCTAssertEqual(
             L10n.text(.onboardingStep2Title, language: .english),

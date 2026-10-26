@@ -10,4 +10,5 @@ test:
 	@echo "xcodebuild $$(xcodebuild -version | tr '\n' ' ')"
 	@echo "sdk $$(xcodebuild -showsdks | awk '/macOS SDKs/{getline; print}')"
 	xcodebuild -scheme ZoneBox -configuration Debug -destination 'platform=macOS' -derivedDataPath .build/DerivedData CODE_SIGNING_ALLOWED=NO test
+	bash script/run_update_check_restore_regression.sh
 	@! grep -R --include='*.swift' -n 'import SwiftUI' ZoneBox

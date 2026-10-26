@@ -25,9 +25,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private var workspaceStrip: WorkspaceConsoleStrip?
     private var switcherHintLabel: NSTextField?
     private var settingsButton: NSButton?
+    private var updateNoticeButton: NSButton?
     private var newButton: NSButton?
     private var quitButton: NSButton?
     private var appliedNewButtonTitle: String?
+    private var layoutRenderSignature = ""
     private var eventMonitors: [Any] = []
     private var activationObservers: [NSObjectProtocol] = []
     private weak var statusButton: NSStatusBarButton?
@@ -72,9 +74,13 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     func reload() {
         guard isShown else { return }
+        let responder = panel?.firstResponder
         applyContent()
         if let statusButton {
             applyPanelFrame(under: statusButton)
+        }
+        if let panel, let view = responder as? NSView, view.window === panel {
+            panel.makeFirstResponder(view)
         }
     }
 
@@ -141,6 +147,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         stack.addArrangedSubview(makeWorkspaceHeader())
         stack.addArrangedSubview(makeWorkspaceStrip())
         stack.addArrangedSubview(makeSeparator())
+        stack.addArrangedSubview(makeUpdateNoticeButton())
         stack.addArrangedSubview(makeFooter())
 
         root.translatesAutoresizingMaskIntoConstraints = true
@@ -388,6 +395,18 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return row
     }
 
+    private func makeUpdateNoticeButton() -> NSButton {
+        let button = ConsoleUpdateNoticeCard(target: self, action: #selector(openUpdateNotice))
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: Metrics.updateNoticeHeight).isActive = true
+        button.widthAnchor.constraint(equalToConstant: Metrics.contentWidth).isActive = true
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.isHidden = true
+        updateNoticeButton = button
+        return button
+    }
+
     private func makeSeparator() -> NSView {
         let line = NSBox()
         line.boxType = .separator
@@ -418,7 +437,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
         switcherHintLabel?.stringValue = String(format: L10n.text(.consoleSwitcherHint), chord)
 
-        rebuildLayoutViews(currentID: area.flatMap { runtime.document.layout(for: $0.display.id) }?.id)
+        applyUpdateNotice()
+        let currentID = area.flatMap { runtime.document.layout(for: $0.display.id) }?.id
+        rebuildLayoutViewsIfNeeded(currentID: currentID)
         reloadWorkspaceStrip()
         gridHeightConstraint?.constant = gridHeight()
     }
@@ -448,6 +469,22 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         newButton.imageHugsTitle = true
         newButton.contentTintColor = .controlAccentColor
         newButton.invalidateIntrinsicContentSize()
+    }
+
+    private func rebuildLayoutViewsIfNeeded(currentID: UUID?) {
+        let layouts = runtime.document.layouts
+        let signature = [
+            LanguageCenter.language.rawValue,
+            currentID?.uuidString ?? "",
+            layouts.map { "\($0.id.uuidString):\($0.name):\($0.zones.count)" }.joined(separator: ","),
+            String(runtime.settings.gutterPoints),
+            String(runtime.settings.showZoneNumbers),
+        ].joined(separator: "|")
+        if signature == layoutRenderSignature, featuredLayoutHost?.subviews.isEmpty == false {
+            return
+        }
+        layoutRenderSignature = signature
+        rebuildLayoutViews(currentID: currentID)
     }
 
     private func rebuildLayoutViews(currentID: UUID?) {
@@ -506,8 +543,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             Metrics.sectionHeaderHeight,
             Metrics.workspaceStripHeight,
             1,
-            Metrics.footerHeight,
         ]
+        if updateNoticeButton?.isHidden == false {
+            visibleHeights.append(Metrics.updateNoticeHeight)
+        }
+        visibleHeights.append(Metrics.footerHeight)
         if runtime.trust.showsMenuBarWarning() {
             visibleHeights.insert(Metrics.warningHeight, at: 1)
         }
@@ -738,6 +778,23 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         dismiss(handoff: { [runtime] in runtime.openSettings() })
     }
 
+    @objc
+    private func openUpdateNotice() {
+        let check = runtime.updates.homeNotice?.needsOfferRefresh == true
+        dismiss(handoff: { [runtime] in runtime.openUpdateSettings(check: check) })
+    }
+
+    private func applyUpdateNotice() {
+        guard let button = updateNoticeButton as? ConsoleUpdateNoticeCard else { return }
+        guard let notice = runtime.updates.homeNotice else {
+            button.isHidden = true
+            button.apply(nil)
+            return
+        }
+        button.apply(notice)
+        button.isHidden = false
+    }
+
     fileprivate func handleSettingsKeyEquivalent(_ event: NSEvent) -> Bool {
         guard event.type == .keyDown else { return false }
         let modifiers = KeyEventBridge.carbonModifiers(from: event.modifierFlags)
@@ -767,6 +824,298 @@ private final class ConsoleSingleLineLabel: NSTextField {
         }
         let textWidth = ceil(attributedStringValue.size().width) + 2
         return NSSize(width: textWidth, height: vertical)
+    }
+}
+
+private final class ConsoleUpdateNoticeCard: NSButton {
+    private let iconTile = NSView()
+    private let iconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
+    private let actionLabel = NSTextField(labelWithString: "")
+    private let chevronView = NSImageView()
+    private var notice: HomeUpdateNotice?
+    private var hovering = false
+
+    init(target: AnyObject, action: Selector) {
+        super.init(frame: .zero)
+        self.target = target
+        self.action = action
+        isBordered = false
+        bezelStyle = .regularSquare
+        setButtonType(.momentaryChange)
+        imagePosition = .noImage
+        title = ""
+        focusRingType = .exterior
+        refusesFirstResponder = false
+        wantsLayer = true
+        layer?.cornerRadius = 10
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+        layer?.masksToBounds = true
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        setAccessibilityRole(.button)
+        configureChrome()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: Metrics.updateNoticeHeight)
+    }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override var isHighlighted: Bool {
+        didSet { needsDisplay = true }
+    }
+
+    override func updateLayer() {
+        applyChrome()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyChrome()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {}
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard super.hitTest(point) != nil else { return nil }
+        return self
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        hovering = true
+        applyChrome()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hovering = false
+        applyChrome()
+    }
+
+    func apply(_ notice: HomeUpdateNotice?) {
+        self.notice = notice
+        guard let notice else {
+            titleLabel.stringValue = ""
+            subtitleLabel.stringValue = ""
+            actionLabel.stringValue = ""
+            iconView.image = nil
+            toolTip = nil
+            setAccessibilityLabel(nil)
+            applyChrome()
+            return
+        }
+        let locale = LanguageCenter.language.locale
+        let title = Self.title(for: notice)
+        let subtitle = Self.subtitle(for: notice, locale: locale)
+        let action = Self.action(for: notice)
+        if titleLabel.stringValue != title {
+            titleLabel.stringValue = title
+        }
+        if subtitleLabel.stringValue != subtitle {
+            subtitleLabel.stringValue = subtitle
+        }
+        if actionLabel.stringValue != action {
+            actionLabel.stringValue = action
+        }
+        let symbol = Self.symbol(for: notice)
+        iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+        let accessibility = [title, subtitle, action].filter { !$0.isEmpty }.joined(separator: ", ")
+        toolTip = accessibility
+        setAccessibilityLabel(accessibility)
+        setAccessibilityRole(.button)
+        applyChrome()
+    }
+
+    private func configureChrome() {
+        iconTile.translatesAutoresizingMaskIntoConstraints = false
+        iconTile.wantsLayer = true
+        iconTile.layer?.cornerRadius = 7
+        iconTile.layer?.cornerCurve = .continuous
+        iconTile.layer?.masksToBounds = true
+        iconTile.setAccessibilityElement(false)
+
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.imageScaling = .scaleProportionallyDown
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        iconView.setAccessibilityElement(false)
+        iconTile.addSubview(iconView)
+
+        configureLabel(titleLabel, font: .systemFont(ofSize: 12, weight: .semibold), color: .labelColor)
+        configureLabel(subtitleLabel, font: .systemFont(ofSize: 11, weight: .regular), color: .secondaryLabelColor)
+        configureLabel(actionLabel, font: .systemFont(ofSize: 11, weight: .medium), color: .controlAccentColor)
+        actionLabel.setContentHuggingPriority(.required, for: .horizontal)
+        actionLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        chevronView.translatesAutoresizingMaskIntoConstraints = false
+        chevronView.imageScaling = .scaleProportionallyDown
+        chevronView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
+        chevronView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+        chevronView.setContentHuggingPriority(.required, for: .horizontal)
+        chevronView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        chevronView.setAccessibilityElement(false)
+
+        let textStack = NSStackView(views: [titleLabel, subtitleLabel])
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 1
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        textStack.setHuggingPriority(.defaultLow, for: .horizontal)
+        textStack.setClippingResistancePriority(.defaultLow, for: .horizontal)
+        textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let actionStack = NSStackView(views: [actionLabel, chevronView])
+        actionStack.orientation = .horizontal
+        actionStack.alignment = .centerY
+        actionStack.spacing = 1
+        actionStack.translatesAutoresizingMaskIntoConstraints = false
+        actionStack.setHuggingPriority(.required, for: .horizontal)
+        actionStack.setContentHuggingPriority(.required, for: .horizontal)
+        actionStack.setContentCompressionResistancePriority(.required, for: .horizontal)
+
+        let row = NSStackView(views: [iconTile, textStack, actionStack])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        row.distribution = .fill
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.setHuggingPriority(.defaultLow, for: .horizontal)
+        addSubview(row)
+
+        NSLayoutConstraint.activate([
+            iconTile.widthAnchor.constraint(equalToConstant: 28),
+            iconTile.heightAnchor.constraint(equalToConstant: 28),
+            iconView.centerXAnchor.constraint(equalTo: iconTile.centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 14),
+            iconView.heightAnchor.constraint(equalToConstant: 14),
+            chevronView.widthAnchor.constraint(equalToConstant: 10),
+            chevronView.heightAnchor.constraint(equalToConstant: 12),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -11),
+            row.centerYAnchor.constraint(equalTo: centerYAnchor),
+            row.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 11),
+            row.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -11),
+        ])
+    }
+
+    private func configureLabel(_ field: NSTextField, font: NSFont, color: NSColor) {
+        field.font = font
+        field.textColor = color
+        field.lineBreakMode = .byTruncatingTail
+        field.maximumNumberOfLines = 1
+        field.cell?.truncatesLastVisibleLine = true
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.setAccessibilityElement(false)
+        field.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    private func applyChrome() {
+        let accent = Self.tint(for: notice)
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        var fillAlpha: CGFloat = dark ? 0.10 : 0.07
+        var strokeAlpha: CGFloat = dark ? 0.34 : 0.22
+        var tileAlpha: CGFloat = dark ? 0.28 : 0.16
+        if increaseContrast {
+            fillAlpha = dark ? 0.16 : 0.12
+            strokeAlpha = dark ? 0.55 : 0.42
+            tileAlpha = dark ? 0.40 : 0.24
+        }
+        if isHighlighted {
+            fillAlpha += dark ? 0.06 : 0.04
+        } else if hovering {
+            fillAlpha += 0.03
+        }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = accent.withAlphaComponent(fillAlpha).cgColor
+            layer?.borderColor = accent.withAlphaComponent(strokeAlpha).cgColor
+            iconTile.layer?.backgroundColor = accent.withAlphaComponent(tileAlpha).cgColor
+        }
+        iconView.contentTintColor = accent
+        actionLabel.textColor = accent
+        chevronView.contentTintColor = accent
+    }
+
+    private static func title(for notice: HomeUpdateNotice) -> String {
+        switch notice {
+        case .available, .knownNewer:
+            return L10n.text(.consoleUpdateAvailableTitle)
+        case .downloading:
+            return L10n.text(.consoleUpdateDownloadingTitle)
+        case .downloaded:
+            return L10n.text(.consoleUpdateDownloadedTitle)
+        case .downloadFailed:
+            return L10n.text(.consoleUpdateDownloadFailedTitle)
+        }
+    }
+
+    private static func subtitle(for notice: HomeUpdateNotice, locale: Locale) -> String {
+        switch notice {
+        case .available(let version), .knownNewer(let version):
+            return String(format: L10n.text(.consoleUpdateAvailableDetail), locale: locale, version)
+        case .downloading(let version, let percent):
+            return String(format: L10n.text(.consoleUpdateDownloadingDetail), locale: locale, version, percent)
+        case .downloaded(let version), .downloadFailed(let version):
+            return version
+        }
+    }
+
+    private static func action(for notice: HomeUpdateNotice) -> String {
+        switch notice {
+        case .available, .knownNewer:
+            return L10n.text(.consoleUpdateActionView)
+        case .downloading:
+            return L10n.text(.consoleUpdateActionProgress)
+        case .downloaded:
+            return L10n.text(.consoleUpdateActionInstaller)
+        case .downloadFailed:
+            return L10n.text(.consoleUpdateActionDetails)
+        }
+    }
+
+    private static func symbol(for notice: HomeUpdateNotice) -> String {
+        switch notice {
+        case .available, .knownNewer: return "square.and.arrow.down"
+        case .downloading: return "arrow.down.circle"
+        case .downloaded: return "checkmark.circle"
+        case .downloadFailed: return "exclamationmark.circle"
+        }
+    }
+
+    private static func tint(for notice: HomeUpdateNotice?) -> NSColor {
+        if case .downloadFailed = notice { return .systemOrange }
+        return .controlAccentColor
     }
 }
 
@@ -873,6 +1222,7 @@ private enum Metrics {
     static let featuredHeight: CGFloat = 120
     static let sectionHeaderHeight: CGFloat = 18
     static let footerHeight: CGFloat = 24
+    static let updateNoticeHeight: CGFloat = 56
     static let columns = 2
     static let columnSpacing: CGFloat = 8
     static let rowSpacing: CGFloat = 10

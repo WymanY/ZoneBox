@@ -53,7 +53,10 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuSettings
     case menuLicense
     case menuEdit
+    case menuCheckForUpdates
+    case menuShowDownloadedUpdate
     case menuCut
+    case menuUpdateAvailable
     case menuCopy
     case menuPaste
     case menuSelectAll
@@ -77,6 +80,20 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleSaveWorkspace
     case consoleManageWorkspaces
     case consoleSwitcherHint
+    case consoleUpdateAvailable
+    case consoleUpdateDownloading
+    case consoleUpdateDownloaded
+    case consoleUpdateDownloadFailed
+    case consoleUpdateAvailableTitle
+    case consoleUpdateAvailableDetail
+    case consoleUpdateDownloadingTitle
+    case consoleUpdateDownloadingDetail
+    case consoleUpdateDownloadedTitle
+    case consoleUpdateDownloadFailedTitle
+    case consoleUpdateActionView
+    case consoleUpdateActionProgress
+    case consoleUpdateActionInstaller
+    case consoleUpdateActionDetails
     case layoutStripPrevious
     case layoutStripNext
     case organizeAdjustedTitle
@@ -156,6 +173,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsOpenAccess
     case settingsLaunchAtLogin
     case settingsHoverPin
+    case settingsAutomaticUpdates
     case settingsBeta
     case settingsLanguage
     case settingsLanguageSystem
@@ -224,6 +242,43 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsLanguageDetail
     case settingsLaunchAtLoginDetail
     case settingsHoverPinDetail
+    case settingsAutomaticUpdatesDetail
+    case settingsUpdateCheckOnLaunch
+    case settingsUpdateCheckDaily
+    case settingsUpdateCheckWeekly
+    case settingsUpdateCheckManual
+    case settingsUpdateCheckOnLaunchDetail
+    case settingsUpdateCheckDailyDetail
+    case settingsUpdateCheckWeeklyDetail
+    case settingsUpdateCheckManualDetail
+    case settingsUpdates
+    case settingsCheckForUpdates
+    case settingsDownloadUpdate
+    case settingsDownloadUpdateVersion
+    case settingsCancelUpdate
+    case settingsRetryUpdate
+    case settingsShowInstaller
+    case settingsOpenInstaller
+    case settingsUpdateCurrent
+    case settingsUpdateLatest
+    case settingsUpdateUnknown
+    case settingsUpdateNotChecked
+    case settingsUpdateChecking
+    case settingsUpdateUpToDate
+    case settingsUpdateAvailable
+    case settingsUpdateNoInstaller
+    case settingsUpdatePrerelease
+    case settingsUpdateErrorNetwork
+    case settingsUpdateErrorHTTP
+    case settingsUpdateErrorInvalid
+    case settingsUpdateErrorDigest
+    case settingsUpdateErrorSize
+    case settingsUpdateErrorGeneric
+    case settingsUpdateDownloading
+    case settingsUpdateDownloaded
+    case settingsUpdateCancelled
+    case settingsUpdateConfirmTitle
+    case settingsUpdateConfirmMessage
     case settingsEnableSnappingDetail
     case settingsShiftDragDetail
     case settingsRightClickDetail
@@ -719,7 +774,10 @@ public enum L10n {
         .menuSettings: "Settings…",
         .menuLicense: "ZoneBox Pro…",
         .menuEdit: "Edit",
+        .menuCheckForUpdates: "Check for Updates…",
+        .menuShowDownloadedUpdate: "Show Downloaded Update…",
         .menuCut: "Cut",
+        .menuUpdateAvailable: "Update Available…",
         .menuCopy: "Copy",
         .menuPaste: "Paste",
         .menuSelectAll: "Select All",
@@ -743,6 +801,20 @@ public enum L10n {
         .consoleSaveWorkspace: "Save Current",
         .consoleManageWorkspaces: "Manage…",
         .consoleSwitcherHint: "%@ switcher",
+        .consoleUpdateAvailable: "Version %@ available",
+        .consoleUpdateDownloading: "Downloading %@… %d%%",
+        .consoleUpdateDownloaded: "%@ installer is ready",
+        .consoleUpdateDownloadFailed: "Could not download %@. Retry in Settings",
+        .consoleUpdateAvailableTitle: "Update Available",
+        .consoleUpdateAvailableDetail: "%@ is now available",
+        .consoleUpdateDownloadingTitle: "Downloading",
+        .consoleUpdateDownloadingDetail: "%@ · %d%%",
+        .consoleUpdateDownloadedTitle: "Installer Ready",
+        .consoleUpdateDownloadFailedTitle: "Could Not Download",
+        .consoleUpdateActionView: "View Update",
+        .consoleUpdateActionProgress: "View Progress",
+        .consoleUpdateActionInstaller: "View Installer",
+        .consoleUpdateActionDetails: "View Details",
         .layoutStripPrevious: "Previous layouts",
         .layoutStripNext: "Next layouts",
         .organizeAdjustedTitle: "Arrangement adjusted",
@@ -823,6 +895,11 @@ public enum L10n {
         .settingsOpenAccess: "Open Accessibility Settings",
         .settingsLaunchAtLogin: "Launch at login",
         .settingsHoverPin: "Show a pin button when hovering a window title bar",
+        .settingsAutomaticUpdates: "Check for updates",
+        .settingsUpdateCheckOnLaunch: "Every Launch",
+        .settingsUpdateCheckDaily: "Daily (Default)",
+        .settingsUpdateCheckWeekly: "Weekly",
+        .settingsUpdateCheckManual: "Manually Only",
         .settingsBeta: "Beta",
         .settingsLanguage: "Language",
         .settingsLanguageSystem: "Follow System",
@@ -882,13 +959,46 @@ public enum L10n {
         .licenseUnlockedList: "Workspaces, hover pin, and Quick Snapper.",
         .settingsLicenseSubtitleActive: "This Mac is licensed. Pro features stay unlocked.",
         .settingsLicensePreviewDescriptionActive: "Workspaces, hover pin, and Quick Snapper are included with this license.",
-        .settingsGeneralSubtitle: "Choose the language and how ZoneBox starts.",
+        .settingsGeneralSubtitle: "Choose the language, startup, and how ZoneBox checks for updates.",
         .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
         .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
         .settingsKeyboardSubtitle: "Record the shortcuts you use to move between zones.",
         .settingsWorkspacesSubtitle: "Manage saved arrangements. Applying one is a one-time action.",
         .settingsLanguageDetail: "Change ZoneBox without changing the system language.",
         .settingsLaunchAtLoginDetail: "Keep ZoneBox ready after you sign in.",
+        .settingsAutomaticUpdatesDetail: "Look for a new stable release in the background about once a day. Downloads still wait for you.",
+        .settingsUpdateCheckOnLaunchDetail: "Check once after ZoneBox starts. Wake and activation do not check again until the next launch. Downloads still wait for you.",
+        .settingsUpdateCheckDailyDetail: "Look for a new stable release in the background about once a day. Downloads still wait for you.",
+        .settingsUpdateCheckWeeklyDetail: "Look for a new stable release in the background about once a week. Downloads still wait for you.",
+        .settingsUpdateCheckManualDetail: "Do not check in the background. Use Check Now when you want to look for a new version.",
+        .settingsUpdates: "Updates",
+        .settingsCheckForUpdates: "Check Now",
+        .settingsDownloadUpdate: "Download",
+        .settingsDownloadUpdateVersion: "Download %@",
+        .settingsCancelUpdate: "Cancel",
+        .settingsRetryUpdate: "Retry",
+        .settingsShowInstaller: "Show in Finder",
+        .settingsOpenInstaller: "Open Installer",
+        .settingsUpdateCurrent: "Current version %@",
+        .settingsUpdateLatest: "Update to %@",
+        .settingsUpdateUnknown: "—",
+        .settingsUpdateNotChecked: "Not checked yet",
+        .settingsUpdateChecking: "Checking for updates…",
+        .settingsUpdateUpToDate: "You're on the latest version.",
+        .settingsUpdateAvailable: "Version %@ is available.",
+        .settingsUpdateNoInstaller: "A newer version was found, but no macOS installer was attached.",
+        .settingsUpdatePrerelease: "The latest GitHub release is a pre-release and was skipped.",
+        .settingsUpdateErrorNetwork: "Could not reach the update server. Check the network and retry.",
+        .settingsUpdateErrorHTTP: "The update server returned an error (%d).",
+        .settingsUpdateErrorInvalid: "The update listing could not be read.",
+        .settingsUpdateErrorDigest: "The downloaded file did not match its SHA-256 digest.",
+        .settingsUpdateErrorSize: "The downloaded file size did not match the release listing.",
+        .settingsUpdateErrorGeneric: "The update could not be completed.",
+        .settingsUpdateDownloading: "Downloading… %d%%",
+        .settingsUpdateDownloaded: "The installer was downloaded. Open it to install.",
+        .settingsUpdateCancelled: "Download canceled.",
+        .settingsUpdateConfirmTitle: "Download Update",
+        .settingsUpdateConfirmMessage: "Download ZoneBox %@? This copy stays in place until you open the installer.",
         .settingsHoverPinDetail: "Shows a Screen Recording mirror above other apps. Clicks and scrolling go to the original window. Raise is best-effort, not a private always-on-top window level.",
         .settingsEnableSnappingDetail: "Pause every snap trigger and shortcut without changing your layouts.",
         .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
@@ -910,7 +1020,7 @@ public enum L10n {
         .settingsOverlayPreviewTitle: "Overlay preview",
         .settingsKeyboardPreviewTitle: "Keyboard control",
         .settingsWorkspacesPreviewTitle: "Saved workspaces",
-        .settingsGeneralPreviewDescription: "Language and startup preferences apply across ZoneBox.",
+        .settingsGeneralPreviewDescription: "Language, startup, and update checks apply across ZoneBox.",
         .settingsSnappingPreviewDescription: "Drag, right-click, or shake a title bar to place a window in a zone.",
         .settingsOverlayPreviewDescription: "Zone labels and spacing stay visible only while you need them.",
         .settingsKeyboardPreviewDescription: "Move, cycle, and restore windows without leaving the keyboard.",
@@ -1177,7 +1287,10 @@ public enum L10n {
         .menuSettings: "设置…",
         .menuLicense: "ZoneBox Pro…",
         .menuEdit: "编辑",
+        .menuCheckForUpdates: "检查更新…",
+        .menuShowDownloadedUpdate: "显示已下载的更新…",
         .menuCut: "剪切",
+        .menuUpdateAvailable: "有可用更新…",
         .menuCopy: "复制",
         .menuPaste: "粘贴",
         .menuSelectAll: "全选",
@@ -1201,6 +1314,20 @@ public enum L10n {
         .consoleSaveWorkspace: "保存当前",
         .consoleManageWorkspaces: "管理…",
         .consoleSwitcherHint: "%@ 切换器",
+        .consoleUpdateAvailable: "发现新版本 %@",
+        .consoleUpdateDownloading: "正在下载 %@… %d%%",
+        .consoleUpdateDownloaded: "%@ 安装包已就绪",
+        .consoleUpdateDownloadFailed: "无法下载 %@，点击重试",
+        .consoleUpdateAvailableTitle: "发现新版本",
+        .consoleUpdateAvailableDetail: "%@ 现已可用",
+        .consoleUpdateDownloadingTitle: "正在下载",
+        .consoleUpdateDownloadingDetail: "%@ · %d%%",
+        .consoleUpdateDownloadedTitle: "安装包已就绪",
+        .consoleUpdateDownloadFailedTitle: "无法下载",
+        .consoleUpdateActionView: "查看更新",
+        .consoleUpdateActionProgress: "查看进度",
+        .consoleUpdateActionInstaller: "查看安装包",
+        .consoleUpdateActionDetails: "查看详情",
         .layoutStripPrevious: "上一组布局",
         .layoutStripNext: "下一组布局",
         .organizeAdjustedTitle: "已调整整理方式",
@@ -1281,6 +1408,11 @@ public enum L10n {
         .settingsOpenAccess: "打开辅助功能设置",
         .settingsLaunchAtLogin: "登录时启动",
         .settingsHoverPin: "悬停窗口标题栏时显示置顶按钮",
+        .settingsAutomaticUpdates: "检查更新",
+        .settingsUpdateCheckOnLaunch: "每次启动",
+        .settingsUpdateCheckDaily: "每天（默认）",
+        .settingsUpdateCheckWeekly: "每周",
+        .settingsUpdateCheckManual: "仅手动",
         .settingsBeta: "Beta",
         .settingsLanguage: "语言",
         .settingsLanguageSystem: "跟随系统",
@@ -1340,13 +1472,46 @@ public enum L10n {
         .licenseUnlockedList: "工作区方案、标题栏置顶、快速吸附。",
         .settingsLicenseSubtitleActive: "这台 Mac 已授权，Pro 功能保持可用。",
         .settingsLicensePreviewDescriptionActive: "工作区、悬停置顶和快速吸附已包含在当前授权里。",
-        .settingsGeneralSubtitle: "设置界面语言，以及 ZoneBox 的启动方式。",
+        .settingsGeneralSubtitle: "设置语言、启动方式，以及如何检查更新。",
         .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
         .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",
         .settingsKeyboardSubtitle: "录制用于移动、切换和恢复窗口的快捷键。",
         .settingsWorkspacesSubtitle: "管理已保存的整桌排布。切换只在当次执行，不会持续固定窗口。",
         .settingsLanguageDetail: "只更改 ZoneBox，不影响系统语言。",
         .settingsLaunchAtLoginDetail: "登录后让 ZoneBox 随时可以使用。",
+        .settingsAutomaticUpdatesDetail: "大约每天在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckOnLaunchDetail: "启动后检查一次。唤醒和激活不会再检查，直到下次启动。下载仍需你确认。",
+        .settingsUpdateCheckDailyDetail: "大约每天在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckWeeklyDetail: "大约每周在后台查找一次正式版。下载仍需你确认。",
+        .settingsUpdateCheckManualDetail: "不在后台检查。需要时请使用「立即检查」。",
+        .settingsUpdates: "更新",
+        .settingsCheckForUpdates: "立即检查",
+        .settingsDownloadUpdate: "下载",
+        .settingsDownloadUpdateVersion: "下载 %@",
+        .settingsCancelUpdate: "取消",
+        .settingsRetryUpdate: "重试",
+        .settingsShowInstaller: "在 Finder 中显示",
+        .settingsOpenInstaller: "打开安装包",
+        .settingsUpdateCurrent: "当前版本 %@",
+        .settingsUpdateLatest: "可更新至 %@",
+        .settingsUpdateUnknown: "—",
+        .settingsUpdateNotChecked: "尚未检查",
+        .settingsUpdateChecking: "正在检查更新…",
+        .settingsUpdateUpToDate: "已是最新版本。",
+        .settingsUpdateAvailable: "发现新版本 %@。",
+        .settingsUpdateNoInstaller: "找到了新版本，但没有附带 macOS 安装包。",
+        .settingsUpdatePrerelease: "GitHub 上的最新发布是预发布版本，已跳过。",
+        .settingsUpdateErrorNetwork: "无法连接更新服务器。请检查网络后重试。",
+        .settingsUpdateErrorHTTP: "更新服务器返回错误（%d）。",
+        .settingsUpdateErrorInvalid: "无法读取更新列表。",
+        .settingsUpdateErrorDigest: "下载文件的 SHA-256 与发布信息不一致。",
+        .settingsUpdateErrorSize: "下载文件大小与发布信息不一致。",
+        .settingsUpdateErrorGeneric: "更新未能完成。",
+        .settingsUpdateDownloading: "正在下载… %d%%",
+        .settingsUpdateDownloaded: "安装包已下载。打开后即可安装。",
+        .settingsUpdateCancelled: "已取消下载。",
+        .settingsUpdateConfirmTitle: "下载更新",
+        .settingsUpdateConfirmMessage: "下载 ZoneBox %@？在你打开安装包之前，当前这份应用不会被替换。",
         .settingsHoverPinDetail: "用录屏权限做一层镜像画面。点击和滚动落到原窗口。前置是尽力而为，不是私有窗口层级置顶。",
         .settingsEnableSnappingDetail: "暂停所有吸附触发方式和快捷键，布局保持不变。",
         .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",
@@ -1368,7 +1533,7 @@ public enum L10n {
         .settingsOverlayPreviewTitle: "覆盖层预览",
         .settingsKeyboardPreviewTitle: "键盘控制",
         .settingsWorkspacesPreviewTitle: "已保存的工作区",
-        .settingsGeneralPreviewDescription: "语言和启动偏好会应用到整个 ZoneBox。",
+        .settingsGeneralPreviewDescription: "语言、启动和更新检查会应用到整个 ZoneBox。",
         .settingsSnappingPreviewDescription: "通过拖动、右键或晃动标题栏，将窗口快速吸附到分区。",
         .settingsOverlayPreviewDescription: "分区编号和间距只在需要吸附时出现。",
         .settingsKeyboardPreviewDescription: "不用离开键盘，即可移动、切换和恢复窗口。",

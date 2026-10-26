@@ -30,6 +30,7 @@ final class AppRuntime {
     let pins = PinCenter()
     let pinHover = PinHoverMonitor()
     let license = LicenseCenter()
+    let updates = UpdateCenter()
     var ax: AccessibilityClientLive
     let query = CGWindowQuery()
 
@@ -106,6 +107,12 @@ final class AppRuntime {
             self?.pinHover.settingsChanged()
         }
         license.start()
+        updates.updateCheckFrequency = { [weak self] in self?.settings.updateCheckFrequency ?? .daily }
+        updates.onChange = { [weak self] in
+            self?.settingsWindow?.refreshUpdateStatus()
+            self?.reloadMenu()
+        }
+        updates.start()
 
         LanguageCenter.shared.start()
         LanguageCenter.shared.applyPreference(settings.uiLanguage)
@@ -167,6 +174,7 @@ final class AppRuntime {
         welcome?.close(markCompleted: false)
         accessibilityGuide?.close()
         settingsWindow?.close()
+        updates.invalidate()
         menuBar?.remove()
         menuBar = nil
         Log.app.info("ZoneBox stopped")
@@ -190,6 +198,19 @@ final class AppRuntime {
 
     func openLicenseSettings() {
         presentSettings { $0.showLicense() }
+    }
+
+    func openUpdateSettings(check: Bool) {
+        presentSettings { $0.showGeneral() }
+        if check {
+            Task { await updates.checkNow() }
+        }
+    }
+
+    func setUpdateCheckFrequency(_ frequency: UpdateCheckFrequency) {
+        settings.updateCheckFrequency = frequency
+        persistSettings()
+        Task { await updates.checkIfDue() }
     }
 
     func openKeyboardSettings() {
@@ -1539,6 +1560,10 @@ final class AppRuntime {
     }
 
 #if DEBUG
+    func openMenuBarConsoleForDebug() {
+        menuBar?.showConsole()
+    }
+
     /// Debug builds accept workspace commands over distributed notifications so
     /// capture/restore can be exercised from a script without synthesizing
     /// hotkeys (which needs Accessibility for the sending process):

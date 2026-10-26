@@ -17,6 +17,7 @@ public enum Log {
     public static let divider = Logger(subsystem: subsystem, category: "divider")
     public static let workspace = Logger(subsystem: subsystem, category: "workspace")
     public static let onboarding = Logger(subsystem: subsystem, category: "onboarding")
+    public static let update = Logger(subsystem: subsystem, category: "update")
 }
 
 /// Local, bounded history for intermittent drag failures. Callers pass technical

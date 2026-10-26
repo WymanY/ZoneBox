@@ -79,6 +79,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         console?.close()
     }
 
+    func showConsole() {
+        guard let button = statusItem?.button else { return }
+        if usesFallbackMenu { return }
+        console?.show(from: button)
+    }
+
     func pulseStatusItem() {
         guard let button = statusItem?.button else { return }
         button.alphaValue = 1
@@ -192,6 +198,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func installApplicationMenu() {
         let voiceOver = NSWorkspace.shared.isVoiceOverEnabled
         let appMenu = NSMenu()
+        let updates = NSMenuItem(
+            title: updateMenuTitle(),
+            action: #selector(checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updates.target = self
+        appMenu.addItem(updates)
         let settings = NSMenuItem(
             title: L10n.text(.menuSettings),
             action: #selector(openSettings(_:)),
@@ -334,6 +347,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let license = NSMenuItem(title: L10n.text(.menuLicense), action: #selector(openLicense(_:)), keyEquivalent: "")
         license.target = self
         menu.addItem(license)
+
+        let updates = NSMenuItem(title: updateMenuTitle(), action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        updates.target = self
+        menu.addItem(updates)
 
         let settings = NSMenuItem(title: L10n.text(.menuSettings), action: #selector(openSettings(_:)), keyEquivalent: "")
         settings.target = self
@@ -497,6 +514,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc
     private func openLicense(_ sender: NSMenuItem) {
         runtime.openLicenseSettings()
+    }
+
+    private func updateMenuTitle() -> String {
+        switch runtime.updates.phase {
+        case .downloaded:
+            return L10n.text(.menuShowDownloadedUpdate)
+        case .available, .downloading:
+            return L10n.text(.menuUpdateAvailable)
+        default:
+            return L10n.text(.menuCheckForUpdates)
+        }
+    }
+
+    @objc
+    private func checkForUpdates(_ sender: NSMenuItem) {
+        if case .downloaded = runtime.updates.phase {
+            runtime.updates.revealInstaller()
+            return
+        }
+        switch runtime.updates.phase {
+        case .available, .downloading:
+            runtime.openUpdateSettings(check: false)
+        default:
+            runtime.openUpdateSettings(check: true)
+        }
     }
 
     @objc
