@@ -152,7 +152,7 @@ final class ZoneOverlayView: NSView {
                 zonePath.stroke()
             }
 
-            let name = L10n.layoutDisplayName(card.layoutName) as NSString
+            let name = card.layoutName as NSString
             let nameAttrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 9, weight: selected ? .semibold : .medium),
                 .foregroundColor: NSColor.white.withAlphaComponent(selected ? 1 : 0.72),

@@ -829,7 +829,8 @@ final class SnapEngine {
                         workAreaAX: workAX,
                         assignedLayoutID: runtime.document.layout(for: projectedArea.display.id)?.id,
                         previousStartLayoutID: stripWindowStartID,
-                        showLayoutStrip: runtime.settings.showLayoutStrip
+                        showLayoutStrip: runtime.settings.showLayoutStrip,
+                        persistedLayoutIDs: runtime.document.layouts.map(\.id)
                     )
                     zones = preview.zones
                     highlight = preview.highlight
@@ -1027,8 +1028,17 @@ final class SnapEngine {
            lastCursorDisplayID = area?.display.id
        }
 
-        let layouts = runtime.allResolvedLayouts(for: area)
+        let persistedLayoutIDs = runtime.document.layouts.map(\.id)
+        let preparedLayouts = LayoutStripGeometry.preparedLayouts(
+            layouts: runtime.allResolvedLayouts(for: area),
+            assignedLayoutID: assignedID,
+            persistedLayoutIDs: persistedLayoutIDs
+        )
+        let layouts = preparedLayouts.layouts
         let layoutIDs = layouts.map(\.layout.id)
+        if let current = sessionLayoutID {
+            sessionLayoutID = preparedLayouts.representativeID(for: current) ?? current
+        }
 
         var strip: LayoutStripGeometry?
         var pointerInStrip = false
@@ -1060,8 +1070,11 @@ final class SnapEngine {
                 layouts: layouts,
                 assignedLayoutID: assignedID,
                 workAreaAX: workAX,
-                focusedLayoutID: stripWindowLayoutID ?? sessionLayoutID ?? assignedID,
-                previousStartLayoutID: stripWindowStartID
+                focusedLayoutID: preparedLayouts.representativeID(
+                    for: stripWindowLayoutID ?? sessionLayoutID ?? assignedID
+                ),
+                previousStartLayoutID: preparedLayouts.representativeID(for: stripWindowStartID),
+                persistedLayoutIDs: persistedLayoutIDs
             )
             stripWindowStartID = strip?.cards.first?.layoutID
             if let visibleStrip = strip, visibleStrip.containsDropLinger(pointAppKit) {
@@ -1121,7 +1134,8 @@ final class SnapEngine {
                     assignedLayoutID: assignedID,
                     workAreaAX: workAX,
                     focusedLayoutID: neighborID,
-                    previousStartLayoutID: currentStrip.cards.first?.layoutID
+                    previousStartLayoutID: currentStrip.cards.first?.layoutID,
+                    persistedLayoutIDs: persistedLayoutIDs
                 )
             }
             if let revealedStrip = strip {

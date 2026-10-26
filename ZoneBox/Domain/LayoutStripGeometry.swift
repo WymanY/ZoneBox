@@ -60,19 +60,118 @@ public struct LayoutStripGeometry: Equatable, Sendable {
         self.leadingOverflowFrameAppKit = leadingOverflowFrameAppKit
     }
 
+    /// Presentation list for the drag strip: collapse identical same-name
+    /// layouts, then number remaining same-name cards. Stored layouts are
+    /// not modified.
+    public struct PreparedLayouts: Sendable {
+        public var layouts: [(layout: Layout, zones: [ResolvedZone])]
+        public var representativeByID: [Layout.ID: Layout.ID]
+
+        public init(
+            layouts: [(layout: Layout, zones: [ResolvedZone])],
+            representativeByID: [Layout.ID: Layout.ID]
+        ) {
+            self.layouts = layouts
+            self.representativeByID = representativeByID
+        }
+
+        public func representativeID(for id: Layout.ID?) -> Layout.ID? {
+            guard let id else { return nil }
+            return representativeByID[id] ?? id
+        }
+    }
+
+    public static func preparedLayouts(
+        layouts: [(layout: Layout, zones: [ResolvedZone])],
+        assignedLayoutID: Layout.ID?,
+        persistedLayoutIDs: [Layout.ID] = [],
+        language: AppLanguage = LanguageCenter.language
+    ) -> PreparedLayouts {
+        let bases = layouts.map { L10n.layoutDisplayName($0.layout.name, language: language) }
+        var groups: [[Int]] = []
+        var groupIndex = Array(repeating: -1, count: layouts.count)
+        for index in layouts.indices {
+            if let existing = groups.firstIndex(where: { members in
+                let seed = members[0]
+                return bases[seed] == bases[index]
+                    && visuallyEquivalent(layouts[seed].zones, layouts[index].zones)
+            }) {
+                groups[existing].append(index)
+                groupIndex[index] = existing
+            } else {
+                groupIndex[index] = groups.count
+                groups.append([index])
+            }
+        }
+
+        let chosen: [Int] = groups.map { members in
+            members.first(where: { layouts[$0].layout.id == assignedLayoutID }) ?? members[0]
+        }
+
+        var representativeByID: [Layout.ID: Layout.ID] = [:]
+        representativeByID.reserveCapacity(layouts.count)
+        for (group, members) in groups.enumerated() {
+            let representativeID = layouts[chosen[group]].layout.id
+            for member in members {
+                representativeByID[layouts[member].layout.id] = representativeID
+            }
+        }
+
+        let persistedIndex = Dictionary(
+            persistedLayoutIDs.enumerated().map { ($0.element, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        func numberingKey(for members: [Int]) -> Int {
+            members.map { persistedIndex[layouts[$0].layout.id] ?? .max }.min() ?? .max
+        }
+
+        var kept: [(layout: Layout, zones: [ResolvedZone])] = []
+        var numberingKeys: [Int] = []
+        kept.reserveCapacity(groups.count)
+        numberingKeys.reserveCapacity(groups.count)
+        var emitted = Set<Int>()
+        for index in layouts.indices {
+            let group = groupIndex[index]
+            guard emitted.insert(group).inserted else { continue }
+            kept.append(layouts[chosen[group]])
+            numberingKeys.append(numberingKey(for: groups[group]))
+        }
+
+        let labels = displayNames(
+            for: kept,
+            numberingKeys: numberingKeys,
+            language: language
+        )
+        let named: [(layout: Layout, zones: [ResolvedZone])] = zip(kept, labels).map { item, label in
+            var layout = item.layout
+            layout.name = label
+            return (layout, item.zones)
+        }
+        return PreparedLayouts(layouts: named, representativeByID: representativeByID)
+    }
+
     public static func make(
         workAreaAppKit: CGRect,
         layouts: [(layout: Layout, zones: [ResolvedZone])],
         assignedLayoutID: Layout.ID?,
         workAreaAX: CGRect,
         focusedLayoutID: Layout.ID? = nil,
-        previousStartLayoutID: Layout.ID? = nil
+        previousStartLayoutID: Layout.ID? = nil,
+        persistedLayoutIDs: [Layout.ID] = [],
+        language: AppLanguage = LanguageCenter.language
     ) -> LayoutStripGeometry {
-        let focusedID = focusedLayoutID ?? assignedLayoutID
+        let prepared = preparedLayouts(
+            layouts: layouts,
+            assignedLayoutID: assignedLayoutID,
+            persistedLayoutIDs: persistedLayoutIDs,
+            language: language
+        )
+        let layouts = prepared.layouts
+        let focusedID = prepared.representativeID(for: focusedLayoutID) ?? assignedLayoutID
         let focusedIndex = focusedID.flatMap { id in
             layouts.firstIndex(where: { $0.layout.id == id })
         } ?? 0
-        let previousStart = previousStartLayoutID.flatMap { id in
+        let previousStart = prepared.representativeID(for: previousStartLayoutID).flatMap { id in
             layouts.firstIndex(where: { $0.layout.id == id })
         }
         let visibleRange = visibleCardRange(
@@ -267,6 +366,68 @@ public struct LayoutStripGeometry: Equatable, Sendable {
         let next = index + delta
         guard layoutIDs.indices.contains(next) else { return nil }
         return layoutIDs[next]
+    }
+
+    private static func displayNames(
+        for items: [(layout: Layout, zones: [ResolvedZone])],
+        numberingKeys: [Int],
+        language: AppLanguage
+    ) -> [String] {
+        let bases = items.map { L10n.layoutDisplayName($0.layout.name, language: language) }
+        var counts: [String: Int] = [:]
+        for base in bases {
+            counts[base, default: 0] += 1
+        }
+        let colliding = Set(counts.compactMap { $0.value > 1 ? $0.key : nil })
+        var reserved = Set(bases.filter { counts[$0] == 1 })
+        var labels = bases
+        let grouped = Dictionary(grouping: items.indices.filter { colliding.contains(bases[$0]) }) {
+            bases[$0]
+        }
+        let nameOrder = grouped.keys.sorted { lhs, rhs in
+            let leftKey = grouped[lhs]?.map { numberingKeys[$0] }.min() ?? .max
+            let rightKey = grouped[rhs]?.map { numberingKeys[$0] }.min() ?? .max
+            if leftKey != rightKey { return leftKey < rightKey }
+            return lhs < rhs
+        }
+        for base in nameOrder {
+            let indices = grouped[base] ?? []
+            let ordered = indices.sorted { lhs, rhs in
+                if numberingKeys[lhs] != numberingKeys[rhs] {
+                    return numberingKeys[lhs] < numberingKeys[rhs]
+                }
+                return lhs < rhs
+            }
+            var suffix = 1
+            for index in ordered {
+                var label = "\(base)\(suffix)"
+                while reserved.contains(label) {
+                    suffix += 1
+                    label = "\(base)\(suffix)"
+                }
+                labels[index] = label
+                reserved.insert(label)
+                suffix += 1
+            }
+        }
+        return labels
+    }
+
+    private static func visuallyEquivalent(_ lhs: [ResolvedZone], _ rhs: [ResolvedZone]) -> Bool {
+        let left = lhs.sorted { $0.number < $1.number }
+        let right = rhs.sorted { $0.number < $1.number }
+        guard left.count == right.count else { return false }
+        return zip(left, right).allSatisfy { a, b in
+            a.number == b.number && rectsMatch(a.frameAX, b.frameAX)
+        }
+    }
+
+    private static func rectsMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let tolerance: CGFloat = 0.5
+        return abs(lhs.origin.x - rhs.origin.x) <= tolerance
+            && abs(lhs.origin.y - rhs.origin.y) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance
+            && abs(lhs.height - rhs.height) <= tolerance
     }
 
     private static func nearestZone(in zones: [LayoutStripZone], to pointAppKit: CGPoint) -> LayoutStripZone? {
