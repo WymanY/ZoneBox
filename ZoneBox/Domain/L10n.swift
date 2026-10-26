@@ -84,6 +84,16 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleUpdateDownloading
     case consoleUpdateDownloaded
     case consoleUpdateDownloadFailed
+    case consoleUpdateAvailableTitle
+    case consoleUpdateAvailableDetail
+    case consoleUpdateDownloadingTitle
+    case consoleUpdateDownloadingDetail
+    case consoleUpdateDownloadedTitle
+    case consoleUpdateDownloadFailedTitle
+    case consoleUpdateActionView
+    case consoleUpdateActionProgress
+    case consoleUpdateActionInstaller
+    case consoleUpdateActionDetails
     case layoutStripPrevious
     case layoutStripNext
     case organizeAdjustedTitle
@@ -793,6 +803,16 @@ public enum L10n {
         .consoleUpdateDownloading: "Downloading %@… %d%%",
         .consoleUpdateDownloaded: "%@ installer is ready",
         .consoleUpdateDownloadFailed: "Could not download %@. Retry in Settings",
+        .consoleUpdateAvailableTitle: "Update Available",
+        .consoleUpdateAvailableDetail: "%@ is now available",
+        .consoleUpdateDownloadingTitle: "Downloading",
+        .consoleUpdateDownloadingDetail: "%@ · %d%%",
+        .consoleUpdateDownloadedTitle: "Installer Ready",
+        .consoleUpdateDownloadFailedTitle: "Could Not Download",
+        .consoleUpdateActionView: "View Update",
+        .consoleUpdateActionProgress: "View Progress",
+        .consoleUpdateActionInstaller: "View Installer",
+        .consoleUpdateActionDetails: "View Details",
         .layoutStripPrevious: "Previous layouts",
         .layoutStripNext: "Next layouts",
         .organizeAdjustedTitle: "Arrangement adjusted",
@@ -1294,6 +1314,16 @@ public enum L10n {
         .consoleUpdateDownloading: "正在下载 %@… %d%%",
         .consoleUpdateDownloaded: "%@ 安装包已就绪",
         .consoleUpdateDownloadFailed: "无法下载 %@，点击重试",
+        .consoleUpdateAvailableTitle: "发现新版本",
+        .consoleUpdateAvailableDetail: "%@ 现已可用",
+        .consoleUpdateDownloadingTitle: "正在下载",
+        .consoleUpdateDownloadingDetail: "%@ · %d%%",
+        .consoleUpdateDownloadedTitle: "安装包已就绪",
+        .consoleUpdateDownloadFailedTitle: "无法下载",
+        .consoleUpdateActionView: "查看更新",
+        .consoleUpdateActionProgress: "查看进度",
+        .consoleUpdateActionInstaller: "查看安装包",
+        .consoleUpdateActionDetails: "查看详情",
         .layoutStripPrevious: "上一组布局",
         .layoutStripNext: "下一组布局",
         .organizeAdjustedTitle: "已调整整理方式",
