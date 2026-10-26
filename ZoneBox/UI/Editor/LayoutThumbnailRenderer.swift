@@ -8,7 +8,8 @@ enum LayoutThumbnailRenderer {
         fill: NSColor,
         stroke: NSColor,
         gutterPoints: CGFloat = 0,
-        showNumbers: Bool = false
+        showNumbers: Bool = false,
+        numberColor: NSColor = NSColor.white.withAlphaComponent(0.92)
     ) -> NSImage {
         let zones = LayoutTemplates.thumbnailGeometry(for: layout)
         let image = NSImage(size: size, flipped: false) { rect in
@@ -39,7 +40,7 @@ enum LayoutThumbnailRenderer {
                 let label = "\(zone.number)" as NSString
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.systemFont(ofSize: max(5, min(pane.width, pane.height) * 0.32), weight: .semibold),
-                    .foregroundColor: NSColor.white.withAlphaComponent(0.92),
+                    .foregroundColor: numberColor,
                 ]
                 let size = label.size(withAttributes: attrs)
                 label.draw(

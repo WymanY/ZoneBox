@@ -163,13 +163,13 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func makeHeader() -> NSView {
         let eyebrow = makeTruncatingLabel(
-            font: .systemFont(ofSize: 9, weight: .medium),
+            font: .systemFont(ofSize: 11, weight: .regular),
             color: .secondaryLabelColor
         )
         currentDisplayLabel = eyebrow
 
         let name = makeTruncatingLabel(
-            font: .systemFont(ofSize: 15, weight: .semibold),
+            font: .systemFont(ofSize: 13, weight: .medium),
             color: .labelColor
         )
         displayLabel = name
@@ -243,7 +243,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func makeOtherLayoutsHeader() -> NSView {
         let label = NSTextField(labelWithString: L10n.text(.consoleOtherLayouts))
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.font = .systemFont(ofSize: 12, weight: .regular)
         label.textColor = .secondaryLabelColor
         label.setContentHuggingPriority(.required, for: .horizontal)
         label.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -313,14 +313,14 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func makeWorkspaceHeader() -> NSView {
         let label = NSTextField(labelWithString: L10n.text(.consoleWorkspaces))
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.font = .systemFont(ofSize: 12, weight: .regular)
         label.textColor = .secondaryLabelColor
         workspaceLabel = label
 
         let save = NSButton(title: L10n.text(.consoleSaveWorkspace), target: self, action: #selector(saveCurrentWorkspace))
         save.bezelStyle = .inline
         save.isBordered = false
-        save.font = .systemFont(ofSize: 11, weight: .medium)
+        save.font = .systemFont(ofSize: 12, weight: .medium)
         save.contentTintColor = .controlAccentColor
         save.lineBreakMode = .byClipping
         save.setContentHuggingPriority(.required, for: .horizontal)
@@ -330,7 +330,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let manage = NSButton(title: L10n.text(.consoleManageWorkspaces), target: self, action: #selector(manageConsoleWorkspaces(_:)))
         manage.bezelStyle = .inline
         manage.isBordered = false
-        manage.font = .systemFont(ofSize: 11, weight: .medium)
+        manage.font = .systemFont(ofSize: 12, weight: .regular)
         manage.lineBreakMode = .byClipping
         manage.setContentHuggingPriority(.required, for: .horizontal)
         manage.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -377,12 +377,12 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let settings = NSButton(title: L10n.text(.menuSettings), target: self, action: #selector(openSettings))
         settings.isBordered = false
         settings.bezelStyle = .inline
-        settings.font = .systemFont(ofSize: 12, weight: .medium)
+        settings.font = .systemFont(ofSize: 12, weight: .regular)
         settings.contentTintColor = .secondaryLabelColor
         settingsButton = settings
 
         let hint = NSTextField(labelWithString: "")
-        hint.font = .systemFont(ofSize: 11)
+        hint.font = .systemFont(ofSize: 12)
         hint.textColor = .tertiaryLabelColor
         hint.alignment = .center
         hint.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -391,7 +391,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         let quit = NSButton(title: L10n.text(.menuQuit), target: self, action: #selector(quit))
         quit.isBordered = false
         quit.bezelStyle = .inline
-        quit.font = .systemFont(ofSize: 12, weight: .medium)
+        quit.font = .systemFont(ofSize: 12, weight: .regular)
         quit.contentTintColor = .secondaryLabelColor
         quitButton = quit
 
@@ -470,7 +470,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         newButton.attributedTitle = NSAttributedString(
             string: title,
             attributes: [
-                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
                 .foregroundColor: NSColor.controlAccentColor,
             ]
         )
@@ -555,7 +555,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             Metrics.headerHeight,
             Metrics.featuredHeight,
             Metrics.sectionHeaderHeight,
-            Metrics.workspaceStripHeight,
+            workspaceStrip?.occupiedHeight ?? Metrics.workspaceStripHeight,
             1,
         ]
         if updateNoticeButton?.isHidden == false {
@@ -863,7 +863,7 @@ private final class ConsoleUpdateNoticeCard: NSButton {
         focusRingType = .exterior
         refusesFirstResponder = false
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 6
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
         layer?.masksToBounds = true
@@ -900,7 +900,7 @@ private final class ConsoleUpdateNoticeCard: NSButton {
     override func draw(_ dirtyRect: NSRect) {}
 
     override func drawFocusRingMask() {
-        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+        NSBezierPath(roundedRect: bounds, xRadius: 6, yRadius: 6).fill()
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -972,20 +972,20 @@ private final class ConsoleUpdateNoticeCard: NSButton {
     private func configureChrome() {
         iconTile.translatesAutoresizingMaskIntoConstraints = false
         iconTile.wantsLayer = true
-        iconTile.layer?.cornerRadius = 7
+        iconTile.layer?.cornerRadius = 5
         iconTile.layer?.cornerCurve = .continuous
         iconTile.layer?.masksToBounds = true
         iconTile.setAccessibilityElement(false)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.imageScaling = .scaleProportionallyDown
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
         iconView.setAccessibilityElement(false)
         iconTile.addSubview(iconView)
 
-        configureLabel(titleLabel, font: .systemFont(ofSize: 12, weight: .semibold), color: .labelColor)
-        configureLabel(subtitleLabel, font: .systemFont(ofSize: 11, weight: .regular), color: .secondaryLabelColor)
-        configureLabel(actionLabel, font: .systemFont(ofSize: 11, weight: .medium), color: .controlAccentColor)
+        configureLabel(titleLabel, font: .systemFont(ofSize: 12, weight: .medium), color: .labelColor)
+        configureLabel(subtitleLabel, font: .systemFont(ofSize: 12, weight: .regular), color: .secondaryLabelColor)
+        configureLabel(actionLabel, font: .systemFont(ofSize: 12, weight: .medium), color: .controlAccentColor)
         actionLabel.setContentHuggingPriority(.required, for: .horizontal)
         actionLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
@@ -998,9 +998,9 @@ private final class ConsoleUpdateNoticeCard: NSButton {
         chevronView.setAccessibilityElement(false)
 
         let textStack = NSStackView(views: [titleLabel, subtitleLabel])
-        textStack.orientation = .vertical
-        textStack.alignment = .leading
-        textStack.spacing = 1
+        textStack.orientation = .horizontal
+        textStack.alignment = .centerY
+        textStack.spacing = 6
         textStack.translatesAutoresizingMaskIntoConstraints = false
         textStack.setHuggingPriority(.defaultLow, for: .horizontal)
         textStack.setClippingResistancePriority(.defaultLow, for: .horizontal)
@@ -1019,26 +1019,26 @@ private final class ConsoleUpdateNoticeCard: NSButton {
         let row = NSStackView(views: [iconTile, textStack, actionStack])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 10
+        row.spacing = 8
         row.distribution = .fill
         row.translatesAutoresizingMaskIntoConstraints = false
         row.setHuggingPriority(.defaultLow, for: .horizontal)
         addSubview(row)
 
         NSLayoutConstraint.activate([
-            iconTile.widthAnchor.constraint(equalToConstant: 28),
-            iconTile.heightAnchor.constraint(equalToConstant: 28),
+            iconTile.widthAnchor.constraint(equalToConstant: 22),
+            iconTile.heightAnchor.constraint(equalToConstant: 22),
             iconView.centerXAnchor.constraint(equalTo: iconTile.centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 14),
-            iconView.heightAnchor.constraint(equalToConstant: 14),
+            iconView.widthAnchor.constraint(equalToConstant: 13),
+            iconView.heightAnchor.constraint(equalToConstant: 13),
             chevronView.widthAnchor.constraint(equalToConstant: 10),
             chevronView.heightAnchor.constraint(equalToConstant: 12),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -11),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             row.centerYAnchor.constraint(equalTo: centerYAnchor),
-            row.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 11),
-            row.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -11),
+            row.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 4),
+            row.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
         ])
     }
 
@@ -1058,13 +1058,13 @@ private final class ConsoleUpdateNoticeCard: NSButton {
         let accent = Self.tint(for: notice)
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        var fillAlpha: CGFloat = dark ? 0.10 : 0.07
-        var strokeAlpha: CGFloat = dark ? 0.34 : 0.22
-        var tileAlpha: CGFloat = dark ? 0.28 : 0.16
+        var fillAlpha: CGFloat = dark ? 0.06 : 0.04
+        var strokeAlpha: CGFloat = dark ? 0.22 : 0.14
+        var tileAlpha: CGFloat = dark ? 0.18 : 0.10
         if increaseContrast {
-            fillAlpha = dark ? 0.16 : 0.12
-            strokeAlpha = dark ? 0.55 : 0.42
-            tileAlpha = dark ? 0.40 : 0.24
+            fillAlpha = dark ? 0.12 : 0.08
+            strokeAlpha = dark ? 0.42 : 0.28
+            tileAlpha = dark ? 0.28 : 0.16
         }
         if isHighlighted {
             fillAlpha += dark ? 0.06 : 0.04
@@ -1228,28 +1228,29 @@ private final class ScrollAwareClipView: NSClipView {
 
 private enum Metrics {
     static let width: CGFloat = 380
-    static let panelCornerRadius: CGFloat = 16
-    static let panelInsets = NSEdgeInsets(top: 16, left: 16, bottom: 14, right: 16)
-    static let stackSpacing: CGFloat = 12
-    static let headerHeight: CGFloat = 44
+    static let panelCornerRadius: CGFloat = 12
+    static let panelInsets = NSEdgeInsets(top: 12, left: 12, bottom: 10, right: 12)
+    static let stackSpacing: CGFloat = 8
+    static let headerHeight: CGFloat = 34
     static let warningHeight: CGFloat = 24
-    static let featuredHeight: CGFloat = 112
+    static let featuredHeight: CGFloat = 76
     static let sectionHeaderHeight: CGFloat = 16
     static let footerHeight: CGFloat = 24
-    static let updateNoticeHeight: CGFloat = 52
+    static let updateNoticeHeight: CGFloat = 32
     static let columns = 2
-    static let columnSpacing: CGFloat = 10
-    static let rowSpacing: CGFloat = 10
+    static let columnSpacing: CGFloat = 8
+    static let rowSpacing: CGFloat = 8
     static let contentWidth = width - panelInsets.left - panelInsets.right
     static let compactWidth = (contentWidth - columnSpacing) / 2
-    static let compactHeight: CGFloat = 104
-    static let compactPreviewSize = NSSize(width: compactWidth - 28, height: 62)
+    static let compactHeight: CGFloat = 78
+    static let compactPreviewSize = NSSize(width: 120, height: 42)
     static let compactThumbnailSize = compactPreviewSize
-    static let featuredPreviewSize = NSSize(width: 156, height: 78)
+    static let featuredPreviewSize = NSSize(width: 108, height: 56)
     static let featuredPreviewInset: CGFloat = 0
     static let featuredThumbnailSize = featuredPreviewSize
     static let maxGridHeight: CGFloat = compactHeight * 2 + rowSpacing
-    static let workspaceStripHeight: CGFloat = 96
+    static let workspaceStripHeight: CGFloat = 80
+    static let workspaceEmptyHeight: CGFloat = 48
 }
 
 private final class LayoutGridView: NSView {
@@ -1357,18 +1358,21 @@ private final class LayoutCardView: NSView {
             ? Metrics.featuredThumbnailSize
             : Metrics.compactThumbnailSize
         let fill = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.36)
-            : NSColor.controlAccentColor.withAlphaComponent(0.28)
+            ? NSColor.controlAccentColor.withAlphaComponent(0.18)
+            : NSColor.controlBackgroundColor
         let stroke = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.76)
-            : NSColor.white.withAlphaComponent(0.38)
+            ? NSColor.controlAccentColor.withAlphaComponent(0.55)
+            : NSColor.separatorColor
         self.thumbnail = LayoutThumbnailRenderer.image(
             for: layout,
             size: thumbnailSize,
             fill: fill,
             stroke: stroke,
             gutterPoints: gutterPoints,
-            showNumbers: showNumbers
+            showNumbers: showNumbers,
+            numberColor: selected
+                ? NSColor.controlAccentColor
+                : NSColor.secondaryLabelColor
         )
         let size = mode == .featured
             ? NSSize(width: Metrics.contentWidth, height: Metrics.featuredHeight)
@@ -1376,19 +1380,20 @@ private final class LayoutCardView: NSView {
         super.init(frame: NSRect(origin: .zero, size: size))
         translatesAutoresizingMaskIntoConstraints = true
         wantsLayer = true
-        layer?.cornerRadius = mode == .featured ? 14 : 12
+        layer?.cornerRadius = mode == .featured ? 10 : 8
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         setAccessibilityRole(.button)
         setAccessibilityLabel(title)
         setAccessibilitySelected(selected)
+        toolTip = title
         autoresizingMask = []
         configureCheckmark()
         configureActionButtons()
     }
 
     private func configureCheckmark() {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
         checkImageView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)?
             .withSymbolConfiguration(config)
         checkImageView.contentTintColor = .controlAccentColor
@@ -1430,7 +1435,7 @@ private final class LayoutCardView: NSView {
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
         button.refusesFirstResponder = true
-        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
         button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
             .withSymbolConfiguration(config)
         button.toolTip = title
@@ -1438,7 +1443,7 @@ private final class LayoutCardView: NSView {
         button.target = self
         button.action = action
         button.wantsLayer = true
-        button.layer?.cornerRadius = mode == .featured ? 6 : 5
+        button.layer?.cornerRadius = 6
         button.layer?.cornerCurve = .continuous
         button.layer?.masksToBounds = true
         button.translatesAutoresizingMaskIntoConstraints = true
@@ -1460,9 +1465,9 @@ private final class LayoutCardView: NSView {
     }
 
     private func layoutActionButtons() {
-        let size: CGFloat = mode == .featured ? 22 : 20
-        let inset: CGFloat = mode == .featured ? 8 : 6
-        let gap: CGFloat = 6
+        let size: CGFloat = 22
+        let inset: CGFloat = 6
+        let gap: CGFloat = 4
         deleteButton.frame = NSRect(
             x: bounds.maxX - inset - size,
             y: bounds.maxY - inset - size,
@@ -1476,7 +1481,18 @@ private final class LayoutCardView: NSView {
             height: size
         )
         if mode == .featured {
-            checkImageView.frame = NSRect(x: bounds.maxX - 32, y: 18, width: 20, height: 20)
+            let preview = NSRect(
+                x: 12,
+                y: ((bounds.height - Metrics.featuredPreviewSize.height) / 2).rounded(),
+                width: Metrics.featuredPreviewSize.width,
+                height: Metrics.featuredPreviewSize.height
+            )
+            checkImageView.frame = NSRect(
+                x: preview.maxX + 12,
+                y: ((bounds.height - 18) / 2).rounded() + 2,
+                width: 14,
+                height: 14
+            )
         } else {
             checkImageView.frame = .zero
         }
@@ -1580,24 +1596,37 @@ private final class LayoutCardView: NSView {
         switch mode {
         case .featured:
             fill = selected
-                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.16 : 0.08)
-                : (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.04)
+                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.12 : 0.06)
+                : NSColor.controlBackgroundColor
         case .compact:
             fill = hovering
-                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.12 : 0.07)
-                : (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.05 : 0.035)
+                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.10 : 0.05)
+                : NSColor.controlBackgroundColor
         }
         fill.setFill()
-        let radius: CGFloat = mode == .featured ? 14 : 12
+        let radius: CGFloat = mode == .featured ? 10 : 8
         NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
-        if mode == .featured, selected {
+        let border = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            xRadius: radius,
+            yRadius: radius
+        )
+        if selected {
+            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.55 : 0.40).setStroke()
+            border.lineWidth = 1
+            border.stroke()
+        } else if hovering {
+            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.28 : 0.18).setStroke()
+            border.lineWidth = 1
+            border.stroke()
+        } else {
             let border = NSBezierPath(
                 roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
                 xRadius: radius,
                 yRadius: radius
             )
-            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.45 : 0.28).setStroke()
-            border.lineWidth = 1
+            NSColor.separatorColor.withAlphaComponent(dark ? 0.55 : 0.40).setStroke()
+            border.lineWidth = 0.5
             border.stroke()
         }
 
@@ -1610,31 +1639,42 @@ private final class LayoutCardView: NSView {
         switch mode {
         case .featured:
             let previewRect = NSRect(
-                x: 14,
+                x: 12,
                 y: ((bounds.height - Metrics.featuredPreviewSize.height) / 2).rounded(),
                 width: Metrics.featuredPreviewSize.width,
                 height: Metrics.featuredPreviewSize.height
             )
             thumbRect = previewRect
+            let actionReserve: CGFloat = 22 + 4 + 22 + 8
+            let checkGap: CGFloat = selected ? 18 : 0
             titleRect = NSRect(
-                x: previewRect.maxX + 14,
-                y: ((bounds.height - 22) / 2).rounded(),
-                width: max(0, bounds.maxX - previewRect.maxX - 36),
-                height: 22
+                x: previewRect.maxX + 12 + checkGap,
+                y: ((bounds.height - 18) / 2).rounded(),
+                width: max(0, bounds.maxX - previewRect.maxX - 12 - checkGap - actionReserve),
+                height: 18
             )
-            font = .systemFont(ofSize: 15, weight: .semibold)
+            font = .systemFont(ofSize: 13, weight: .medium)
             paragraph.alignment = .left
         case .compact:
             let previewRect = NSRect(
                 x: ((bounds.width - Metrics.compactPreviewSize.width) / 2).rounded(),
-                y: bounds.maxY - 10 - Metrics.compactPreviewSize.height,
+                y: bounds.maxY - 8 - Metrics.compactPreviewSize.height,
                 width: Metrics.compactPreviewSize.width,
                 height: Metrics.compactPreviewSize.height
             )
             thumbRect = previewRect
-            titleRect = NSRect(x: 8, y: 8, width: bounds.width - 16, height: 16)
-            font = .systemFont(ofSize: 12, weight: .medium)
+            titleRect = NSRect(x: 8, y: 6, width: bounds.width - 16, height: 16)
+            font = .systemFont(ofSize: 12, weight: .regular)
             paragraph.alignment = .center
+        }
+        if mode == .featured {
+            drawScreenFrame(
+                thumbRect.insetBy(dx: -2, dy: -2),
+                radius: 5,
+                lineWidth: 0.7,
+                strokeAlpha: dark ? 0.35 : 0.22,
+                dark: dark
+            )
         }
         thumbnail.draw(in: thumbRect)
 
@@ -1660,7 +1700,7 @@ private final class LayoutCardView: NSView {
             xRadius: radius,
             yRadius: radius
         )
-        NSColor.labelColor.withAlphaComponent(dark ? 0.055 : 0.035).setFill()
+        NSColor.controlBackgroundColor.setFill()
         path.fill()
         NSColor.separatorColor.withAlphaComponent(strokeAlpha).setStroke()
         path.lineWidth = lineWidth
