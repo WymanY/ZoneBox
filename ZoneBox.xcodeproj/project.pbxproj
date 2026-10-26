@@ -20,6 +20,7 @@
 		0D590FD3F0AE3E678AA6C281 /* WorkspaceRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4A78403910C0981EEC37B6 /* WorkspaceRestore.swift */; };
 		0E0D5809DA42F2206D2F95AF /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D17E2D7EF1A72728C7AE16A /* CanvasContextMenu.swift */; };
 		0FE94C325E5B5EA959CB1188 /* CanvasSnappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69685BECC3CD1AA25F48583D /* CanvasSnappingTests.swift */; };
+		158782D72C673ACB0D634B74 /* OverlayStackingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370B98C7C2ADA4C3FA5C7136 /* OverlayStackingPolicy.swift */; };
 		16A9CFD82CAD960109B04F29 /* LayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AEA7BDAE63EA3E83E0BD9E4 /* LayoutStore.swift */; };
 		17E6ADFF3CAEAF14CEE7E1FC /* GridEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3029ADED93C5B74F5139101 /* GridEditing.swift */; };
 		1A11731135257869F65F5E6A /* SnapTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DDBF2473DFAA28DC469CB9 /* SnapTarget.swift */; };
@@ -71,6 +72,7 @@
 		4ED1E338A3E8D16F68230736 /* SnapSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446A73B628D4176872A8FC46 /* SnapSession.swift */; };
 		5124E212D24831CE346BB9C7 /* LanguageCenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81383EB583D2623ACBCFDC2E /* LanguageCenterTests.swift */; };
 		51F10BF1A00BFD058A23EF33 /* WorkspaceApplyFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6AB5C2E2A6651D73D15795 /* WorkspaceApplyFeedbackTests.swift */; };
+		5220A4E871F114B40483F7C5 /* OverlayStackingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE95641629A59E139DE4DFB /* OverlayStackingPolicyTests.swift */; };
 		54459F73DCCA639F45BBB309 /* OwnWindowFrameMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D87B1F1A413854AEF433BE0 /* OwnWindowFrameMutation.swift */; };
 		58EA885B537AFB39EB3EFBE4 /* WorkspaceProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */; };
 		59B75BB5E2F1AA1DE686C5CC /* AccessibilityGuideModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C9CEE6F75DDADAE929A5D5 /* AccessibilityGuideModel.swift */; };
@@ -244,10 +246,12 @@
 		2824DA9ADC4D86AD6F324EF1 /* EditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorPanel.swift; sourceTree = "<group>"; };
 		2EEDC1DEA27EB9A97078FEA7 /* FakeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeScreen.swift; sourceTree = "<group>"; };
 		2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragMonitor.swift; sourceTree = "<group>"; };
+		2FE95641629A59E139DE4DFB /* OverlayStackingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayStackingPolicyTests.swift; sourceTree = "<group>"; };
 		30B1996FFFC9C296E9C8DE88 /* LanguageCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageCenter.swift; sourceTree = "<group>"; };
 		3366E6F29C43FFBC33F71800 /* LayoutStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutStoreTests.swift; sourceTree = "<group>"; };
 		339ABB69DE5DB1CD014FC472 /* SnapWindowEligibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWindowEligibilityTests.swift; sourceTree = "<group>"; };
 		36B569B511A2E3DEC2BB1121 /* ZoneBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZoneBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		370B98C7C2ADA4C3FA5C7136 /* OverlayStackingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayStackingPolicy.swift; sourceTree = "<group>"; };
 		3B823906D07ABC74F8C8DB95 /* WindowCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalog.swift; sourceTree = "<group>"; };
 		3EB874161D6F9CA3F4DC63D1 /* GridResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridResolver.swift; sourceTree = "<group>"; };
 		3F380C1D6503D16736E1828A /* OnboardingFlowReducerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowReducerTests.swift; sourceTree = "<group>"; };
@@ -484,6 +488,7 @@
 				09AF137B3113F5BDDEF35B88 /* LicenseEntitlement.swift */,
 				510788A551FE2A5D799BDF9E /* Onboarding.swift */,
 				40A75ACF816E0C5D9D75FC2C /* OverlayPresentation.swift */,
+				370B98C7C2ADA4C3FA5C7136 /* OverlayStackingPolicy.swift */,
 				4D87B1F1A413854AEF433BE0 /* OwnWindowFrameMutation.swift */,
 				EDC74C1E359F8A0851AB0402 /* PinPlan.swift */,
 				CE4856322EAAD6CC5D0EFEB0 /* ProfileCapture.swift */,
@@ -686,6 +691,7 @@
 				3F380C1D6503D16736E1828A /* OnboardingFlowReducerTests.swift */,
 				EFE9DAF44F4088162A49E2E8 /* OnboardingPolicyTests.swift */,
 				1B5341B1D36801076F2E2DC2 /* OverlayPresentationTests.swift */,
+				2FE95641629A59E139DE4DFB /* OverlayStackingPolicyTests.swift */,
 				C477D3E91C0282AAFB91190F /* OwnWindowFrameMutationTests.swift */,
 				CDA194CF90613C4665568EB3 /* PinBadgeSlotTests.swift */,
 				3F9962C23C66C523F135A92A /* PinPlannerTests.swift */,
@@ -999,6 +1005,7 @@
 				DD40D5A255A8C1BFE6F98CC5 /* Onboarding.swift in Sources */,
 				28687E3CEC10DB234E13D809 /* OverlapPolicy.swift in Sources */,
 				C6BDDB6052E2A9E8B27F2AED /* OverlayPresentation.swift in Sources */,
+				158782D72C673ACB0D634B74 /* OverlayStackingPolicy.swift in Sources */,
 				54459F73DCCA639F45BBB309 /* OwnWindowFrameMutation.swift in Sources */,
 				C8BCD13896E368024E2C54DC /* PinBadgeSlot.swift in Sources */,
 				E21124C69785B729BCA9A54C /* PinPlan.swift in Sources */,
@@ -1067,6 +1074,7 @@
 				F345C6B4257E63522FB8EABD /* OnboardingFlowReducerTests.swift in Sources */,
 				E5E2A53CE24498120FC23E38 /* OnboardingPolicyTests.swift in Sources */,
 				85366C30D9CEE8A0A84B91BE /* OverlayPresentationTests.swift in Sources */,
+				5220A4E871F114B40483F7C5 /* OverlayStackingPolicyTests.swift in Sources */,
 				994161EEE6D0E596ED6C748A /* OwnWindowFrameMutationTests.swift in Sources */,
 				3404124FE47711426FE97D17 /* PinBadgeSlotTests.swift in Sources */,
 				3BD5E7D6FEFA6AEFCBC42FF9 /* PinPlannerTests.swift in Sources */,
