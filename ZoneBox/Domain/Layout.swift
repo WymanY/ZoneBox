@@ -312,3 +312,48 @@ public struct Layout: Codable, Hashable, Identifiable, Sendable {
         max(0, min(a1, b1) - max(a0, b0))
     }
 }
+
+extension Layout {
+    /// Same localized name and the same panes. Identifiers and timestamps are ignored,
+    /// so a default layout copied for another display still matches the original.
+    public func sameDisplayedShape(
+        as other: Layout,
+        language: AppLanguage = LanguageCenter.language
+    ) -> Bool {
+        guard L10n.layoutDisplayName(name, language: language)
+            == L10n.layoutDisplayName(other.name, language: language)
+        else { return false }
+        guard kind == other.kind else { return false }
+        switch kind {
+        case .grid:
+            return grid == other.grid
+        case .canvas:
+            let left = displayedZones
+            let right = other.displayedZones
+            guard left.count == right.count else { return false }
+            return zip(left, right).allSatisfy { lhs, rhs in
+                lhs.number == rhs.number && canvasRectsMatch(lhs.canvasRect, rhs.canvasRect)
+            }
+        }
+    }
+
+    private var displayedZones: [Zone] {
+        zones
+            .filter { $0.name != "__creating" }
+            .sorted { lhs, rhs in
+                if lhs.number != rhs.number { return lhs.number < rhs.number }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+    }
+
+    private func canvasRectsMatch(_ lhs: NormalizedRect?, _ rhs: NormalizedRect?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return true
+        case let (left?, right?):
+            return left.isClose(to: right, tolerance: 0.000_5)
+        default:
+            return false
+        }
+    }
+}

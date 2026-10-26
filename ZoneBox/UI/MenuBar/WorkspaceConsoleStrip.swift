@@ -113,7 +113,7 @@ final class WorkspaceConsoleStrip: NSView {
     }
 
     private enum Metrics {
-        static let height: CGFloat = 84
+        static let height: CGFloat = 96
     }
 }
 
@@ -122,9 +122,9 @@ private final class WorkspaceConsoleEmptyCard: NSView {
     private let title = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
-        super.init(frame: NSRect(origin: .zero, size: NSSize(width: 168, height: 84)))
+        super.init(frame: NSRect(origin: .zero, size: NSSize(width: 180, height: 96)))
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
         title.font = .systemFont(ofSize: 11, weight: .medium)
@@ -138,8 +138,8 @@ private final class WorkspaceConsoleEmptyCard: NSView {
         addSubview(title)
         addSubview(detail)
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 168),
-            heightAnchor.constraint(equalToConstant: 84),
+            widthAnchor.constraint(equalToConstant: 180),
+            heightAnchor.constraint(equalToConstant: 96),
             title.centerXAnchor.constraint(equalTo: centerXAnchor),
             title.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -8),
             detail.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -170,6 +170,7 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
     private let nameLabel = NSTextField(labelWithString: "")
     private let menuButton = NSButton()
     private var hovering = false
+    private var currentTrailing: NSLayoutConstraint?
 
     init(
         profile: WorkspaceProfile,
@@ -180,9 +181,9 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
         isRenaming: Bool
     ) {
         self.profileID = profile.id
-        super.init(frame: NSRect(origin: .zero, size: NSSize(width: 100, height: 84)))
+        super.init(frame: NSRect(origin: .zero, size: NSSize(width: 148, height: 96)))
         wantsLayer = true
-        layer?.cornerRadius = 8
+        layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         alphaValue = disconnected ? 0.55 : 1
@@ -196,7 +197,7 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
         let preview = WorkspaceLayoutPreviewView(
             rules: profile.sections.first?.rules ?? [],
             applicationInfo: applicationInfo,
-            canvasSize: NSSize(width: 84, height: 40)
+            canvasSize: NSSize(width: 120, height: 48)
         )
         preview.translatesAutoresizingMaskIntoConstraints = false
 
@@ -232,9 +233,14 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
             current.textColor = .controlAccentColor
             current.translatesAutoresizingMaskIntoConstraints = false
             addSubview(current)
+            current.lineBreakMode = .byTruncatingTail
+            current.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            let trailing = current.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6)
+            currentTrailing = trailing
             NSLayoutConstraint.activate([
-                current.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+                trailing,
                 current.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+                current.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 18),
             ])
         }
 
@@ -249,8 +255,8 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
         addSubview(menuButton)
 
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: 100),
-            heightAnchor.constraint(equalToConstant: 84),
+            widthAnchor.constraint(equalToConstant: 148),
+            heightAnchor.constraint(equalToConstant: 96),
             preview.centerXAnchor.constraint(equalTo: centerXAnchor),
             preview.topAnchor.constraint(equalTo: topAnchor, constant: 18),
             nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
@@ -274,8 +280,8 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.controlBackgroundColor.withAlphaComponent(0.55).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+        NSColor.controlBackgroundColor.withAlphaComponent(0.72).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 12, yRadius: 12).fill()
     }
 
     override func updateTrackingAreas() {
@@ -287,11 +293,13 @@ final class WorkspaceConsoleCard: NSView, NSTextFieldDelegate {
     override func mouseEntered(with event: NSEvent) {
         hovering = true
         menuButton.isHidden = false
+        currentTrailing?.constant = -22
     }
 
     override func mouseExited(with event: NSEvent) {
         hovering = false
         menuButton.isHidden = true
+        currentTrailing?.constant = -6
     }
 
     override func mouseDown(with event: NSEvent) {

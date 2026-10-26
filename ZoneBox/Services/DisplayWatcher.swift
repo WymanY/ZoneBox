@@ -12,6 +12,7 @@ final class DisplayWatcher {
     static let reidentifyThreshold = 55
 
     func refresh(document: inout StoreDocument) {
+        document.collapseIdenticalLayouts()
         let screens = NSScreen.screens
         primaryFlipHeight = CoordinateConverter.primaryFlipHeight(screenFramesAppKit: screens.map(\.frame))
         var areas: [WorkArea] = []
@@ -47,11 +48,11 @@ final class DisplayWatcher {
                 identity = probe
                 claimed.insert(identity.id)
                 document.displays.append(identity)
-                let layout = LayoutTemplates.defaultForVisible(width: probe.visibleWidth, height: probe.visibleHeight)
-                if !document.layouts.contains(where: { $0.id == layout.id }) {
-                    document.layouts.append(layout)
-                }
-                document.assign(layoutID: layout.id, to: identity.id)
+                document.assignDefaultLayout(
+                    to: identity.id,
+                    width: probe.visibleWidth,
+                    height: probe.visibleHeight
+                )
             }
             areas.append(
                 WorkArea(

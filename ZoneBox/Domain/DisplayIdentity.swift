@@ -310,6 +310,128 @@ public struct StoreDocument: Codable, Equatable, Sendable {
         }
     }
 
+    /// Folds saved layouts that show the same name and the same panes into one
+    /// record. Displays and workspaces that pointed at a copy now point at the
+    /// layout that was stored first. A same-named layout with a different
+    /// split is kept.
+    public mutating func collapseIdenticalLayouts() {
+        guard layouts.count > 1 else { return }
+        var replacement: [Layout.ID: Layout.ID] = [:]
+        var removed = Set<Layout.ID>()
+        for index in layouts.indices {
+            let layout = layouts[index]
+            if removed.contains(layout.id) { continue }
+            for later in layouts.indices.dropFirst(index + 1) {
+                let other = layouts[later]
+                if removed.contains(other.id) { continue }
+                guard layout.sameDisplayedShape(as: other) else { continue }
+                removed.insert(other.id)
+                replacement[other.id] = layout.id
+            }
+        }
+        guard !removed.isEmpty else { return }
+        layouts.removeAll { removed.contains($0.id) }
+        for index in assignments.indices {
+            if let keeper = replacement[assignments[index].layoutID] {
+                assignments[index].layoutID = keeper
+            }
+        }
+        recentLayoutIDs = recentLayoutIDs.map { replacement[$0] ?? $0 }
+        for profileIndex in profiles.indices {
+            for sectionIndex in profiles[profileIndex].sections.indices {
+                guard let id = profiles[profileIndex].sections[sectionIndex].layoutID,
+                      let keeper = replacement[id]
+                else { continue }
+                profiles[profileIndex].sections[sectionIndex].layoutID = keeper
+            }
+        }
+        normalizeReferences()
+    }
+
+    /// Reuses an existing default layout when a display is seen for the first time.
+    /// `LayoutTemplates` mints a new id on every call, so matching by id never
+    /// finds the layout that is already saved.
+    public mutating func assignDefaultLayout(
+        to displayID: DisplayIdentity.ID,
+        width: Double,
+        height: Double
+    ) {
+        let prototype = LayoutTemplates.defaultForVisible(width: width, height: height)
+        if let existing = layouts.first(where: { $0.sameDisplayedShape(as: prototype) }) {
+            assign(layoutID: existing.id, to: displayID)
+        } else {
+            layouts.append(prototype)
+            assign(layoutID: prototype.id, to: displayID)
+        }
+    }
+
+    public func presentationName(
+        for id: Layout.ID,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        if let name = presentationNames(language: language)[id] {
+            return name
+        }
+        let stored = layouts.first { $0.id == id }?.name ?? ""
+        return L10n.layoutDisplayName(stored, language: language)
+    }
+
+    /// Names shown in the menu. Identical copies share one name. Same name with
+    /// a different split becomes `名称1`, `名称2`, including the first.
+    public func presentationNames(language: AppLanguage = LanguageCenter.language) -> [Layout.ID: String] {
+        let bases = layouts.map { L10n.layoutDisplayName($0.name, language: language) }
+        var groups: [[Int]] = []
+        for index in layouts.indices {
+            if let existing = groups.firstIndex(where: { members in
+                layouts[members[0]].sameDisplayedShape(as: layouts[index], language: language)
+            }) {
+                groups[existing].append(index)
+            } else {
+                groups.append([index])
+            }
+        }
+        var shapeCountByBase: [String: Int] = [:]
+        for members in groups {
+            let base = bases[members[0]]
+            shapeCountByBase[base, default: 0] += 1
+        }
+        let colliding = Set(shapeCountByBase.compactMap { $0.value > 1 ? $0.key : nil })
+        var reserved = Set(bases.filter { shapeCountByBase[$0] == 1 })
+        var labels = bases
+        let collidingGroups = groups.indices.filter { colliding.contains(bases[groups[$0][0]]) }
+        let grouped = Dictionary(grouping: collidingGroups) { bases[groups[$0][0]] }
+        let nameOrder = grouped.keys.sorted { lhs, rhs in
+            let leftKey = grouped[lhs]?.map { groups[$0].min() ?? Int.max }.min() ?? Int.max
+            let rightKey = grouped[rhs]?.map { groups[$0].min() ?? Int.max }.min() ?? Int.max
+            if leftKey != rightKey { return leftKey < rightKey }
+            return lhs < rhs
+        }
+        for base in nameOrder {
+            let shapeIndices = (grouped[base] ?? []).sorted { lhs, rhs in
+                (groups[lhs].min() ?? Int.max) < (groups[rhs].min() ?? Int.max)
+            }
+            var suffix = 1
+            for shapeIndex in shapeIndices {
+                var label = "\(base)\(suffix)"
+                while reserved.contains(label) {
+                    suffix += 1
+                    label = "\(base)\(suffix)"
+                }
+                for member in groups[shapeIndex] {
+                    labels[member] = label
+                }
+                reserved.insert(label)
+                suffix += 1
+            }
+        }
+        var result: [Layout.ID: String] = [:]
+        result.reserveCapacity(layouts.count)
+        for (index, layout) in layouts.enumerated() {
+            result[layout.id] = labels[index]
+        }
+        return result
+    }
+
     private mutating func pruneRecentLayoutIDs() {
         let known = Set(layouts.map(\.id))
         var seen = Set<Layout.ID>()
