@@ -288,6 +288,28 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.consoleUpdateActionDetails, language: .english), "View Details")
         XCTAssertEqual(L10n.text(.settingsDownloadUpdate, language: .chineseSimplified), "下载")
         XCTAssertEqual(
+            String(format: L10n.text(.settingsDownloadUpdateVersion, language: .english), "0.5.1"),
+            "Download 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsDownloadUpdateVersion, language: .chineseSimplified), "0.5.1"),
+            "下载 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateCurrent, language: .chineseSimplified), "0.5.0"),
+            "当前版本 0.5.0"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateLatest, language: .english), "0.5.1"),
+            "Update to 0.5.1"
+        )
+        XCTAssertEqual(
+            String(format: L10n.text(.settingsUpdateLatest, language: .chineseSimplified), "0.5.1"),
+            "可更新至 0.5.1"
+        )
+        XCTAssertEqual(L10n.text(.settingsUpdateNotChecked, language: .english), "Not checked yet")
+        XCTAssertEqual(L10n.text(.settingsUpdateNotChecked, language: .chineseSimplified), "尚未检查")
+        XCTAssertEqual(
             String(format: L10n.text(.settingsUpdateAvailable, language: .english), "0.5.1"),
             "Version 0.5.1 is available."
         )

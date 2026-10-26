@@ -254,6 +254,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsUpdates
     case settingsCheckForUpdates
     case settingsDownloadUpdate
+    case settingsDownloadUpdateVersion
     case settingsCancelUpdate
     case settingsRetryUpdate
     case settingsShowInstaller
@@ -261,6 +262,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsUpdateCurrent
     case settingsUpdateLatest
     case settingsUpdateUnknown
+    case settingsUpdateNotChecked
     case settingsUpdateChecking
     case settingsUpdateUpToDate
     case settingsUpdateAvailable
@@ -972,13 +974,15 @@ public enum L10n {
         .settingsUpdates: "Updates",
         .settingsCheckForUpdates: "Check Now",
         .settingsDownloadUpdate: "Download",
+        .settingsDownloadUpdateVersion: "Download %@",
         .settingsCancelUpdate: "Cancel",
         .settingsRetryUpdate: "Retry",
         .settingsShowInstaller: "Show in Finder",
         .settingsOpenInstaller: "Open Installer",
-        .settingsUpdateCurrent: "This version: %@",
-        .settingsUpdateLatest: "Latest version: %@",
+        .settingsUpdateCurrent: "Current version %@",
+        .settingsUpdateLatest: "Update to %@",
         .settingsUpdateUnknown: "—",
+        .settingsUpdateNotChecked: "Not checked yet",
         .settingsUpdateChecking: "Checking for updates…",
         .settingsUpdateUpToDate: "You're on the latest version.",
         .settingsUpdateAvailable: "Version %@ is available.",
@@ -1483,13 +1487,15 @@ public enum L10n {
         .settingsUpdates: "更新",
         .settingsCheckForUpdates: "立即检查",
         .settingsDownloadUpdate: "下载",
+        .settingsDownloadUpdateVersion: "下载 %@",
         .settingsCancelUpdate: "取消",
         .settingsRetryUpdate: "重试",
         .settingsShowInstaller: "在 Finder 中显示",
         .settingsOpenInstaller: "打开安装包",
-        .settingsUpdateCurrent: "当前版本：%@",
-        .settingsUpdateLatest: "最新版本：%@",
+        .settingsUpdateCurrent: "当前版本 %@",
+        .settingsUpdateLatest: "可更新至 %@",
         .settingsUpdateUnknown: "—",
+        .settingsUpdateNotChecked: "尚未检查",
         .settingsUpdateChecking: "正在检查更新…",
         .settingsUpdateUpToDate: "已是最新版本。",
         .settingsUpdateAvailable: "发现新版本 %@。",

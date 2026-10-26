@@ -53,6 +53,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var updateCheckFrequencyDetailLabel: NSTextField?
     private var updateCurrentLabel: NSTextField?
     private var updateLatestLabel: NSTextField?
+    private var updateArrowView: NSImageView?
     private var updateStatusLabel: NSTextField?
     private var updateProgress: NSProgressIndicator?
     private var updateCheckButton: NSButton?
@@ -2112,12 +2113,18 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         current.font = .systemFont(ofSize: 12)
         current.textColor = .secondaryLabelColor
         current.alignment = .left
+        current.maximumNumberOfLines = 1
+        current.lineBreakMode = .byTruncatingTail
+        current.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         updateCurrentLabel = current
 
         let latest = NSTextField(labelWithString: "")
-        latest.font = .systemFont(ofSize: 12)
-        latest.textColor = .secondaryLabelColor
+        latest.font = .systemFont(ofSize: 13, weight: .semibold)
+        latest.textColor = .controlAccentColor
         latest.alignment = .left
+        latest.maximumNumberOfLines = 1
+        latest.lineBreakMode = .byTruncatingTail
+        latest.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         updateLatestLabel = latest
 
         let status = NSTextField(wrappingLabelWithString: "")
@@ -2125,6 +2132,30 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         status.textColor = .labelColor
         status.alignment = .left
         updateStatusLabel = status
+
+        let arrow = NSImageView()
+        arrow.image = NSImage(
+            systemSymbolName: availableSymbol("arrow.right", fallback: "chevron.right"),
+            accessibilityDescription: nil
+        )
+        arrow.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        arrow.contentTintColor = .tertiaryLabelColor
+        arrow.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            arrow.widthAnchor.constraint(equalToConstant: 12),
+            arrow.heightAnchor.constraint(equalToConstant: 12),
+        ])
+        arrow.setContentHuggingPriority(.required, for: .horizontal)
+        arrow.setContentCompressionResistancePriority(.required, for: .horizontal)
+        arrow.setAccessibilityElement(false)
+        updateArrowView = arrow
+
+        let comparison = NSStackView(views: [current, arrow, latest])
+        comparison.orientation = .horizontal
+        comparison.alignment = .centerY
+        comparison.spacing = 6
+        comparison.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        comparison.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let progress = NSProgressIndicator()
         progress.style = .bar
@@ -2159,7 +2190,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         actions.alignment = .centerY
         actions.spacing = 8
 
-        let footer = NSStackView(views: [current, latest, status, progress, actions])
+        let footer = NSStackView(views: [comparison, status, progress, actions])
         footer.orientation = .vertical
         footer.alignment = .leading
         footer.spacing = 6
@@ -2178,9 +2209,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let locale = LanguageCenter.language.locale
         let current = runtime.updates.currentVersionText
         updateCurrentLabel?.stringValue = String(format: L10n.text(.settingsUpdateCurrent), locale: locale, current)
-        var latest = L10n.text(.settingsUpdateUnknown)
-        if let known = runtime.updates.record.lastKnownLatestVersion, !known.isEmpty {
-            latest = known
+        var latestVersion = runtime.updates.record.lastKnownLatestVersion
+        if latestVersion?.isEmpty == true {
+            latestVersion = nil
         }
         var status = ""
         var checking = false
@@ -2189,6 +2220,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         var downloaded = false
         var failed = false
         var fraction = 0.0
+        var offerVersion: String?
         switch runtime.updates.phase {
         case .idle:
             break
@@ -2196,28 +2228,45 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             checking = true
             status = L10n.text(.settingsUpdateChecking)
         case .upToDate(_, let value):
-            latest = value
+            latestVersion = value
             status = L10n.text(.settingsUpdateUpToDate)
         case .available(let offer):
             available = true
-            latest = offer.latestVersion.description
-            status = String(format: L10n.text(.settingsUpdateAvailable), locale: locale, offer.latestVersion.description)
+            offerVersion = offer.latestVersion.description
+            latestVersion = offer.latestVersion.description
         case .downloading(let offer, let received, let expected):
             downloading = true
-            latest = offer.latestVersion.description
+            latestVersion = offer.latestVersion.description
             let total = expected > 0 ? expected : Int64(offer.asset.size)
             fraction = total > 0 ? Double(received) / Double(total) : 0
             let percent = Int((fraction * 100).rounded())
             status = String(format: L10n.text(.settingsUpdateDownloading), locale: locale, percent)
         case .downloaded(let offer, _):
             downloaded = true
-            latest = offer.latestVersion.description
+            latestVersion = offer.latestVersion.description
             status = L10n.text(.settingsUpdateDownloaded)
         case .failed(let message, _):
             failed = true
             status = message
         }
-        updateLatestLabel?.stringValue = String(format: L10n.text(.settingsUpdateLatest), locale: locale, latest)
+        let showComparison = latestVersion.map { isNewerUpdate($0, than: current) } ?? false
+        if showComparison, let latestVersion {
+            updateLatestLabel?.stringValue = String(format: L10n.text(.settingsUpdateLatest), locale: locale, latestVersion)
+            updateLatestLabel?.isHidden = false
+            updateArrowView?.isHidden = false
+        } else {
+            updateLatestLabel?.isHidden = true
+            updateArrowView?.isHidden = true
+            if status.isEmpty,
+               let latestVersion,
+               AppVersion.parse(latestVersion) != nil,
+               !isNewerUpdate(latestVersion, than: current) {
+                status = L10n.text(.settingsUpdateUpToDate)
+            }
+        }
+        if status.isEmpty, !showComparison, !available, !downloaded, !checking, !downloading, !failed {
+            status = L10n.text(.settingsUpdateNotChecked)
+        }
         updateStatusLabel?.stringValue = status
         updateStatusLabel?.isHidden = status.isEmpty
         updateProgress?.doubleValue = fraction
@@ -2230,10 +2279,26 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         updateCheckButton?.isEnabled = !checking && !downloading
         updateCheckButton?.isHidden = downloading
         updateDownloadButton?.isHidden = !available
+        if available, let offerVersion {
+            updateDownloadButton?.title = String(
+                format: L10n.text(.settingsDownloadUpdateVersion),
+                locale: locale,
+                offerVersion
+            )
+        } else {
+            updateDownloadButton?.title = L10n.text(.settingsDownloadUpdate)
+        }
         updateCancelButton?.isHidden = !downloading
         updateRetryButton?.isHidden = !failed
         updateRevealButton?.isHidden = !downloaded
         updateOpenButton?.isHidden = !downloaded
+    }
+
+    private func isNewerUpdate(_ latest: String, than current: String) -> Bool {
+        guard let latestVersion = AppVersion.parse(latest),
+              let currentVersion = AppVersion.parse(current)
+        else { return false }
+        return currentVersion < latestVersion
     }
 
     @objc private func updateCheckFrequencyChanged(_ sender: NSPopUpButton) {
