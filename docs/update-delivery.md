@@ -52,7 +52,7 @@ gh api repos/WymanY/ZoneBox/releases/latest \
 shasum -a 256 ZoneBox-<version>.dmg
 ```
 
-本次开发时观察到已发布的最新版本为 `0.5.1`，源码的构建版本为 `0.5.0`。这不是发布操作，本次功能开发不修改现有 release 或代为提升版本号；正式交付前应按上述约定设置新版本。
+当前源码构建版本为 `0.5.2`（build 7）。发布后 GitHub Latest 与安装包版本应与此一致。
 
 GitHub API 和下载站点需要网络可达。离线、限流和资源删除属于可恢复失败，应通过应用内的手动检查或重试重新发起。
 
