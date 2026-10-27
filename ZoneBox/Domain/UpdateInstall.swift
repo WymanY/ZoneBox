@@ -437,10 +437,14 @@ public enum MachOArchitectureReader {
         guard data.count >= 8 else { throw UpdateStagedBundleError.unreadableInfo }
         let magic = load32(data, 0)
         switch magic {
-        case 0xcafebabe, 0xcafebabf:
-            return try fat(data, swap: false)
-        case 0xbebafeca, 0xbfbafeca:
-            return try fat(data, swap: true)
+        case 0xcafebabe:
+            return try fat(data, swap: false, is64: false)
+        case 0xcafebabf:
+            return try fat(data, swap: false, is64: true)
+        case 0xbebafeca:
+            return try fat(data, swap: true, is64: false)
+        case 0xbfbafeca:
+            return try fat(data, swap: true, is64: true)
         case 0xfeedfacf, 0xfeedface:
             return try thin(data, swap: false)
         case 0xcffaedfe, 0xcefaedfe:
@@ -450,14 +454,15 @@ public enum MachOArchitectureReader {
         }
     }
 
-    private static func fat(_ data: Data, swap: Bool) throws -> Set<UpdateArchitecture> {
+    private static func fat(_ data: Data, swap: Bool, is64: Bool) throws -> Set<UpdateArchitecture> {
         guard data.count >= 8 else { throw UpdateStagedBundleError.unreadableInfo }
         let count = Int(u32(load32(data, 4), swap: swap))
         guard count > 0, count < 16 else { throw UpdateStagedBundleError.unreadableInfo }
+        let recordSize = is64 ? 32 : 20
         var result: Set<UpdateArchitecture> = []
         for index in 0..<count {
-            let offset = 8 + index * 20
-            guard data.count >= offset + 4 else { throw UpdateStagedBundleError.unreadableInfo }
+            let offset = 8 + index * recordSize
+            guard data.count >= offset + recordSize else { throw UpdateStagedBundleError.unreadableInfo }
             if let arch = architecture(forCPUType: u32(load32(data, offset), swap: swap)) {
                 result.insert(arch)
             }
@@ -748,17 +753,37 @@ public enum UpdateHelperPreflight {
         guard UpdatePayloadGate.acceptsOfficial(destination.signature) else {
             return "destination signature rejected"
         }
-        guard source.version == request.expectedVersion else {
-            return "source version mismatch"
-        }
-        guard destination.version == request.currentVersion else {
-            return "destination version mismatch"
+        if let message = versionMismatch(
+            source: source.version,
+            destination: destination.version,
+            expected: request.expectedVersion,
+            current: request.currentVersion
+        ) {
+            return message
         }
         guard source.architectures.contains(request.architecture),
               destination.architectures.contains(request.architecture) else {
             return "architecture mismatch"
         }
         return nil
+    }
+
+    static func versionMismatch(
+        source: String,
+        destination: String,
+        expected: String,
+        current: String
+    ) -> String? {
+        guard versionsMatch(source, expected) else { return "source version mismatch" }
+        guard versionsMatch(destination, current) else { return "destination version mismatch" }
+        return nil
+    }
+
+    static func versionsMatch(_ lhs: String, _ rhs: String) -> Bool {
+        guard let left = AppVersion.parse(lhs), let right = AppVersion.parse(rhs) else {
+            return false
+        }
+        return left == right
     }
 }
 
@@ -800,7 +825,7 @@ public enum UpdateHelperRunner {
             if let dest = UpdateInstallPath.resolvedApp(request.destinationApp),
                let staged = try? UpdateStagedBundleLoader.load(fromApp: dest),
                UpdatePayloadGate.acceptsOfficial(staged.signature),
-               staged.version == request.expectedVersion {
+               UpdateHelperPreflight.versionsMatch(staged.version, request.expectedVersion) {
                 if request.relaunch {
                     if !relaunch(request.destinationApp, errorFile: nil) {
                         _ = UpdateReplacement.restoreBackup(

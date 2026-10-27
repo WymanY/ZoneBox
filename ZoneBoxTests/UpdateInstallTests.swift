@@ -127,6 +127,109 @@ final class UpdateInstallTests: XCTestCase {
         XCTAssertEqual(UpdateHelperArguments.errorFile(from: ["app", "--zonebox-update-error", "/tmp/err.json"])?.path, "/tmp/err.json")
     }
 
+    func testFat64ReportsBothArchitecturesInBothEndians() throws {
+        let cpuTypes: [UInt32] = [0x01000007, 0x0100000c]
+        let native = fatBinary(magic: 0xcafebabf, nfatArch: 2, recordSize: 32, cpuTypes: cpuTypes, swapFields: false)
+        let swapped = fatBinary(magic: 0xbfbafeca, nfatArch: 2, recordSize: 32, cpuTypes: cpuTypes, swapFields: true)
+        XCTAssertEqual(try MachOArchitectureReader.architectures(in: native), [.x86_64, .arm64])
+        XCTAssertEqual(try MachOArchitectureReader.architectures(in: swapped), [.x86_64, .arm64])
+    }
+
+    func testFat32AndThinArchitecturesDoNotRegress() throws {
+        let cpuTypes: [UInt32] = [0x01000007, 0x0100000c]
+        let nativeFat32 = fatBinary(magic: 0xcafebabe, nfatArch: 2, recordSize: 20, cpuTypes: cpuTypes, swapFields: false)
+        let swappedFat32 = fatBinary(magic: 0xbebafeca, nfatArch: 2, recordSize: 20, cpuTypes: cpuTypes, swapFields: true)
+        XCTAssertEqual(try MachOArchitectureReader.architectures(in: nativeFat32), [.x86_64, .arm64])
+        XCTAssertEqual(try MachOArchitectureReader.architectures(in: swappedFat32), [.x86_64, .arm64])
+
+        XCTAssertEqual(
+            try MachOArchitectureReader.architectures(in: thinBinary(magic: 0xfeedfacf, cpuType: 0x0100000c)),
+            [.arm64]
+        )
+        XCTAssertEqual(
+            try MachOArchitectureReader.architectures(in: thinBinary(magic: 0xcffaedfe, cpuType: UInt32(0x0100000c).byteSwapped)),
+            [.arm64]
+        )
+        XCTAssertEqual(
+            try MachOArchitectureReader.architectures(in: thinBinary(magic: 0xfeedface, cpuType: 0x01000007)),
+            [.x86_64]
+        )
+        XCTAssertEqual(
+            try MachOArchitectureReader.architectures(in: thinBinary(magic: 0xcefaedfe, cpuType: UInt32(0x01000007).byteSwapped)),
+            [.x86_64]
+        )
+    }
+
+    func testTruncatedFat64RecordFailsClosed() {
+        let cpuTypes: [UInt32] = [0x01000007, 0x0100000c]
+        let full = fatBinary(magic: 0xcafebabf, nfatArch: 2, recordSize: 32, cpuTypes: cpuTypes, swapFields: false)
+        let truncated = Data(full.prefix(8 + 32))
+        XCTAssertThrowsError(try MachOArchitectureReader.architectures(in: truncated))
+    }
+
+    func testHelperVersionGatesAcceptEquivalentForms() {
+        XCTAssertNil(
+            UpdateHelperPreflight.versionMismatch(
+                source: "1.2",
+                destination: "1.1",
+                expected: "1.2.0",
+                current: "1.1.0"
+            )
+        )
+        XCTAssertNil(
+            UpdateHelperPreflight.versionMismatch(
+                source: "v0.5.1",
+                destination: "0.5",
+                expected: "0.5.1",
+                current: "0.5.0"
+            )
+        )
+        XCTAssertTrue(UpdateHelperPreflight.versionsMatch("1.2", "1.2.0"))
+        XCTAssertTrue(UpdateHelperPreflight.versionsMatch("1.2.0", "1.2"))
+    }
+
+    func testHelperVersionGatesRejectMismatchesAndInvalids() {
+        XCTAssertEqual(
+            UpdateHelperPreflight.versionMismatch(
+                source: "1.3.0",
+                destination: "1.2.0",
+                expected: "1.2.0",
+                current: "1.2.0"
+            ),
+            "source version mismatch"
+        )
+        XCTAssertEqual(
+            UpdateHelperPreflight.versionMismatch(
+                source: "1.3.0",
+                destination: "1.3.0",
+                expected: "1.3.0",
+                current: "1.2.0"
+            ),
+            "destination version mismatch"
+        )
+        XCTAssertEqual(
+            UpdateHelperPreflight.versionMismatch(
+                source: "not-a-version",
+                destination: "also-invalid",
+                expected: "not-a-version",
+                current: "also-invalid"
+            ),
+            "source version mismatch"
+        )
+        XCTAssertEqual(
+            UpdateHelperPreflight.versionMismatch(
+                source: "1.2.0",
+                destination: "",
+                expected: "1.2.0",
+                current: ""
+            ),
+            "destination version mismatch"
+        )
+        XCTAssertFalse(UpdateHelperPreflight.versionsMatch("1.2.0", "1.2.1"))
+        XCTAssertFalse(UpdateHelperPreflight.versionsMatch("1.2.0-beta.1", "1.2.0-beta.1"))
+        XCTAssertFalse(UpdateHelperPreflight.versionsMatch("", ""))
+    }
+
     func testReplacementKeepsExistingBackupAndRestoresPartialDestination() {
         let source = URL(fileURLWithPath: "/tmp/source.app")
         let destination = URL(fileURLWithPath: "/tmp/dest.app")
@@ -438,5 +541,33 @@ final class UpdateInstallTests: XCTestCase {
             sleeper.waitUntilExit()
         }
         return code
+    }
+    private func fatBinary(
+        magic: UInt32,
+        nfatArch: UInt32,
+        recordSize: Int,
+        cpuTypes: [UInt32],
+        swapFields: Bool
+    ) -> Data {
+        var data = Data()
+        appendUInt32(magic, to: &data)
+        appendUInt32(swapFields ? nfatArch.byteSwapped : nfatArch, to: &data)
+        for cpuType in cpuTypes {
+            appendUInt32(swapFields ? cpuType.byteSwapped : cpuType, to: &data)
+            data.append(Data(count: recordSize - 4))
+        }
+        return data
+    }
+
+    private func thinBinary(magic: UInt32, cpuType: UInt32) -> Data {
+        var data = Data()
+        appendUInt32(magic, to: &data)
+        appendUInt32(cpuType, to: &data)
+        return data
+    }
+
+    private func appendUInt32(_ value: UInt32, to data: inout Data) {
+        var littleEndian = value.littleEndian
+        data.append(Data(bytes: &littleEndian, count: 4))
     }
 }
