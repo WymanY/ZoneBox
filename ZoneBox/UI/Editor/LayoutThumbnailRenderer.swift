@@ -9,7 +9,11 @@ enum LayoutThumbnailRenderer {
         stroke: NSColor,
         gutterPoints: CGFloat = 0,
         showNumbers: Bool = false,
-        numberColor: NSColor = NSColor.white.withAlphaComponent(0.92)
+        numberColor: NSColor = NSColor.white.withAlphaComponent(0.92),
+        cornerRadius: CGFloat = 1.6,
+        lineWidth: CGFloat = 0.7,
+        minimumNumberSize: CGFloat = 0,
+        maximumNumberSize: CGFloat = .greatestFiniteMagnitude
     ) -> NSImage {
         let zones = LayoutTemplates.thumbnailGeometry(for: layout)
         let image = NSImage(size: size, flipped: false) { rect in
@@ -30,16 +34,22 @@ enum LayoutThumbnailRenderer {
             for (zone, gutteredPane) in zip(zones, gutteredPanes) {
                 let pane = gutteredPane.insetBy(dx: 0.4, dy: 0.4)
                 guard pane.width > 0.5, pane.height > 0.5 else { continue }
-                let path = NSBezierPath(roundedRect: pane, xRadius: 1.6, yRadius: 1.6)
+                let radius = min(cornerRadius, min(pane.width, pane.height) * 0.28)
+                let path = NSBezierPath(roundedRect: pane, xRadius: radius, yRadius: radius)
                 fill.setFill()
                 path.fill()
-                stroke.setStroke()
-                path.lineWidth = 0.7
-                path.stroke()
+                if lineWidth > 0 {
+                    stroke.setStroke()
+                    path.lineWidth = lineWidth
+                    path.stroke()
+                }
                 guard showNumbers else { continue }
+                let fontSize = min(maximumNumberSize, max(6, min(pane.width, pane.height) * 0.36))
+                // Skip numbers that would be too small to read rather than drawing smudges.
+                guard fontSize >= minimumNumberSize else { continue }
                 let label = "\(zone.number)" as NSString
                 let attrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: max(5, min(pane.width, pane.height) * 0.32), weight: .semibold),
+                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
                     .foregroundColor: numberColor,
                 ]
                 let size = label.size(withAttributes: attrs)

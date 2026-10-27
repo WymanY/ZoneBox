@@ -80,6 +80,22 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleSaveWorkspace
     case consoleManageWorkspaces
     case consoleSwitcherHint
+    case consoleCurrentLayout
+    case consoleInUse
+    case consoleSwitchLayouts
+    case consoleLayoutCount
+    case consoleMore
+    case consoleSwitcherAction
+    case consoleManage
+    case consoleSettings
+    case consoleQuit
+    case consoleUpdateFooterAvailable
+    case consoleUpdateFooterDownloading
+    case consoleUpdateFooterDownloaded
+    case consoleUpdateFooterFailed
+    case consoleZoneCount
+    case consoleZoneCountSingle
+    case consoleNotApplied
     case consoleUpdateAvailable
     case consoleUpdateDownloading
     case consoleUpdateDownloaded
@@ -801,6 +817,22 @@ public enum L10n {
         .consoleSaveWorkspace: "Save Current",
         .consoleManageWorkspaces: "Manage Workspaces",
         .consoleSwitcherHint: "%@ switcher",
+        .consoleCurrentLayout: "Current Layout",
+        .consoleInUse: "In Use",
+        .consoleSwitchLayouts: "Switch Layout",
+        .consoleLayoutCount: "%d layouts",
+        .consoleMore: "More",
+        .consoleSwitcherAction: "Switch %@",
+        .consoleManage: "Manage",
+        .consoleSettings: "Settings",
+        .consoleQuit: "Quit",
+        .consoleUpdateFooterAvailable: "Update available · %@",
+        .consoleUpdateFooterDownloading: "Downloading · %@ · %d%%",
+        .consoleUpdateFooterDownloaded: "Installer ready · %@",
+        .consoleUpdateFooterFailed: "Could not download · %@",
+        .consoleZoneCount: "%d zones",
+        .consoleZoneCountSingle: "1 zone",
+        .consoleNotApplied: "Not applied · click to apply",
         .consoleUpdateAvailable: "Version %@ available",
         .consoleUpdateDownloading: "Downloading %@… %d%%",
         .consoleUpdateDownloaded: "%@ installer is ready",
@@ -1314,6 +1346,22 @@ public enum L10n {
         .consoleSaveWorkspace: "保存当前",
         .consoleManageWorkspaces: "管理工作区",
         .consoleSwitcherHint: "%@ 切换器",
+        .consoleCurrentLayout: "当前布局",
+        .consoleInUse: "使用中",
+        .consoleSwitchLayouts: "切换布局",
+        .consoleLayoutCount: "%d 个布局",
+        .consoleMore: "更多",
+        .consoleSwitcherAction: "切换 %@",
+        .consoleManage: "管理",
+        .consoleSettings: "设置",
+        .consoleQuit: "退出",
+        .consoleUpdateFooterAvailable: "更新可用 · %@",
+        .consoleUpdateFooterDownloading: "正在下载 · %@ · %d%%",
+        .consoleUpdateFooterDownloaded: "安装包已就绪 · %@",
+        .consoleUpdateFooterFailed: "无法下载 · %@",
+        .consoleZoneCount: "%d 个区域",
+        .consoleZoneCountSingle: "1 个区域",
+        .consoleNotApplied: "未应用 · 点击应用",
         .consoleUpdateAvailable: "发现新版本 %@",
         .consoleUpdateDownloading: "正在下载 %@… %d%%",
         .consoleUpdateDownloaded: "%@ 安装包已就绪",

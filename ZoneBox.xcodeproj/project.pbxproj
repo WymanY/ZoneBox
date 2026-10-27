@@ -128,6 +128,7 @@
 		A9332F048CB3166CC0317EF1 /* AccessibilityGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B493DBA30157E6F82963E4C /* AccessibilityGuideView.swift */; };
 		AAD9DE44925B84C5F49279C0 /* ZoneOccupancy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64C4EB32989692736730023C /* ZoneOccupancy.swift */; };
 		AB132842525793E4FA9EA7A6 /* Gutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0B8B1AA2CD7208340838FC /* Gutter.swift */; };
+		AC814A4F99C054BD06D0A3F3 /* ConsoleChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD8294E5B995D52E8F110A4E /* ConsoleChrome.swift */; };
 		AC9C34790F1F5E1622F2C420 /* MagneticResize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85AF3584B40B1DE9E539564D /* MagneticResize.swift */; };
 		AF1FE4684152A3F4D2577577 /* RectMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16192ECC49D6E451A8936A8 /* RectMath.swift */; };
 		AF2153D3CBFCC39CF5305265 /* Zone.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96966B883ED6C884EED18A /* Zone.swift */; };
@@ -367,6 +368,7 @@
 		CB9A450E32D36B40B42E92A6 /* WindowMoveChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowMoveChrome.swift; sourceTree = "<group>"; };
 		CCA8D9284C4CC58F8088BDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD0B8B1AA2CD7208340838FC /* Gutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gutter.swift; sourceTree = "<group>"; };
+		CD8294E5B995D52E8F110A4E /* ConsoleChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleChrome.swift; sourceTree = "<group>"; };
 		CDA194CF90613C4665568EB3 /* PinBadgeSlotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinBadgeSlotTests.swift; sourceTree = "<group>"; };
 		CE4856322EAAD6CC5D0EFEB0 /* ProfileCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCapture.swift; sourceTree = "<group>"; };
 		D3927D8EF1D49129A80DC0BD /* HotkeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyCenter.swift; sourceTree = "<group>"; };
@@ -525,6 +527,7 @@
 		1C2452D78D1479DA4366F9CD /* MenuBar */ = {
 			isa = PBXGroup;
 			children = (
+				CD8294E5B995D52E8F110A4E /* ConsoleChrome.swift */,
 				6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */,
 				CA2A93972400594DAC49EF39 /* WorkspaceCapturePrompt.swift */,
 				6A4B020D51B99BF72A79CFFF /* WorkspaceConsoleStrip.swift */,
@@ -917,6 +920,7 @@
 				7D7514184280D7E26ED3385E /* CGWindowQuery.swift in Sources */,
 				0E0D5809DA42F2206D2F95AF /* CanvasContextMenu.swift in Sources */,
 				3221C9A4F5E9F507E3622277 /* CanvasEditorCommands.swift in Sources */,
+				AC814A4F99C054BD06D0A3F3 /* ConsoleChrome.swift in Sources */,
 				DA4275438037DB083EF445A6 /* CreemLicenseClient.swift in Sources */,
 				8A236931E4BCE60C6CC3EDC9 /* DeviceIdentity.swift in Sources */,
 				5A056B3E4BE8CDC833747511 /* DisplayWatcher.swift in Sources */,
