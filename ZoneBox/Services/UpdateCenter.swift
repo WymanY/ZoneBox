@@ -7,6 +7,7 @@ final class UpdateCenter {
     enum Retry: Equatable {
         case check
         case download(UpdateOffer)
+        case install(UpdateOffer, fileURL: URL)
     }
 
     enum Phase: Equatable {
@@ -16,18 +17,21 @@ final class UpdateCenter {
         case available(UpdateOffer)
         case downloading(UpdateOffer, received: Int64, expected: Int64)
         case downloaded(UpdateOffer, fileURL: URL)
+        case installing(UpdateOffer, fileURL: URL)
         case failed(message: String, retry: Retry)
     }
 
     private let client: GitHubReleaseClient
     private let store: UpdateStore
     private let directory: URL
+    private let installer: UpdateInstalling
     private var downloadSession: UpdateDownloadSession?
     private var checkTask: Task<Void, Never>?
     private var pollTimer: Timer?
     private var observers: [NSObjectProtocol] = []
     private var checkGeneration = 0
     private var launchCheckSatisfied = false
+    private var cachedInstallEligibility: UpdateInstallEligibility?
     private(set) var record: UpdateRecord
     private(set) var phase: Phase = .idle
     var onChange: (() -> Void)?
@@ -42,11 +46,48 @@ final class UpdateCenter {
         .x86_64
 #endif
     }()
+    var installContext: () -> UpdateInstallContext = {
+        let bundle = Bundle.main
+        let url = bundle.bundleURL
+        return UpdateInstallContext(
+            bundleURL: url,
+            bundleID: bundle.bundleIdentifier ?? "",
+            version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0",
+            architecture: {
+                #if arch(arm64)
+                .arm64
+                #else
+                .x86_64
+                #endif
+            }(),
+            signature: UpdateCodeSignatureInspector.inspect(bundleURL: url),
+            isTranslocated: UpdateInstallLocation.isTranslocated(url),
+            isWritable: UpdateInstallLocation.isWritable(url)
+        )
+    }
 
-    init(store: UpdateStore = UpdateStore(), client: GitHubReleaseClient = GitHubReleaseClient()) {
+    var installEligibility: UpdateInstallEligibility {
+        if let cachedInstallEligibility {
+            return cachedInstallEligibility
+        }
+        let eligibility = UpdateInstallPolicy.eligibility(for: installContext())
+        cachedInstallEligibility = eligibility
+        return eligibility
+    }
+
+    var canInstallInPlace: Bool {
+        UpdateInstallPresentation.kind(for: installEligibility) == .inPlace
+    }
+
+    init(
+        store: UpdateStore = UpdateStore(),
+        client: GitHubReleaseClient = GitHubReleaseClient(),
+        installer: UpdateInstalling? = nil
+    ) {
         self.store = store
         self.client = client
         self.directory = store.fileURL.deletingLastPathComponent().appendingPathComponent("Updates", isDirectory: true)
+        self.installer = installer ?? UpdateInstaller(stagingDirectory: store.fileURL.deletingLastPathComponent().appendingPathComponent("Updates", isDirectory: true))
         self.record = (try? store.load()) ?? .empty
     }
 
@@ -76,15 +117,20 @@ final class UpdateCenter {
             return .downloading(version: offer.latestVersion.description, percent: percent)
         case .downloaded(let offer, _):
             return .downloaded(version: offer.latestVersion.description)
+        case .installing(let offer, _):
+            return .installing(version: offer.latestVersion.description)
         case .failed(_, .check):
             return .checkFailed
         case .failed(_, .download(let offer)):
             return .downloadFailed(version: offer.latestVersion.description)
+        case .failed(_, .install(let offer, _)):
+            return .installFailed(version: offer.latestVersion.description)
         }
     }
 
     func start() {
         restoreDownloadedIfNeeded()
+        consumeInstallFailure()
         checkTask?.cancel()
         checkTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 8_000_000_000)
@@ -103,6 +149,15 @@ final class UpdateCenter {
     }
 
     func checkIfDue() async {
+        let unresolvedInstallFailure: Bool
+        if case .failed(_, .install) = phase {
+            unresolvedInstallFailure = true
+        } else {
+            unresolvedInstallFailure = false
+        }
+        if UpdateSchedule.shouldSkipAutomaticCheck(unresolvedInstallFailure: unresolvedInstallFailure) {
+            return
+        }
         let due = UpdateSchedule.shouldAutomaticallyCheck(
             frequency: updateCheckFrequency(),
             lastCheckAt: record.lastCheckAt,
@@ -120,7 +175,9 @@ final class UpdateCenter {
 
     private func checkNow(markLaunchSatisfied: Bool) async {
         switch phase {
-        case .checking, .downloading:
+        case .checking, .downloading, .installing:
+            return
+        case .failed(_, .install) where markLaunchSatisfied:
             return
         default:
             break
@@ -192,7 +249,7 @@ final class UpdateCenter {
 
     func download(_ offer: UpdateOffer) async {
         switch phase {
-        case .checking, .downloading:
+        case .checking, .downloading, .installing:
             return
         default:
             break
@@ -233,6 +290,12 @@ final class UpdateCenter {
             remember(offer, at: destination)
             persist()
             phase = .downloaded(offer, fileURL: destination)
+            notify()
+            if downloadSession === session {
+                abandonDownloadSession()
+            }
+            await installDownloaded(offer: offer, fileURL: destination)
+            return
         } catch is CancellationError {
             guard generation == checkGeneration, downloadSession === session else { return }
             phase = .available(offer)
@@ -261,6 +324,8 @@ final class UpdateCenter {
             Task { await checkNow() }
         case .failed(_, .download(let offer)), .available(let offer):
             Task { await download(offer) }
+        case .failed(_, .install(let offer, let url)), .downloaded(let offer, let url):
+            Task { await installDownloaded(offer: offer, fileURL: url) }
         default:
             break
         }
@@ -274,6 +339,70 @@ final class UpdateCenter {
     func openInstaller() {
         guard case .downloaded(_, let url) = phase else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    func startUserRequestedUpdate() {
+        switch phase {
+        case .checking, .downloading, .installing:
+            return
+        case .available(let offer):
+            Task { await download(offer) }
+        case .downloaded(let offer, let url):
+            if canInstallInPlace {
+                Task { await installDownloaded(offer: offer, fileURL: url) }
+            } else {
+                openInstaller()
+            }
+        case .failed(_, .download(let offer)):
+            Task { await download(offer) }
+        case .failed(_, .install(let offer, let url)):
+            Task { await installDownloaded(offer: offer, fileURL: url) }
+        case .failed(_, .check), .idle, .upToDate:
+            Task { await checkThenDownloadIfAvailable() }
+        }
+    }
+
+    private func checkThenDownloadIfAvailable() async {
+        await checkNow()
+        switch phase {
+        case .available(let offer):
+            await download(offer)
+        case .downloaded(let offer, let url):
+            if canInstallInPlace {
+                await installDownloaded(offer: offer, fileURL: url)
+            }
+        default:
+            break
+        }
+    }
+
+    func installDownloaded(offer: UpdateOffer, fileURL: URL) async {
+        switch phase {
+        case .checking, .downloading, .installing:
+            return
+        default:
+            break
+        }
+        let context = installContext()
+        switch UpdateInstallPolicy.eligibility(for: context) {
+        case .unsupported:
+            return
+        case .ready:
+            break
+        }
+        phase = .installing(offer, fileURL: fileURL)
+        notify()
+        let result = await installer.install(fromDMG: fileURL, offer: offer, context: context)
+        switch result {
+        case .helperStarted:
+            return
+        case .unsupported:
+            phase = .downloaded(offer, fileURL: fileURL)
+            notify()
+        case .failed(let message):
+            phase = .failed(message: message, retry: .install(offer, fileURL: fileURL))
+            notify()
+        }
     }
 
     private func apply(_ evaluation: ReleaseEvaluation) {
@@ -329,6 +458,26 @@ final class UpdateCenter {
             clearDownloadedInstaller()
             persist()
         }
+    }
+
+    func consumeInstallFailure(from extra: URL? = nil) {
+        let defaultURL = directory.appendingPathComponent("install-error.json")
+        let urls = [extra, defaultURL].compactMap { $0 }
+        var message: String?
+        for url in urls {
+            if let found = UpdateInstallFailureRecord.read(from: url) {
+                message = found
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+        guard let message else { return }
+        switch phase {
+        case .downloaded(let offer, let fileURL):
+            phase = .failed(message: message, retry: .install(offer, fileURL: fileURL))
+        default:
+            phase = .failed(message: message, retry: .check)
+        }
+        notify()
     }
 
     private func existingValidDownload(for offer: UpdateOffer) -> URL? {

@@ -518,11 +518,23 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func updateMenuTitle() -> String {
+        let locale = LanguageCenter.language.locale
         switch runtime.updates.phase {
-        case .downloaded:
+        case .downloaded(let offer, _):
+            if runtime.updates.canInstallInPlace {
+                return String(
+                    format: L10n.text(.menuInstallAndRestartVersion),
+                    locale: locale,
+                    offer.latestVersion.description
+                )
+            }
             return L10n.text(.menuShowDownloadedUpdate)
-        case .available, .downloading:
-            return L10n.text(.menuUpdateAvailable)
+        case .available(let offer), .downloading(let offer, _, _), .installing(let offer, _):
+            return String(
+                format: L10n.text(.menuUpdateAvailableVersion),
+                locale: locale,
+                offer.latestVersion.description
+            )
         default:
             return L10n.text(.menuCheckForUpdates)
         }
@@ -530,16 +542,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc
     private func checkForUpdates(_ sender: NSMenuItem) {
-        if case .downloaded = runtime.updates.phase {
-            runtime.updates.revealInstaller()
-            return
-        }
-        switch runtime.updates.phase {
-        case .available, .downloading:
-            runtime.openUpdateSettings(check: false)
-        default:
-            runtime.openUpdateSettings(check: true)
-        }
+        runtime.updates.startUserRequestedUpdate()
+        runtime.openUpdateSettings(check: false)
     }
 
     @objc

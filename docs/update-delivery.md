@@ -26,6 +26,12 @@ ZoneBox 的更新源沿用公开仓库 `WymanY/ZoneBox` 的 GitHub Releases。�
 发现新版本后，用户确认下载。界面显示进度，支持取消和失败重试。
 安装包通过大小和 SHA-256 校验后，提供「在 Finder 中显示」和「打开安装包」操作。
 
+菜单「更新可用 x.y.z」和设置里的蓝色「可更新至 x.y.z」都会直接开始下载，不再弹出确认框。
+正式版且当前应用可写时，下载后继续校验 DMG 内的 ZoneBox.app（签名团队 A594W68DE5、bundle com.fancyzone.app、版本、架构），再由 helper 在本进程退出后替换并重启；不使用 sudo。
+open 返回 0 只表示 Launch Services 接受了启动请求，不是新进程已稳定运行。成功替换后会在目标旁边留下隐藏的 zoneboxbackup 目录，不在启动当时删除，以便新副本立刻崩溃时还能手动找回上一份。
+Debug 版（com.fancyzone.app.debug）仍可下载，但不会用正式版覆盖当前 Debug 应用，界面会说明请打开安装包另行安装。
+只读、临时运行位置或签名不匹配时同样保留安装包，改为手动打开。
+
 ## 发布新版本
 
 1. 在构建前同步 `project.yml` 中的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`，并重新生成 Xcode 工程。应用读取构建产物的 `CFBundleShortVersionString` 作为当前版本。
@@ -35,6 +41,8 @@ ZoneBox 的更新源沿用公开仓库 `WymanY/ZoneBox` 的 GitHub Releases。�
 5. 使用低于新版本的应用完成检查、下载、取消/重试和打开安装包的验收，再通知用户更新。
 
 下载与安装分开处理：用户确认后下载，完成后由用户打开安装包安装。更新功能不会自行覆盖正在运行的应用。
+
+用户点击更新入口后下载；正式可写副本在校验通过后由 helper 替换并重启。Debug 与不可自动替换的副本只下载，不覆盖当前应用。
 
 ## 发布前检查
 

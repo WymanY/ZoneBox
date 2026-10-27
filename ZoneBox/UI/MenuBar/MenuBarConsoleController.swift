@@ -811,8 +811,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     @objc
     private func openUpdateNotice() {
-        let check = runtime.updates.homeNotice?.needsOfferRefresh == true
-        dismiss(handoff: { [runtime] in runtime.openUpdateSettings(check: check) })
+        runtime.updates.startUserRequestedUpdate()
     }
 
     private func applyUpdateNotice() {
@@ -838,6 +837,14 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             button.symbolName = "checkmark.circle.fill"
         case .downloadFailed(let version):
             text = String(format: L10n.text(.consoleUpdateFooterFailed), locale: locale, version)
+            button.role = .warning
+            button.symbolName = "exclamationmark.triangle.fill"
+        case .installing(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterInstalling), locale: locale, version)
+            button.role = .tinted
+            button.symbolName = "arrow.down.circle"
+        case .installFailed(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterInstallFailed), locale: locale, version)
             button.role = .warning
             button.symbolName = "exclamationmark.triangle.fill"
         }

@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let runtime = AppRuntime()
 
     static func main() {
+        if let request = UpdateHelperArguments.parse(CommandLine.arguments) {
+            Darwin.exit(UpdateHelperRunner.run(request))
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         retained = delegate
@@ -43,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suppressTour = arguments.contains("--skip-welcome")
 #endif
         runtime.start(resume: resume, forceTour: forceTour, suppressTour: suppressTour)
+        if let errorFile = UpdateHelperArguments.errorFile(from: ProcessInfo.processInfo.arguments) {
+            runtime.updates.consumeInstallFailure(from: errorFile)
+        }
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--open-settings") {
             DispatchQueue.main.async { [runtime] in runtime.openSettings() }
