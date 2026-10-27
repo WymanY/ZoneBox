@@ -76,7 +76,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         activeFillOpacity: 0.40,
         zoneFillColorHex: "#007AFF",
         zoneBorderColorHex: "#FFFFFF",
-        restoreSizeOnUnsnap: true,
+        restoreSizeOnUnsnap: false,
         snapDialogs: false,
         excludedBundleIDs: [
             "com.apple.dock",

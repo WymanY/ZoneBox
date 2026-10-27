@@ -403,7 +403,7 @@ public struct SnapReducerInput: Equatable, Sendable {
         trusted: Bool = true,
         snapEnabled: Bool = true,
         isEditorOpen: Bool = false,
-        restoreSizeOnUnsnap: Bool = true,
+        restoreSizeOnUnsnap: Bool = false,
         overlapPolicy: OverlapPolicy = .smallestArea,
         snapOnShiftDrag: Bool = true,
         snapOnRightClickDrag: Bool = true,

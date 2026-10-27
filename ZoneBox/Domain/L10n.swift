@@ -55,6 +55,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuEdit
     case menuCheckForUpdates
     case menuShowDownloadedUpdate
+    case menuUpdateAvailableVersion
+    case menuInstallAndRestartVersion
     case menuCut
     case menuUpdateAvailable
     case menuCopy
@@ -80,6 +82,24 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleSaveWorkspace
     case consoleManageWorkspaces
     case consoleSwitcherHint
+    case consoleCurrentLayout
+    case consoleInUse
+    case consoleSwitchLayouts
+    case consoleLayoutCount
+    case consoleMore
+    case consoleSwitcherAction
+    case consoleManage
+    case consoleSettings
+    case consoleQuit
+    case consoleUpdateFooterAvailable
+    case consoleUpdateFooterDownloading
+    case consoleUpdateFooterDownloaded
+    case consoleUpdateFooterFailed
+    case consoleUpdateFooterInstalling
+    case consoleUpdateFooterInstallFailed
+    case consoleZoneCount
+    case consoleZoneCountSingle
+    case consoleNotApplied
     case consoleUpdateAvailable
     case consoleUpdateDownloading
     case consoleUpdateDownloaded
@@ -255,10 +275,14 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsCheckForUpdates
     case settingsDownloadUpdate
     case settingsDownloadUpdateVersion
+    case settingsDownloadAndInstall
+    case settingsDownloadAndInstallVersion
     case settingsCancelUpdate
     case settingsRetryUpdate
     case settingsShowInstaller
     case settingsOpenInstaller
+    case settingsInstallAndRestart
+    case settingsInstallAndRestartVersion
     case settingsUpdateCurrent
     case settingsUpdateLatest
     case settingsUpdateUnknown
@@ -266,6 +290,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsUpdateChecking
     case settingsUpdateUpToDate
     case settingsUpdateAvailable
+    case settingsUpdateAvailableInstall
     case settingsUpdateNoInstaller
     case settingsUpdatePrerelease
     case settingsUpdateErrorNetwork
@@ -279,6 +304,17 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsUpdateCancelled
     case settingsUpdateConfirmTitle
     case settingsUpdateConfirmMessage
+    case settingsUpdateInstalling
+    case settingsUpdateDownloadedReady
+    case settingsUpdateDownloadedDebug
+    case settingsUpdateDownloadedTranslocated
+    case settingsUpdateDownloadedUnwritable
+    case settingsUpdateDownloadedBlocked
+    case settingsUpdateInstallFailed
+    case settingsUpdateInstallInvalidBundle
+    case settingsUpdateInstallSignature
+    case settingsUpdateInstallVersion
+    case settingsUpdateInstallArchitecture
     case settingsEnableSnappingDetail
     case settingsShiftDragDetail
     case settingsRightClickDetail
@@ -776,6 +812,8 @@ public enum L10n {
         .menuEdit: "Edit",
         .menuCheckForUpdates: "Check for Updates…",
         .menuShowDownloadedUpdate: "Show Downloaded Update…",
+        .menuUpdateAvailableVersion: "Update Available %@",
+        .menuInstallAndRestartVersion: "Install and Restart %@",
         .menuCut: "Cut",
         .menuUpdateAvailable: "Update Available…",
         .menuCopy: "Copy",
@@ -801,6 +839,24 @@ public enum L10n {
         .consoleSaveWorkspace: "Save Current",
         .consoleManageWorkspaces: "Manage Workspaces",
         .consoleSwitcherHint: "%@ switcher",
+        .consoleCurrentLayout: "Current Layout",
+        .consoleInUse: "In Use",
+        .consoleSwitchLayouts: "Switch Layout",
+        .consoleLayoutCount: "%d layouts",
+        .consoleMore: "More",
+        .consoleSwitcherAction: "Switch %@",
+        .consoleManage: "Manage",
+        .consoleSettings: "Settings",
+        .consoleQuit: "Quit",
+        .consoleUpdateFooterAvailable: "Update available · %@",
+        .consoleUpdateFooterDownloading: "Downloading · %@ · %d%%",
+        .consoleUpdateFooterDownloaded: "Installer ready · %@",
+        .consoleUpdateFooterFailed: "Could not download · %@",
+        .consoleUpdateFooterInstalling: "Installing · %@",
+        .consoleUpdateFooterInstallFailed: "Could not install · %@",
+        .consoleZoneCount: "%d zones",
+        .consoleZoneCountSingle: "1 zone",
+        .consoleNotApplied: "Not applied · click to apply",
         .consoleUpdateAvailable: "Version %@ available",
         .consoleUpdateDownloading: "Downloading %@… %d%%",
         .consoleUpdateDownloaded: "%@ installer is ready",
@@ -975,10 +1031,14 @@ public enum L10n {
         .settingsCheckForUpdates: "Check Now",
         .settingsDownloadUpdate: "Download",
         .settingsDownloadUpdateVersion: "Download %@",
+        .settingsDownloadAndInstall: "Download and Install",
+        .settingsDownloadAndInstallVersion: "Download and Install %@",
         .settingsCancelUpdate: "Cancel",
         .settingsRetryUpdate: "Retry",
         .settingsShowInstaller: "Show in Finder",
         .settingsOpenInstaller: "Open Installer",
+        .settingsInstallAndRestart: "Install and Restart",
+        .settingsInstallAndRestartVersion: "Install and Restart %@",
         .settingsUpdateCurrent: "Current version %@",
         .settingsUpdateLatest: "Update to %@",
         .settingsUpdateUnknown: "—",
@@ -986,6 +1046,7 @@ public enum L10n {
         .settingsUpdateChecking: "Checking for updates…",
         .settingsUpdateUpToDate: "You're on the latest version.",
         .settingsUpdateAvailable: "Version %@ is available.",
+        .settingsUpdateAvailableInstall: "Download and install %@. ZoneBox will restart.",
         .settingsUpdateNoInstaller: "A newer version was found, but no macOS installer was attached.",
         .settingsUpdatePrerelease: "The latest GitHub release is a pre-release and was skipped.",
         .settingsUpdateErrorNetwork: "Could not reach the update server. Check the network and retry.",
@@ -999,6 +1060,17 @@ public enum L10n {
         .settingsUpdateCancelled: "Download canceled.",
         .settingsUpdateConfirmTitle: "Download Update",
         .settingsUpdateConfirmMessage: "Download ZoneBox %@? This copy stays in place until you open the installer.",
+        .settingsUpdateInstalling: "Installing…",
+        .settingsUpdateDownloadedReady: "The update is ready. Install and restart ZoneBox.",
+        .settingsUpdateDownloadedDebug: "The installer was downloaded. This Debug copy will not be replaced. Open the disk image to install the release app separately.",
+        .settingsUpdateDownloadedTranslocated: "This copy is running from a temporary location. Open the installer and put ZoneBox in Applications before replacing it.",
+        .settingsUpdateDownloadedUnwritable: "This copy isn't writable. Open the installer and replace ZoneBox in a folder you can write to, such as Applications.",
+        .settingsUpdateDownloadedBlocked: "This copy can't be replaced automatically. Open the installer to install the official app.",
+        .settingsUpdateInstallFailed: "The update could not be installed.",
+        .settingsUpdateInstallInvalidBundle: "The disk image did not contain a readable ZoneBox app.",
+        .settingsUpdateInstallSignature: "The update was rejected because its signature did not match the official ZoneBox identity.",
+        .settingsUpdateInstallVersion: "The update version did not match the release listing.",
+        .settingsUpdateInstallArchitecture: "The update does not include this Mac's architecture.",
         .settingsHoverPinDetail: "Shows a Screen Recording mirror above other apps. Clicks and scrolling go to the original window. Raise is best-effort, not a private always-on-top window level.",
         .settingsEnableSnappingDetail: "Pause every snap trigger and shortcut without changing your layouts.",
         .settingsShiftDragDetail: "Reveal zones while you place a window precisely.",
@@ -1289,6 +1361,8 @@ public enum L10n {
         .menuEdit: "编辑",
         .menuCheckForUpdates: "检查更新…",
         .menuShowDownloadedUpdate: "显示已下载的更新…",
+        .menuUpdateAvailableVersion: "更新可用 %@",
+        .menuInstallAndRestartVersion: "安装并重启 %@",
         .menuCut: "剪切",
         .menuUpdateAvailable: "有可用更新…",
         .menuCopy: "复制",
@@ -1314,6 +1388,24 @@ public enum L10n {
         .consoleSaveWorkspace: "保存当前",
         .consoleManageWorkspaces: "管理工作区",
         .consoleSwitcherHint: "%@ 切换器",
+        .consoleCurrentLayout: "当前布局",
+        .consoleInUse: "使用中",
+        .consoleSwitchLayouts: "切换布局",
+        .consoleLayoutCount: "%d 个布局",
+        .consoleMore: "更多",
+        .consoleSwitcherAction: "切换 %@",
+        .consoleManage: "管理",
+        .consoleSettings: "设置",
+        .consoleQuit: "退出",
+        .consoleUpdateFooterAvailable: "更新可用 · %@",
+        .consoleUpdateFooterDownloading: "正在下载 · %@ · %d%%",
+        .consoleUpdateFooterDownloaded: "安装包已就绪 · %@",
+        .consoleUpdateFooterFailed: "无法下载 · %@",
+        .consoleUpdateFooterInstalling: "正在安装 · %@",
+        .consoleUpdateFooterInstallFailed: "无法安装 · %@",
+        .consoleZoneCount: "%d 个区域",
+        .consoleZoneCountSingle: "1 个区域",
+        .consoleNotApplied: "未应用 · 点击应用",
         .consoleUpdateAvailable: "发现新版本 %@",
         .consoleUpdateDownloading: "正在下载 %@… %d%%",
         .consoleUpdateDownloaded: "%@ 安装包已就绪",
@@ -1488,10 +1580,14 @@ public enum L10n {
         .settingsCheckForUpdates: "立即检查",
         .settingsDownloadUpdate: "下载",
         .settingsDownloadUpdateVersion: "下载 %@",
+        .settingsDownloadAndInstall: "下载并安装",
+        .settingsDownloadAndInstallVersion: "下载并安装 %@",
         .settingsCancelUpdate: "取消",
         .settingsRetryUpdate: "重试",
         .settingsShowInstaller: "在 Finder 中显示",
         .settingsOpenInstaller: "打开安装包",
+        .settingsInstallAndRestart: "安装并重启",
+        .settingsInstallAndRestartVersion: "安装并重启 %@",
         .settingsUpdateCurrent: "当前版本 %@",
         .settingsUpdateLatest: "可更新至 %@",
         .settingsUpdateUnknown: "—",
@@ -1499,6 +1595,7 @@ public enum L10n {
         .settingsUpdateChecking: "正在检查更新…",
         .settingsUpdateUpToDate: "已是最新版本。",
         .settingsUpdateAvailable: "发现新版本 %@。",
+        .settingsUpdateAvailableInstall: "下载并安装 %@。完成后 ZoneBox 会重启。",
         .settingsUpdateNoInstaller: "找到了新版本，但没有附带 macOS 安装包。",
         .settingsUpdatePrerelease: "GitHub 上的最新发布是预发布版本，已跳过。",
         .settingsUpdateErrorNetwork: "无法连接更新服务器。请检查网络后重试。",
@@ -1512,6 +1609,17 @@ public enum L10n {
         .settingsUpdateCancelled: "已取消下载。",
         .settingsUpdateConfirmTitle: "下载更新",
         .settingsUpdateConfirmMessage: "下载 ZoneBox %@？在你打开安装包之前，当前这份应用不会被替换。",
+        .settingsUpdateInstalling: "正在安装…",
+        .settingsUpdateDownloadedReady: "更新已就绪。安装后将重启 ZoneBox。",
+        .settingsUpdateDownloadedDebug: "安装包已下载。调试版不会被替换。请打开安装包，另行安装正式版。",
+        .settingsUpdateDownloadedTranslocated: "当前这份应用在临时位置运行。请打开安装包，把 ZoneBox 放到“应用程序”后再替换。",
+        .settingsUpdateDownloadedUnwritable: "当前这份应用不可写入。请打开安装包，在你有写权限的位置（例如“应用程序”）替换 ZoneBox。",
+        .settingsUpdateDownloadedBlocked: "当前这份应用不能自动替换。请打开安装包安装正式版。",
+        .settingsUpdateInstallFailed: "更新未能安装。",
+        .settingsUpdateInstallInvalidBundle: "安装包里没有可读的 ZoneBox 应用。",
+        .settingsUpdateInstallSignature: "更新签名与正式版 ZoneBox 身份不一致，已拒绝安装。",
+        .settingsUpdateInstallVersion: "更新版本与发布信息不一致。",
+        .settingsUpdateInstallArchitecture: "这个更新不包含当前 Mac 的架构。",
         .settingsHoverPinDetail: "用录屏权限做一层镜像画面。点击和滚动落到原窗口。前置是尽力而为，不是私有窗口层级置顶。",
         .settingsEnableSnappingDetail: "暂停所有吸附触发方式和快捷键，布局保持不变。",
         .settingsShiftDragDetail: "拖动窗口时显示分区，便于精确放置。",

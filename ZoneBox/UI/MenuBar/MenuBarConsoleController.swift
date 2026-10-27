@@ -6,29 +6,29 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private unowned let runtime: AppRuntime
     private var panel: ConsolePanel?
     private var sessionActive = false
-    private var currentDisplayLabel: NSTextField?
-    private var displayLabel: NSTextField?
-    private weak var headerTitleStack: NSStackView?
-    private var warningButton: NSButton?
+    private var rootStack: NSStackView?
+    private var displayButton: ConsoleButton?
+    private var selectedDisplayID: DisplayIdentity.ID?
+    private var warningButton: ConsoleButton?
+    private var warningRow: NSView?
     private var featuredLayoutHost: NSView?
     private var otherLayoutsHeader: NSView?
     private var otherLayoutsLabel: NSTextField?
+    private var layoutCountLabel: NSTextField?
     private var otherLayoutsScrollView: NSScrollView?
+    private var otherLayoutsFade: ConsoleScrollFade?
     private var gridView: LayoutGridView?
     private var gridHeightConstraint: NSLayoutConstraint?
     private var otherLayoutCount = 0
-    private var organizeButton: NSButton?
-    private var workspaceHeader: NSView?
     private var workspaceLabel: NSTextField?
-    private var saveWorkspaceButton: NSButton?
-    private var manageWorkspaceButton: NSButton?
+    private var saveWorkspaceButton: ConsoleButton?
+    private var manageWorkspaceButton: ConsoleButton?
     private var workspaceStrip: WorkspaceConsoleStrip?
-    private var switcherHintLabel: NSTextField?
-    private var settingsButton: NSButton?
-    private var updateNoticeButton: NSButton?
-    private var newButton: NSButton?
-    private var quitButton: NSButton?
-    private var appliedNewButtonTitle: String?
+    private var switcherButton: ConsoleButton?
+    private var settingsButton: ConsoleButton?
+    private var updateNoticeButton: ConsoleButton?
+    private var newButton: ConsoleButton?
+    private var quitButton: ConsoleButton?
     private var layoutRenderSignature = ""
     private var eventMonitors: [Any] = []
     private var activationObservers: [NSObjectProtocol] = []
@@ -57,6 +57,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         }
         sessionActive = true
         statusButton = button
+        selectedDisplayID = nil
+        layoutRenderSignature = ""
         let panel = makePanel()
         self.panel = panel
         applyContent()
@@ -95,6 +97,7 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private func dismiss(handoff: (() -> Void)?) {
         sessionActive = false
         statusButton = nil
+        selectedDisplayID = nil
         stopDismissMonitors()
         stopActivationObservers()
         if let panel, panel.isVisible {
@@ -104,6 +107,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         self.panel = nil
         handoff?()
     }
+
+    // MARK: - Construction
 
     private func makePanel() -> ConsolePanel {
         let panel = ConsolePanel(
@@ -123,114 +128,127 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.delegate = self
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        let root = makeRoot()
-        panel.contentView = root
+        panel.contentView = makeRoot()
         return panel
     }
 
     private func makeRoot() -> NSView {
         let root = ConsoleMaterialView(frame: NSRect(x: 0, y: 0, width: Metrics.width, height: 240))
 
-        let stack = NSStackView()
+        let header = makeHeader()
+        let display = makeDisplayRow()
+        let warning = makeWarningButton()
+        let featured = makeFeaturedLayoutHost()
+        let layoutsHeader = makeOtherLayoutsHeader()
+        let grid = makeOtherLayoutsGrid()
+        let workspaceHeader = makeWorkspaceHeader()
+        let strip = makeWorkspaceStrip()
+        let separator = makeSeparator()
+        let footer = makeFooter()
+
+        let stack = NSStackView(views: [
+            header, display, warning, featured, layoutsHeader, grid, workspaceHeader, strip, separator, footer,
+        ])
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = Metrics.stackSpacing
+        stack.spacing = 6
         stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.edgeInsets = Metrics.panelInsets
         stack.detachesHiddenViews = true
-        stack.addArrangedSubview(makeHeader())
-        stack.addArrangedSubview(makeWarningButton())
-        stack.addArrangedSubview(makeFeaturedLayoutHost())
-        stack.addArrangedSubview(makeOtherLayoutsHeader())
-        stack.addArrangedSubview(makeOtherLayoutsGrid())
-        stack.addArrangedSubview(makeWorkspaceHeader())
-        stack.addArrangedSubview(makeWorkspaceStrip())
-        stack.addArrangedSubview(makeSeparator())
-        stack.addArrangedSubview(makeUpdateNoticeButton())
-        stack.addArrangedSubview(makeFooter())
+        stack.setCustomSpacing(2, after: header)
+        stack.setCustomSpacing(8, after: display)
+        stack.setCustomSpacing(8, after: warning)
+        stack.setCustomSpacing(Metrics.sectionGap, after: featured)
+        stack.setCustomSpacing(Metrics.sectionGap, after: grid)
+        stack.setCustomSpacing(10, after: strip)
+        stack.setCustomSpacing(2, after: separator)
+        rootStack = stack
 
         root.translatesAutoresizingMaskIntoConstraints = true
         root.addSubview(stack)
         NSLayoutConstraint.activate([
+            stack.widthAnchor.constraint(equalToConstant: Metrics.width),
             stack.topAnchor.constraint(equalTo: root.topAnchor),
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor),
         ])
         return root
     }
 
     private func makeHeader() -> NSView {
-        let eyebrow = makeTruncatingLabel(
-            font: .systemFont(ofSize: 9, weight: .medium),
-            color: .secondaryLabelColor
-        )
-        currentDisplayLabel = eyebrow
+        let mark = ConsoleBrandMark()
+        let title = NSTextField(labelWithString: "ZoneBox")
+        title.font = .systemFont(ofSize: 16, weight: .bold)
+        title.textColor = .labelColor
+        title.setContentHuggingPriority(.required, for: .horizontal)
+        let brand = NSStackView(views: [mark, title])
+        brand.orientation = .horizontal
+        brand.alignment = .centerY
+        brand.spacing = 7
+        brand.translatesAutoresizingMaskIntoConstraints = false
 
-        let name = makeTruncatingLabel(
-            font: .systemFont(ofSize: 15, weight: .semibold),
-            color: .labelColor
-        )
-        displayLabel = name
-
-        let titleStack = NSStackView(views: [eyebrow, name])
-        titleStack.orientation = .vertical
-        titleStack.alignment = .leading
-        titleStack.distribution = .fill
-        titleStack.spacing = 1
-        titleStack.translatesAutoresizingMaskIntoConstraints = false
-        titleStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        titleStack.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        titleStack.setHuggingPriority(.defaultLow, for: .horizontal)
-        titleStack.setClippingResistancePriority(.defaultHigh, for: .horizontal)
-        headerTitleStack = titleStack
-
-        let create = NSButton(title: L10n.text(.consoleNew), target: self, action: #selector(newLayout))
-        create.bezelStyle = .rounded
-        create.controlSize = .small
-        create.refusesFirstResponder = true
-        create.setContentHuggingPriority(.required, for: .horizontal)
-        create.setContentCompressionResistancePriority(.required, for: .horizontal)
-        create.translatesAutoresizingMaskIntoConstraints = false
+        let create = ConsoleButton(role: .primary, title: L10n.text(.consoleNew), symbol: "plus", target: self, action: #selector(newLayout))
+        create.controlHeight = 28
+        create.fontSize = 13
+        create.fontWeight = .semibold
+        create.horizontalPadding = 12
         newButton = create
-        appliedNewButtonTitle = nil
 
         let header = NSView()
         header.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(titleStack)
+        header.addSubview(brand)
         header.addSubview(create)
-        header.setContentHuggingPriority(.required, for: .vertical)
-        header.setContentCompressionResistancePriority(.required, for: .vertical)
         NSLayoutConstraint.activate([
             header.heightAnchor.constraint(equalToConstant: Metrics.headerHeight),
-            titleStack.leadingAnchor.constraint(equalTo: header.leadingAnchor),
-            titleStack.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            titleStack.trailingAnchor.constraint(lessThanOrEqualTo: create.leadingAnchor, constant: -8),
+            brand.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            brand.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            brand.trailingAnchor.constraint(lessThanOrEqualTo: create.leadingAnchor, constant: -8),
             create.trailingAnchor.constraint(equalTo: header.trailingAnchor),
             create.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-            create.topAnchor.constraint(greaterThanOrEqualTo: header.topAnchor),
-            create.bottomAnchor.constraint(lessThanOrEqualTo: header.bottomAnchor),
         ])
-        applyNewLayoutButtonTitle(L10n.text(.consoleNew))
         return header
     }
 
-    private func makeTruncatingLabel(font: NSFont, color: NSColor) -> NSTextField {
-        let field = ConsoleSingleLineLabel(labelWithString: "")
-        field.font = font
-        field.textColor = color
-        field.alignment = .left
-        field.lineBreakMode = .byTruncatingTail
-        field.maximumNumberOfLines = 1
-        field.usesSingleLineMode = false
-        field.preferredMaxLayoutWidth = 0
-        field.cell?.truncatesLastVisibleLine = true
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-        field.setContentHuggingPriority(.required, for: .vertical)
-        field.setContentCompressionResistancePriority(.required, for: .vertical)
-        return field
+    private func makeDisplayRow() -> NSView {
+        let button = ConsoleButton(role: .plain, symbol: "display", target: self, action: #selector(chooseDisplay(_:)))
+        button.fontSize = 13
+        button.fontWeight = .semibold
+        button.horizontalPadding = 6
+        button.contentAlignment = .left
+        button.titleColorOverride = .labelColor
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        button.setAccessibilityRole(.popUpButton)
+        button.setAccessibilityLabel(L10n.text(.consoleCurrentDisplay))
+        displayButton = button
+
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(button)
+        NSLayoutConstraint.activate([
+            row.heightAnchor.constraint(equalToConstant: Metrics.displayRowHeight),
+            button.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: -6),
+            button.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            button.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor),
+        ])
+        return row
+    }
+
+    private func makeWarningButton() -> NSView {
+        let button = ConsoleButton(
+            role: .warning,
+            title: L10n.text(.menuEnableAccessibility),
+            symbol: "exclamationmark.triangle.fill",
+            target: self,
+            action: #selector(enableAccessibility)
+        )
+        button.controlHeight = 28
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        warningButton = button
+        let row = NSView.wrapping(button, leading: 0, trailing: 0)
+        warningRow = row
+        return row
     }
 
     private func makeFeaturedLayoutHost() -> NSView {
@@ -242,18 +260,20 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeOtherLayoutsHeader() -> NSView {
-        let label = NSTextField(labelWithString: L10n.text(.consoleOtherLayouts))
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
-        label.textColor = .secondaryLabelColor
-        label.setContentHuggingPriority(.required, for: .horizontal)
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let label = Self.sectionLabel(L10n.text(.consoleSwitchLayouts))
         otherLayoutsLabel = label
 
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let count = NSTextField(labelWithString: "")
+        count.font = .systemFont(ofSize: 12, weight: .regular)
+        count.textColor = .secondaryLabelColor
+        count.alignment = .right
+        count.setContentHuggingPriority(.required, for: .horizontal)
+        count.setContentCompressionResistancePriority(.required, for: .horizontal)
+        layoutCountLabel = count
 
-        let row = NSStackView(views: [label, separator])
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let row = NSStackView(views: [label, spacer, count])
         row.orientation = .horizontal
         row.alignment = .centerY
         row.spacing = 8
@@ -261,21 +281,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         row.heightAnchor.constraint(equalToConstant: Metrics.sectionHeaderHeight).isActive = true
         otherLayoutsHeader = row
         return row
-    }
-
-    private func makeWarningButton() -> NSButton {
-        let button = NSButton(
-            title: L10n.text(.menuEnableAccessibility),
-            target: self,
-            action: #selector(enableAccessibility)
-        )
-        button.bezelStyle = .rounded
-        button.controlSize = .small
-        button.contentTintColor = .systemOrange
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        warningButton = button
-        return button
     }
 
     private func makeOtherLayoutsGrid() -> NSView {
@@ -297,54 +302,58 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         scroll.verticalScrollElasticity = .allowed
         let clipView = ScrollAwareClipView()
         clipView.drawsBackground = false
-        clipView.onBoundsChange = { [weak grid] in
+        clipView.onBoundsChange = { [weak self, weak grid] in
             grid?.reconcileHoverState()
+            self?.updateGridFade()
         }
         scroll.contentView = clipView
         scroll.documentView = grid
+
+        let fade = ConsoleScrollFade(color: { ConsoleChrome.opaquePanel(dark: $0) })
+        scroll.addSubview(fade)
+        otherLayoutsFade = fade
+
         let height = scroll.heightAnchor.constraint(equalToConstant: gridHeight())
         gridHeightConstraint = height
         otherLayoutsScrollView = scroll
         NSLayoutConstraint.activate([
             height,
+            fade.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
+            fade.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
+            fade.bottomAnchor.constraint(equalTo: scroll.bottomAnchor),
+            fade.heightAnchor.constraint(equalToConstant: 22),
         ])
         return scroll
     }
 
     private func makeWorkspaceHeader() -> NSView {
-        let label = NSTextField(labelWithString: L10n.text(.consoleWorkspaces))
-        label.font = .systemFont(ofSize: 11, weight: .semibold)
-        label.textColor = .secondaryLabelColor
+        let label = Self.sectionLabel(L10n.text(.consoleWorkspaces))
         workspaceLabel = label
 
-        let save = NSButton(title: L10n.text(.consoleSaveWorkspace), target: self, action: #selector(saveCurrentWorkspace))
-        save.bezelStyle = .inline
-        save.isBordered = false
-        save.font = .systemFont(ofSize: 11, weight: .medium)
-        save.contentTintColor = .controlAccentColor
-        save.lineBreakMode = .byClipping
-        save.setContentHuggingPriority(.required, for: .horizontal)
-        save.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let switcher = ConsoleButton(role: .keycap, target: self, action: #selector(openWorkspaceSwitcher))
+        switcher.controlHeight = 18
+        switcher.fontSize = 11
+        switcher.horizontalPadding = 5
+        switcherButton = switcher
+
+        let save = ConsoleButton(role: .accent, title: L10n.text(.consoleSaveWorkspace), symbol: "plus", target: self, action: #selector(saveCurrentWorkspace))
+        save.horizontalPadding = 7
         saveWorkspaceButton = save
 
-        let manage = NSButton(title: L10n.text(.consoleManageWorkspaces), target: self, action: #selector(manageConsoleWorkspaces(_:)))
-        manage.bezelStyle = .inline
-        manage.isBordered = false
-        manage.font = .systemFont(ofSize: 11, weight: .medium)
-        manage.lineBreakMode = .byClipping
-        manage.setContentHuggingPriority(.required, for: .horizontal)
-        manage.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let manage = ConsoleButton(role: .plain, title: L10n.text(.consoleManage), target: self, action: #selector(manageConsoleWorkspaces(_:)))
+        manage.horizontalPadding = 7
         manageWorkspaceButton = manage
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let row = NSStackView(views: [label, spacer, save, manage])
+        let row = NSStackView(views: [label, switcher, spacer, save, manage])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 8
+        row.spacing = 2
+        row.setCustomSpacing(8, after: label)
+        row.detachesHiddenViews = true
         row.translatesAutoresizingMaskIntoConstraints = false
         row.heightAnchor.constraint(equalToConstant: Metrics.sectionHeaderHeight).isActive = true
-        workspaceHeader = row
         return row
     }
 
@@ -374,46 +383,31 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func makeFooter() -> NSView {
-        let settings = NSButton(title: L10n.text(.menuSettings), target: self, action: #selector(openSettings))
-        settings.isBordered = false
-        settings.bezelStyle = .inline
-        settings.font = .systemFont(ofSize: 12, weight: .medium)
-        settings.contentTintColor = .secondaryLabelColor
+        let settings = ConsoleButton(role: .plain, title: L10n.text(.consoleSettings), symbol: "gearshape", target: self, action: #selector(openSettings))
+        settings.controlHeight = 26
         settingsButton = settings
 
-        let hint = NSTextField(labelWithString: "")
-        hint.font = .systemFont(ofSize: 11)
-        hint.textColor = .tertiaryLabelColor
-        hint.alignment = .center
-        hint.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        switcherHintLabel = hint
+        let update = ConsoleButton(role: .tinted, target: self, action: #selector(openUpdateNotice))
+        update.horizontalPadding = 9
+        update.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        update.isHidden = true
+        updateNoticeButton = update
 
-        let quit = NSButton(title: L10n.text(.menuQuit), target: self, action: #selector(quit))
-        quit.isBordered = false
-        quit.bezelStyle = .inline
-        quit.font = .systemFont(ofSize: 12, weight: .medium)
-        quit.contentTintColor = .secondaryLabelColor
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let quit = ConsoleButton(role: .plain, title: L10n.text(.consoleQuit), symbol: "power", target: self, action: #selector(quit))
+        quit.controlHeight = 26
         quitButton = quit
 
-        let row = NSStackView(views: [settings, hint, quit])
+        let row = NSStackView(views: [settings, update, spacer, quit])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 8
+        row.spacing = 6
+        row.detachesHiddenViews = true
         row.translatesAutoresizingMaskIntoConstraints = false
-        row.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        return row
-    }
-
-    private func makeUpdateNoticeButton() -> NSButton {
-        let button = ConsoleUpdateNoticeCard(target: self, action: #selector(openUpdateNotice))
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.heightAnchor.constraint(equalToConstant: Metrics.updateNoticeHeight).isActive = true
-        button.widthAnchor.constraint(equalToConstant: Metrics.contentWidth).isActive = true
-        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        button.isHidden = true
-        updateNoticeButton = button
-        return button
+        row.heightAnchor.constraint(equalToConstant: Metrics.footerHeight).isActive = true
+        return NSView.wrapping(row, leading: -6, trailing: 6)
     }
 
     private func makeSeparator() -> NSView {
@@ -423,63 +417,75 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         return line
     }
 
-    private func applyContent() {
-        let area = runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
-        currentDisplayLabel?.stringValue = L10n.text(.consoleCurrentDisplay)
-        displayLabel?.stringValue = displayTitle(for: area)
-        currentDisplayLabel?.invalidateIntrinsicContentSize()
-        displayLabel?.invalidateIntrinsicContentSize()
-        headerTitleStack?.invalidateIntrinsicContentSize()
-        otherLayoutsLabel?.stringValue = L10n.text(.consoleOtherLayouts)
-        let warning = runtime.trust.showsMenuBarWarning()
-        warningButton?.title = L10n.text(.menuEnableAccessibility)
-        warningButton?.isHidden = !warning
+    private static func sectionLabel(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = .labelColor
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return label
+    }
 
-        organizeButton?.title = L10n.text(.consoleOrganize)
-        organizeButton?.isEnabled = !runtime.isOrganizingWindows
+    // MARK: - Content
+
+    private func applyContent() {
+        let area = resolvedArea()
+        applyDisplayButton(for: area)
+        otherLayoutsLabel?.stringValue = L10n.text(.consoleSwitchLayouts)
+        warningButton?.title = L10n.text(.menuEnableAccessibility)
+        warningRow?.isHidden = !runtime.trust.showsMenuBarWarning()
+
         workspaceLabel?.stringValue = L10n.text(.consoleWorkspaces)
-        saveWorkspaceButton?.title = L10n.text(.consoleSaveWorkspace)
-        manageWorkspaceButton?.title = L10n.text(.consoleManageWorkspaces)
-        saveWorkspaceButton?.invalidateIntrinsicContentSize()
-        manageWorkspaceButton?.invalidateIntrinsicContentSize()
-        settingsButton?.title = L10n.text(.menuSettings)
-        applyNewLayoutButtonTitle(L10n.text(.consoleNew))
-        quitButton?.title = L10n.text(.menuQuit)
         let chord = runtime.settings.applyWorkspaceHotkey.displayCaps.joined()
-        switcherHintLabel?.stringValue = String(format: L10n.text(.consoleSwitcherHint), chord)
+        let switcherTitle = String(format: L10n.text(.consoleSwitcherAction), chord)
+        switcherButton?.title = chord
+        switcherButton?.toolTip = switcherTitle
+        switcherButton?.setAccessibilityLabel(switcherTitle)
+        saveWorkspaceButton?.title = L10n.text(.consoleSaveWorkspace)
+        manageWorkspaceButton?.title = L10n.text(.consoleManage)
+        manageWorkspaceButton?.toolTip = L10n.text(.consoleManageWorkspaces)
+        settingsButton?.title = L10n.text(.consoleSettings)
+        newButton?.title = L10n.text(.consoleNew)
+        quitButton?.title = L10n.text(.consoleQuit)
 
         applyUpdateNotice()
         let currentID = area.flatMap { runtime.document.layout(for: $0.display.id) }?.id
         rebuildLayoutViewsIfNeeded(currentID: currentID)
+        layoutCountLabel?.stringValue = String(
+            format: L10n.text(.consoleLayoutCount),
+            locale: LanguageCenter.language.locale,
+            runtime.document.layouts.count
+        )
         reloadWorkspaceStrip()
         gridHeightConstraint?.constant = gridHeight()
+        updateGridFade()
+    }
+
+    private func resolvedArea() -> WorkArea? {
+        if let id = selectedDisplayID,
+           let area = runtime.displays.workAreas.first(where: { $0.display.id == id }) {
+            return area
+        }
+        selectedDisplayID = nil
+        return runtime.displays.area(containingAppKit: NSEvent.mouseLocation)
+            ?? runtime.displays.workAreas.first
+    }
+
+    private func applyDisplayButton(for area: WorkArea?) {
+        guard let displayButton else { return }
+        let title = displayTitle(for: area)
+        let choosable = runtime.displays.workAreas.count > 1
+        displayButton.title = title
+        displayButton.trailingSymbolName = choosable ? "chevron.down" : nil
+        displayButton.isInteractive = choosable
+        displayButton.toolTip = title
+        displayButton.setAccessibilityValue(title)
     }
 
     private func displayTitle(for area: WorkArea?) -> String {
         let stored = area?.display.localizedName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !stored.isEmpty { return stored }
         return L10n.text(.consoleNoDisplay)
-    }
-
-    private func applyNewLayoutButtonTitle(_ title: String) {
-        guard let newButton else { return }
-        newButton.toolTip = title
-        newButton.setAccessibilityLabel(title)
-        guard appliedNewButtonTitle != title else { return }
-        appliedNewButtonTitle = title
-        newButton.attributedTitle = NSAttributedString(
-            string: title,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-                .foregroundColor: NSColor.controlAccentColor,
-            ]
-        )
-        newButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: title)
-        newButton.imagePosition = .imageLeading
-        newButton.imageScaling = .scaleProportionallyDown
-        newButton.imageHugsTitle = true
-        newButton.contentTintColor = .controlAccentColor
-        newButton.invalidateIntrinsicContentSize()
     }
 
     private func rebuildLayoutViewsIfNeeded(currentID: UUID?) {
@@ -489,8 +495,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             LanguageCenter.language.rawValue,
             currentID?.uuidString ?? "",
             layouts.map { "\($0.id.uuidString):\($0.name):\($0.zones.count):\(names[$0.id] ?? "")" }.joined(separator: ","),
-            String(runtime.settings.gutterPoints),
-            String(runtime.settings.showZoneNumbers),
         ].joined(separator: "|")
         if signature == layoutRenderSignature, featuredLayoutHost?.subviews.isEmpty == false {
             return
@@ -502,8 +506,8 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     private func rebuildLayoutViews(currentID: UUID?) {
         guard let featuredLayoutHost, let gridView else { return }
         let layouts = runtime.document.layouts
+        featuredLayoutHost.subviews.forEach { $0.removeFromSuperview() }
         guard let featured = layouts.first(where: { $0.id == currentID }) ?? layouts.first else {
-            featuredLayoutHost.subviews.forEach { $0.removeFromSuperview() }
             gridView.setTiles([])
             otherLayoutCount = 0
             otherLayoutsHeader?.isHidden = true
@@ -511,82 +515,55 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
             return
         }
 
-        featuredLayoutHost.subviews.forEach { $0.removeFromSuperview() }
-        let featuredCard = LayoutCardView(
-            layout: featured,
-            displayTitle: runtime.document.presentationName(for: featured.id),
-            mode: .featured,
-            selected: featured.id == currentID,
-            canDelete: layouts.count > 1,
-            gutterPoints: CGFloat(runtime.settings.gutterPoints),
-            showNumbers: runtime.settings.showZoneNumbers,
-            onSelect: { [weak self] in self?.select(featured) },
-            onEdit: { [weak self] in self?.edit(featured) },
-            onDelete: { [weak self] in self?.confirmAndDelete(featured) }
-        )
+        let featuredCard = makeCard(for: featured, mode: .featured, selected: featured.id == currentID, canDelete: layouts.count > 1)
         featuredCard.frame = featuredLayoutHost.bounds
         featuredCard.autoresizingMask = [.width, .height]
         featuredLayoutHost.addSubview(featuredCard)
 
         let otherLayouts = layouts.filter { $0.id != featured.id }
-        let tiles: [NSView] = otherLayouts.map { layout in
-            LayoutCardView(
-                layout: layout,
-                displayTitle: runtime.document.presentationName(for: layout.id),
-                mode: .compact,
-                selected: false,
-                canDelete: layouts.count > 1,
-                gutterPoints: CGFloat(runtime.settings.gutterPoints),
-                showNumbers: runtime.settings.showZoneNumbers,
-                onSelect: { [weak self] in self?.select(layout) },
-                onEdit: { [weak self] in self?.edit(layout) },
-                onDelete: { [weak self] in self?.confirmAndDelete(layout) }
-            )
-        }
-        gridView.setTiles(tiles)
+        gridView.setTiles(otherLayouts.map {
+            makeCard(for: $0, mode: .compact, selected: false, canDelete: layouts.count > 1)
+        })
         otherLayoutCount = otherLayouts.count
         let hidesOthers = otherLayouts.isEmpty
         otherLayoutsHeader?.isHidden = hidesOthers
         otherLayoutsScrollView?.isHidden = hidesOthers
+        otherLayoutsScrollView?.contentView.scroll(to: .zero)
     }
 
-    private func contentHeight() -> CGFloat {
-        var visibleHeights: [CGFloat] = [
-            Metrics.headerHeight,
-            Metrics.featuredHeight,
-            Metrics.sectionHeaderHeight,
-            Metrics.workspaceStripHeight,
-            1,
-        ]
-        if updateNoticeButton?.isHidden == false {
-            visibleHeights.append(Metrics.updateNoticeHeight)
-        }
-        visibleHeights.append(Metrics.footerHeight)
-        if runtime.trust.showsMenuBarWarning() {
-            visibleHeights.insert(Metrics.warningHeight, at: 1)
-        }
-        if otherLayoutCount > 0 {
-            visibleHeights.insert(contentsOf: [Metrics.sectionHeaderHeight, gridHeight()], at: 2)
-        }
-        let gaps = CGFloat(max(visibleHeights.count - 1, 0)) * Metrics.stackSpacing
-        return Metrics.panelInsets.top + visibleHeights.reduce(0, +) + gaps + Metrics.panelInsets.bottom
+    private func makeCard(for layout: Layout, mode: LayoutCardView.Mode, selected: Bool, canDelete: Bool) -> LayoutCardView {
+        LayoutCardView(
+            layout: layout,
+            displayTitle: runtime.document.presentationName(for: layout.id),
+            mode: mode,
+            selected: selected,
+            canDelete: canDelete,
+            onSelect: { [weak self] in self?.select(layout) },
+            onEdit: { [weak self] in self?.edit(layout) },
+            onDelete: { [weak self] in self?.confirmAndDelete(layout) }
+        )
     }
 
     private func gridHeight() -> CGFloat {
         guard otherLayoutCount > 0 else { return 0 }
-        let rows = Int(ceil(Double(otherLayoutCount) / Double(Metrics.columns)))
-        let natural = CGFloat(rows) * Metrics.compactHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
-        return min(Metrics.maxGridHeight, natural)
+        return min(Metrics.maxGridHeight, LayoutGridView.height(forTileCount: otherLayoutCount))
+    }
+
+    private func updateGridFade() {
+        guard let scroll = otherLayoutsScrollView else { return }
+        otherLayoutsFade?.isHidden = !ConsoleScrollFade.shouldShow(for: scroll)
     }
 
     private func applyPanelFrame(under button: NSStatusBarButton) {
-        guard let panel else { return }
-        let size = NSSize(width: Metrics.width, height: contentHeight())
+        guard let panel, let rootStack else { return }
+        rootStack.layoutSubtreeIfNeeded()
+        let size = NSSize(width: Metrics.width, height: ceil(rootStack.fittingSize.height))
         panel.minSize = size
         panel.maxSize = size
         panel.contentMinSize = size
         panel.contentMaxSize = size
         position(panel, under: button, size: size)
+        updateGridFade()
     }
 
     private func position(_ panel: NSPanel, under button: NSStatusBarButton, size: NSSize) {
@@ -608,8 +585,9 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         panel.setFrame(NSRect(origin: origin, size: size), display: true)
         panel.contentView?.setFrameSize(size)
         panel.invalidateShadow()
-
     }
+
+    // MARK: - Dismissal
 
     private func startActivationObservers() {
         stopActivationObservers()
@@ -690,8 +668,14 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         close()
     }
 
+    // MARK: - Actions
+
     private func select(_ layout: Layout) {
-        runtime.selectLayout(layout)
+        if let id = resolvedArea()?.display.id {
+            runtime.selectLayout(layout, on: id)
+        } else {
+            runtime.selectLayout(layout)
+        }
         if runtime.settings.previewLayoutOnSelect {
             close()
         } else {
@@ -706,11 +690,6 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
 
     private func edit(_ layout: Layout) {
         dismiss(handoff: { [runtime] in runtime.openEditor(for: layout) })
-    }
-
-    @objc
-    private func organizeWindows() {
-        dismiss(handoff: { [runtime] in runtime.organizeWindowsFromPointer() })
     }
 
     private func confirmAndDelete(_ layout: Layout) {
@@ -752,12 +731,17 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func reloadWorkspaceStrip(beginRename: WorkspaceProfile.ID? = nil) {
+        let profiles = runtime.document.orderedProfilesForSettings()
+        saveWorkspaceButton?.isHidden = profiles.isEmpty
         workspaceStrip?.reload(
-            profiles: runtime.document.orderedProfilesForSettings(),
+            profiles: profiles,
             activeID: runtime.document.activeProfileID,
             connectedDisplayIDs: Set(runtime.displays.workAreas.map(\.display.id)),
             beginRename: beginRename
         )
+        if isShown, let statusButton {
+            applyPanelFrame(under: statusButton)
+        }
     }
 
     @objc
@@ -788,24 +772,85 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     @objc
+    private func openWorkspaceSwitcher() {
+        dismiss(handoff: { [runtime] in runtime.handleWorkspaceSwitcher(.invoke) })
+    }
+
+    @objc
+    private func chooseDisplay(_ sender: NSButton) {
+        let areas = runtime.displays.workAreas
+        guard areas.count > 1 else { return }
+        let menu = NSMenu()
+        let current = resolvedArea()?.display.id
+        for area in areas {
+            let item = NSMenuItem(
+                title: displayTitle(for: area),
+                action: #selector(displayChosen(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = area.display.id.uuidString
+            item.state = area.display.id == current ? .on : .off
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: menu.items.first, at: NSPoint(x: 0, y: sender.bounds.minY), in: sender)
+    }
+
+    @objc
+    private func displayChosen(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
+        selectedDisplayID = id
+        layoutRenderSignature = ""
+        reload()
+    }
+
+    @objc
     private func openSettings() {
         dismiss(handoff: { [runtime] in runtime.openSettings() })
     }
 
     @objc
     private func openUpdateNotice() {
-        let check = runtime.updates.homeNotice?.needsOfferRefresh == true
-        dismiss(handoff: { [runtime] in runtime.openUpdateSettings(check: check) })
+        runtime.updates.startUserRequestedUpdate()
     }
 
     private func applyUpdateNotice() {
-        guard let button = updateNoticeButton as? ConsoleUpdateNoticeCard else { return }
+        guard let button = updateNoticeButton else { return }
         guard let notice = runtime.updates.homeNotice else {
             button.isHidden = true
-            button.apply(nil)
             return
         }
-        button.apply(notice)
+        let locale = LanguageCenter.language.locale
+        let text: String
+        switch notice {
+        case .available(let version), .knownNewer(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterAvailable), locale: locale, version)
+            button.role = .tinted
+            button.symbolName = "arrow.down.circle.fill"
+        case .downloading(let version, let percent):
+            text = String(format: L10n.text(.consoleUpdateFooterDownloading), locale: locale, version, percent)
+            button.role = .tinted
+            button.symbolName = "arrow.down.circle"
+        case .downloaded(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterDownloaded), locale: locale, version)
+            button.role = .tinted
+            button.symbolName = "checkmark.circle.fill"
+        case .downloadFailed(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterFailed), locale: locale, version)
+            button.role = .warning
+            button.symbolName = "exclamationmark.triangle.fill"
+        case .installing(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterInstalling), locale: locale, version)
+            button.role = .tinted
+            button.symbolName = "arrow.down.circle"
+        case .installFailed(let version):
+            text = String(format: L10n.text(.consoleUpdateFooterInstallFailed), locale: locale, version)
+            button.role = .warning
+            button.symbolName = "exclamationmark.triangle.fill"
+        }
+        button.title = text
+        button.toolTip = text
+        button.setAccessibilityLabel(text)
         button.isHidden = false
     }
 
@@ -830,306 +875,49 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 }
 
-private final class ConsoleSingleLineLabel: NSTextField {
-    override var intrinsicContentSize: NSSize {
-        let vertical = super.intrinsicContentSize.height
-        guard !stringValue.isEmpty else {
-            return NSSize(width: NSView.noIntrinsicMetric, height: vertical)
-        }
-        let textWidth = ceil(attributedStringValue.size().width) + 2
-        return NSSize(width: textWidth, height: vertical)
+private extension NSView {
+    static func wrapping(_ child: NSView, leading: CGFloat, trailing: CGFloat) -> NSView {
+        let host = NSView()
+        host.translatesAutoresizingMaskIntoConstraints = false
+        child.translatesAutoresizingMaskIntoConstraints = false
+        host.addSubview(child)
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: host.topAnchor),
+            child.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+            child.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: leading),
+            child.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: trailing),
+        ])
+        return host
     }
 }
 
-private final class ConsoleUpdateNoticeCard: NSButton {
-    private let iconTile = NSView()
-    private let iconView = NSImageView()
-    private let titleLabel = NSTextField(labelWithString: "")
-    private let subtitleLabel = NSTextField(labelWithString: "")
-    private let actionLabel = NSTextField(labelWithString: "")
-    private let chevronView = NSImageView()
-    private var notice: HomeUpdateNotice?
-    private var hovering = false
-
-    init(target: AnyObject, action: Selector) {
-        super.init(frame: .zero)
-        self.target = target
-        self.action = action
-        isBordered = false
-        bezelStyle = .regularSquare
-        setButtonType(.momentaryChange)
-        imagePosition = .noImage
-        title = ""
-        focusRingType = .exterior
-        refusesFirstResponder = false
-        wantsLayer = true
-        layer?.cornerRadius = 10
-        layer?.cornerCurve = .continuous
-        layer?.borderWidth = 1
-        layer?.masksToBounds = true
-        setContentHuggingPriority(.defaultLow, for: .horizontal)
-        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        setAccessibilityRole(.button)
-        configureChrome()
+private final class ConsoleBrandMark: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 18, height: 18))
+        translatesAutoresizingMaskIntoConstraints = false
+        setAccessibilityElement(false)
+        widthAnchor.constraint(equalToConstant: 18).isActive = true
+        heightAnchor.constraint(equalToConstant: 18).isActive = true
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: Metrics.updateNoticeHeight)
-    }
-
-    override var wantsUpdateLayer: Bool { true }
-
-    override var isHighlighted: Bool {
-        didSet { needsDisplay = true }
-    }
-
-    override func updateLayer() {
-        applyChrome()
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        applyChrome()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {}
-
-    override func drawFocusRingMask() {
-        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
-    }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard super.hitTest(point) != nil else { return nil }
-        return self
-    }
-
-    override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(
-            NSTrackingArea(
-                rect: bounds,
-                options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-                owner: self,
-                userInfo: nil
-            )
-        )
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        hovering = true
-        applyChrome()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        hovering = false
-        applyChrome()
-    }
-
-    func apply(_ notice: HomeUpdateNotice?) {
-        self.notice = notice
-        guard let notice else {
-            titleLabel.stringValue = ""
-            subtitleLabel.stringValue = ""
-            actionLabel.stringValue = ""
-            iconView.image = nil
-            toolTip = nil
-            setAccessibilityLabel(nil)
-            applyChrome()
-            return
+    override func draw(_ dirtyRect: NSRect) {
+        ConsoleChrome.brandBlue(dark: ConsoleChrome.isDark(effectiveAppearance)).setFill()
+        let gap: CGFloat = 2
+        let side = (min(bounds.width, bounds.height) - gap) / 2
+        for row in 0..<2 {
+            for column in 0..<2 {
+                let rect = NSRect(
+                    x: CGFloat(column) * (side + gap),
+                    y: CGFloat(row) * (side + gap),
+                    width: side,
+                    height: side
+                )
+                NSBezierPath(roundedRect: rect, xRadius: 2.2, yRadius: 2.2).fill()
+            }
         }
-        let locale = LanguageCenter.language.locale
-        let title = Self.title(for: notice)
-        let subtitle = Self.subtitle(for: notice, locale: locale)
-        let action = Self.action(for: notice)
-        if titleLabel.stringValue != title {
-            titleLabel.stringValue = title
-        }
-        if subtitleLabel.stringValue != subtitle {
-            subtitleLabel.stringValue = subtitle
-        }
-        if actionLabel.stringValue != action {
-            actionLabel.stringValue = action
-        }
-        let symbol = Self.symbol(for: notice)
-        iconView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
-        let accessibility = [title, subtitle, action].filter { !$0.isEmpty }.joined(separator: ", ")
-        toolTip = accessibility
-        setAccessibilityLabel(accessibility)
-        setAccessibilityRole(.button)
-        applyChrome()
-    }
-
-    private func configureChrome() {
-        iconTile.translatesAutoresizingMaskIntoConstraints = false
-        iconTile.wantsLayer = true
-        iconTile.layer?.cornerRadius = 7
-        iconTile.layer?.cornerCurve = .continuous
-        iconTile.layer?.masksToBounds = true
-        iconTile.setAccessibilityElement(false)
-
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.imageScaling = .scaleProportionallyDown
-        iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        iconView.setAccessibilityElement(false)
-        iconTile.addSubview(iconView)
-
-        configureLabel(titleLabel, font: .systemFont(ofSize: 12, weight: .semibold), color: .labelColor)
-        configureLabel(subtitleLabel, font: .systemFont(ofSize: 11, weight: .regular), color: .secondaryLabelColor)
-        configureLabel(actionLabel, font: .systemFont(ofSize: 11, weight: .medium), color: .controlAccentColor)
-        actionLabel.setContentHuggingPriority(.required, for: .horizontal)
-        actionLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        chevronView.translatesAutoresizingMaskIntoConstraints = false
-        chevronView.imageScaling = .scaleProportionallyDown
-        chevronView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .semibold)
-        chevronView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
-        chevronView.setContentHuggingPriority(.required, for: .horizontal)
-        chevronView.setContentCompressionResistancePriority(.required, for: .horizontal)
-        chevronView.setAccessibilityElement(false)
-
-        let textStack = NSStackView(views: [titleLabel, subtitleLabel])
-        textStack.orientation = .vertical
-        textStack.alignment = .leading
-        textStack.spacing = 1
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-        textStack.setHuggingPriority(.defaultLow, for: .horizontal)
-        textStack.setClippingResistancePriority(.defaultLow, for: .horizontal)
-        textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let actionStack = NSStackView(views: [actionLabel, chevronView])
-        actionStack.orientation = .horizontal
-        actionStack.alignment = .centerY
-        actionStack.spacing = 1
-        actionStack.translatesAutoresizingMaskIntoConstraints = false
-        actionStack.setHuggingPriority(.required, for: .horizontal)
-        actionStack.setContentHuggingPriority(.required, for: .horizontal)
-        actionStack.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        let row = NSStackView(views: [iconTile, textStack, actionStack])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 10
-        row.distribution = .fill
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.setHuggingPriority(.defaultLow, for: .horizontal)
-        addSubview(row)
-
-        NSLayoutConstraint.activate([
-            iconTile.widthAnchor.constraint(equalToConstant: 28),
-            iconTile.heightAnchor.constraint(equalToConstant: 28),
-            iconView.centerXAnchor.constraint(equalTo: iconTile.centerXAnchor),
-            iconView.centerYAnchor.constraint(equalTo: iconTile.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 14),
-            iconView.heightAnchor.constraint(equalToConstant: 14),
-            chevronView.widthAnchor.constraint(equalToConstant: 10),
-            chevronView.heightAnchor.constraint(equalToConstant: 12),
-            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 11),
-            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -11),
-            row.centerYAnchor.constraint(equalTo: centerYAnchor),
-            row.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 11),
-            row.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -11),
-        ])
-    }
-
-    private func configureLabel(_ field: NSTextField, font: NSFont, color: NSColor) {
-        field.font = font
-        field.textColor = color
-        field.lineBreakMode = .byTruncatingTail
-        field.maximumNumberOfLines = 1
-        field.cell?.truncatesLastVisibleLine = true
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        field.setAccessibilityElement(false)
-        field.translatesAutoresizingMaskIntoConstraints = false
-    }
-
-    private func applyChrome() {
-        let accent = Self.tint(for: notice)
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        var fillAlpha: CGFloat = dark ? 0.10 : 0.07
-        var strokeAlpha: CGFloat = dark ? 0.34 : 0.22
-        var tileAlpha: CGFloat = dark ? 0.28 : 0.16
-        if increaseContrast {
-            fillAlpha = dark ? 0.16 : 0.12
-            strokeAlpha = dark ? 0.55 : 0.42
-            tileAlpha = dark ? 0.40 : 0.24
-        }
-        if isHighlighted {
-            fillAlpha += dark ? 0.06 : 0.04
-        } else if hovering {
-            fillAlpha += 0.03
-        }
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = accent.withAlphaComponent(fillAlpha).cgColor
-            layer?.borderColor = accent.withAlphaComponent(strokeAlpha).cgColor
-            iconTile.layer?.backgroundColor = accent.withAlphaComponent(tileAlpha).cgColor
-        }
-        iconView.contentTintColor = accent
-        actionLabel.textColor = accent
-        chevronView.contentTintColor = accent
-    }
-
-    private static func title(for notice: HomeUpdateNotice) -> String {
-        switch notice {
-        case .available, .knownNewer:
-            return L10n.text(.consoleUpdateAvailableTitle)
-        case .downloading:
-            return L10n.text(.consoleUpdateDownloadingTitle)
-        case .downloaded:
-            return L10n.text(.consoleUpdateDownloadedTitle)
-        case .downloadFailed:
-            return L10n.text(.consoleUpdateDownloadFailedTitle)
-        }
-    }
-
-    private static func subtitle(for notice: HomeUpdateNotice, locale: Locale) -> String {
-        switch notice {
-        case .available(let version), .knownNewer(let version):
-            return String(format: L10n.text(.consoleUpdateAvailableDetail), locale: locale, version)
-        case .downloading(let version, let percent):
-            return String(format: L10n.text(.consoleUpdateDownloadingDetail), locale: locale, version, percent)
-        case .downloaded(let version), .downloadFailed(let version):
-            return version
-        }
-    }
-
-    private static func action(for notice: HomeUpdateNotice) -> String {
-        switch notice {
-        case .available, .knownNewer:
-            return L10n.text(.consoleUpdateActionView)
-        case .downloading:
-            return L10n.text(.consoleUpdateActionProgress)
-        case .downloaded:
-            return L10n.text(.consoleUpdateActionInstaller)
-        case .downloadFailed:
-            return L10n.text(.consoleUpdateActionDetails)
-        }
-    }
-
-    private static func symbol(for notice: HomeUpdateNotice) -> String {
-        switch notice {
-        case .available, .knownNewer: return "square.and.arrow.down"
-        case .downloading: return "arrow.down.circle"
-        case .downloaded: return "checkmark.circle"
-        case .downloadFailed: return "exclamationmark.circle"
-        }
-    }
-
-    private static func tint(for notice: HomeUpdateNotice?) -> NSColor {
-        if case .downloadFailed = notice { return .systemOrange }
-        return .controlAccentColor
     }
 }
 
@@ -1154,10 +942,24 @@ private final class ConsolePanel: NSPanel {
     }
 }
 
-private final class ConsoleMaterialView: NSVisualEffectView {
+private final class ConsolePassthroughView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        material = .menu
+        wantsLayer = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private final class ConsoleMaterialView: NSVisualEffectView {
+    private let tint = ConsolePassthroughView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        material = .popover
         blendingMode = .behindWindow
         state = .active
         wantsLayer = true
@@ -1166,6 +968,13 @@ private final class ConsoleMaterialView: NSVisualEffectView {
         layer?.masksToBounds = true
         autoresizingMask = [.width, .height]
         maskImage = Self.roundedMaskImage(cornerRadius: Metrics.panelCornerRadius)
+        tint.frame = bounds
+        tint.autoresizingMask = [.width, .height]
+        tint.layer?.cornerRadius = Metrics.panelCornerRadius
+        tint.layer?.cornerCurve = .continuous
+        tint.layer?.borderWidth = 1
+        addSubview(tint)
+        applyTint()
     }
 
     @available(*, unavailable)
@@ -1175,7 +984,22 @@ private final class ConsoleMaterialView: NSVisualEffectView {
 
     override func layout() {
         super.layout()
+        tint.frame = bounds
+        applyTint()
         window?.invalidateShadow()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyTint()
+    }
+
+    private func applyTint() {
+        let dark = ConsoleChrome.isDark(effectiveAppearance)
+        tint.layer?.backgroundColor = ConsoleChrome.panelTint(dark: dark).cgColor
+        tint.layer?.borderColor = (dark
+            ? NSColor.white.withAlphaComponent(0.12)
+            : NSColor.black.withAlphaComponent(0.08)).cgColor
     }
 
     private static func roundedMaskImage(cornerRadius: CGFloat) -> NSImage {
@@ -1192,68 +1016,37 @@ private final class ConsoleMaterialView: NSVisualEffectView {
     }
 }
 
-/// 8pt overlay scroller with no slot, shared by the console's layout grid and
-/// workspace strip so both scroll indicators look alike.
-final class ThinOverlayScroller: NSScroller {
-    override class var isCompatibleWithOverlayScrollers: Bool { true }
-
-    override class func scrollerWidth(for controlSize: NSControl.ControlSize, scrollerStyle: NSScroller.Style) -> CGFloat {
-        8
-    }
-
-    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {}
-}
-
-private final class ScrollAwareClipView: NSClipView {
-    var onBoundsChange: (() -> Void)?
-    private var reportedBoundsOrigin: NSPoint?
-
-    override func setBoundsOrigin(_ newOrigin: NSPoint) {
-        super.setBoundsOrigin(newOrigin)
-        reportBoundsOriginChange()
-    }
-
-    override func scroll(to newOrigin: NSPoint) {
-        super.scroll(to: newOrigin)
-        reportBoundsOriginChange()
-    }
-
-    private func reportBoundsOriginChange() {
-        let origin = bounds.origin
-        guard reportedBoundsOrigin != origin else { return }
-        reportedBoundsOrigin = origin
-        onBoundsChange?()
-    }
-}
-
 private enum Metrics {
-    static let width: CGFloat = 380
+    static let width: CGFloat = 400
     static let panelCornerRadius: CGFloat = 16
-    static let panelInsets = NSEdgeInsets(top: 16, left: 16, bottom: 14, right: 16)
-    static let stackSpacing: CGFloat = 12
-    static let headerHeight: CGFloat = 44
-    static let warningHeight: CGFloat = 24
-    static let featuredHeight: CGFloat = 112
-    static let sectionHeaderHeight: CGFloat = 16
-    static let footerHeight: CGFloat = 24
-    static let updateNoticeHeight: CGFloat = 52
-    static let columns = 2
-    static let columnSpacing: CGFloat = 10
-    static let rowSpacing: CGFloat = 10
+    static let panelInsets = NSEdgeInsets(top: 12, left: 14, bottom: 8, right: 14)
+    static let sectionGap: CGFloat = 14
+    static let headerHeight: CGFloat = 32
+    static let displayRowHeight: CGFloat = 24
+    static let featuredHeight: CGFloat = 86
+    static let sectionHeaderHeight: CGFloat = 24
+    static let footerHeight: CGFloat = 28
+    static let columns = 3
+    static let rowSpacing: CGFloat = 8
     static let contentWidth = width - panelInsets.left - panelInsets.right
-    static let compactWidth = (contentWidth - columnSpacing) / 2
-    static let compactHeight: CGFloat = 104
-    static let compactPreviewSize = NSSize(width: compactWidth - 28, height: 62)
-    static let compactThumbnailSize = compactPreviewSize
-    static let featuredPreviewSize = NSSize(width: 156, height: 78)
-    static let featuredPreviewInset: CGFloat = 0
-    static let featuredThumbnailSize = featuredPreviewSize
-    static let maxGridHeight: CGFloat = compactHeight * 2 + rowSpacing
-    static let workspaceStripHeight: CGFloat = 96
+    static let compactWidth = floor((contentWidth - 16) / CGFloat(columns))
+    static let columnSpacing = floor((contentWidth - compactWidth * CGFloat(columns)) / CGFloat(columns - 1))
+    static let compactHeight: CGFloat = 100
+    static let compactPlateHeight: CGFloat = 64
+    static let featuredPlateSize = NSSize(width: 112, height: 70)
+    static let platePadding: CGFloat = 5
+    static let maxGridRows = 2
+    static let maxGridHeight = compactHeight * CGFloat(maxGridRows) + rowSpacing * CGFloat(maxGridRows - 1)
 }
 
 private final class LayoutGridView: NSView {
     override var isFlipped: Bool { true }
+
+    static func height(forTileCount count: Int) -> CGFloat {
+        guard count > 0 else { return 0 }
+        let rows = Int(ceil(Double(count) / Double(Metrics.columns)))
+        return CGFloat(rows) * Metrics.compactHeight + CGFloat(rows - 1) * Metrics.rowSpacing
+    }
 
     func setTiles(_ tiles: [NSView]) {
         subviews.forEach { $0.removeFromSuperview() }
@@ -1262,8 +1055,7 @@ private final class LayoutGridView: NSView {
             addSubview(tile)
         }
         needsLayout = true
-        invalidateIntrinsicContentSize()
-        setFrameSize(intrinsicContentSize)
+        setFrameSize(NSSize(width: Metrics.contentWidth, height: Self.height(forTileCount: tiles.count)))
     }
 
     func reconcileHoverState() {
@@ -1272,32 +1064,19 @@ private final class LayoutGridView: NSView {
         }
     }
 
-    override var intrinsicContentSize: NSSize {
-        let count = subviews.count
-        guard count > 0 else { return NSSize(width: Metrics.contentWidth, height: 0) }
-        let rows = Int(ceil(Double(count) / Double(Metrics.columns)))
-        let height = CGFloat(rows) * Metrics.compactHeight + CGFloat(max(rows - 1, 0)) * Metrics.rowSpacing
-        return NSSize(width: Metrics.contentWidth, height: height)
-    }
-
     override func layout() {
         super.layout()
-        let tileW = Metrics.compactWidth
-        let tileH = Metrics.compactHeight
-        let colGap = Metrics.columnSpacing
-        let rowGap = Metrics.rowSpacing
         for (index, tile) in subviews.enumerated() {
             let row = index / Metrics.columns
             let col = index % Metrics.columns
             tile.frame = NSRect(
-                x: CGFloat(col) * (tileW + colGap),
-                y: CGFloat(row) * (tileH + rowGap),
-                width: tileW,
-                height: tileH
+                x: CGFloat(col) * (Metrics.compactWidth + Metrics.columnSpacing),
+                y: CGFloat(row) * (Metrics.compactHeight + Metrics.rowSpacing),
+                width: Metrics.compactWidth,
+                height: Metrics.compactHeight
             )
         }
-        let rows = Int(ceil(Double(subviews.count) / Double(Metrics.columns)))
-        let height = CGFloat(rows) * tileH + CGFloat(max(rows - 1, 0)) * rowGap
+        let height = Self.height(forTileCount: subviews.count)
         if abs(frame.height - height) > 0.5 || abs(frame.width - Metrics.contentWidth) > 0.5 {
             setFrameSize(NSSize(width: Metrics.contentWidth, height: height))
         }
@@ -1305,12 +1084,13 @@ private final class LayoutGridView: NSView {
     }
 }
 
-private final class LayoutCardView: NSView {
+private final class LayoutCardView: ConsoleInteractiveView {
     enum Mode {
         case featured
         case compact
     }
 
+    private let sourceLayout: Layout
     private let mode: Mode
     private let selected: Bool
     private let canDelete: Bool
@@ -1318,19 +1098,9 @@ private final class LayoutCardView: NSView {
     private let onEdit: () -> Void
     private let onDelete: () -> Void
     private let title: String
-    private let thumbnail: NSImage
-    private let gutterPoints: CGFloat
-    private let showNumbers: Bool
-    private var hovering = false {
-        didSet {
-            guard oldValue != hovering else { return }
-            updateActionVisibility()
-            needsDisplay = true
-        }
-    }
-    private let editButton = NSButton()
-    private let deleteButton = NSButton()
-    private let checkImageView = NSImageView()
+    private var thumbnails: [String: NSImage] = [:]
+    private let editButton: ConsoleButton
+    private let moreButton: ConsoleButton
 
     init(
         layout: Layout,
@@ -1338,12 +1108,11 @@ private final class LayoutCardView: NSView {
         mode: Mode,
         selected: Bool,
         canDelete: Bool,
-        gutterPoints: CGFloat,
-        showNumbers: Bool,
         onSelect: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
+        self.sourceLayout = layout
         self.mode = mode
         self.selected = selected
         self.canDelete = canDelete
@@ -1351,136 +1120,51 @@ private final class LayoutCardView: NSView {
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.title = displayTitle ?? L10n.layoutDisplayName(layout.name)
-        self.gutterPoints = gutterPoints
-        self.showNumbers = showNumbers
-        let thumbnailSize = mode == .featured
-            ? Metrics.featuredThumbnailSize
-            : Metrics.compactThumbnailSize
-        let fill = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.36)
-            : NSColor.controlAccentColor.withAlphaComponent(0.28)
-        let stroke = selected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.76)
-            : NSColor.white.withAlphaComponent(0.38)
-        self.thumbnail = LayoutThumbnailRenderer.image(
-            for: layout,
-            size: thumbnailSize,
-            fill: fill,
-            stroke: stroke,
-            gutterPoints: gutterPoints,
-            showNumbers: showNumbers
-        )
+        let editTitle = L10n.text(.consoleEdit)
+        let moreTitle = L10n.text(.consoleMore)
+        if mode == .featured {
+            editButton = ConsoleButton(role: .surface, title: editTitle, symbol: "pencil")
+            editButton.controlHeight = 28
+            editButton.horizontalPadding = 11
+            moreButton = ConsoleButton(role: .surface, symbol: "ellipsis")
+            moreButton.controlHeight = 28
+        } else {
+            editButton = ConsoleButton(role: .surface, symbol: "pencil")
+            editButton.controlHeight = 22
+            editButton.fontSize = 10
+            moreButton = ConsoleButton(role: .surface, symbol: "ellipsis")
+            moreButton.controlHeight = 22
+            moreButton.fontSize = 10
+        }
         let size = mode == .featured
             ? NSSize(width: Metrics.contentWidth, height: Metrics.featuredHeight)
             : NSSize(width: Metrics.compactWidth, height: Metrics.compactHeight)
         super.init(frame: NSRect(origin: .zero, size: size))
         translatesAutoresizingMaskIntoConstraints = true
-        wantsLayer = true
-        layer?.cornerRadius = mode == .featured ? 14 : 12
-        layer?.cornerCurve = .continuous
-        layer?.masksToBounds = true
-        setAccessibilityRole(.button)
-        setAccessibilityLabel(title)
-        setAccessibilitySelected(selected)
-        autoresizingMask = []
-        configureCheckmark()
-        configureActionButtons()
-    }
 
-    private func configureCheckmark() {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-        checkImageView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
-        checkImageView.contentTintColor = .controlAccentColor
-        checkImageView.imageScaling = .scaleProportionallyDown
-        checkImageView.isHidden = !selected || mode != .featured
-        addSubview(checkImageView)
-    }
-
-    private func configureActionButtons() {
-        configureChromeButton(
-            editButton,
-            symbol: "pencil",
-            title: L10n.text(.consoleEdit),
-            role: .edit,
-            action: #selector(editTapped)
-        )
-        configureChromeButton(
-            deleteButton,
-            symbol: "trash",
-            title: L10n.text(.editorDelete),
-            role: .delete,
-            action: #selector(deleteTapped)
-        )
-        addSubview(editButton)
-        addSubview(deleteButton)
-        updateActionVisibility()
-        layoutActionButtons()
-    }
-
-    private func configureChromeButton(
-        _ button: NSButton,
-        symbol: String,
-        title: String,
-        role: ActionRole,
-        action: Selector
-    ) {
-        button.bezelStyle = .regularSquare
-        button.isBordered = false
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleProportionallyDown
-        button.refusesFirstResponder = true
-        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
-            .withSymbolConfiguration(config)
-        button.toolTip = title
-        button.setAccessibilityLabel(title)
-        button.target = self
-        button.action = action
-        button.wantsLayer = true
-        button.layer?.cornerRadius = mode == .featured ? 6 : 5
-        button.layer?.cornerCurve = .continuous
-        button.layer?.masksToBounds = true
-        button.translatesAutoresizingMaskIntoConstraints = true
-        applyActionChrome(button, role: role)
-    }
-
-    private func updateActionVisibility() {
-        let showsActions = mode == .featured || hovering
-        editButton.isHidden = !showsActions
-        deleteButton.isHidden = !showsActions || !canDelete
-    }
-
-    @objc private func deleteTapped() {
-        onDelete()
-    }
-
-    @objc private func editTapped() {
-        onEdit()
-    }
-
-    private func layoutActionButtons() {
-        let size: CGFloat = mode == .featured ? 22 : 20
-        let inset: CGFloat = mode == .featured ? 8 : 6
-        let gap: CGFloat = 6
-        deleteButton.frame = NSRect(
-            x: bounds.maxX - inset - size,
-            y: bounds.maxY - inset - size,
-            width: size,
-            height: size
-        )
-        editButton.frame = NSRect(
-            x: deleteButton.frame.minX - gap - size,
-            y: deleteButton.frame.minY,
-            width: size,
-            height: size
-        )
-        if mode == .featured {
-            checkImageView.frame = NSRect(x: bounds.maxX - 32, y: 18, width: 20, height: 20)
-        } else {
-            checkImageView.frame = .zero
+        for (button, label, action) in [
+            (editButton, editTitle, #selector(editTapped)),
+            (moreButton, moreTitle, #selector(moreTapped)),
+        ] {
+            button.translatesAutoresizingMaskIntoConstraints = true
+            button.toolTip = label
+            button.setAccessibilityLabel(label)
+            button.target = self
+            button.action = action
+            addSubview(button)
         }
-        updateActionVisibility()
+
+        var parts = [title]
+        if mode == .featured {
+            parts.insert(L10n.text(.consoleCurrentLayout), at: 0)
+            parts.append(selected ? L10n.text(.consoleInUse) : L10n.text(.consoleNotApplied))
+        }
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(parts.joined(separator: ", "))
+        setAccessibilitySelected(selected)
+        toolTip = title
+        interactionStateDidChange()
     }
 
     required init?(coder: NSCoder) { nil }
@@ -1491,179 +1175,230 @@ private final class LayoutCardView: NSView {
             : NSSize(width: Metrics.compactWidth, height: Metrics.compactHeight)
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(
-            NSTrackingArea(
-                rect: bounds,
-                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                owner: self,
-                userInfo: nil
-            )
-        )
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        if let grid = superview as? LayoutGridView {
-            grid.reconcileHoverState()
-        } else {
-            reconcileHoverState()
+    override func interactionStateDidChange() {
+        super.interactionStateDidChange()
+        if mode == .compact {
+            editButton.isHidden = !isHovering
+            moreButton.isHidden = !isHovering
         }
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        hovering = false
-    }
-
-    func reconcileHoverState() {
-        guard mode == .compact, let window else {
-            hovering = false
-            return
-        }
-        let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-        hovering = bounds.contains(point) && visibleRect.contains(point)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if !editButton.isHidden, editButton.frame.contains(point) {
-            onEdit()
-            return
-        }
-        if !deleteButton.isHidden, deleteButton.frame.contains(point) {
-            onDelete()
-            return
-        }
-        onSelect()
     }
 
     override func layout() {
         super.layout()
-        layoutActionButtons()
+        if mode == .featured {
+            let side = moreButton.controlHeight
+            let editWidth = editButton.intrinsicContentSize.width
+            let y = ((bounds.height - side) / 2).rounded()
+            moreButton.frame = NSRect(x: bounds.maxX - 12 - side, y: y, width: side, height: side)
+            editButton.frame = NSRect(x: moreButton.frame.minX - 6 - editWidth, y: y, width: editWidth, height: side)
+        } else {
+            let side = moreButton.controlHeight
+            let plate = compactPlateRect
+            moreButton.frame = NSRect(x: plate.maxX - 3 - side, y: plate.maxY - 3 - side, width: side, height: side)
+            editButton.frame = NSRect(x: moreButton.frame.minX - 3 - side, y: moreButton.frame.minY, width: side, height: side)
+        }
+    }
+
+    override func performPrimaryAction() {
+        onSelect()
+    }
+
+    override func showContextMenu(with event: NSEvent) {
+        NSMenu.popUpContextMenu(makeMenu(), with: event, for: self)
+    }
+
+    @objc private func editTapped() { onEdit() }
+
+    @objc private func deleteTapped() { onDelete() }
+
+    @objc private func moreTapped() {
+        makeMenu().popUp(positioning: nil, at: NSPoint(x: moreButton.frame.minX, y: moreButton.frame.minY), in: self)
+    }
+
+    private func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let edit = NSMenuItem(title: L10n.text(.consoleEdit), action: #selector(editTapped), keyEquivalent: "")
+        edit.target = self
+        menu.addItem(edit)
+        menu.addItem(.separator())
+        let delete = NSMenuItem(title: L10n.text(.editorDelete), action: #selector(deleteTapped), keyEquivalent: "")
+        delete.target = self
+        delete.isEnabled = canDelete
+        menu.addItem(delete)
+        return menu
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        applyActionChrome(editButton, role: .edit)
-        applyActionChrome(deleteButton, role: .delete)
+        thumbnails.removeAll()
         needsDisplay = true
     }
 
-    private enum ActionRole {
-        case edit
-        case delete
+    // MARK: Drawing
+
+    private var compactPlateRect: NSRect {
+        NSRect(
+            x: 8,
+            y: bounds.height - 8 - Metrics.compactPlateHeight,
+            width: bounds.width - 16,
+            height: Metrics.compactPlateHeight
+        )
     }
 
-    private func applyActionChrome(_ button: NSButton, role: ActionRole) {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let tint: NSColor
-        let fill: NSColor
-        switch role {
-        case .edit:
-            tint = .secondaryLabelColor
-            fill = NSColor.labelColor.withAlphaComponent(dark ? 0.10 : 0.06)
-        case .delete:
-            tint = .systemRed
-            fill = NSColor.systemRed.withAlphaComponent(dark ? 0.16 : 0.08)
-        }
-        button.contentTintColor = tint
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            button.layer?.backgroundColor = fill.cgColor
-            button.layer?.borderWidth = 0
-        }
+    private var featuredPlateRect: NSRect {
+        NSRect(
+            x: 8,
+            y: ((bounds.height - Metrics.featuredPlateSize.height) / 2).rounded(),
+            width: Metrics.featuredPlateSize.width,
+            height: Metrics.featuredPlateSize.height
+        )
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let fill: NSColor
-        switch mode {
-        case .featured:
-            fill = selected
-                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.16 : 0.08)
-                : (dark ? NSColor.white : NSColor.black).withAlphaComponent(0.04)
-        case .compact:
-            fill = hovering
-                ? NSColor.controlAccentColor.withAlphaComponent(dark ? 0.12 : 0.07)
-                : (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.05 : 0.035)
-        }
-        fill.setFill()
-        let radius: CGFloat = mode == .featured ? 14 : 12
-        NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
-        if mode == .featured, selected {
-            let border = NSBezierPath(
-                roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
-                xRadius: radius,
-                yRadius: radius
-            )
-            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.45 : 0.28).setStroke()
-            border.lineWidth = 1
-            border.stroke()
+        let dark = ConsoleChrome.isDark(effectiveAppearance)
+        let radius: CGFloat = mode == .featured ? 12 : 10
+        let card = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: radius, yRadius: radius)
+        let blue = ConsoleChrome.brandBlue(dark: dark)
+
+        ConsoleChrome.surface(dark: dark).setFill()
+        card.fill()
+        if isPressed {
+            ConsoleChrome.pressedWash(dark: dark).setFill()
+            card.fill()
+        } else if isHovering {
+            ConsoleChrome.hoverWash(dark: dark).setFill()
+            card.fill()
+        } else if selected {
+            blue.withAlphaComponent(dark ? 0.12 : 0.06).setFill()
+            card.fill()
         }
 
+        let border: NSColor
+        if isHovering || isPressed {
+            border = ConsoleChrome.hoverBorder(dark: dark)
+        } else if selected {
+            border = blue.withAlphaComponent(dark ? 0.5 : 0.35)
+        } else {
+            border = ConsoleChrome.surfaceBorder(dark: dark)
+        }
+        border.setStroke()
+        card.lineWidth = 1
+        card.stroke()
+
+        let active = selected || isHovering || isPressed
+        if mode == .featured {
+            drawFeatured(dark: dark, active: active)
+        } else {
+            drawCompact(dark: dark, active: active)
+        }
+    }
+
+    private func drawPlate(_ plate: NSRect, dark: Bool, active: Bool) {
+        ConsoleChrome.screenPlate(dark: dark).setFill()
+        NSBezierPath(roundedRect: plate, xRadius: 6, yRadius: 6).fill()
+        let preview = plate.insetBy(dx: Metrics.platePadding, dy: Metrics.platePadding)
+        thumbnail(size: preview.size, dark: dark, active: active).draw(in: preview)
+    }
+
+    private func drawFeatured(dark: Bool, active: Bool) {
+        let plate = featuredPlateRect
+        drawPlate(plate, dark: dark, active: active)
+
+        let textX = plate.maxX + 14
+        let textWidth = max(24, editButton.frame.minX - 10 - textX)
+        let top = bounds.midY + 27
+        drawLine(
+            L10n.text(.consoleCurrentLayout),
+            font: .systemFont(ofSize: 11, weight: .medium),
+            color: .secondaryLabelColor,
+            rect: NSRect(x: textX, y: top - 14, width: textWidth, height: 14)
+        )
+        drawLine(
+            title,
+            font: .systemFont(ofSize: 15, weight: .semibold),
+            color: .labelColor,
+            rect: NSRect(x: textX, y: top - 35, width: textWidth, height: 19)
+        )
+        let statusY = top - 54
+        let statusFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+        guard selected else {
+            drawLine(
+                L10n.text(.consoleNotApplied),
+                font: statusFont,
+                color: .secondaryLabelColor,
+                rect: NSRect(x: textX, y: statusY, width: textWidth, height: 16)
+            )
+            return
+        }
+        let blue = ConsoleChrome.brandBlue(dark: dark)
+        ConsoleChrome.symbol("checkmark.circle.fill", size: 12, weight: .semibold, color: blue)?
+            .draw(in: NSRect(x: textX, y: statusY + 1, width: 13, height: 13))
+        let status = NSMutableAttributedString(
+            string: L10n.text(.consoleInUse),
+            attributes: [.font: statusFont, .foregroundColor: blue]
+        )
+        status.append(NSAttributedString(
+            string: "  ·  " + zoneCountText,
+            attributes: [.font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor]
+        ))
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
+        status.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: status.length))
+        status.draw(in: NSRect(x: textX + 17, y: statusY, width: max(10, textWidth - 17), height: 16))
+    }
 
-        let thumbRect: NSRect
-        let titleRect: NSRect
-        let font: NSFont
-        switch mode {
-        case .featured:
-            let previewRect = NSRect(
-                x: 14,
-                y: ((bounds.height - Metrics.featuredPreviewSize.height) / 2).rounded(),
-                width: Metrics.featuredPreviewSize.width,
-                height: Metrics.featuredPreviewSize.height
-            )
-            thumbRect = previewRect
-            titleRect = NSRect(
-                x: previewRect.maxX + 14,
-                y: ((bounds.height - 22) / 2).rounded(),
-                width: max(0, bounds.maxX - previewRect.maxX - 36),
-                height: 22
-            )
-            font = .systemFont(ofSize: 15, weight: .semibold)
-            paragraph.alignment = .left
-        case .compact:
-            let previewRect = NSRect(
-                x: ((bounds.width - Metrics.compactPreviewSize.width) / 2).rounded(),
-                y: bounds.maxY - 10 - Metrics.compactPreviewSize.height,
-                width: Metrics.compactPreviewSize.width,
-                height: Metrics.compactPreviewSize.height
-            )
-            thumbRect = previewRect
-            titleRect = NSRect(x: 8, y: 8, width: bounds.width - 16, height: 16)
-            font = .systemFont(ofSize: 12, weight: .medium)
-            paragraph.alignment = .center
-        }
-        thumbnail.draw(in: thumbRect)
+    private var zoneCountText: String {
+        let count = sourceLayout.zones.count
+        if count == 1 { return L10n.text(.consoleZoneCountSingle) }
+        return String(format: L10n.text(.consoleZoneCount), locale: LanguageCenter.language.locale, count)
+    }
 
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: font,
+    private func drawCompact(dark: Bool, active: Bool) {
+        drawPlate(compactPlateRect, dark: dark, active: active)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph,
         ]
-        (title as NSString).draw(in: titleRect, withAttributes: attrs)
+        (title as NSString).draw(
+            in: NSRect(x: 6, y: 7, width: max(0, bounds.width - 12), height: 16),
+            withAttributes: attributes
+        )
     }
 
-    /// The display the zones live in: a faint bezel-like plate behind the
-    /// thumbnail, drawn the same way on featured and compact cards.
-    private func drawScreenFrame(
-        _ rect: NSRect,
-        radius: CGFloat,
-        lineWidth: CGFloat,
-        strokeAlpha: CGFloat,
-        dark: Bool
-    ) {
-        let path = NSBezierPath(
-            roundedRect: rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
-            xRadius: radius,
-            yRadius: radius
+    private func drawLine(_ text: String, font: NSFont, color: NSColor, rect: NSRect) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph,
+        ]
+        (text as NSString).draw(in: rect, withAttributes: attributes)
+    }
+
+    private func thumbnail(size: NSSize, dark: Bool, active: Bool) -> NSImage {
+        let key = "\(dark)-\(active)-\(Int(size.width))x\(Int(size.height))"
+        if let cached = thumbnails[key] { return cached }
+        let featured = mode == .featured
+        let image = LayoutThumbnailRenderer.image(
+            for: sourceLayout,
+            size: size,
+            fill: active ? ConsoleChrome.zoneActive(dark: dark) : ConsoleChrome.zoneIdle(dark: dark),
+            stroke: .clear,
+            gutterPoints: featured ? 4 : 3,
+            showNumbers: true,
+            numberColor: .white,
+            cornerRadius: featured ? 4 : 3,
+            lineWidth: 0,
+            minimumNumberSize: 7.5,
+            maximumNumberSize: featured ? 17 : 13
         )
-        NSColor.labelColor.withAlphaComponent(dark ? 0.055 : 0.035).setFill()
-        path.fill()
-        NSColor.separatorColor.withAlphaComponent(strokeAlpha).setStroke()
-        path.lineWidth = lineWidth
-        path.stroke()
+        thumbnails[key] = image
+        return image
     }
 }

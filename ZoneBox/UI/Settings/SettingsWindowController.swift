@@ -52,7 +52,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var updateCheckFrequencyPopup: NSPopUpButton?
     private var updateCheckFrequencyDetailLabel: NSTextField?
     private var updateCurrentLabel: NSTextField?
-    private var updateLatestLabel: NSTextField?
+    private var updateLatestButton: NSButton?
     private var updateArrowView: NSImageView?
     private var updateStatusLabel: NSTextField?
     private var updateProgress: NSProgressIndicator?
@@ -62,6 +62,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var updateRetryButton: NSButton?
     private var updateRevealButton: NSButton?
     private var updateOpenButton: NSButton?
+    private var updateInstallButton: NSButton?
     private var licenseStatusLabel: NSTextField?
     private var licenseKeyField: LicenseKeyTextField?
     private var licenseFeedbackRow: NSStackView?
@@ -2118,14 +2119,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         current.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         updateCurrentLabel = current
 
-        let latest = NSTextField(labelWithString: "")
+        let latest = NSButton(title: "", target: self, action: #selector(downloadUpdate))
+        latest.isBordered = false
+        latest.bezelStyle = .inline
         latest.font = .systemFont(ofSize: 13, weight: .semibold)
-        latest.textColor = .controlAccentColor
+        latest.contentTintColor = .controlAccentColor
         latest.alignment = .left
-        latest.maximumNumberOfLines = 1
         latest.lineBreakMode = .byTruncatingTail
         latest.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-        updateLatestLabel = latest
+        latest.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        updateLatestButton = latest
 
         let status = NSTextField(wrappingLabelWithString: "")
         status.font = .systemFont(ofSize: 12)
@@ -2174,7 +2177,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let retry = localizedButton(.settingsRetryUpdate, action: #selector(retryUpdate))
         let reveal = localizedButton(.settingsShowInstaller, action: #selector(revealDownloadedUpdate))
         let open = localizedButton(.settingsOpenInstaller, action: #selector(openDownloadedUpdate))
-        for button in [check, download, cancel, retry, reveal, open] {
+        let install = localizedButton(.settingsInstallAndRestart, action: #selector(installDownloadedUpdate))
+        for button in [check, download, cancel, retry, reveal, open, install] {
             button.bezelStyle = .rounded
             button.controlSize = .small
         }
@@ -2184,8 +2188,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         updateRetryButton = retry
         updateRevealButton = reveal
         updateOpenButton = open
+        updateInstallButton = install
 
-        let actions = NSStackView(views: [check, download, cancel, retry, reveal, open])
+        let actions = NSStackView(views: [check, download, cancel, retry, install, reveal, open])
         actions.orientation = .horizontal
         actions.alignment = .centerY
         actions.spacing = 8
@@ -2221,6 +2226,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         var failed = false
         var fraction = 0.0
         var offerVersion: String?
+        var installing = false
+        let inPlace = runtime.updates.canInstallInPlace
         switch runtime.updates.phase {
         case .idle:
             break
@@ -2234,6 +2241,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             available = true
             offerVersion = offer.latestVersion.description
             latestVersion = offer.latestVersion.description
+            status = String(
+                format: L10n.text(inPlace ? .settingsUpdateAvailableInstall : .settingsUpdateAvailable),
+                locale: locale,
+                offer.latestVersion.description
+            )
         case .downloading(let offer, let received, let expected):
             downloading = true
             latestVersion = offer.latestVersion.description
@@ -2244,18 +2256,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         case .downloaded(let offer, _):
             downloaded = true
             latestVersion = offer.latestVersion.description
-            status = L10n.text(.settingsUpdateDownloaded)
+            status = L10n.text(Self.downloadedStatusKey(runtime.updates.installEligibility))
+        case .installing(let offer, _):
+            installing = true
+            latestVersion = offer.latestVersion.description
+            status = L10n.text(.settingsUpdateInstalling)
         case .failed(let message, _):
             failed = true
             status = message
         }
         let showComparison = latestVersion.map { isNewerUpdate($0, than: current) } ?? false
         if showComparison, let latestVersion {
-            updateLatestLabel?.stringValue = String(format: L10n.text(.settingsUpdateLatest), locale: locale, latestVersion)
-            updateLatestLabel?.isHidden = false
+            updateLatestButton?.title = String(format: L10n.text(.settingsUpdateLatest), locale: locale, latestVersion)
+            updateLatestButton?.isHidden = false
             updateArrowView?.isHidden = false
         } else {
-            updateLatestLabel?.isHidden = true
+            updateLatestButton?.isHidden = true
             updateArrowView?.isHidden = true
             if status.isEmpty,
                let latestVersion,
@@ -2264,34 +2280,47 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 status = L10n.text(.settingsUpdateUpToDate)
             }
         }
-        if status.isEmpty, !showComparison, !available, !downloaded, !checking, !downloading, !failed {
+        if status.isEmpty, !showComparison, !available, !downloaded, !checking, !downloading, !installing, !failed {
             status = L10n.text(.settingsUpdateNotChecked)
         }
         updateStatusLabel?.stringValue = status
         updateStatusLabel?.isHidden = status.isEmpty
         updateProgress?.doubleValue = fraction
-        if downloading {
+        if downloading || installing {
             updateProgress?.startAnimation(nil)
         } else {
             updateProgress?.stopAnimation(nil)
         }
-        updateProgress?.isHidden = !downloading
-        updateCheckButton?.isEnabled = !checking && !downloading
-        updateCheckButton?.isHidden = downloading
+        updateProgress?.isHidden = !(downloading || installing)
+        updateProgress?.isIndeterminate = installing
+        updateCheckButton?.isEnabled = !checking && !downloading && !installing
+        updateCheckButton?.isHidden = downloading || installing
         updateDownloadButton?.isHidden = !available
         if available, let offerVersion {
             updateDownloadButton?.title = String(
-                format: L10n.text(.settingsDownloadUpdateVersion),
+                format: L10n.text(inPlace ? .settingsDownloadAndInstallVersion : .settingsDownloadUpdateVersion),
                 locale: locale,
                 offerVersion
             )
         } else {
-            updateDownloadButton?.title = L10n.text(.settingsDownloadUpdate)
+            updateDownloadButton?.title = L10n.text(inPlace ? .settingsDownloadAndInstall : .settingsDownloadUpdate)
         }
+        updateLatestButton?.isEnabled = !checking && !downloading && !installing
+        updateLatestButton?.setAccessibilityLabel(updateLatestButton?.title ?? "")
         updateCancelButton?.isHidden = !downloading
         updateRetryButton?.isHidden = !failed
         updateRevealButton?.isHidden = !downloaded
-        updateOpenButton?.isHidden = !downloaded
+        updateOpenButton?.isHidden = !(downloaded && !inPlace)
+        updateInstallButton?.isHidden = !(downloaded && inPlace)
+        if downloaded, let latestVersion, inPlace {
+            updateInstallButton?.title = String(
+                format: L10n.text(.settingsInstallAndRestartVersion),
+                locale: locale,
+                latestVersion
+            )
+        } else {
+            updateInstallButton?.title = L10n.text(.settingsInstallAndRestart)
+        }
     }
 
     private func isNewerUpdate(_ latest: String, than current: String) -> Bool {
@@ -2299,6 +2328,23 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
               let currentVersion = AppVersion.parse(current)
         else { return false }
         return currentVersion < latestVersion
+    }
+
+    private static func downloadedStatusKey(_ eligibility: UpdateInstallEligibility) -> L10nKey {
+        switch eligibility {
+        case .ready:
+            return .settingsUpdateDownloadedReady
+        case .unsupported(.debugBuild):
+            return .settingsUpdateDownloadedDebug
+        case .unsupported(.translocated):
+            return .settingsUpdateDownloadedTranslocated
+        case .unsupported(.unwritable):
+            return .settingsUpdateDownloadedUnwritable
+        case .unsupported(.unexpectedBundleID), .unsupported(.unsignedOrAdHocCurrent), .unsupported(.teamMismatch):
+            return .settingsUpdateDownloadedBlocked
+        case .unsupported(.invalidSignature):
+            return .settingsUpdateDownloadedBlocked
+        }
     }
 
     @objc private func updateCheckFrequencyChanged(_ sender: NSPopUpButton) {
@@ -2314,18 +2360,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     }
 
     @objc private func downloadUpdate() {
-        guard case .available(let offer) = runtime.updates.phase else { return }
-        let alert = NSAlert()
-        alert.messageText = L10n.text(.settingsUpdateConfirmTitle)
-        alert.informativeText = String(
-            format: L10n.text(.settingsUpdateConfirmMessage),
-            locale: LanguageCenter.language.locale,
-            offer.latestVersion.description
-        )
-        alert.addButton(withTitle: L10n.text(.settingsDownloadUpdate))
-        alert.addButton(withTitle: L10n.text(.settingsCancelUpdate))
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        Task { await runtime.updates.download(offer) }
+        runtime.updates.startUserRequestedUpdate()
     }
 
     @objc private func cancelUpdateDownload() {
@@ -2342,6 +2377,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
 
     @objc private func openDownloadedUpdate() {
         runtime.updates.openInstaller()
+    }
+
+    @objc private func installDownloadedUpdate() {
+        runtime.updates.startUserRequestedUpdate()
     }
 
     @objc private func toggleLogin(_ sender: NSSwitch) {

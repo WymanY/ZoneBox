@@ -30,6 +30,7 @@ swiftc \
   -o "$OUT" \
   "$ROOT/ZoneBox/Services/GitHubReleaseClient.swift" \
   "$ROOT/ZoneBox/Services/UpdateCenter.swift" \
+  "$ROOT/ZoneBox/Services/UpdateInstaller.swift" \
   "$ROOT/script/update_check_restore_regression.swift"
 
 "$OUT"
