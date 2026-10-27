@@ -230,8 +230,8 @@ final class UpdateInstallTests: XCTestCase {
 
     func testNestedBackupUnderDestinationIsRejected() throws {
         try FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
-        let destination = try copyFixture(named: "Nest Dest.app")
-        let source = try copyFixture(named: "Nest Source.app")
+        let destination = try makeScratchApp(named: "Nest Dest.app")
+        let source = try makeScratchApp(named: "Nest Source.app")
         let backup = destination.appendingPathComponent("inside.zoneboxbackup")
         let request = helperRequest(
             source: source,
@@ -362,6 +362,16 @@ final class UpdateInstallTests: XCTestCase {
             includingPropertiesForKeys: nil
         ).filter { $0.lastPathComponent.contains("zoneboxbackup-") }
         XCTAssertFalse(leftovers.isEmpty)
+    }
+
+    private func makeScratchApp(named name: String) throws -> URL {
+        try FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
+        let url = scratchRoot.appendingPathComponent(name, isDirectory: true)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     private func copyFixture(named name: String) throws -> URL {
