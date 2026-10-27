@@ -4,8 +4,10 @@ import ZoneBoxCore
 // Repeatable runner from repo root:
 //   ./script/run_update_check_restore_regression.sh
 // Needs Debug ZoneBoxCore at .build/DerivedData/Build/Products/Debug/libZoneBoxCore.a
-// from make build or make test. Compiles GitHubReleaseClient.swift and UpdateCenter.swift
-// against that library with a URLProtocol fixture. No internet, NSWorkspace, or app prefs.
+// from make build or make test. Compiles GitHubReleaseClient.swift, UpdateCenter.swift,
+// and UpdateInstaller.swift against that library with a URLProtocol fixture.
+// A no-op UpdateInstalling stub is injected so this harness never stages or replaces an app.
+// No internet, NSWorkspace, or app prefs.
 
 @main
 enum UpdateCheckRestoreRegression {
@@ -192,7 +194,7 @@ enum UpdateCheckRestoreRegression {
             session: URLSession(configuration: config),
             userAgent: "ZoneBoxRestoreRegression/1"
         )
-        let center = UpdateCenter(store: store, client: client)
+        let center = UpdateCenter(store: store, client: client, installer: RegressionInstaller())
         center.currentVersion = { currentVersion }
         center.updateCheckFrequency = { .manual }
         return center
@@ -269,6 +271,13 @@ enum UpdateCheckRestoreRegression {
     struct Failure: Error, CustomStringConvertible {
         let description: String
         init(_ description: String) { self.description = description }
+    }
+}
+
+@MainActor
+final class RegressionInstaller: UpdateInstalling {
+    func install(fromDMG dmgURL: URL, offer: UpdateOffer, context: UpdateInstallContext) async -> UpdateInstallAttempt {
+        .unsupported(.debugBuild)
     }
 }
 

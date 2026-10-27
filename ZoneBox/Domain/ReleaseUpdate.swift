@@ -132,6 +132,8 @@ public enum HomeUpdateLiveState: Equatable, Sendable {
     case downloaded(version: String)
     case checkFailed
     case downloadFailed(version: String)
+    case installing(version: String)
+    case installFailed(version: String)
 }
 
 public enum HomeUpdateNotice: Equatable, Sendable {
@@ -139,6 +141,8 @@ public enum HomeUpdateNotice: Equatable, Sendable {
     case downloading(version: String, percent: Int)
     case downloaded(version: String)
     case downloadFailed(version: String)
+    case installing(version: String)
+    case installFailed(version: String)
     case knownNewer(version: String)
 
     public var version: String {
@@ -147,6 +151,8 @@ public enum HomeUpdateNotice: Equatable, Sendable {
              .downloading(let version, _),
              .downloaded(let version),
              .downloadFailed(let version),
+             .installing(let version),
+             .installFailed(let version),
              .knownNewer(let version):
             return version
         }
@@ -173,6 +179,10 @@ public enum HomeUpdateNotice: Equatable, Sendable {
             return .downloaded(version: version)
         case .downloadFailed(let version):
             return .downloadFailed(version: version)
+        case .installing(let version):
+            return .installing(version: version)
+        case .installFailed(let version):
+            return .installFailed(version: version)
         case .none, .checking, .checkFailed:
             guard let cached = cachedNewerVersion(
                 currentVersion: currentVersion,
@@ -203,6 +213,10 @@ public enum UpdateSchedule {
     public static let dailyInterval: TimeInterval = 24 * 60 * 60
     public static let weeklyInterval: TimeInterval = 7 * 24 * 60 * 60
     public static let minimumRetryInterval: TimeInterval = 15 * 60
+
+    public static func shouldSkipAutomaticCheck(unresolvedInstallFailure: Bool) -> Bool {
+        unresolvedInstallFailure
+    }
 
     public static func shouldAutomaticallyCheck(
         frequency: UpdateCheckFrequency,

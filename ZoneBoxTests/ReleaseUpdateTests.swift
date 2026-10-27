@@ -181,6 +181,26 @@ final class ReleaseUpdateTests: XCTestCase {
         )
         XCTAssertTrue(
             UpdateSchedule.shouldAutomaticallyCheck(
+                frequency: .onLaunch,
+                lastCheckAt: nil,
+                lastSuccessfulCheckAt: nil,
+                now: now,
+                launchCheckSatisfied: false
+            )
+        )
+        XCTAssertTrue(UpdateSchedule.shouldSkipAutomaticCheck(unresolvedInstallFailure: true))
+        XCTAssertFalse(UpdateSchedule.shouldSkipAutomaticCheck(unresolvedInstallFailure: false))
+        let onLaunchDue = UpdateSchedule.shouldAutomaticallyCheck(
+            frequency: .onLaunch,
+            lastCheckAt: nil,
+            lastSuccessfulCheckAt: nil,
+            now: now,
+            launchCheckSatisfied: false
+        )
+        XCTAssertTrue(onLaunchDue)
+        XCTAssertFalse(onLaunchDue && !UpdateSchedule.shouldSkipAutomaticCheck(unresolvedInstallFailure: true))
+        XCTAssertTrue(
+            UpdateSchedule.shouldAutomaticallyCheck(
                 frequency: .daily,
                 lastCheckAt: nil,
                 lastSuccessfulCheckAt: nil,
