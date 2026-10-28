@@ -201,6 +201,74 @@ final class ProfilePlanTests: XCTestCase {
         XCTAssertEqual(outcome.sections.first?.placements.map(\.identity), [front.identity])
     }
 
+    func testOverlappingSavedWindowsAllBecomePlacementsAtSavedFrames() throws {
+        let display = UUID()
+        let editorFrame = NormalizedRect(x: 0, y: 0, width: 1, height: 1)
+        let chromeFrame = NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)
+        let profile = WorkspaceProfile(name: "Desk", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), rules: [
+                rule("com.google.Chrome", chromeFrame),
+                rule("com.openai.codex", editorFrame),
+            ]),
+        ])
+        let chrome = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "com.google.Chrome"),
+            frameAX: chromeFrame.denormalize(in: workArea)
+        )
+        let codex = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 2, windowNumber: 2, bundleID: "com.openai.codex"),
+            frameAX: editorFrame.denormalize(in: workArea)
+        )
+
+        let outcome = ProfilePlan.make(
+            profile: profile,
+            workAreasBySection: [display: workArea],
+            candidates: [chrome, codex]
+        )
+
+        let placements = try XCTUnwrap(outcome.sections.first?.placements)
+        XCTAssertEqual(placements.map(\.identity), [chrome.identity, codex.identity])
+        XCTAssertEqual(
+            placements.map(\.targetFrameAX),
+            [chromeFrame.denormalize(in: workArea), editorFrame.denormalize(in: workArea)]
+        )
+        XCTAssertEqual(outcome.sections.first?.targetFramesAX.count, 2)
+        XCTAssertTrue(outcome.missingBundleIDs.isEmpty)
+    }
+
+    func testSameAppOverlappingSavedWindowsAllBecomePlacements() throws {
+        let display = UUID()
+        let frontFrame = NormalizedRect(x: 0.25, y: 0, width: 0.5, height: 1)
+        let backFrame = NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)
+        let profile = WorkspaceProfile(name: "Desk", sections: [
+            ProfileSection(space: SpaceKey(displayID: display), rules: [
+                rule("com.google.Chrome", frontFrame),
+                rule("com.google.Chrome", backFrame),
+            ]),
+        ])
+        let front = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 1, bundleID: "com.google.Chrome"),
+            frameAX: frontFrame.denormalize(in: workArea)
+        )
+        let back = ProfileCapture.WindowSample(
+            identity: WindowIdentity(pid: 1, windowNumber: 2, bundleID: "com.google.Chrome"),
+            frameAX: backFrame.denormalize(in: workArea)
+        )
+
+        let outcome = ProfilePlan.make(
+            profile: profile,
+            workAreasBySection: [display: workArea],
+            candidates: [front, back]
+        )
+
+        let placements = try XCTUnwrap(outcome.sections.first?.placements)
+        XCTAssertEqual(placements.map(\.identity), [front.identity, back.identity])
+        XCTAssertEqual(
+            placements.map(\.targetFrameAX),
+            [frontFrame.denormalize(in: workArea), backFrame.denormalize(in: workArea)]
+        )
+    }
+
     func testRunningAppWithoutWindowsShouldReopenInsteadOfLaunch() {
         XCTAssertEqual(
             ProfilePlan.openAction(

@@ -607,16 +607,7 @@ final class WorkspaceCenter {
 
     private func collectVisibleSamples() -> [ProfileCapture.WindowSample] {
         let refs = runtime.query.windows(excludingPID: ProcessInfo.processInfo.processIdentifier)
-        let visible = ProfileCapture.visibleWindowIdentities(
-            frontToBack: refs.map {
-                ProfileCapture.VisibilitySample(
-                    identity: $0.identity,
-                    frameAX: $0.boundsAX,
-                    opacity: $0.alpha,
-                    isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
-                )
-            }
-        )
+        let visible = capturableIdentities(from: refs)
         return refs.compactMap { ref in
             guard visible.contains(ref.identity),
                   let bundleID = ref.bundleID,
@@ -625,6 +616,21 @@ final class WorkspaceCenter {
             else { return nil }
             return ProfileCapture.WindowSample(identity: ref.identity, frameAX: ref.boundsAX)
         }
+    }
+
+    /// Save, recapture, preview, and summary share this occlusion filter.
+    private func capturableIdentities(from refs: [WindowRef]) -> Set<WindowIdentity> {
+        ProfileCapture.capturableWindowIdentities(
+            frontToBack: refs.map {
+                ProfileCapture.VisibilitySample(
+                    identity: $0.identity,
+                    frameAX: $0.boundsAX,
+                    opacity: $0.alpha,
+                    isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
+                )
+            },
+            includeFullyOccluded: runtime.settings.captureFullyOccludedWindows
+        )
     }
 
     /// Windows are grouped by the display that holds most of them and saved
@@ -681,16 +687,7 @@ final class WorkspaceCenter {
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let refs = runtime.query.windows(excludingPID: ownPID)
         let visibleIdentities = visibleOnly
-            ? ProfileCapture.visibleWindowIdentities(
-                frontToBack: refs.map {
-                    ProfileCapture.VisibilitySample(
-                        identity: $0.identity,
-                        frameAX: $0.boundsAX,
-                        opacity: $0.alpha,
-                        isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
-                    )
-                }
-            )
+            ? capturableIdentities(from: refs)
             : nil
 
         var pidOrder: [pid_t] = []

@@ -613,17 +613,27 @@ private final class WorkspaceMiniPreview: NSView {
         for pane in snapshot.panes {
             let frame = rect(pane.rect, in: canvas).insetBy(dx: 0.5, dy: 0.5)
             frames.append(frame)
-            guard frame.width > 1, frame.height > 1 else { continue }
-            let radius = min(3, min(frame.width, frame.height) * 0.2)
-            let path = NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius)
+            guard let path = WorkspaceLayoutPreviewDrawing.roundedPath(
+                for: frame,
+                maxRadius: 3,
+                factor: 0.2
+            ) else { continue }
             base.setFill()
             path.fill()
             tone.withAlphaComponent(highlighted ? (dark ? 0.42 : 0.30) : (dark ? 0.40 : 0.28)).setFill()
             path.fill()
-            tone.withAlphaComponent(0.9).setStroke()
-            path.lineWidth = 1
-            path.stroke()
         }
+        let outline = tone.withAlphaComponent(0.9)
+        WorkspaceLayoutPreviewDrawing.strokeOutlines(
+            panes: snapshot.panes,
+            frames: frames,
+            maxRadius: 3,
+            factor: 0.2,
+            solid: outline,
+            dashed: outline,
+            solidWidth: 1,
+            dashedWidth: 1
+        )
 
         for (index, pane) in snapshot.panes.enumerated() where pane.showsIcon {
             guard let icon = icons[pane.bundleID] else { continue }

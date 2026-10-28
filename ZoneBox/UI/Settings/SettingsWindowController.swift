@@ -43,6 +43,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var restoreSwitch: NSSwitch?
     private var layoutStripSwitch: NSSwitch?
     private var previewLayoutOnSelectSwitch: NSSwitch?
+    private var captureFullyOccludedSwitch: NSSwitch?
     private var gutterLabel: NSTextField?
     private var gutterSlider: NSSlider?
     private var hotkeysLabel: NSTextField?
@@ -465,7 +466,32 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         stack.spacing = 12
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 4, right: 0)
         stack.detachesHiddenViews = true
-        workspaceList = stack
+        let occluded = settingSwitch(
+            titleKey: .settingsCaptureFullyOccludedWindows,
+            on: runtime.settings.captureFullyOccludedWindows,
+            action: #selector(toggleCaptureFullyOccludedWindows(_:))
+        )
+        captureFullyOccludedSwitch = occluded
+        let captureSettings = makeGroupedRows([
+            makeSettingRow(
+                symbol: "rectangle.on.rectangle",
+                fallbackSymbol: "square.stack",
+                titleKey: .settingsCaptureFullyOccludedWindows,
+                detailKey: .settingsCaptureFullyOccludedWindowsDetail,
+                trailing: occluded
+            )
+        ])
+        stack.addArrangedSubview(captureSettings)
+        captureSettings.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+
+        let list = NSStackView()
+        list.orientation = .vertical
+        list.alignment = .width
+        list.spacing = 12
+        list.detachesHiddenViews = true
+        workspaceList = list
+        stack.addArrangedSubview(list)
+        list.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         reloadWorkspaceProfiles()
         return stack
     }
@@ -1835,6 +1861,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         numbersSwitch?.setAccessibilityLabel(L10n.text(.settingsShowNumbers))
         layoutStripSwitch?.setAccessibilityLabel(L10n.text(.settingsShowLayoutStrip))
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
+        captureFullyOccludedSwitch?.setAccessibilityLabel(L10n.text(.settingsCaptureFullyOccludedWindows))
+        captureFullyOccludedSwitch?.state = runtime.settings.captureFullyOccludedWindows ? .on : .off
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
         reloadUpdateCheckFrequencyPopup()
@@ -1949,6 +1977,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         updatePreview()
     }
     @objc private func togglePreviewLayoutOnSelect(_ sender: NSSwitch) { runtime.setPreviewLayoutOnSelect(sender.state == .on) }
+    @objc private func toggleCaptureFullyOccludedWindows(_ sender: NSSwitch) {
+        runtime.settings.captureFullyOccludedWindows = sender.state == .on
+        runtime.persistSettings()
+    }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleHoverPin(_ sender: NSSwitch) {
         if sender.state == .on, !runtime.requestProAccess(for: .pin) {

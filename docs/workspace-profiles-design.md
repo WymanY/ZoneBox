@@ -118,7 +118,7 @@ public struct WorkspaceProfile: Codable, Hashable, Identifiable, Sendable {
 ### 5.1 采样与归属（`WorkspaceCenter.captureSections`）
 
 1. `CGWindowQuery.windows(excludingPID:)` 取 WindowServer 前后序的 layer 0 窗口。
-2. `ProfileCapture.visibleWindowIdentities` 过滤**可见**窗口：不透明前置窗口覆盖其面积 ≥ 25% 即视为被遮住，不入工作区（贴靠相邻窗口常见的 1pt 接缝不算遮挡）。透明度 ≤ 0.01 的窗口忽略。
+2. `ProfileCapture.capturableWindowIdentities` 过滤**可保存**窗口。默认 `AppSettings.captureFullyOccludedWindows = false`（旧 JSON 缺字段同 false）：不透明前置窗口（可多块联合）把窗口矩形盖到没有可用可见区才排除。可用可见区指还能放下大于 8×8 pt 的方块（判定时 candidate inset 4pt、不透明遮挡物 outset 4pt）；6pt 贴靠细缝不算可见，露出几十 pt 或半窗的部分重叠仍保留。打开该设置后跳过 inset/outset，当前桌面上被完全遮住的普通窗口也会保存，但不放宽最小化、隐藏应用、其他 Space 等既有过滤，也不缩小已保存 frame。贴靠相邻窗口常见的 1pt 接缝本来就不是 occupancy 遮挡。透明度 ≤ 0.01 的窗口忽略。透明前置窗口不作为遮挡物。分隔杆 occupancy 仍走 `ProfileCapture.visibleWindowIdentities`（单块不透明前置窗覆盖 ≥ 25% 即排除），两者不要混用。该开关只影响之后新建或从当前窗口更新工作区；不改已保存 profile，也不影响恢复时的窗口发现。保存、重捕获、preview/summary 共用 `WorkspaceCenter.capturableIdentities`。
 3. 排除 `settings.excludedBundleIDs`、无 bundleID 的窗口。
 4. 每个窗口按 `DisplayTargetResolver.workArea(containingWindowFrameAX:)` 归到「占其大部分面积」的显示器，一个显示器一节；节内保持 front-to-back。
 5. `ProfileCapture.rules(windows:workAreaAX:)`：一条规则一个窗口，`frame = NormalizedRect.normalize(窗口 AX 帧, in: 该显示器可用区域 AX 帧)`。**没有任何分区匹配**：跨两个分区、或根本不理布局的窗口，都原样记下。
@@ -253,8 +253,8 @@ HUD 切换器 reducer 输入除 `captureCount / suggestedName`（全桌）外还
 
 Core（`ZoneBoxTests`，`make test`）：
 
-1. **`ProfileCaptureTests`**：窗口按实际位置保存而非分区（左半 Chrome → `(0,0,0.5,1)`，右半 Cursor → `(0.5,0,0.5,1)`，独占 → `(0,0,1,1)`）；归一化/反算往返精度；z-order 保持；无 bundleID / 零可用区域 → 空；重叠窗口都保存；`readingOrder`；`matches` 容差；可见性（遮挡 ≥ 25% 才算）；范围过滤与重捕获合并（未接节保留、空捕获返回 nil）。
-2. **`ProfilePlanTests`**：跨节共享队列不重复占用窗口；缺失 / 未接显示器 / `targetFramesAX`；位置随实时可用区域缩放；已在位窗口优先、本屏优先、其余按 z-order；`restorableBundleIDs`、`openAction`。
+1. **`ProfileCaptureTests`**：窗口按实际位置保存而非分区（左半 Chrome → `(0,0,0.5,1)`，右半 Cursor → `(0.5,0,0.5,1)`，独占 → `(0,0,1,1)`）；归一化/反算往返精度；z-order 保持；无 bundleID / 零可用区域 → 空；重叠窗口都保存；`readingOrder`；`matches` 容差；工作区可见性（默认需可用可见区，8pt 细缝排除、50pt/半窗保留；`captureFullyOccludedWindows` 开启后包含全遮挡/联合遮挡/细缝后窗）与分隔杆 occupancy（单窗遮挡 ≥ 25% 仍排除）；范围过滤与重捕获合并（未接节保留、空捕获返回 nil）。**`SettingsStoreTests`**：该设置默认 false、缺字段 false、往返。
+2. **`ProfilePlanTests`**：跨节共享队列不重复占用窗口；缺失 / 未接显示器 / `targetFramesAX`；位置随实时可用区域缩放；已在位窗口优先、本屏优先、其余按 z-order；重叠保存条目全部进入 placements 并保持原 frame；`restorableBundleIDs`、`openAction`。
 3. **`WorkspaceRestoreTests`**：启动/重开/放弃策略、超时常量、合盖重映射、兄弟显示器不被抢占、重映射后仍能计划与启动缺失应用。
 4. **`WorkspaceSwitcherTests`**：浏览/命名状态机；`toggleCaptureScope` 无范围选择时忽略、有选择时翻转并在建议名未被编辑时跟随、手输名字保留；只保存这一屏时 `capture(displayID:)` 带该屏 id、该屏应用数为 0 时 beep、范围选择消失时退回全桌；排布等价忽略顺序与 2% 抖动、不同显示器/位置/数量不等价。
 5. **`WorkspaceLayoutPreviewTests`**：预览按位置从后到前绘制、被盖住的窗口不画图标、过小窗口不画图标、图标落在窗口内。
