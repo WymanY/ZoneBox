@@ -256,6 +256,21 @@ final class L10nTests: XCTestCase {
         }
     }
 
+    func testCaptureFullyOccludedWindowsCopy() {
+        XCTAssertEqual(
+            L10n.text(.settingsCaptureFullyOccludedWindows, language: .chineseSimplified),
+            "包含完全被遮挡的窗口"
+        )
+        XCTAssertEqual(
+            L10n.text(.settingsCaptureFullyOccludedWindowsDetail, language: .chineseSimplified),
+            "保存工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。"
+        )
+        XCTAssertEqual(
+            L10n.text(.settingsCaptureFullyOccludedWindows, language: .english),
+            "Include fully covered windows"
+        )
+    }
+
     func testWelcomeTourCopy() {
         XCTAssertEqual(L10n.text(.welcomeIntroTitle, language: .english), "Welcome to ZoneBox")
         XCTAssertEqual(L10n.text(.welcomeIntroTitle, language: .chineseSimplified), "欢迎使用 ZoneBox")

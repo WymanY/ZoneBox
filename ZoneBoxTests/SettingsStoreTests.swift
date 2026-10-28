@@ -76,6 +76,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(legacy.previewLayoutOnSelect)
     }
 
+    func testCaptureFullyOccludedWindowsDefaultsOffAndRoundTrips() throws {
+        XCTAssertFalse(AppSettings.default.captureFullyOccludedWindows)
+        var settings = AppSettings.default
+        settings.captureFullyOccludedWindows = true
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertTrue(try JSONDecoder().decode(AppSettings.self, from: data).captureFullyOccludedWindows)
+
+        let legacy = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data("{\"schemaVersion\":1}".utf8)
+        )
+        XCTAssertFalse(legacy.captureFullyOccludedWindows)
+    }
+
     func testOnboardingCompletedVersionDefaultsToZeroAndRoundTrips() throws {
         XCTAssertEqual(AppSettings.default.onboardingCompletedVersion, 0)
         let legacy = try JSONDecoder().decode(

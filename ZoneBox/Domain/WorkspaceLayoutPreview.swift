@@ -15,6 +15,9 @@ public enum WorkspaceLayoutPreview {
         /// front, for an icon to mean anything. The pane is still drawn.
         public var showsIcon: Bool
         public var labelRect: NormalizedRect
+        /// True when a later (front) pane overlaps this window's interior, so
+        /// the schematic should stroke the full frame with a dashed outline.
+        public var isOccluded: Bool
     }
 
     public struct Snapshot: Equatable, Sendable {
@@ -38,12 +41,15 @@ public enum WorkspaceLayoutPreview {
             )
         }
         let labels = placeLabels(drafts, canvasSize: canvasSize)
-        let panes = zip(drafts, labels).map { draft, placement in
-            Pane(
+        let panes = zip(drafts, labels).enumerated().map { index, pair in
+            let (draft, placement) = pair
+            let occluded = drafts[(index + 1)...].contains { interiorsOverlap(draft.rect, $0.rect) }
+            return Pane(
                 bundleID: draft.bundleID,
                 rect: draft.rect,
                 showsIcon: placement.showsIcon,
-                labelRect: normalize(placement.frame, in: canvasSize)
+                labelRect: normalize(placement.frame, in: canvasSize),
+                isOccluded: occluded
             )
         }
         return Snapshot(panes: panes)
@@ -211,6 +217,14 @@ public enum WorkspaceLayoutPreview {
             width: CGFloat(rect.width) * canvas.width,
             height: CGFloat(rect.height) * canvas.height
         )
+    }
+
+    /// Shared edges and sub-pixel capture jitter are not overlaps. A 0.002
+    /// fraction is about 2–4 points on a typical display.
+    private static func interiorsOverlap(_ a: NormalizedRect, _ b: NormalizedRect) -> Bool {
+        let width = min(a.maxX, b.maxX) - max(a.x, b.x)
+        let height = min(a.maxY, b.maxY) - max(a.y, b.y)
+        return width > 0.002 && height > 0.002
     }
 
     private static func normalize(_ frame: CGRect, in canvas: CGSize) -> NormalizedRect {

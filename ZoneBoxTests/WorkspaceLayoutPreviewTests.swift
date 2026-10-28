@@ -13,6 +13,8 @@ final class WorkspaceLayoutPreviewTests: XCTestCase {
         XCTAssertEqual(snapshot.panes[0].rect, NormalizedRect(x: 0, y: 0, width: 0.5, height: 1))
         XCTAssertEqual(snapshot.panes[1].rect, NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1))
         XCTAssertTrue(snapshot.panes.allSatisfy(\.showsIcon))
+        XCTAssertFalse(snapshot.panes[0].isOccluded)
+        XCTAssertFalse(snapshot.panes[1].isOccluded)
     }
 
     func testEmptyRulesProduceNoPanes() {
@@ -32,6 +34,8 @@ final class WorkspaceLayoutPreviewTests: XCTestCase {
             "overlapping windows must not stack icons on top of each other"
         )
         XCTAssertTrue(snapshot.panes.allSatisfy(\.showsIcon))
+        XCTAssertTrue(snapshot.panes[0].isOccluded)
+        XCTAssertFalse(snapshot.panes[1].isOccluded)
     }
 
     func testWindowHiddenBehindAFrontWindowDropsItsIcon() {
@@ -43,6 +47,8 @@ final class WorkspaceLayoutPreviewTests: XCTestCase {
         XCTAssertEqual(snapshot.panes.map(\.bundleID), ["back", "front"])
         XCTAssertFalse(snapshot.panes[0].showsIcon)
         XCTAssertTrue(snapshot.panes[1].showsIcon)
+        XCTAssertTrue(snapshot.panes[0].isOccluded)
+        XCTAssertFalse(snapshot.panes[1].isOccluded)
     }
 
     func testTinyWindowHidesIconButKeepsPane() {
@@ -52,6 +58,7 @@ final class WorkspaceLayoutPreviewTests: XCTestCase {
         XCTAssertEqual(snapshot.panes.count, 1)
         XCTAssertEqual(snapshot.panes[0].bundleID, "x.y")
         XCTAssertFalse(snapshot.panes[0].showsIcon)
+        XCTAssertFalse(snapshot.panes[0].isOccluded)
     }
 
     func testLabelRectStaysInsidePane() {
@@ -67,7 +74,31 @@ final class WorkspaceLayoutPreviewTests: XCTestCase {
             XCTAssertGreaterThan(paneRect.intersection(label).height, 0)
             XCTAssertEqual(paneRect.intersection(label).width, label.width, accuracy: 0.02)
             XCTAssertEqual(paneRect.intersection(label).height, label.height, accuracy: 0.02)
+            XCTAssertFalse(pane.isOccluded)
         }
+    }
+
+    func testFullscreenBackWindowIsOccludedByFrontHalf() {
+        let snapshot = WorkspaceLayoutPreview.snapshot(rules: [
+            AppPlacementRule(bundleID: "chrome", frame: NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)),
+            AppPlacementRule(bundleID: "chatgpt", frame: NormalizedRect(x: 0, y: 0, width: 1, height: 1)),
+        ])
+
+        XCTAssertEqual(snapshot.panes.map(\.bundleID), ["chatgpt", "chrome"])
+        XCTAssertEqual(snapshot.panes[0].rect, NormalizedRect(x: 0, y: 0, width: 1, height: 1))
+        XCTAssertEqual(snapshot.panes[1].rect, NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1))
+        XCTAssertTrue(snapshot.panes[0].isOccluded)
+        XCTAssertFalse(snapshot.panes[1].isOccluded)
+    }
+
+    func testHairlineTouchingWindowsAreNotOccluded() {
+        let snapshot = WorkspaceLayoutPreview.snapshot(rules: [
+            AppPlacementRule(bundleID: "right", frame: NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)),
+            AppPlacementRule(bundleID: "left", frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)),
+        ])
+        XCTAssertEqual(snapshot.panes.count, 2)
+        XCTAssertFalse(snapshot.panes[0].isOccluded)
+        XCTAssertFalse(snapshot.panes[1].isOccluded)
     }
 
     private func rects(_ rect: NormalizedRect) -> CGRect {

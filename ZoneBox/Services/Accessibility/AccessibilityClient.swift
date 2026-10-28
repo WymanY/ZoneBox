@@ -155,6 +155,21 @@ final class AccessibilityClientLive: AccessibilityClient {
         }
     }
 
+    /// AppKit activation brings the owner's main and key windows forward.
+    /// Select the restored window first so other windows of the same process
+    /// do not jump above intervening windows from another application.
+    func prepareForActivation(_ window: AXWindow) async {
+        await onAX(pid: window.identity.pid) { [self] in
+            guard trusted() else { return }
+            for attribute in [kAXMainAttribute, kAXFocusedAttribute] {
+                var settable: DarwinBoolean = false
+                guard AXUIElementIsAttributeSettable(window.element, attribute as CFString, &settable) == .success,
+                      settable.boolValue else { continue }
+                AXUIElementSetAttributeValue(window.element, attribute as CFString, kCFBooleanTrue)
+            }
+        }
+    }
+
     /// Make another process frontmost without ZoneBox becoming active.
     /// System-wide kAXFocusedApplicationAttribute is not settable; the
     /// application kAXFrontmostAttribute is.

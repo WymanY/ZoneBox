@@ -354,6 +354,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsWorkspaceUnavailableDisplay
     case settingsWorkspaceActive
     case settingsWorkspaceLayoutPreview
+    case settingsCaptureFullyOccludedWindows
+    case settingsCaptureFullyOccludedWindowsDetail
     case settingsAccessGranted
     case settingsAccessRequired
     case settingsManageAccess
@@ -1111,6 +1113,8 @@ public enum L10n {
         .settingsWorkspaceUnavailableDisplay: "Unavailable display",
         .settingsWorkspaceActive: "Last applied",
         .settingsWorkspaceLayoutPreview: "Restored window positions",
+        .settingsCaptureFullyOccludedWindows: "Include fully covered windows",
+        .settingsCaptureFullyOccludedWindowsDetail: "When saving a workspace, also include windows on the current desktop that are completely covered by other windows.",
         .settingsAccessGranted: "Accessibility allowed",
         .settingsAccessRequired: "Accessibility required",
         .settingsManageAccess: "Manage…",
@@ -1660,6 +1664,8 @@ public enum L10n {
         .settingsWorkspaceUnavailableDisplay: "不可用的显示器",
         .settingsWorkspaceActive: "最近应用",
         .settingsWorkspaceLayoutPreview: "恢复位置示意",
+        .settingsCaptureFullyOccludedWindows: "包含完全被遮挡的窗口",
+        .settingsCaptureFullyOccludedWindowsDetail: "保存工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。",
         .settingsAccessGranted: "辅助功能权限：已授权",
         .settingsAccessRequired: "需要辅助功能权限",
         .settingsManageAccess: "管理权限…",

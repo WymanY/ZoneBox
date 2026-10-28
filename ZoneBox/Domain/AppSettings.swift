@@ -41,6 +41,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var uiLanguage: AppLanguagePreference
     public var showLayoutStrip: Bool
     public var previewLayoutOnSelect: Bool
+    /// Save-time only: include current-desktop windows fully covered by others.
+    public var captureFullyOccludedWindows: Bool
     public var editorHotkey: KeyChord
     public var shortcutsPanelHotkey: KeyChord
     public var quickSnapperHotkey: KeyChord
@@ -99,6 +101,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         uiLanguage: .system,
         showLayoutStrip: true,
         previewLayoutOnSelect: true,
+        captureFullyOccludedWindows: false,
         editorHotkey: KeyChord(keyCode: 6, carbonModifiers: controlOption),
         shortcutsPanelHotkey: KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: controlOption),
         quickSnapperHotkey: KeyChord(keyCode: HardwareKeyCode.space, carbonModifiers: controlOption),
@@ -162,6 +165,8 @@ extension AppSettings {
         uiLanguage = try c.decodeIfPresent(AppLanguagePreference.self, forKey: .uiLanguage) ?? .system
         showLayoutStrip = try c.decodeIfPresent(Bool.self, forKey: .showLayoutStrip) ?? defaults.showLayoutStrip
         previewLayoutOnSelect = try c.decodeIfPresent(Bool.self, forKey: .previewLayoutOnSelect) ?? defaults.previewLayoutOnSelect
+        captureFullyOccludedWindows = try c.decodeIfPresent(Bool.self, forKey: .captureFullyOccludedWindows)
+            ?? defaults.captureFullyOccludedWindows
         editorHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .editorHotkey) ?? defaults.editorHotkey
         shortcutsPanelHotkey = try c.decodeIfPresent(KeyChord.self, forKey: .shortcutsPanelHotkey)
             ?? KeyChord(keyCode: HardwareKeyCode.slash, carbonModifiers: editorHotkey.carbonModifiers)
