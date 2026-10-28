@@ -1080,7 +1080,7 @@ final class WorkspaceCenter {
             lastPID = pid
             _ = app.unhide()
             await runtime.ax.prepareForActivation(window)
-            for attempt in 1...2 {
+            await WorkspaceRestore.activateRestoredWindow(attempt: { attempt in
                 let accepted = app.activate(options: [])
                 try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
                 let outcome = WorkspaceRestore.activationOutcome(
@@ -1091,8 +1091,15 @@ final class WorkspaceCenter {
                 Log.workspace.info(
                     "Apply activate window=\(window.identity.windowNumber, privacy: .public) pid=\(Int(pid), privacy: .public) attempt=\(attempt, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)"
                 )
-                if !WorkspaceRestore.shouldRetryActivation(outcome) { break }
-            }
+                return outcome
+            }, fallback: {
+                await self.bringApplicationFrontmost(
+                    bundleID: bundleID,
+                    pid: pid,
+                    allWindows: WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
+                )
+                await self.runtime.ax.prepareForActivation(window)
+            })
             _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
         }
         let frontmost = NSWorkspace.shared.frontmostApplication

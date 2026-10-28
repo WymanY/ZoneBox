@@ -522,4 +522,61 @@ final class WorkspaceRestoreTests: XCTestCase {
         XCTAssertFalse(WorkspaceRestore.shouldRetryActivation(.noProcess))
         XCTAssertEqual(WorkspaceRestore.activationSettleDelay, 0.05)
     }
+
+    @MainActor
+    func testRestoredWindowFallsBackAfterBothAppKitAttemptsAreRefused() async {
+        var events: [String] = []
+        var frontmostPID: pid_t? = 7
+        await WorkspaceRestore.activateRestoredWindow(attempt: { number in
+            events.append("appkit-\(number)")
+            return WorkspaceRestore.activationOutcome(
+                requestAccepted: false, requestedPID: 42, actualFrontmostPID: frontmostPID
+            )
+        }, fallback: {
+            events.append("ax-foreground")
+            frontmostPID = 42
+        })
+        XCTAssertEqual(events, ["appkit-1", "appkit-2", "ax-foreground"])
+        XCTAssertEqual(frontmostPID, 42)
+    }
+
+    @MainActor
+    func testRestoredWindowFallsBackWhenAppKitAcceptsButOwnerStaysInBackground() async {
+        var events: [String] = []
+        await WorkspaceRestore.activateRestoredWindow(attempt: { number in
+            events.append("appkit-\(number)")
+            return WorkspaceRestore.activationOutcome(
+                requestAccepted: true, requestedPID: 42, actualFrontmostPID: 43
+            )
+        }, fallback: {
+            events.append("ax-foreground")
+        })
+        XCTAssertEqual(events, ["appkit-1", "appkit-2", "ax-foreground"])
+    }
+
+    @MainActor
+    func testRestoredWindowSuccessfulActivationNeverFallsBack() async {
+        for successfulAttempt in [1, 2] {
+            var attempts: [Int] = []
+            await WorkspaceRestore.activateRestoredWindow(attempt: { number in
+                attempts.append(number)
+                return number == successfulAttempt ? .acceptedAndFrontmost : .rejected
+            }, fallback: {
+                XCTFail("AX foregrounding would disturb an already restored window stack")
+            })
+            XCTAssertEqual(attempts, Array(1...successfulAttempt))
+        }
+    }
+
+    @MainActor
+    func testRestoredWindowDoesNotRetryOrForegroundAMissingProcess() async {
+        var attempts: [Int] = []
+        await WorkspaceRestore.activateRestoredWindow(attempt: { number in
+            attempts.append(number)
+            return .noProcess
+        }, fallback: {
+            XCTFail("A process that has disappeared must not be foregrounded")
+        })
+        XCTAssertEqual(attempts, [1])
+    }
 }

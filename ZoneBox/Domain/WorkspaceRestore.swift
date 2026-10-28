@@ -285,4 +285,18 @@ public enum WorkspaceRestore {
             return false
         }
     }
+
+    /// Prefer window-scoped activation to preserve interleaved stacks. If
+    /// AppKit never foregrounds the owner, retain the AX foregrounding path.
+    @MainActor
+    public static func activateRestoredWindow(
+        attempt: (Int) async -> ActivationOutcome,
+        fallback: () async -> Void
+    ) async {
+        for number in 1...2 {
+            let outcome = await attempt(number)
+            if !shouldRetryActivation(outcome) { return }
+        }
+        await fallback()
+    }
 }

@@ -175,7 +175,7 @@ public struct SectionPlan {
 - `.placement` 语义下 `sizeConstrained`（窗口最小尺寸大于保存尺寸）接受并记 issue，只有 position/immutable/unstable 才拒绝；行为缓存与 Organize 共用。
 - 成功后每个 move 写 `catalog.record(UnsnapRecord(zoneIDs:))`：落点若与该屏当前布局的某个分区重合（`ZoneOccupancy.preferredZone`），就加入该分区的 membership，unsnap / 相邻贴靠 / 同区轮换照常可用；不重合则无归属。
 - 成功或「没有可移动窗口」时 `flashWorkspaceFrames(area:framesAX:)`：把 `targetFramesAX` 作为匿名 `ResolvedZone` 闪现 1.2s，**不显示分区编号**，让用户看到窗口将落在哪里。
-- 全部节完成后：按保存窗口的 back-to-front 顺序逐窗置前：先设置目标窗口的 AX main/focused，再通过 AppKit 默认 activation 激活所属进程并 AXRaise 该窗口。避免 AXFrontmost 整个应用层置前或按应用分组破坏 A/B/A 交错层级；不使用 activateAllWindows，以免被拽去别的 Space，`activeProfileID = profile.id`，`persist()`，刷新菜单/设置页，重置普查基线，登记缺失应用（§7）。
+- 全部节完成后：按保存窗口的 back-to-front 顺序逐窗置前：先设置目标窗口的 AX main/focused，再通过 AppKit 默认 activation 激活所属进程并 AXRaise 该窗口。避免 AXFrontmost 整个应用层置前或按应用分组破坏 A/B/A 交错层级；不使用 activateAllWindows，以免被拽去别的 Space。仅当两次 AppKit 请求都被拒绝或实际前台 PID 仍不匹配时，调用既有 AXFrontmost 前台化兜底，再指定并 raise 目标窗口；成功路径不触发兜底。随后 `activeProfileID = profile.id`，`persist()`，刷新菜单/设置页，重置普查基线，登记缺失应用（§7）。
 - 反馈：`WorkspaceApplyFeedback.make` 汇总「已完整归位 N 个」「X 需要更大空间」「N 个未能移动」「N 个应用未打开 / 正在启动」「N 台显示器未连接」为一条 toast。
 
 ### 6.3 显示器重映射（`WorkspaceRestore.remappedSections`）
