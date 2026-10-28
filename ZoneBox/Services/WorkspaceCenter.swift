@@ -8,6 +8,7 @@ final class WorkspaceCenter {
     private struct WindowCandidate {
         var sample: ProfileCapture.WindowSample
         var handle: AXWindow
+        var windowServerIndex: Int?
         var isMinimized = false
         var isHiddenApp = false
     }
@@ -554,8 +555,8 @@ final class WorkspaceCenter {
 
         // Frame changes do not affect WindowServer ordering. AXRaise also stays
         // inside the owning app, so unrelated apps can keep covering the result.
-        // Activate each saved app, then raise its restored windows, so the
-        // workspace becomes the frontmost layer without yanking other Spaces.
+        // Select and activate each saved window back-to-front so an interleaved
+        // A/B/A stack stays interleaved without activating windows on other Spaces.
         var foregroundWindows: [AXWindow] = []
         var seenForeground = Set<WindowIdentity>()
         for sectionPlan in outcome.sections {
@@ -629,7 +630,13 @@ final class WorkspaceCenter {
                     isOpaqueOccluder: $0.layer == 0 && $0.alpha >= 0.99
                 )
             },
-            includeFullyOccluded: runtime.settings.captureFullyOccludedWindows
+            includeFullyOccluded: runtime.settings.captureFullyOccludedWindows,
+            displayFramesAX: runtime.workAreas.map {
+                CoordinateConverter.axRect(
+                    fromAppKit: $0.frameAppKit,
+                    primaryFlipHeight: runtime.primaryFlipHeight
+                )
+            }
         )
     }
 
@@ -685,7 +692,7 @@ final class WorkspaceCenter {
         restorableBundleIDs: Set<String> = []
     ) async -> CandidateSet {
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        let refs = runtime.query.windows(excludingPID: ownPID)
+        var refs = runtime.query.windows(excludingPID: ownPID)
         let visibleIdentities = visibleOnly
             ? capturableIdentities(from: refs)
             : nil
@@ -726,6 +733,7 @@ final class WorkspaceCenter {
         if revealedRunning {
             try? await Task.sleep(nanoseconds: Self.unhideSettleNanoseconds)
             let refreshed = runtime.query.windows(excludingPID: ownPID)
+            refs = refreshed
             pidOrder = []
             refsByPID = [:]
             for ref in refreshed where ref.layer == 0 {
@@ -748,6 +756,7 @@ final class WorkspaceCenter {
             }
         }
 
+        let refIndices = Dictionary(uniqueKeysWithValues: refs.enumerated().map { ($0.element.identity, $0.offset) })
         var result = CandidateSet()
         var seen = Set<WindowIdentity>()
         var offscreen: [WindowCandidate] = []
@@ -772,7 +781,8 @@ final class WorkspaceCenter {
                 result.candidates.append(
                     WindowCandidate(
                         sample: ProfileCapture.WindowSample(identity: window.window.identity, frameAX: window.frameAX),
-                        handle: window.window
+                        handle: window.window,
+                        windowServerIndex: refIndices[ref.identity]
                     )
                 )
             }
@@ -812,6 +822,7 @@ final class WorkspaceCenter {
                 result.unreachableBundleIDs.insert(bundleID)
             }
         }
+        result.candidates = ProfileCapture.orderedCandidates(result.candidates, windowServerIndex: \.windowServerIndex)
         result.candidates.append(contentsOf: offscreen)
         return result
     }
@@ -1048,9 +1059,9 @@ final class WorkspaceCenter {
         }
     }
 
-    /// Bring saved workspace apps above unrelated windows. AXRaise alone cannot
-    /// do this; activation lifts the app's layer, then raise puts the restored
-    /// window on top of that app.
+    /// AXRaise alone only changes app-local order. AXFrontmost lifts the app's
+    /// whole layer, which also destroys an interleaved A/B/A stack. Prepare each
+    /// target as main/key, then use AppKit's single-window activation path.
     private func bringRestoredWorkspaceToFront(windows: [AXWindow]) async {
         let identities = windows.map(\.identity)
         let bundleIDs = WorkspaceRestore.restoreActivationBundleIDs(identities.compactMap(\.bundleID))
@@ -1060,18 +1071,29 @@ final class WorkspaceCenter {
         )
         let raiseOrder = WorkspaceRestore.stackingOrder(windows)
         var lastPID: pid_t?
-        for bundleID in bundleIDs {
-            for pid in WorkspaceRestore.restoreActivationProcessIDs(identities, bundleID: bundleID) {
-                lastPID = pid
-                await bringApplicationFrontmost(
-                    bundleID: bundleID,
-                    pid: pid,
-                    allWindows: WorkspaceRestore.activateAllWindowsWhenForegroundingRestoredApps
+        for window in raiseOrder {
+            let pid = window.identity.pid
+            guard let bundleID = window.identity.bundleID,
+                  let app = NSRunningApplication(processIdentifier: pid),
+                  !app.isTerminated,
+                  app.bundleIdentifier == bundleID else { continue }
+            lastPID = pid
+            _ = app.unhide()
+            await runtime.ax.prepareForActivation(window)
+            for attempt in 1...2 {
+                let accepted = app.activate(options: [])
+                try? await Task.sleep(nanoseconds: Self.nanoseconds(WorkspaceRestore.activationSettleDelay))
+                let outcome = WorkspaceRestore.activationOutcome(
+                    requestAccepted: accepted,
+                    requestedPID: pid,
+                    actualFrontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
                 )
-                for window in raiseOrder where window.identity.pid == pid && window.identity.bundleID == bundleID {
-                    _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
-                }
+                Log.workspace.info(
+                    "Apply activate window=\(window.identity.windowNumber, privacy: .public) pid=\(Int(pid), privacy: .public) attempt=\(attempt, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)"
+                )
+                if !WorkspaceRestore.shouldRetryActivation(outcome) { break }
             }
+            _ = await runtime.raise(window, sessionID: UUID(), generation: 1)
         }
         let frontmost = NSWorkspace.shared.frontmostApplication
         if let lastPID, frontmost?.processIdentifier == lastPID {

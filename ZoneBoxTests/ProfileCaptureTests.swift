@@ -4,6 +4,140 @@ import XCTest
 final class ProfileCaptureTests: XCTestCase {
     private let workArea = CGRect(x: 0, y: 25, width: 1440, height: 875)
 
+    func testOffscreenAreaDoesNotKeepAScreenCoveredWindow() {
+        let display = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let front = visibility(pid: 1, number: 1, frame: display)
+        let rear = visibility(pid: 2, number: 2, frame: CGRect(x: -100, y: 0, width: 1100, height: 800))
+
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(frontToBack: [front, rear], displayFramesAX: [display]),
+            [front.identity]
+        )
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(
+                frontToBack: [front, rear], includeFullyOccluded: true, displayFramesAX: [display]
+            ),
+            [front.identity, rear.identity]
+        )
+    }
+
+    func testOnlyAnOnscreenStripAboveEightPointsKeepsAPartlyOffscreenWindow() throws {
+        let display = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let rearFrame = CGRect(x: -100, y: 0, width: 1100, height: 800)
+        let rear = visibility(pid: 2, number: 2, frame: rearFrame)
+        for strip in [CGFloat(8), 9] {
+            let front = visibility(pid: 1, number: 1, frame: CGRect(x: strip, y: 0, width: 1000 - strip, height: 800))
+            let captured = ProfileCapture.capturableWindowIdentities(frontToBack: [front, rear], displayFramesAX: [display])
+            XCTAssertEqual(captured.contains(rear.identity), strip > 8)
+        }
+        let rules = ProfileCapture.rules(
+            windows: [ProfileCapture.WindowSample(identity: rear.identity, frameAX: rearFrame)], workAreaAX: display
+        )
+        XCTAssertEqual(try XCTUnwrap(rules.first?.frame).rawFrame(in: display), rearFrame)
+    }
+
+    func testIncludeOccludedStillRejectsWhollyOffscreenWindowsAndMissingDisplays() {
+        let display = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let offscreen = visibility(pid: 1, number: 1, frame: CGRect(x: -500, y: 0, width: 400, height: 400))
+        let onscreen = visibility(pid: 2, number: 2, frame: display)
+        for include in [false, true] {
+            XCTAssertEqual(
+                ProfileCapture.capturableWindowIdentities(
+                    frontToBack: [offscreen, onscreen], includeFullyOccluded: include, displayFramesAX: [display]
+                ),
+                [onscreen.identity]
+            )
+            XCTAssertTrue(ProfileCapture.capturableWindowIdentities(
+                frontToBack: [onscreen], includeFullyOccluded: include, displayFramesAX: []
+            ).isEmpty)
+        }
+    }
+
+    func testMonitorGapDoesNotCountAsUncoveredDesktop() {
+        let left = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let right = CGRect(x: 1200, y: 0, width: 1000, height: 800)
+        let frontLeft = visibility(pid: 1, number: 1, frame: left)
+        let frontRight = visibility(pid: 2, number: 2, frame: right)
+        let rear = visibility(pid: 3, number: 3, frame: CGRect(x: 0, y: 0, width: 2200, height: 800))
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(
+                frontToBack: [frontLeft, frontRight, rear], displayFramesAX: [left, right]
+            ),
+            [frontLeft.identity, frontRight.identity]
+        )
+    }
+
+    func testAdjacentDisplaysDoNotSplitAUsableVisibleRegion() {
+        let left = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let right = CGRect(x: 1000, y: 0, width: 1000, height: 800)
+        let spanning = visibility(pid: 1, number: 1, frame: CGRect(x: 995, y: 0, width: 10, height: 500))
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(frontToBack: [spanning], displayFramesAX: [left, right]),
+            [spanning.identity]
+        )
+    }
+
+    func testVisibleAreaOnAnotherDisplayStillKeepsASpanningWindow() {
+        let left = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let right = CGRect(x: 1000, y: 0, width: 1000, height: 800)
+        let front = visibility(pid: 1, number: 1, frame: left)
+        let spanning = visibility(pid: 2, number: 2, frame: CGRect(x: 0, y: 0, width: 2000, height: 800))
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(frontToBack: [front, spanning], displayFramesAX: [left, right]),
+            [front.identity, spanning.identity]
+        )
+    }
+
+    func testScreenEdgeExposureUsesTheSameSeamToleranceAsOcclusion() {
+        let display = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        for exposure in [CGFloat(8), 9] {
+            let window = visibility(pid: 1, number: 1, frame: CGRect(x: exposure - 500, y: 0, width: 500, height: 500))
+            let captured = ProfileCapture.capturableWindowIdentities(frontToBack: [window], displayFramesAX: [display])
+            XCTAssertEqual(captured.contains(window.identity), exposure > 8)
+        }
+    }
+
+    func testResolvedCandidatesRecoverInterleavedOrderThroughPreviewAndRestorePlan() throws {
+        let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+        let frontA = sample(pid: 10, number: 10, bundleID: "A", frame: CGRect(x: 0, y: 0, width: 400, height: 600))
+        let midB = sample(pid: 20, number: 20, bundleID: "B", frame: CGRect(x: 300, y: 0, width: 500, height: 600))
+        // Simulates an AX geometry match whose ID differs from the matched CG ref.
+        let backA = sample(pid: 10, number: 999, bundleID: "A", frame: CGRect(x: 200, y: 0, width: 700, height: 600))
+        let grouped = [(sample: frontA, index: 0), (sample: backA, index: 2), (sample: midB, index: 1)]
+        let ordered = ProfileCapture.orderedCandidates(grouped) { $0.index }.map(\.sample)
+        XCTAssertEqual(ordered, [frontA, midB, backA])
+        let visibility = ordered.map { ProfileCapture.VisibilitySample(identity: $0.identity, frameAX: $0.frameAX) }
+        XCTAssertEqual(
+            ProfileCapture.capturableWindowIdentities(frontToBack: visibility, displayFramesAX: [display]),
+            Set(ordered.map(\.identity))
+        )
+        let rules = ProfileCapture.rules(windows: ordered, workAreaAX: display)
+        let preview = WorkspaceLayoutPreview.snapshot(rules: rules)
+        XCTAssertEqual(preview.panes.map(\.rect), rules.reversed().compactMap(\.frame))
+        let displayID = UUID()
+        let profile = WorkspaceProfile(name: "Interleaved", sections: [
+            ProfileSection(space: SpaceKey(displayID: displayID), rules: rules),
+        ])
+        let outcome = ProfilePlan.make(profile: profile, workAreasBySection: [displayID: display], candidates: ordered)
+        let placements = try XCTUnwrap(outcome.sections.first).placements
+        XCTAssertEqual(placements.map(\.identity), [frontA.identity, midB.identity, backA.identity])
+        XCTAssertEqual(
+            WorkspaceRestore.stackingOrder(placements).map(\.identity),
+            [backA.identity, midB.identity, frontA.identity]
+        )
+        XCTAssertEqual(placements.map(\.targetFrameAX), ordered.map(\.frameAX))
+    }
+
+    func testAXOnlyCandidatesKeepStableFallbackOrderAfterOnscreenMatches() {
+        let candidates: [(name: String, index: Int?)] = [
+            ("AX-only A", nil), ("CG back", 3), ("AX-only B", nil), ("CG front", 0),
+        ]
+        XCTAssertEqual(
+            ProfileCapture.orderedCandidates(candidates) { $0.index }.map(\.name),
+            ["CG front", "CG back", "AX-only A", "AX-only B"]
+        )
+    }
+
     func testWindowsAreSavedWhereTheyAreNotWhereTheActiveLayoutZonesAre() {
         // Left half + right half on a display whose active layout is a
         // 1 | 2/3 split: the halves must survive as halves.

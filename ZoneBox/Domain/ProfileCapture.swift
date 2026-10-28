@@ -66,15 +66,42 @@ public enum ProfileCapture {
     /// occluders outset 4 pt), so a 6 pt snap seam is not treated as visible.
     /// `includeFullyOccluded` skips that inset/outset and keeps every window
     /// that still passes the opacity and usable-frame filters. Saved frames
-    /// are not shrunk. Other capture filters still apply.
+    /// are not shrunk. When supplied, `displayFramesAX` limits visibility to
+    /// the union of physical displays; even the opt-in needs an intersection.
+    /// Nil leaves geometry unbounded for callers without a display snapshot.
+    /// Other capture filters still apply.
     public static func capturableWindowIdentities(
         frontToBack windows: [VisibilitySample],
-        includeFullyOccluded: Bool = false
+        includeFullyOccluded: Bool = false,
+        displayFramesAX: [CGRect]? = nil
     ) -> Set<WindowIdentity> {
-        identities(
+        let displays = displayFramesAX?.map(\.standardized).filter(isUsable)
+        return identities(
             frontToBack: windows,
-            isVisible: includeFullyOccluded ? { _, _ in true } : isStillVisible(_:behind:)
+            isVisible: { frame, occluders in
+                if let displays,
+                   !displays.contains(where: { isUsable(frame.intersection($0)) }) {
+                    return false
+                }
+                return includeFullyOccluded || isStillVisible(frame, behind: occluders, displays: displays)
+            }
         )
+    }
+
+    /// AX enumeration is batched by process. Recover the original CG order
+    /// using the matched CG ref's index, even when AX reports a different ID.
+    /// Windows discovered only through AX stay after on-screen matches, in
+    /// their original order; minimized/hidden windows are appended separately.
+    public static func orderedCandidates<T>(
+        _ candidates: [T],
+        windowServerIndex: (T) -> Int?
+    ) -> [T] {
+        let ranked: [(offset: Int, candidate: T, index: Int)] = candidates.enumerated().map { offset, candidate in
+            (offset: offset, candidate: candidate, index: windowServerIndex(candidate) ?? Int.max)
+        }
+        return ranked.sorted {
+            $0.index == $1.index ? $0.offset < $1.offset : $0.index < $1.index
+        }.map { $0.candidate }
     }
 
     /// Whether a window currently counts as sitting at `target`: either placed
@@ -174,7 +201,11 @@ public enum ProfileCapture {
         }
     }
 
-    private static func isStillVisible(_ frame: CGRect, behind occluders: [CGRect]) -> Bool {
+    private static func isStillVisible(
+        _ frame: CGRect,
+        behind occluders: [CGRect],
+        displays: [CGRect]?
+    ) -> Bool {
         // Guard stored size before inset. A CGRect with width/height <= 8 would
         // produce a zero or negative size; minX/width can then be read via
         // standardized geometry and look like a valid rectangle.
@@ -183,7 +214,15 @@ public enum ProfileCapture {
         }
         let insetFrame = insetRect(frame, by: captureSeamTolerance / 2)
         guard isUsable(insetFrame) else { return false }
-        let expanded = occluders.map { outsetRect($0, by: captureSeamTolerance / 2) }
+        // Subtract the union of physical displays before testing visibility.
+        // Off-screen pieces are holes, just like opaque occluders. Expanding
+        // those holes instead of insetting each display preserves continuous
+        // visible regions across adjacent displays, without filling their gaps.
+        var offscreen: [CGRect] = displays == nil ? [] : [frame]
+        for display in displays ?? [] {
+            offscreen = offscreen.flatMap { subtract($0, minus: display) }
+        }
+        let expanded = (occluders + offscreen).map { outsetRect($0, by: captureSeamTolerance / 2) }
         return remainingVisibleArea(of: insetFrame, subtracting: expanded) > 0
     }
 
