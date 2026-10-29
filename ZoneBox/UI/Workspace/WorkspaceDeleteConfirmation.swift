@@ -1,7 +1,7 @@
 import AppKit
 import ZoneBoxCore
 
-/// Shared by Settings and the keyboard switcher; the sheet owns only confirmation UI.
+/// Shared by the menu bar, Settings and the keyboard switcher; owns only confirmation UI.
 @MainActor
 final class WorkspaceDeleteConfirmation: NSPanel {
     static func present(for parent: NSWindow, name: String, onDelete: @escaping () -> Void) {

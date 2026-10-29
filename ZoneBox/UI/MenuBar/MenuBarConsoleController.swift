@@ -752,17 +752,11 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
     }
 
     private func confirmAndDeleteWorkspace(_ profile: WorkspaceProfile) {
-        let alert = NSAlert()
-        alert.messageText = String(format: L10n.text(.settingsWorkspaceDeleteTitle), profile.name)
-        alert.addButton(withTitle: L10n.text(.settingsWorkspaceDelete))
-        alert.addButton(withTitle: L10n.text(.editorCancel))
-        alert.buttons.first?.hasDestructiveAction = true
-        if let panel {
-            alert.beginSheetModal(for: panel) { [weak self] response in
-                guard let self, response == .alertFirstButtonReturn else { return }
-                self.runtime.workspace.deleteProfile(id: profile.id)
-                self.reloadWorkspaceStrip()
-            }
+        guard let panel else { return }
+        WorkspaceDeleteConfirmation.present(for: panel, name: profile.name) { [weak self] in
+            guard let self else { return }
+            self.runtime.workspace.deleteProfile(id: profile.id)
+            self.reloadWorkspaceStrip()
         }
     }
 
