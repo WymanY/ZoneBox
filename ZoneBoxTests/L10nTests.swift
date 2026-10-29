@@ -89,6 +89,22 @@ final class L10nTests: XCTestCase {
         XCTAssertEqual(L10n.text(.pinUnpin, language: .chineseSimplified), "取消置顶")
     }
 
+    func testSnapFeedbackIncludesRequestedAndActualSizesInBothLanguages() {
+        for language in [AppLanguage.english, .chineseSimplified] {
+            let detail = L10n.snapSizeLimited(
+                "Surge Dashboard",
+                requested: CGSize(width: 770.984, height: 869),
+                actual: CGSize(width: 1100, height: 819),
+                language: language
+            )
+            XCTAssertTrue(detail.contains("Surge Dashboard"))
+            XCTAssertTrue(detail.contains("771 × 869"))
+            XCTAssertTrue(detail.contains("1100 × 819"))
+            XCTAssertFalse(detail.contains("%@"))
+            XCTAssertTrue(L10n.snapUnavailable("Surge Dashboard", language: language).contains("Surge Dashboard"))
+        }
+    }
+
     func testEditorTemplateToolbarCopy() {
         XCTAssertEqual(L10n.text(.editorFromTemplate, language: .english), "From Template")
         XCTAssertEqual(L10n.text(.editorFromTemplate, language: .chineseSimplified), "基于模板")

@@ -3,7 +3,7 @@ import ZoneBoxCore
 
 // Repeatable runner from repo root:
 //   ./script/run_update_check_restore_regression.sh
-// Needs Debug ZoneBoxCore at .build/DerivedData/Build/Products/Debug/libZoneBoxCore.a
+// Needs Debug ZoneBoxCore at .build/VerificationDerivedData/Build/Products/Debug/libZoneBoxCore.a
 // from make build or make test. Compiles GitHubReleaseClient.swift, UpdateCenter.swift,
 // and UpdateInstaller.swift against that library with a URLProtocol fixture.
 // A no-op UpdateInstalling stub is injected so this harness never stages or replaces an app.

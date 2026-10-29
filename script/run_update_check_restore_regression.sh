@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PRODUCTS="$ROOT/.build/DerivedData/Build/Products/Debug"
+PRODUCTS="$ROOT/.build/VerificationDerivedData/Build/Products/Debug"
 OUT="${TMPDIR:-/tmp}/zonebox-update-check-restore-regression"
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 ARCH="$(uname -m)"

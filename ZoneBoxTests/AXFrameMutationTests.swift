@@ -63,6 +63,138 @@ final class AXFrameMutationTests: XCTestCase {
         )
         XCTAssertEqual(actual, CGRect(x: 10, y: 10, width: 400, height: 300))
         XCTAssertEqual(writer.sleeps, [AXFrameMutation.fastRetryDelay])
+        XCTAssertEqual(
+            AXFrameMutation.outcome(actual: actual, requested: CGRect(x: 10, y: 10, width: 100, height: 80)),
+            .sizeLimited
+        )
+    }
+
+    func testUnadvertisedSizeLimitReturnsActualFrameAndReportsPartialSnap() {
+        let target = CGRect(x: 0, y: 31, width: 771, height: 869)
+        let writer = FakeAXFrameWriter(
+            frame: CGRect(x: 57, y: 89, width: 1100, height: 782),
+            minimumSize: CGSize(width: 1100, height: 0)
+        )
+        let actual = AXFrameMutation.apply(target, using: writer)
+        XCTAssertEqual(actual, CGRect(x: 0, y: 31, width: 1100, height: 869))
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: target), .sizeLimited)
+        XCTAssertLessThanOrEqual(writer.sizeWriteCount, AXFrameMutation.fastRetryLimit * 2 + 1)
+    }
+
+    func testUnadvertisedMinWidthFitsRightZoneOntoWorkArea() {
+        let requested = CGRect(x: 772.984, y: 31, width: 667.016, height: 869)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let writer = FakeAXFrameWriter(
+            frame: CGRect(x: 0, y: 31, width: 1100, height: 869),
+            minimumSize: CGSize(width: 1100, height: 0)
+        )
+        let actual = AXFrameMutation.apply(requested, bounds: bounds, using: writer)
+        XCTAssertNotNil(actual)
+        XCTAssertEqual(actual!.width, 1100, accuracy: 0.5)
+        XCTAssertEqual(actual!.height, 869, accuracy: 0.5)
+        XCTAssertEqual(actual!.minX, 340, accuracy: 1)
+        XCTAssertEqual(actual!.minY, 31, accuracy: 1)
+        XCTAssertLessThanOrEqual(actual!.maxX, bounds.maxX + 1)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: requested), .sizeLimited)
+    }
+
+    func testUnadvertisedMinHeightFitsBottomZoneAndKeepsRequestedWidth() {
+        let requested = CGRect(x: 0, y: 611.3623, width: 1440, height: 288.6377)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let writer = FakeAXFrameWriter(
+            frame: CGRect(x: 0, y: 31, width: 1100, height: 869),
+            minimumSize: CGSize(width: 0, height: 600)
+        )
+        let actual = AXFrameMutation.apply(requested, bounds: bounds, using: writer)
+        XCTAssertNotNil(actual)
+        XCTAssertEqual(actual!.width, 1440, accuracy: 1)
+        XCTAssertEqual(actual!.height, 600, accuracy: 0.5)
+        XCTAssertEqual(actual!.minX, 0, accuracy: 1)
+        XCTAssertEqual(actual!.minY, 300, accuracy: 1)
+        XCTAssertLessThanOrEqual(actual!.maxY, bounds.maxY + 1)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: requested), .sizeLimited)
+    }
+
+    func testFittedKeepsRequestedOriginWhenAllowedSizeFitsTheZone() {
+        let requested = CGRect(x: 100, y: 40, width: 500, height: 400)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        XCTAssertEqual(
+            AXFrameMutation.fitted(requested: requested, size: requested.size, bounds: bounds),
+            requested
+        )
+    }
+
+    func testApplyPreservesPartiallyOffscreenExactSizeEvenWhenBoundsArePassed() {
+        let requested = CGRect(x: -80, y: 40, width: 400, height: 300)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let writer = FakeAXFrameWriter(frame: CGRect(x: 200, y: 100, width: 400, height: 300))
+        let actual = AXFrameMutation.apply(requested, bounds: bounds, using: writer)
+        XCTAssertEqual(actual, requested)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: requested), .applied)
+    }
+
+    func testApplyPreservesSpanningExactSizeEvenWhenBoundsArePassed() {
+        let requested = CGRect(x: 1000, y: 31, width: 800, height: 500)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let writer = FakeAXFrameWriter(frame: CGRect(x: 100, y: 31, width: 800, height: 500))
+        let actual = AXFrameMutation.apply(requested, bounds: bounds, using: writer)
+        XCTAssertEqual(actual, requested)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: requested), .applied)
+    }
+
+    func testMinLargerThanScreenKeepsActualSizeAndAnchorsTopLeft() {
+        let requested = CGRect(x: 773, y: 31, width: 667, height: 869)
+        let bounds = CGRect(x: 0, y: 31, width: 1440, height: 869)
+        let allowed = CGSize(width: 1600, height: 869)
+        let fitted = AXFrameMutation.fitted(requested: requested, size: allowed, bounds: bounds)
+        XCTAssertEqual(fitted.width, 1600)
+        XCTAssertEqual(fitted.height, 869)
+        XCTAssertEqual(fitted.origin, CGPoint(x: 0, y: 31))
+
+        let writer = FakeAXFrameWriter(
+            frame: CGRect(x: 200, y: 100, width: 1600, height: 869),
+            minimumSize: allowed
+        )
+        let actual = AXFrameMutation.apply(requested, bounds: bounds, using: writer)
+        XCTAssertNotNil(actual)
+        XCTAssertEqual(actual!.width, 1600, accuracy: 0.5)
+        XCTAssertEqual(actual!.height, 869, accuracy: 0.5)
+        XCTAssertEqual(actual!.minX, 0, accuracy: 1)
+        XCTAssertEqual(actual!.minY, 31, accuracy: 1)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: actual, requested: requested), .sizeLimited)
+    }
+
+    func testEffectiveSizeRetriesIgnoredWidthIncreaseAndKeepsDiscoveredMinHeight() {
+        XCTAssertEqual(
+            AXFrameMutation.effectiveSize(
+                requested: CGSize(width: 1440, height: 289),
+                start: CGSize(width: 1100, height: 869),
+                actual: CGSize(width: 1440, height: 600)
+            ),
+            CGSize(width: 1440, height: 600)
+        )
+        XCTAssertEqual(
+            AXFrameMutation.effectiveSize(
+                requested: CGSize(width: 1440, height: 289),
+                start: CGSize(width: 1100, height: 869),
+                actual: CGSize(width: 1100, height: 600)
+            ),
+            CGSize(width: 1440, height: 600)
+        )
+    }
+
+    func testSnapOutcomeAllowsPixelRoundingButReportsSizeOrPositionMismatch() {
+        let target = CGRect(x: 0, y: 31, width: 770.984, height: 869)
+        XCTAssertEqual(
+            AXFrameMutation.outcome(actual: CGRect(x: 1, y: 32, width: 771, height: 868), requested: target),
+            .applied
+        )
+        XCTAssertEqual(
+            AXFrameMutation.outcome(actual: CGRect(x: 0, y: 31, width: 771, height: 819), requested: target),
+            .sizeLimited
+        )
+        XCTAssertEqual(AXFrameMutation.outcome(actual: target.offsetBy(dx: 20, dy: 0), requested: target), .positionLimited)
+        XCTAssertEqual(AXFrameMutation.outcome(actual: nil, requested: target), .unavailable)
     }
 }
 
@@ -74,18 +206,21 @@ private final class FakeAXFrameWriter: AXFrameWriting {
     private let driftOnSize: CGPoint?
     private let recenterOnSleep: CGPoint?
     private let ignoreSizeUntilElapsed: TimeInterval
+    private let minimumSize: CGSize
     private var elapsed: TimeInterval = 0
 
     init(
         frame: CGRect,
         driftOnSize: CGPoint? = nil,
         recenterOnSleep: CGPoint? = nil,
-        ignoreSizeUntilElapsed: TimeInterval = 0
+        ignoreSizeUntilElapsed: TimeInterval = 0,
+        minimumSize: CGSize = .zero
     ) {
         self.frame = frame
         self.driftOnSize = driftOnSize
         self.recenterOnSleep = recenterOnSleep
         self.ignoreSizeUntilElapsed = ignoreSizeUntilElapsed
+        self.minimumSize = minimumSize
     }
 
     func readFrame() -> CGRect? {
@@ -97,7 +232,7 @@ private final class FakeAXFrameWriter: AXFrameWriting {
         if ignoreSizeUntilElapsed > 0, elapsed < ignoreSizeUntilElapsed {
             return
         }
-        frame.size = size
+        frame.size = CGSize(width: max(size.width, minimumSize.width), height: max(size.height, minimumSize.height))
         if let driftOnSize {
             frame.origin = driftOnSize
         }

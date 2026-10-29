@@ -15,6 +15,8 @@ struct OrganizeFeedback {
     var ignoreTitle: String?
     var onRestore: (() -> Void)?
     var onIgnore: (() -> Void)?
+    var displayDuration: TimeInterval? = nil
+    var detailLineLimit: Int = 3
 }
 
 @MainActor
@@ -59,7 +61,7 @@ final class OrganizeFeedbackController: NSObject {
             ]
         )
 
-        let delay: TimeInterval = feedback.onRestore == nil && feedback.onIgnore == nil ? 3.2 : 7
+        let delay = feedback.displayDuration ?? (feedback.onRestore == nil && feedback.onIgnore == nil ? 3.2 : 7)
         let work = DispatchWorkItem { [weak self] in self?.dismiss() }
         hideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
@@ -136,7 +138,7 @@ private final class OrganizeFeedbackPanel: NSPanel {
         let detail = NSTextField(wrappingLabelWithString: feedback.detail)
         detail.font = .systemFont(ofSize: 12)
         detail.textColor = .secondaryLabelColor
-        detail.maximumNumberOfLines = 3
+        detail.maximumNumberOfLines = feedback.detailLineLimit
         detail.isHidden = feedback.detail.isEmpty
         detail.setContentCompressionResistancePriority(.required, for: .vertical)
         detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

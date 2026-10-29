@@ -26,6 +26,8 @@ make test
 
 `make test` runs `ZoneBoxTests` against the `ZoneBoxCore` static library (no app host) and fails if any file under `ZoneBox/` imports SwiftUI.
 
+`make build` and `make test` use `.build/VerificationDerivedData` for unsigned verification. To run the app, use `./script/build_and_run.sh --verify`, which signs and launches it from `.build/DerivedData`. Keeping these outputs separate prevents verification builds from replacing the running app and disrupting Accessibility access.
+
 ## Use it
 
 1. Open `ZoneBox.xcodeproj` and Run the **ZoneBox** scheme. The first launch opens a **Welcome Tour** that explains where ZoneBox lives, lets you pick a starting layout, and walks through Accessibility if it is not granted yet. The app is signed with a stable Apple Development identity, so the Accessibility grant survives rebuilds.

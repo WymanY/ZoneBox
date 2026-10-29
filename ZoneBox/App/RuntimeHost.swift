@@ -85,6 +85,7 @@ protocol SnapRuntimeHosting: RuntimeModeOwning, RuntimeTrusting, RuntimeDisplayC
     var pendingStartedOnMoveChrome: Bool { get set }
     var pendingIdentity: WindowIdentity? { get set }
     func focusedWindowTarget() async -> (window: AXWindow, frameAX: CGRect, area: WorkArea)?
+    func showSnapResult(actual: CGRect?, requested: CGRect, identity: WindowIdentity)
 }
 
 @MainActor
