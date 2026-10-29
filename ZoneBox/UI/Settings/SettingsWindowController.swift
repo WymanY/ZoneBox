@@ -1288,14 +1288,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     }
 
     @objc private func deleteWorkspace(_ sender: NSButton) {
-        guard let profile = workspaceProfile(for: sender) else { return }
-        let alert = NSAlert()
-        alert.messageText = String(format: L10n.text(.settingsWorkspaceDeleteTitle), profile.name)
-        alert.addButton(withTitle: L10n.text(.settingsWorkspaceDelete))
-        alert.addButton(withTitle: L10n.text(.editorCancel))
-        alert.buttons.first?.hasDestructiveAction = true
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runtime.workspace.deleteProfile(id: profile.id)
+        guard let profile = workspaceProfile(for: sender), let window else { return }
+        WorkspaceDeleteConfirmation.present(for: window, name: profile.name) { [weak self] in
+            self?.runtime.workspace.deleteProfile(id: profile.id)
+        }
     }
 
     private func makeSettingRow(

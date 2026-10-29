@@ -117,6 +117,7 @@
 		937719E3DC4091CBC3595D4A /* LayoutEditorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B90398FBF036AB33C48FF4F /* LayoutEditorController.swift */; };
 		93DF8D76D43ED1151420A9F2 /* WorkspaceConsoleStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A4B020D51B99BF72A79CFFF /* WorkspaceConsoleStrip.swift */; };
 		9561E6505452624A1CFFC132 /* WorkspaceCaptureEligibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DEABA48DDC77755E294B72E /* WorkspaceCaptureEligibilityTests.swift */; };
+		959D149693D8447A93B3F6C6 /* WorkspaceDeleteConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48E635C9862AC0117BBDDD9 /* WorkspaceDeleteConfirmation.swift */; };
 		97055AB4E190229FC72CE264 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62FDDD0A6562A71C93FD851B /* AppVersion.swift */; };
 		97B317731ECAC7D2582CC02F /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC77B4A79C6FFC279808F81 /* JSONCoding.swift */; };
 		994161EEE6D0E596ED6C748A /* OwnWindowFrameMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C477D3E91C0282AAFB91190F /* OwnWindowFrameMutationTests.swift */; };
@@ -388,6 +389,7 @@
 		E0474A0519CB9B47C9DD6059 /* ShakeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShakeDetector.swift; sourceTree = "<group>"; };
 		E23BBE12D82D5FDE06EAE3CD /* SimulatorDevicePlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDevicePlanTests.swift; sourceTree = "<group>"; };
 		E43833CC52E0DA1E5CA238EC /* SnapMouseEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapMouseEvent.swift; sourceTree = "<group>"; };
+		E48E635C9862AC0117BBDDD9 /* WorkspaceDeleteConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceDeleteConfirmation.swift; sourceTree = "<group>"; };
 		E62292FD18B81A5F1168FDFD /* AppIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentity.swift; sourceTree = "<group>"; };
 		E78E6557B43D6F62E6480FE2 /* LayoutEditTransaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEditTransaction.swift; sourceTree = "<group>"; };
 		E7F9C1EB06F602DE472D2D2D /* ZoneOccupancyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneOccupancyTests.swift; sourceTree = "<group>"; };
@@ -642,6 +644,7 @@
 			isa = PBXGroup;
 			children = (
 				0CB73D8B0220AD5516E5D424 /* WorkspaceApplicationInfo.swift */,
+				E48E635C9862AC0117BBDDD9 /* WorkspaceDeleteConfirmation.swift */,
 				094ECF070ABA6E7BFB967D05 /* WorkspaceSwitcherController.swift */,
 			);
 			path = Workspace;
@@ -977,6 +980,7 @@
 				3226BD7544D96E09AAFB1DEA /* WorkspaceCapturePrompt.swift in Sources */,
 				D5FF897F5A4AF3F055B13384 /* WorkspaceCenter.swift in Sources */,
 				93DF8D76D43ED1151420A9F2 /* WorkspaceConsoleStrip.swift in Sources */,
+				959D149693D8447A93B3F6C6 /* WorkspaceDeleteConfirmation.swift in Sources */,
 				64021BE1C01989E39E4BC87D /* WorkspaceLayoutPreviewView.swift in Sources */,
 				7B4E67420A0FFA6840305AFF /* WorkspaceSwitcherController.swift in Sources */,
 				E583D858D4C31324E6FE3F24 /* ZoneOverlayView.swift in Sources */,

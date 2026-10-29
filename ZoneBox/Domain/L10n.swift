@@ -352,6 +352,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsWorkspaceRename
     case settingsWorkspaceDelete
     case settingsWorkspaceDeleteTitle
+    case settingsWorkspaceDeleteDetail
     case settingsWorkspaceRecapture
     case settingsWorkspaceSummary
     case settingsWorkspaceShowDetails
@@ -1139,7 +1140,8 @@ public enum L10n {
         .settingsWorkspaceLaunchMissing: "Launch missing applications",
         .settingsWorkspaceRename: "Rename…",
         .settingsWorkspaceDelete: "Delete",
-        .settingsWorkspaceDeleteTitle: "Delete “%@”?",
+        .settingsWorkspaceDeleteTitle: "Delete workspace?",
+        .settingsWorkspaceDeleteDetail: "This saved workspace will be removed. Your open windows won’t be closed. This can’t be undone.",
         .settingsWorkspaceRecapture: "Recapture",
         .settingsWorkspaceSummary: "%d displays · %d applications",
         .settingsWorkspaceShowDetails: "Show details",
@@ -1697,7 +1699,8 @@ public enum L10n {
         .settingsWorkspaceLaunchMissing: "启动缺失应用",
         .settingsWorkspaceRename: "重命名…",
         .settingsWorkspaceDelete: "删除",
-        .settingsWorkspaceDeleteTitle: "删除“%@”？",
+        .settingsWorkspaceDeleteTitle: "删除工作区？",
+        .settingsWorkspaceDeleteDetail: "仅删除已保存的工作区，不会关闭当前窗口。此操作无法撤销。",
         .settingsWorkspaceRecapture: "重新捕获",
         .settingsWorkspaceSummary: "%d 台显示器 · %d 个应用",
         .settingsWorkspaceShowDetails: "查看详情",

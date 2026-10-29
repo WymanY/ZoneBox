@@ -434,14 +434,9 @@ final class WorkspaceSwitcherController: NSObject, NSWindowDelegate, NSTextField
     }
 
     private func delete(_ profile: WorkspaceProfile) {
-        let alert = NSAlert()
-        alert.messageText = String(format: L10n.text(.settingsWorkspaceDeleteTitle), profile.name)
-        alert.addButton(withTitle: L10n.text(.settingsWorkspaceDelete))
-        alert.addButton(withTitle: L10n.text(.editorCancel))
-        alert.buttons.first?.hasDestructiveAction = true
         guard let panel else { return }
-        alert.beginSheetModal(for: panel) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else { return }
+        WorkspaceDeleteConfirmation.present(for: panel, name: profile.name) { [weak self] in
+            guard let self else { return }
             self.runtime.workspace.deleteProfile(id: profile.id)
             if self.runtime.document.profiles.isEmpty {
                 self.phase = .browsing(highlight: 0)
