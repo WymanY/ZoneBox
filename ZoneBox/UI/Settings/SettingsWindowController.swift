@@ -1647,7 +1647,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
 
     private func makeScrollablePage(_ stack: NSView) -> NSView {
         let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
         scroll.hasHorizontalScroller = false
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
