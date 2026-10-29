@@ -136,6 +136,11 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case dividerMinWidthDetail
     case dividerMinHeightDetail
     case dividerMinSizeUnknownDetail
+    case snapSizeLimitedTitle
+    case snapIncompleteTitle
+    case snapSizeLimitedDetail
+    case snapPositionLimitedDetail
+    case snapUnavailableDetail
     case workspaceNameTitle
     case workspaceNameMessage
     case workspaceNamePlaceholder
@@ -695,6 +700,28 @@ public enum L10n {
         String(format: text(.organizeNeedsSpaceDetail, language: language), locale: language.locale, appName)
     }
 
+    public static func snapSizeLimited(
+        _ appName: String,
+        requested: CGSize,
+        actual: CGSize,
+        language: AppLanguage = LanguageCenter.language
+    ) -> String {
+        String(
+            format: text(.snapSizeLimitedDetail, language: language),
+            appName,
+            Int(requested.width.rounded()), Int(requested.height.rounded()),
+            Int(actual.width.rounded()), Int(actual.height.rounded())
+        )
+    }
+
+    public static func snapPositionLimited(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.snapPositionLimitedDetail, language: language), locale: language.locale, appName)
+    }
+
+    public static func snapUnavailable(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
+        String(format: text(.snapUnavailableDetail, language: language), locale: language.locale, appName)
+    }
+
     public static func organizeKeptInPlace(_ appName: String, language: AppLanguage = LanguageCenter.language) -> String {
         String(format: text(.organizeKeptInPlaceDetail, language: language), locale: language.locale, appName)
     }
@@ -895,6 +922,11 @@ public enum L10n {
         .dividerMinWidthDetail: "%@ stayed at %d pt wide, so the divider stopped.",
         .dividerMinHeightDetail: "%@ stayed at %d pt tall, so the divider stopped.",
         .dividerMinSizeUnknownDetail: "%@ cannot be resized any further, so the divider stopped.",
+        .snapSizeLimitedTitle: "Window size limited",
+        .snapIncompleteTitle: "Layout not fully applied",
+        .snapSizeLimitedDetail: "%@ did not accept the requested size. The app or macOS may limit resizing.\nTarget: %d × %d pt · Actual: %d × %d pt\nTry a different zone size.",
+        .snapPositionLimitedDetail: "%@ did not stay at the requested position. The app or macOS may limit movement. Try another zone.",
+        .snapUnavailableDetail: "Could not read or adjust the %@ window. Retry; if this continues, check Accessibility access and relaunch ZoneBox.",
         .workspaceNameTitle: "Save Workspace",
         .workspaceNameMessage: "Name this arrangement of app windows.",
         .workspaceNamePlaceholder: "Workspace name",
@@ -1446,6 +1478,11 @@ public enum L10n {
         .dividerMinWidthDetail: "%@ 停在 %d pt 宽，分隔线因此停住。",
         .dividerMinHeightDetail: "%@ 停在 %d pt 高，分隔线因此停住。",
         .dividerMinSizeUnknownDetail: "%@ 不能再缩小，分隔线因此停住。",
+        .snapSizeLimitedTitle: "窗口尺寸受限",
+        .snapIncompleteTitle: "未能完整应用布局",
+        .snapSizeLimitedDetail: "%@ 未接受目标尺寸，可能受应用或系统的尺寸限制。\n目标：%d × %d 点 · 实际：%d × %d 点\n请尝试其他大小的分区。",
+        .snapPositionLimitedDetail: "%@ 未保持在目标位置，可能受应用或系统的移动限制。请尝试其他分区。",
+        .snapUnavailableDetail: "无法读取或调整 %@ 的窗口。请重试；若持续失败，请检查辅助功能权限并重新启动 ZoneBox。",
         .workspaceNameTitle: "保存工作区",
         .workspaceNameMessage: "为当前的应用窗口排布命名。",
         .workspaceNamePlaceholder: "工作区名称",

@@ -905,6 +905,44 @@ final class AppRuntime {
         return await mutations.applyFrame(frame, of: window.identity, sessionID: sessionID, generation: generation)
     }
 
+    func showSnapResult(actual: CGRect?, requested: CGRect, identity: WindowIdentity) {
+        let outcome = AXFrameMutation.outcome(actual: actual, requested: requested)
+        guard outcome != .applied,
+              let area = DisplayTargetResolver.workArea(
+                  containingWindowFrameAX: requested,
+                  from: workAreas,
+                  primaryFlipHeight: primaryFlipHeight
+              ), let screen = screen(for: area.display.id)
+        else { return }
+        let name = applicationName(for: identity)
+        let title: String
+        let detail: String
+        switch outcome {
+        case .applied:
+            return
+        case .sizeLimited:
+            guard let actual else { return }
+            title = L10n.text(.snapSizeLimitedTitle)
+            detail = L10n.snapSizeLimited(name, requested: requested.size, actual: actual.size)
+        case .positionLimited:
+            title = L10n.text(.snapIncompleteTitle)
+            detail = L10n.snapPositionLimited(name)
+        case .unavailable:
+            title = L10n.text(.snapIncompleteTitle)
+            detail = L10n.snapUnavailable(name)
+        }
+        organizeFeedback.show(
+            OrganizeFeedback(
+                tone: outcome == .unavailable ? .error : .warning,
+                title: title,
+                detail: detail,
+                displayDuration: 7,
+                detailLineLimit: 0
+            ),
+            on: screen
+        )
+    }
+
     func raise(_ window: AXWindow, sessionID: UUID, generation: Int) async -> AXError {
         mutationAdapter.remember(window)
         mutationAdapter.ax = ax

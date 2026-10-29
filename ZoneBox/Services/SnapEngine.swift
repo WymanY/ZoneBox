@@ -506,7 +506,12 @@ final class SnapEngine {
         to zone: ResolvedZone
     ) async -> CGRect? {
         guard runtime.isActive(displayID: target.area.display.id) else { return nil }
-        if let applied = await runtime.applyFrame(zone.frameAX, of: target.window, sessionID: UUID(), generation: layoutAssignmentGeneration) {
+        let generation = layoutAssignmentGeneration
+        let appliedFrame = await runtime.applyFrame(zone.frameAX, of: target.window, sessionID: UUID(), generation: generation)
+        if generation == layoutAssignmentGeneration {
+            runtime.showSnapResult(actual: appliedFrame, requested: zone.frameAX, identity: target.window.identity)
+        }
+        if let applied = appliedFrame {
             runtime.catalog.record(
                 UnsnapRecord(
                     identity: target.window.identity,
@@ -729,6 +734,9 @@ final class SnapEngine {
                         nil
                     }
                     let applied = appliedFrame != nil
+                    if generation == self.layoutAssignmentGeneration {
+                        runtime.showSnapResult(actual: appliedFrame, requested: rect, identity: identity)
+                    }
                     if let diagnosticID {
                         Log.snapDiagnostics.record("frame.result", sessionID: diagnosticID, fields: [
                             "writeID": writeID,

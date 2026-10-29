@@ -654,8 +654,33 @@ enum AXFrameMutator {
             frame,
             minSize: sizeAttribute(element, "AXMinSize" as CFString),
             maxSize: sizeAttribute(element, "AXMaxSize" as CFString),
+            bounds: visibleBoundsAX(containing: frame),
             using: AXElementFrameWriter(element)
         )
+    }
+
+    /// Visible frame of the display that owns `frame`, in AX coordinates.
+    /// Oversized snaps use this so a hard min-size cannot push the window off-screen.
+    private static func visibleBoundsAX(containing frame: CGRect) -> CGRect? {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return nil }
+        let flipHeight = CoordinateConverter.primaryFlipHeight(screenFramesAppKit: screens.map(\.frame))
+        var best: (bounds: CGRect, area: CGFloat)?
+        for screen in screens {
+            let visibleAX = CoordinateConverter.axRect(
+                fromAppKit: screen.visibleFrame,
+                primaryFlipHeight: flipHeight
+            )
+            let intersection = visibleAX.intersection(frame)
+            let area = intersection.isNull || intersection.isEmpty ? 0 : intersection.width * intersection.height
+            if best == nil || area > best!.area {
+                best = (visibleAX, area)
+            }
+        }
+        if let best, best.area > 0 {
+            return best.bounds
+        }
+        return best?.bounds
     }
 
     fileprivate static func setPoint(_ element: AXUIElement, _ point: CGPoint) {
