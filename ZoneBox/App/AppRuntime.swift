@@ -1307,6 +1307,13 @@ final class AppRuntime {
         persistSettings()
     }
 
+    func setCaptureFullyOccludedWindows(_ enabled: Bool) {
+        settings.captureFullyOccludedWindows = enabled
+        persistSettings()
+        settingsWindow?.refreshWorkspaceCaptureSetting()
+        reloadMenu()
+    }
+
     /// Master switch for every snap entry point (drag, Quick Snapper, hotkeys).
     /// Turning it off mid-drag cancels the live session so no overlay or
     /// pending write outlives the setting.

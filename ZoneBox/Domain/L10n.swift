@@ -81,6 +81,7 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case consoleCurrentDisplay
     case consoleOtherLayouts
     case consoleWorkspaces
+    case consoleCaptureOccludedWindows
     case consoleSaveWorkspace
     case consoleManageWorkspaces
     case consoleSwitcherHint
@@ -870,6 +871,7 @@ public enum L10n {
         .consoleCurrentDisplay: "Current Display",
         .consoleOtherLayouts: "Other Layouts",
         .consoleWorkspaces: "Workspaces",
+        .consoleCaptureOccludedWindows: "Include covered windows",
         .consoleSaveWorkspace: "Save Current",
         .consoleManageWorkspaces: "Manage Workspaces",
         .consoleSwitcherHint: "%@ switcher",
@@ -1152,7 +1154,7 @@ public enum L10n {
         .settingsWorkspaceActive: "Last applied",
         .settingsWorkspaceLayoutPreview: "Restored window positions",
         .settingsCaptureFullyOccludedWindows: "Include fully covered windows",
-        .settingsCaptureFullyOccludedWindowsDetail: "When saving a workspace, also include windows on the current desktop that are completely covered by other windows.",
+        .settingsCaptureFullyOccludedWindowsDetail: "When saving or updating a workspace, also include windows on the current desktop that are completely covered by other windows.",
         .settingsAccessGranted: "Accessibility allowed",
         .settingsAccessRequired: "Accessibility required",
         .settingsManageAccess: "Manage…",
@@ -1429,6 +1431,7 @@ public enum L10n {
         .consoleCurrentDisplay: "当前显示器",
         .consoleOtherLayouts: "其他布局",
         .consoleWorkspaces: "工作区",
+        .consoleCaptureOccludedWindows: "包含遮挡窗口",
         .consoleSaveWorkspace: "保存当前",
         .consoleManageWorkspaces: "管理工作区",
         .consoleSwitcherHint: "%@ 切换器",
@@ -1711,7 +1714,7 @@ public enum L10n {
         .settingsWorkspaceActive: "最近应用",
         .settingsWorkspaceLayoutPreview: "恢复位置示意",
         .settingsCaptureFullyOccludedWindows: "包含完全被遮挡的窗口",
-        .settingsCaptureFullyOccludedWindowsDetail: "保存工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。",
+        .settingsCaptureFullyOccludedWindowsDetail: "保存或更新工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。",
         .settingsAccessGranted: "辅助功能权限：已授权",
         .settingsAccessRequired: "需要辅助功能权限",
         .settingsManageAccess: "管理权限…",

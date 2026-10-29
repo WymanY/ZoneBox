@@ -185,6 +185,7 @@
 		E8405C23906B84C40461F26F /* WorkArea.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFE483F6CBDB37363637CAD /* WorkArea.swift */; };
 		E84B02E24E75114B1F49CD00 /* WindowNumberAllowlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56FCA18D9AE62197D2A7D5AA /* WindowNumberAllowlistTests.swift */; };
 		E9BB1FDB1FFFFC4498CC1EBB /* DragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5BA9F83277388522DBAEB0 /* DragMonitor.swift */; };
+		EA022819C74F21ED7ADEBECA /* WorkspaceCaptureOptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12941D88FC1A01DD892F43EF /* WorkspaceCaptureOptionView.swift */; };
 		EB1E692B8040A09B1E6AC177 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 7AF68442D13371CED4200096 /* InfoPlist.strings */; };
 		EBAB7AC79D7F9BD6850552C5 /* WorkspaceCaptureEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E439F46223EA6D217AAA9F9 /* WorkspaceCaptureEligibility.swift */; };
 		F03548C6C6285EA6CCA0A3BA /* WorkspaceSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D8C7D67F5538E3607348EA /* WorkspaceSwitcher.swift */; };
@@ -235,6 +236,7 @@
 		10C9CEE6F75DDADAE929A5D5 /* AccessibilityGuideModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityGuideModel.swift; sourceTree = "<group>"; };
 		10E9D2C918AF5DBA84FD7C32 /* ZonePixelMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonePixelMetricsTests.swift; sourceTree = "<group>"; };
 		11806D1300DEB7092C78653D /* WelcomeFirstSnapPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeFirstSnapPage.swift; sourceTree = "<group>"; };
+		12941D88FC1A01DD892F43EF /* WorkspaceCaptureOptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceCaptureOptionView.swift; sourceTree = "<group>"; };
 		144ADB53FA2BCC60F421D673 /* WorkspaceProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceProfile.swift; sourceTree = "<group>"; };
 		169745AABF7306DB7316EF01 /* WindowCatalogStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCatalogStateTests.swift; sourceTree = "<group>"; };
 		16BFD082426FB82B2D4B9EE8 /* GridEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridEditingTests.swift; sourceTree = "<group>"; };
@@ -538,6 +540,7 @@
 			children = (
 				CD8294E5B995D52E8F110A4E /* ConsoleChrome.swift */,
 				6F820639A948E5AFCF2087E7 /* MenuBarConsoleController.swift */,
+				12941D88FC1A01DD892F43EF /* WorkspaceCaptureOptionView.swift */,
 				CA2A93972400594DAC49EF39 /* WorkspaceCapturePrompt.swift */,
 				6A4B020D51B99BF72A79CFFF /* WorkspaceConsoleStrip.swift */,
 			);
@@ -977,6 +980,7 @@
 				FFB58EB33E86634605604872 /* WindowCatalog.swift in Sources */,
 				910DE576C2672D6EFF044DB0 /* WindowQuerying.swift in Sources */,
 				494A0A2047E018F72492DF9D /* WorkspaceApplicationInfo.swift in Sources */,
+				EA022819C74F21ED7ADEBECA /* WorkspaceCaptureOptionView.swift in Sources */,
 				3226BD7544D96E09AAFB1DEA /* WorkspaceCapturePrompt.swift in Sources */,
 				D5FF897F5A4AF3F055B13384 /* WorkspaceCenter.swift in Sources */,
 				93DF8D76D43ED1151420A9F2 /* WorkspaceConsoleStrip.swift in Sources */,

@@ -1775,6 +1775,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         updatePreview()
     }
 
+    func refreshWorkspaceCaptureSetting() {
+        captureFullyOccludedSwitch?.state = runtime.settings.captureFullyOccludedWindows ? .on : .off
+    }
+
     func refreshAccessStatus() {
         let trusted = runtime.trust.isTrusted()
         accessStatusIcon?.image = NSImage(
@@ -1814,7 +1818,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         layoutStripSwitch?.setAccessibilityLabel(L10n.text(.settingsShowLayoutStrip))
         previewLayoutOnSelectSwitch?.setAccessibilityLabel(L10n.text(.settingsPreviewLayoutOnSelect))
         captureFullyOccludedSwitch?.setAccessibilityLabel(L10n.text(.settingsCaptureFullyOccludedWindows))
-        captureFullyOccludedSwitch?.state = runtime.settings.captureFullyOccludedWindows ? .on : .off
+        refreshWorkspaceCaptureSetting()
         loginSwitch?.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         hoverPinSwitch?.setAccessibilityLabel(L10n.text(.settingsHoverPin))
         reloadUpdateCheckFrequencyPopup()
@@ -1930,8 +1934,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     }
     @objc private func togglePreviewLayoutOnSelect(_ sender: NSSwitch) { runtime.setPreviewLayoutOnSelect(sender.state == .on) }
     @objc private func toggleCaptureFullyOccludedWindows(_ sender: NSSwitch) {
-        runtime.settings.captureFullyOccludedWindows = sender.state == .on
-        runtime.persistSettings()
+        runtime.setCaptureFullyOccludedWindows(sender.state == .on)
     }
     @objc private func toggleRestore(_ sender: NSSwitch) { runtime.settings.restoreSizeOnUnsnap = sender.state == .on; runtime.persistSettings() }
     @objc private func toggleHoverPin(_ sender: NSSwitch) {

@@ -279,7 +279,7 @@ final class L10nTests: XCTestCase {
         )
         XCTAssertEqual(
             L10n.text(.settingsCaptureFullyOccludedWindowsDetail, language: .chineseSimplified),
-            "保存工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。"
+            "保存或更新工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。"
         )
         XCTAssertEqual(
             L10n.text(.settingsCaptureFullyOccludedWindows, language: .english),
