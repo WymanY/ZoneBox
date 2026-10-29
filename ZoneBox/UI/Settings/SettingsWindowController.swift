@@ -7,16 +7,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private unowned let runtime: AppRuntime
     private var window: NSWindow?
 
-    private var categoryControl: NSSegmentedControl?
+    private var categoryControl: SettingsCategoryControl?
     private var pageViews: [SettingsCategory: NSView] = [:]
     private var selectedCategory: SettingsCategory = .snapping
 
     private var previewPanel: NSView?
-    private var standardPageConstraints: [NSLayoutConstraint] = []
-    private var licensePageConstraints: [NSLayoutConstraint] = []
-    private var licenseAccessIcon: NSImageView?
-    private var licenseAccessLabel: NSTextField?
-    private var licenseAccessButton: NSButton?
     private var licenseEntryActions: NSStackView?
     private var previewTitle: NSTextField?
     private var previewDescription: NSTextField?
@@ -198,14 +193,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         content.translatesAutoresizingMaskIntoConstraints = false
         window.contentView = content
 
-        let categories = NSSegmentedControl(
-            labels: SettingsCategory.allCases.map { L10n.text($0.titleKey) },
-            trackingMode: .selectOne,
-            target: self,
-            action: #selector(categoryChanged(_:))
-        )
-        categories.controlSize = .large
-        categories.segmentStyle = .automatic
+        let categories = SettingsCategoryControl()
+        categories.target = self
+        categories.action = #selector(categoryChanged(_:))
         categories.selectedSegment = selectedCategory.rawValue
         categories.translatesAutoresizingMaskIntoConstraints = false
         categories.setAccessibilityLabel(L10n.text(.settingsTitle))
@@ -247,12 +237,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         content.addSubview(body)
 
         NSLayoutConstraint.activate([
-            categories.topAnchor.constraint(equalTo: content.topAnchor, constant: 52),
+            categories.topAnchor.constraint(equalTo: content.topAnchor, constant: 44),
             categories.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            categories.widthAnchor.constraint(equalToConstant: 640),
-            body.topAnchor.constraint(equalTo: categories.bottomAnchor, constant: 20),
-            body.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
-            body.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -28),
+            categories.widthAnchor.constraint(equalToConstant: 648),
+            categories.heightAnchor.constraint(equalToConstant: 60),
+            body.topAnchor.constraint(equalTo: categories.bottomAnchor, constant: SettingsMetrics.sectionGap),
+            body.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: SettingsMetrics.pageInset),
+            body.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -SettingsMetrics.pageInset),
             body.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
             host.topAnchor.constraint(equalTo: body.topAnchor),
             host.bottomAnchor.constraint(equalTo: body.bottomAnchor),
@@ -261,27 +252,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             preview.bottomAnchor.constraint(lessThanOrEqualTo: body.bottomAnchor),
         ])
 
-        standardPageConstraints = [
+        NSLayoutConstraint.activate([
             host.leadingAnchor.constraint(equalTo: body.leadingAnchor),
-            host.trailingAnchor.constraint(equalTo: preview.leadingAnchor, constant: -20),
-        ]
-        licensePageConstraints = [
-            host.centerXAnchor.constraint(equalTo: body.centerXAnchor),
-            host.widthAnchor.constraint(equalToConstant: 640),
-        ]
+            host.trailingAnchor.constraint(equalTo: preview.leadingAnchor, constant: SettingsMetrics.sectionGap * -1),
+        ])
         updatePreview()
         refreshAccessStatus()
         return window
     }
 
     private func makePage(for category: SettingsCategory) -> NSView {
-        if category == .license { return makeScrollablePage(makeLicenseGroup()) }
         let content = SettingsFlippedView()
         content.translatesAutoresizingMaskIntoConstraints = false
 
         let title = localizedLabel(
             category.titleKey,
-            font: .systemFont(ofSize: 22, weight: .semibold),
+            font: .systemFont(ofSize: 22, weight: .bold),
             color: .labelColor
         )
         title.alignment = .left
@@ -315,7 +301,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
             subtitle.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             subtitle.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            group.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 16),
+            group.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: SettingsMetrics.sectionGap),
             group.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             group.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             group.bottomAnchor.constraint(equalTo: content.bottomAnchor),
@@ -331,7 +317,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         popup.action = #selector(languageChanged(_:))
         popup.controlSize = .regular
         popup.translatesAutoresizingMaskIntoConstraints = false
-        popup.widthAnchor.constraint(equalToConstant: 190).isActive = true
+        popup.widthAnchor.constraint(equalToConstant: 168).isActive = true
         popup.setAccessibilityLabel(L10n.text(.settingsLanguage))
         languagePopup = popup
 
@@ -443,7 +429,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 12
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18)
+        stack.edgeInsets = SettingsMetrics.cardInsets
         stack.detachesHiddenViews = true
 
         let hotkeys = localizedWrappingLabel(.settingsHotkeyCaptureHint, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
@@ -463,7 +449,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = 12
+        stack.spacing = SettingsMetrics.sectionGap
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 4, right: 0)
         stack.detachesHiddenViews = true
         let occluded = settingSwitch(
@@ -487,7 +473,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let list = NSStackView()
         list.orientation = .vertical
         list.alignment = .width
-        list.spacing = 12
+        list.spacing = SettingsMetrics.sectionGap
         list.detachesHiddenViews = true
         workspaceList = list
         stack.addArrangedSubview(list)
@@ -510,8 +496,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         let status = NSStackView()
         status.orientation = .vertical
         status.alignment = .leading
-        status.spacing = 18
-        status.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
+        status.spacing = SettingsMetrics.sectionGap
+        status.edgeInsets = SettingsMetrics.cardInsets
 
         let active = makeLicenseActiveBlock()
         licenseActiveStack = active
@@ -542,7 +528,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         features.orientation = .vertical
         features.alignment = .leading
         features.spacing = 16
-        features.edgeInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
+        features.edgeInsets = SettingsMetrics.cardInsets
         let heading = localizedLabel(.licenseUnlockedHeading, font: .systemFont(ofSize: 13, weight: .semibold), color: .labelColor)
         licenseUnlockedHeading = heading
         features.addArrangedSubview(heading)
@@ -576,35 +562,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             features.addArrangedSubview(row)
         }
 
-        let accessIcon = NSImageView()
-        accessIcon.translatesAutoresizingMaskIntoConstraints = false
-        accessIcon.widthAnchor.constraint(equalToConstant: 16).isActive = true
-        accessIcon.heightAnchor.constraint(equalToConstant: 16).isActive = true
-        licenseAccessIcon = accessIcon
-        let accessLabel = NSTextField(labelWithString: "")
-        accessLabel.font = .systemFont(ofSize: 12)
-        accessLabel.textColor = .secondaryLabelColor
-        accessLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        licenseAccessLabel = accessLabel
-        let access = NSButton(title: "", target: self, action: #selector(openAccess))
-        access.bezelStyle = .rounded
-        access.controlSize = .small
-        licenseAccessButton = access
-        let footer = NSStackView(views: [accessIcon, accessLabel, access])
-        footer.distribution = .fill
-        footer.orientation = .horizontal
-        footer.alignment = .centerY
-        footer.spacing = 8
-        footer.edgeInsets = NSEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
-
         let page = NSStackView(views: [
             SettingsGroupSurfaceView(content: status),
             SettingsGroupSurfaceView(content: features),
-            footer,
         ])
         page.orientation = .vertical
         page.alignment = .leading
-        page.spacing = 16
+        page.spacing = SettingsMetrics.sectionGap
         // NSStackView alignment does not stretch arranged views. Give every
         // section and row an explicit width, including the padded content.
         for stack in [status, features, page] {
@@ -1353,7 +1317,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             title: L10n.text(titleKey),
             tint: .controlAccentColor
         )
-        let title = localizedLabel(titleKey, font: .systemFont(ofSize: 14, weight: .medium), color: .labelColor)
+        let title = localizedLabel(titleKey, font: .systemFont(ofSize: 13, weight: .semibold), color: .labelColor)
         title.maximumNumberOfLines = 2
         title.lineBreakMode = .byWordWrapping
         title.alignment = .left
@@ -1499,7 +1463,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
                 group.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 6),
             ]
             if let previous {
-                constraints.append(heading.topAnchor.constraint(equalTo: previous.bottomAnchor, constant: 18))
+                constraints.append(heading.topAnchor.constraint(equalTo: previous.bottomAnchor, constant: SettingsMetrics.sectionGap))
             } else {
                 constraints.append(heading.topAnchor.constraint(equalTo: container.topAnchor))
             }
@@ -1764,7 +1728,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         return "circle.fill"
     }
 
-    @objc private func categoryChanged(_ sender: NSSegmentedControl) {
+    @objc private func categoryChanged(_ sender: SettingsCategoryControl) {
         guard let category = SettingsCategory(rawValue: sender.selectedSegment) else { return }
         if selectedCategory == .keyboard, category != .keyboard, recordingID != nil {
             stopRecording()
@@ -1776,10 +1740,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     }
 
     private func updatePreview() {
-        let license = selectedCategory == .license
-        previewPanel?.isHidden = license
-        NSLayoutConstraint.deactivate(license ? standardPageConstraints : licensePageConstraints)
-        NSLayoutConstraint.activate(license ? licensePageConstraints : standardPageConstraints)
+        previewPanel?.isHidden = false
         previewTitle?.stringValue = L10n.text(selectedCategory.previewTitleKey)
         if selectedCategory == .license, runtime.license.snapshot.kind == .licensed || runtime.license.snapshot.kind == .offlineGrace {
             previewDescription?.stringValue = L10n.text(.settingsLicensePreviewDescriptionActive)
@@ -1828,11 +1789,6 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         accessStatusIcon?.contentTintColor = trusted ? .systemGreen : .systemOrange
         accessStatusLabel?.stringValue = L10n.text(trusted ? .settingsAccessGranted : .settingsAccessRequired)
         accessButton?.title = L10n.text(.settingsManageAccess)
-        licenseAccessIcon?.image = accessStatusIcon?.image
-        licenseAccessIcon?.symbolConfiguration = .init(pointSize: 14, weight: .semibold)
-        licenseAccessIcon?.contentTintColor = trusted ? .systemGreen : .systemOrange
-        licenseAccessLabel?.stringValue = L10n.text(trusted ? .settingsAccessGranted : .settingsAccessRequired)
-        licenseAccessButton?.title = L10n.text(.settingsManageAccess)
     }
 
     func refreshLoginSwitch() {
@@ -2047,7 +2003,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             title.trailingAnchor.constraint(lessThanOrEqualTo: buttons.leadingAnchor, constant: -12),
             buttons.trailingAnchor.constraint(equalTo: row.trailingAnchor),
             buttons.centerYAnchor.constraint(equalTo: row.centerYAnchor),
-            row.heightAnchor.constraint(greaterThanOrEqualToConstant: 28),
+            row.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+            record.widthAnchor.constraint(equalToConstant: 112),
         ])
         return row
     }
@@ -2492,7 +2449,11 @@ private enum SettingsCategory: Int, CaseIterable {
 
 
 private enum SettingsMetrics {
-    static let rowInset: CGFloat = 14
+    static let pageInset: CGFloat = 28
+    static let sectionGap: CGFloat = 20
+    static let rowInset: CGFloat = 16
+    static let rowVerticalInset: CGFloat = 14
+    static let cardInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
     static let iconSize: CGFloat = 28
     static let iconTitleGap: CGFloat = 10
 }
@@ -2513,7 +2474,7 @@ private final class SettingsPreferenceRowView: NSView {
         let labels = NSStackView()
         labels.orientation = .vertical
         labels.alignment = .leading
-        labels.spacing = 2
+        labels.spacing = 4
         labels.distribution = .fill
         labels.detachesHiddenViews = true
         labels.translatesAutoresizingMaskIntoConstraints = false
@@ -2525,6 +2486,7 @@ private final class SettingsPreferenceRowView: NSView {
         if let detail {
             detail.setContentHuggingPriority(.defaultLow, for: .horizontal)
             labels.addArrangedSubview(detail)
+            detail.widthAnchor.constraint(equalTo: labels.widthAnchor).isActive = true
         }
         if let footer {
             footer.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -2541,8 +2503,10 @@ private final class SettingsPreferenceRowView: NSView {
             icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SettingsMetrics.rowInset),
             icon.topAnchor.constraint(equalTo: title.topAnchor),
             labels.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: SettingsMetrics.iconTitleGap),
-            labels.topAnchor.constraint(equalTo: topAnchor, constant: 11),
-            labels.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11),
+            labels.topAnchor.constraint(equalTo: topAnchor, constant: SettingsMetrics.rowVerticalInset),
+            labels.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -SettingsMetrics.rowVerticalInset),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
+            title.widthAnchor.constraint(equalTo: labels.widthAnchor),
         ]
         if let accessory {
             constraints.append(contentsOf: [
@@ -2914,7 +2878,7 @@ private final class SettingsGroupSurfaceView: NSVisualEffectView {
         blendingMode = .withinWindow
         state = .followsWindowActiveState
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -2934,7 +2898,7 @@ private final class SettingsGroupSurfaceView: NSVisualEffectView {
     private func updateColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.76).cgColor
-            layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+            layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
             layer?.borderWidth = 0.5
         }
     }
@@ -3195,7 +3159,7 @@ private final class SettingsPreviewPanel: NSVisualEffectView {
         blendingMode = .withinWindow
         state = .followsWindowActiveState
         wantsLayer = true
-        layer?.cornerRadius = 10
+        layer?.cornerRadius = 12
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         setContentHuggingPriority(.required, for: .vertical)
@@ -3207,7 +3171,7 @@ private final class SettingsPreviewPanel: NSVisualEffectView {
     private func updateColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.68).cgColor
-            layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+            layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.28).cgColor
             layer?.borderWidth = 0.5
         }
     }
@@ -3243,6 +3207,97 @@ private final class LicenseKeyTextField: NSTextField {
             layer?.borderColor = (showsInvalidKey
                 ? NSColor.systemRed
                 : NSColor.secondaryLabelColor.withAlphaComponent(0.6)).cgColor
+        }
+    }
+}
+
+/// Native buttons retain keyboard focus and accessibility while avoiding a long
+/// segmented pill. Each category has the same hit area and selection treatment.
+private final class SettingsCategoryControl: NSControl {
+    private var buttons: [NSButton] = []
+    var selectedSegment: Int = 0 { didSet { updateSelection() } }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        let row = NSStackView()
+        row.orientation = .horizontal
+        row.distribution = .fillEqually
+        row.spacing = 8
+        row.translatesAutoresizingMaskIntoConstraints = false
+        for category in SettingsCategory.allCases {
+            let button = SettingsCategoryButton(title: L10n.text(category.titleKey), target: self, action: #selector(selectCategory(_:)))
+            button.tag = category.rawValue
+            button.setButtonType(.pushOnPushOff)
+            button.isBordered = false
+            button.image = NSImage(systemSymbolName: category.symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 19, weight: .medium))
+            button.imagePosition = .imageAbove
+            button.font = .systemFont(ofSize: 12, weight: .medium)
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.setAccessibilityLabel(button.title)
+            row.addArrangedSubview(button)
+            button.heightAnchor.constraint(equalTo: row.heightAnchor).isActive = true
+            buttons.append(button)
+        }
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: topAnchor),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor),
+        ])
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityChildren(buttons)
+        updateSelection()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func setLabel(_ label: String, forSegment segment: Int) {
+        buttons[segment].title = label
+        buttons[segment].setAccessibilityLabel(label)
+    }
+
+    private func updateSelection() {
+        for button in buttons {
+            let selected = button.tag == selectedSegment
+            button.state = selected ? .on : .off
+            button.contentTintColor = selected ? .controlAccentColor : .secondaryLabelColor
+            button.needsDisplay = true
+        }
+    }
+
+    @objc private func selectCategory(_ sender: NSButton) {
+        selectedSegment = sender.tag
+        sendAction(action, to: target)
+    }
+}
+
+private final class SettingsCategoryButton: NSButton {
+    override func draw(_ dirtyRect: NSRect) {
+        let selected = state == .on
+        let color: NSColor = selected ? .controlAccentColor : .secondaryLabelColor
+        if selected || isHighlighted {
+            color.withAlphaComponent(isHighlighted ? 0.18 : 0.10).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 10, yRadius: 10).fill()
+        }
+        let symbol = image?.withSymbolConfiguration(.init(paletteColors: [color]))
+        symbol?.draw(in: NSRect(x: bounds.midX - 11, y: 9, width: 22, height: 22), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let text = NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: selected ? .semibold : .medium),
+            .foregroundColor: color,
+            .paragraphStyle: paragraph,
+        ])
+        text.draw(in: NSRect(x: 4, y: 37, width: bounds.width - 8, height: 18))
+        if window?.firstResponder === self {
+            NSColor.keyboardFocusIndicatorColor.setStroke()
+            let ring = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 10, yRadius: 10)
+            ring.lineWidth = 2
+            ring.stroke()
         }
     }
 }

@@ -52,6 +52,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case menuDeleteLayoutConfirm
     case menuSettings
     case menuLicense
+    case menuFile
+    case menuCloseWindow
     case menuEdit
     case menuCheckForUpdates
     case menuShowDownloadedUpdate
@@ -838,6 +840,8 @@ public enum L10n {
         .menuDeleteLayoutConfirm: "Delete",
         .menuSettings: "Settings…",
         .menuLicense: "ZoneBox Pro…",
+        .menuFile: "File",
+        .menuCloseWindow: "Close Window",
         .menuEdit: "Edit",
         .menuCheckForUpdates: "Check for Updates…",
         .menuShowDownloadedUpdate: "Show Downloaded Update…",
@@ -1394,6 +1398,8 @@ public enum L10n {
         .menuDeleteLayoutConfirm: "删除",
         .menuSettings: "设置…",
         .menuLicense: "ZoneBox Pro…",
+        .menuFile: "文件",
+        .menuCloseWindow: "关闭窗口",
         .menuEdit: "编辑",
         .menuCheckForUpdates: "检查更新…",
         .menuShowDownloadedUpdate: "显示已下载的更新…",

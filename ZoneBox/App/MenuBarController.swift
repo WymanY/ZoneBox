@@ -253,6 +253,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let main = NSMenu()
         main.addItem(appItem)
 
+        let file = NSMenu(title: L10n.text(.menuFile))
+        let close = NSMenuItem(
+            title: L10n.text(.menuCloseWindow),
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w"
+        )
+        close.keyEquivalentModifierMask = .command
+        // Route through the responder chain so the key window's normal close
+        // handling (including sheets and delegates) remains in charge.
+        file.addItem(close)
+        let fileItem = NSMenuItem()
+        fileItem.submenu = file
+        main.addItem(fileItem)
+
         // Standard responder-chain actions keep field editors usable in this
         // menu-bar app, including the license key field.
         let edit = NSMenu(title: L10n.text(.menuEdit))

@@ -108,37 +108,42 @@ private final class OrganizeFeedbackPanel: NSPanel {
         isReleasedWhenClosed = false
 
         let chrome = FeedbackChromeView(frame: .zero)
-        chrome.translatesAutoresizingMaskIntoConstraints = false
 
         let iconWell = NSView()
         iconWell.wantsLayer = true
-        iconWell.layer?.cornerRadius = 8
+        iconWell.layer?.cornerRadius = Metrics.iconWell / 2
         iconWell.layer?.cornerCurve = .continuous
         iconWell.translatesAutoresizingMaskIntoConstraints = false
 
         let palette = TonePalette(feedback.tone)
-        iconWell.layer?.backgroundColor = palette.well.cgColor
+        chrome.applyTone = { iconWell.layer?.backgroundColor = palette.well.cgColor }
 
         let icon = NSImageView()
-        let symbol = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        let symbol = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
         icon.image = NSImage(systemSymbolName: palette.symbol, accessibilityDescription: nil)?
             .withSymbolConfiguration(symbol)
         icon.contentTintColor = palette.icon
         icon.imageScaling = .scaleProportionallyDown
         icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.setAccessibilityElement(false)
 
         iconWell.addSubview(icon)
 
-        let title = NSTextField(labelWithString: feedback.title)
+        let title = NSTextField(wrappingLabelWithString: feedback.title)
         title.font = .systemFont(ofSize: 13, weight: .semibold)
         title.textColor = .labelColor
-        title.lineBreakMode = .byTruncatingTail
+        title.maximumNumberOfLines = 2
+        title.cell?.truncatesLastVisibleLine = true
+        title.toolTip = feedback.title
+        title.setContentCompressionResistancePriority(.required, for: .vertical)
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let detail = NSTextField(wrappingLabelWithString: feedback.detail)
         detail.font = .systemFont(ofSize: 12)
         detail.textColor = .secondaryLabelColor
         detail.maximumNumberOfLines = feedback.detailLineLimit
+        detail.cell?.truncatesLastVisibleLine = true
+        detail.toolTip = feedback.detail
         detail.isHidden = feedback.detail.isEmpty
         detail.setContentCompressionResistancePriority(.required, for: .vertical)
         detail.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -146,47 +151,42 @@ private final class OrganizeFeedbackPanel: NSPanel {
         let text = NSStackView(views: feedback.detail.isEmpty ? [title] : [title, detail])
         text.orientation = .vertical
         text.alignment = .leading
-        text.spacing = 3
+        text.spacing = 4
         text.translatesAutoresizingMaskIntoConstraints = false
 
         var actions: [NSView] = []
         if let restoreTitle = feedback.restoreTitle, let onRestore = feedback.onRestore {
             actions.append(actionButton(title: restoreTitle) { [weak self] in
-                onRestore()
                 self?.onDismiss?()
+                onRestore()
             })
         }
         if let ignoreTitle = feedback.ignoreTitle, let onIgnore = feedback.onIgnore {
             actions.append(actionButton(title: ignoreTitle) { [weak self] in
-                onIgnore()
                 self?.onDismiss?()
+                onIgnore()
             })
         }
         let actionRow = NSStackView(views: actions)
         actionRow.orientation = .horizontal
         actionRow.alignment = .centerY
-        actionRow.spacing = 6
+        actionRow.spacing = 8
         actionRow.translatesAutoresizingMaskIntoConstraints = false
         actionRow.isHidden = actions.isEmpty
 
         let body = NSStackView(views: actions.isEmpty ? [text] : [text, actionRow])
         body.orientation = .vertical
         body.alignment = .leading
-        body.spacing = actions.isEmpty ? 0 : 8
+        body.spacing = actions.isEmpty ? 0 : 12
         body.translatesAutoresizingMaskIntoConstraints = false
 
         let closeTitle = L10n.text(.organizeClose)
-        let close = NSButton(
-            image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: closeTitle) ?? NSImage(),
-            target: self,
-            action: #selector(closeFeedback)
-        )
-        close.bezelStyle = .inline
-        close.isBordered = false
+        let close = FeedbackActionButton(title: "", action: { [weak self] in self?.onDismiss?() })
+        close.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: closeTitle)?
+            .withSymbolConfiguration(.init(pointSize: 9, weight: .semibold))
         close.imagePosition = .imageOnly
         close.imageScaling = .scaleProportionallyDown
-        close.contentTintColor = .tertiaryLabelColor
-        close.translatesAutoresizingMaskIntoConstraints = false
+        close.contentTintColor = .secondaryLabelColor
         close.toolTip = closeTitle
         close.setAccessibilityLabel(closeTitle)
 
@@ -197,55 +197,62 @@ private final class OrganizeFeedbackPanel: NSPanel {
 
         let titleWidth = ceil(title.attributedStringValue.size().width)
         let detailWidth = feedback.detail.isEmpty ? 0 : ceil(detail.attributedStringValue.size().width)
-        let textWidth = min(Metrics.maxTextWidth, max(Metrics.minTextWidth, titleWidth, detailWidth))
+        let actionWidth = actionRow.fittingSize.width
+        let textWidth = min(Metrics.maxTextWidth, max(Metrics.minTextWidth, titleWidth, detailWidth, actionWidth))
+        if actionWidth > textWidth {
+            actionRow.orientation = .vertical
+            actionRow.alignment = .leading
+        }
+        title.widthAnchor.constraint(equalToConstant: textWidth).isActive = true
+        detail.widthAnchor.constraint(equalToConstant: textWidth).isActive = true
+        for button in actions {
+            button.widthAnchor.constraint(lessThanOrEqualToConstant: textWidth).isActive = true
+        }
         title.preferredMaxLayoutWidth = textWidth
         detail.preferredMaxLayoutWidth = textWidth
 
         NSLayoutConstraint.activate([
             iconWell.leadingAnchor.constraint(equalTo: chrome.leadingAnchor, constant: Metrics.inset),
-            iconWell.topAnchor.constraint(equalTo: chrome.topAnchor, constant: Metrics.inset),
+            feedback.detail.isEmpty
+                ? iconWell.centerYAnchor.constraint(equalTo: text.centerYAnchor)
+                : iconWell.topAnchor.constraint(equalTo: body.topAnchor),
             iconWell.widthAnchor.constraint(equalToConstant: Metrics.iconWell),
             iconWell.heightAnchor.constraint(equalToConstant: Metrics.iconWell),
             icon.centerXAnchor.constraint(equalTo: iconWell.centerXAnchor),
             icon.centerYAnchor.constraint(equalTo: iconWell.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
-            icon.heightAnchor.constraint(equalToConstant: 16),
-            body.leadingAnchor.constraint(equalTo: iconWell.trailingAnchor, constant: 10),
-            body.topAnchor.constraint(equalTo: chrome.topAnchor, constant: Metrics.inset),
-            body.bottomAnchor.constraint(equalTo: chrome.bottomAnchor, constant: -Metrics.inset),
+            icon.widthAnchor.constraint(equalToConstant: 18),
+            icon.heightAnchor.constraint(equalToConstant: 18),
+            body.leadingAnchor.constraint(equalTo: iconWell.trailingAnchor, constant: 12),
+            body.topAnchor.constraint(greaterThanOrEqualTo: chrome.topAnchor, constant: Metrics.inset),
+            body.centerYAnchor.constraint(equalTo: chrome.centerYAnchor),
+            body.bottomAnchor.constraint(lessThanOrEqualTo: chrome.bottomAnchor, constant: -Metrics.inset),
             body.widthAnchor.constraint(equalToConstant: textWidth),
             close.leadingAnchor.constraint(equalTo: body.trailingAnchor, constant: 8),
-            close.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -10),
-            close.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 10),
-            close.widthAnchor.constraint(equalToConstant: 18),
-            close.heightAnchor.constraint(equalToConstant: 18),
-            actionRow.heightAnchor.constraint(equalToConstant: actions.isEmpty ? 0 : 24),
+            close.trailingAnchor.constraint(equalTo: chrome.trailingAnchor, constant: -12),
+            close.topAnchor.constraint(equalTo: chrome.topAnchor, constant: 12),
+            close.widthAnchor.constraint(equalToConstant: 24),
+            close.heightAnchor.constraint(equalToConstant: 24),
         ])
 
         chrome.layoutSubtreeIfNeeded()
-        let height = max(Metrics.minHeight, chrome.fittingSize.height)
-        let width = Metrics.inset + Metrics.iconWell + 10 + textWidth + 8 + 18 + 10
+        let height = max(Metrics.minHeight, ceil(body.fittingSize.height) + Metrics.inset * 2)
+        let width = Metrics.inset + Metrics.iconWell + 12 + textWidth + 8 + 24 + 12
         setContentSize(NSSize(width: width, height: height))
         chrome.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
         chrome.autoresizingMask = [.width, .height]
+        chrome.layoutSubtreeIfNeeded()
+        chrome.refreshAppearance()
     }
 
     private func actionButton(title: String, action: @escaping () -> Void) -> NSButton {
         let button = FeedbackActionButton(title: title, action: action)
-        button.bezelStyle = .rounded
-        button.controlSize = .small
         return button
     }
 
-    @objc
-    private func closeFeedback() {
-        onDismiss?()
-    }
-
     private enum Metrics {
-        static let inset: CGFloat = 14
-        static let iconWell: CGFloat = 28
-        static let minHeight: CGFloat = 56
+        static let inset: CGFloat = 16
+        static let iconWell: CGFloat = 32
+        static let minHeight: CGFloat = 72
         static let minTextWidth: CGFloat = 168
         static let maxTextWidth: CGFloat = 280
     }
@@ -259,33 +266,31 @@ private struct TonePalette {
     init(_ tone: OrganizeFeedback.Tone) {
         switch tone {
         case .success:
-            symbol = "checkmark.circle.fill"
+            symbol = "checkmark"
             icon = .systemGreen
-            well = NSColor.systemGreen.withAlphaComponent(0.14)
+            well = NSColor.systemGreen.withAlphaComponent(0.10)
         case .warning:
-            symbol = "exclamationmark.triangle.fill"
+            symbol = "exclamationmark.triangle"
             icon = .systemOrange
-            well = NSColor.systemOrange.withAlphaComponent(0.14)
+            well = NSColor.systemOrange.withAlphaComponent(0.10)
         case .error:
-            symbol = "exclamationmark.octagon.fill"
+            symbol = "xmark"
             icon = .systemRed
-            well = NSColor.systemRed.withAlphaComponent(0.14)
+            well = NSColor.systemRed.withAlphaComponent(0.10)
         }
     }
 }
 
-private final class FeedbackChromeView: NSVisualEffectView {
+// A single painted surface avoids the extra bezel applied to HUD materials.
+private final class FeedbackChromeView: NSView {
+    var applyTone: (() -> Void)?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        material = .hudWindow
-        blendingMode = .behindWindow
-        state = .active
         wantsLayer = true
-        layer?.cornerRadius = 14
+        layer?.cornerRadius = 16
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
-        layer?.borderWidth = 1
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) {
@@ -294,23 +299,85 @@ private final class FeedbackChromeView: NSVisualEffectView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
+        refreshAppearance()
+    }
+
+    func refreshAppearance() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { applyTone?() }
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        NSColor(white: dark ? 0.15 : 0.985, alpha: 1).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 16, yRadius: 16).fill()
+        let border = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 15.5, yRadius: 15.5)
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        NSColor.labelColor.withAlphaComponent(contrast ? 0.45 : (dark ? 0.14 : 0.08)).setStroke()
+        border.lineWidth = 1
+        border.stroke()
     }
 }
 
 private final class FeedbackActionButton: NSButton {
     private let handler: () -> Void
+    private var hovering = false
+    private var hoverArea: NSTrackingArea?
 
     init(title: String, action: @escaping () -> Void) {
         handler = action
         super.init(frame: .zero)
         self.title = title
+        font = .systemFont(ofSize: 11, weight: .medium)
+        isBordered = false
+        bezelStyle = .regularSquare
+        focusRingType = .none
+        lineBreakMode = .byTruncatingTail
+        toolTip = title.isEmpty ? nil : title
+        translatesAutoresizingMaskIntoConstraints = false
         target = self
         self.action = #selector(invoke)
     }
 
     required init?(coder: NSCoder) {
         nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        if imagePosition == .imageOnly { return NSSize(width: 24, height: 24) }
+        let width = (title as NSString).size(withAttributes: [.font: font ?? NSFont.systemFont(ofSize: 11)]).width
+        return NSSize(width: ceil(width) + 20, height: 26)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let opacity: CGFloat = isHighlighted ? 0.14 : (hovering ? 0.09 : (imagePosition == .imageOnly ? 0 : 0.05))
+        NSColor.labelColor.withAlphaComponent(opacity).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
+        if imagePosition == .imageOnly {
+            super.draw(dirtyRect)
+        } else {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            paragraph.lineBreakMode = .byTruncatingTail
+            let text = NSAttributedString(string: title, attributes: [
+                .font: font ?? NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph,
+            ])
+            let height = ceil(text.size().height)
+            text.draw(in: NSRect(x: 10, y: (bounds.height - height) / 2, width: max(0, bounds.width - 20), height: height))
+        }
     }
 
     @objc
