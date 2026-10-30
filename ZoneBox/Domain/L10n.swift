@@ -476,6 +476,8 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case welcomeIntroSubtitle
     case welcomeIntroMenuBar
     case welcomeIntroLocate
+    case welcomeStageFinder
+    case welcomeStageFinderMenus
     case welcomeLayoutsTitle
     case welcomeLayoutsBody
     case welcomeLayoutsPerDisplay
@@ -1264,8 +1266,10 @@ public enum L10n {
         .welcomeStepOf: "Step %d of %d",
         .welcomeIntroTitle: "Welcome to ZoneBox",
         .welcomeIntroSubtitle: "Draw zones on your screen, then snap windows into them with a drag or a keystroke.",
-        .welcomeIntroMenuBar: "ZoneBox lives in the menu bar, next to the clock. There is no Dock icon. Left-click the icon for the panel, right-click for the menu.",
+        .welcomeIntroMenuBar: "ZoneBox lives in the menu bar at the top right. There is no Dock icon. Left-click the icon for the panel, right-click for the menu.",
         .welcomeIntroLocate: "Show Me",
+        .welcomeStageFinder: "Finder",
+        .welcomeStageFinderMenus: "File   Edit   View   Go   Window",
         .welcomeLayoutsTitle: "Zones are where windows land",
         .welcomeLayoutsBody: "A layout is a set of numbered zones for one display. Pick a starting layout. You can change it or draw your own later.",
         .welcomeLayoutsPerDisplay: "Each display keeps its own layout.",
@@ -1824,8 +1828,10 @@ public enum L10n {
         .welcomeStepOf: "第 %d 步，共 %d 步",
         .welcomeIntroTitle: "欢迎使用 ZoneBox",
         .welcomeIntroSubtitle: "在屏幕上划出分区，拖一下或按个快捷键，窗口就吸附进去。",
-        .welcomeIntroMenuBar: "ZoneBox 常驻菜单栏（时钟旁边），没有 Dock 图标。左键点图标打开面板，右键打开菜单。",
+        .welcomeIntroMenuBar: "ZoneBox 常驻右上角菜单栏，没有 Dock 图标。左键点图标打开面板，右键打开菜单。",
         .welcomeIntroLocate: "指给我看",
+        .welcomeStageFinder: "访达",
+        .welcomeStageFinderMenus: "文件   编辑   显示   前往   窗口",
         .welcomeLayoutsTitle: "分区就是窗口的落点",
         .welcomeLayoutsBody: "一套布局就是一个显示器上的一组带编号分区。先选一个起始布局，之后随时可以改，或者自己画。",
         .welcomeLayoutsPerDisplay: "每个显示器各自记住一套布局。",

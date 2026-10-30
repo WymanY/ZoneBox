@@ -298,6 +298,7 @@ final class WelcomeIntroPage: NSView, WelcomePage {
         let calloutRow = NSStackView(views: [badge, menuCopy, locate])
         calloutRow.orientation = .horizontal
         calloutRow.alignment = .centerY
+        calloutRow.distribution = .fill
         calloutRow.spacing = 14
         calloutRow.translatesAutoresizingMaskIntoConstraints = false
         calloutCard.addSubview(calloutRow)
@@ -395,66 +396,56 @@ private final class WelcomeDesktopStageView: NSView {
         menuBarFill.setFill()
         menuBarRect.fill()
 
-        // Menu bar left items (Apple logo + menus)
-        let menuFont = NSFont.systemFont(ofSize: 11.5, weight: .semibold)
-        let menuItemFont = NSFont.systemFont(ofSize: 11, weight: .regular)
-        let menuAttrs: [NSAttributedString.Key: Any] = [.font: menuFont, .foregroundColor: NSColor.white.withAlphaComponent(0.92)]
-        let dimAttrs: [NSAttributedString.Key: Any] = [.font: menuItemFont, .foregroundColor: NSColor.white.withAlphaComponent(0.55)]
-        ("" as NSString).draw(at: NSPoint(x: outer.minX + 16, y: menuBarRect.midY - 7), withAttributes: menuAttrs)
-        ("Finder" as NSString).draw(at: NSPoint(x: outer.minX + 36, y: menuBarRect.midY - 7), withAttributes: menuAttrs)
-        ("File   Edit   View" as NSString).draw(at: NSPoint(x: outer.minX + 84, y: menuBarRect.midY - 7), withAttributes: dimAttrs)
+        // Menu bar left items (Apple logo + Finder menus)
+        let menuText = NSColor.white.withAlphaComponent(0.92)
+        let boldAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5, weight: .bold), .foregroundColor: menuText]
+        let menuAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: menuText]
+        var leftX = outer.minX + 16
+        for (text, attrs) in [("\u{F8FF}", boldAttrs), (L10n.text(.welcomeStageFinder), boldAttrs), (L10n.text(.welcomeStageFinderMenus), menuAttrs)] {
+            let string = text as NSString
+            let size = string.size(withAttributes: attrs)
+            string.draw(at: NSPoint(x: leftX, y: (menuBarRect.midY - size.height / 2).rounded()), withAttributes: attrs)
+            leftX += size.width + 16
+        }
 
-        // Menu bar right items: Clock + Highlighted ZoneBox Icon + Wi-Fi
-        let clockAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.92),
-        ]
-        let clockStr = "9:41" as NSString
+        // Menu bar right items, right to left in system order:
+        // clock, Control Center, Spotlight, Wi-Fi, battery, then third-party items like ZoneBox.
+        let clockAttrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: menuText]
+        let clockStr = Self.menuBarClockText() as NSString
         let clockSize = clockStr.size(withAttributes: clockAttrs)
-        let clockX = outer.maxX - 16 - clockSize.width
-        clockStr.draw(at: NSPoint(x: clockX, y: menuBarRect.midY - clockSize.height / 2), withAttributes: clockAttrs)
+        var rightX = outer.maxX - 14 - clockSize.width
+        clockStr.draw(at: NSPoint(x: rightX, y: (menuBarRect.midY - clockSize.height / 2).rounded()), withAttributes: clockAttrs)
 
-        // ZoneBox highlighted status pill in menu bar
-        let pillWidth: CGFloat = 86
-        let pillHeight: CGFloat = 22
-        let pillRect = NSRect(
-            x: clockX - 12 - pillWidth,
-            y: menuBarRect.midY - pillHeight / 2,
-            width: pillWidth,
-            height: pillHeight
+        for name in ["switch.2", "magnifyingglass", "wifi", "battery.100percent"] {
+            guard let symbol = ConsoleChrome.symbol(name, size: 12, weight: .regular, color: menuText) else { continue }
+            let size = symbol.size
+            rightX -= 14 + size.width
+            symbol.draw(in: NSRect(x: rightX.rounded(), y: (menuBarRect.midY - size.height / 2).rounded(), width: size.width, height: size.height))
+        }
+
+        // ZoneBox status item, drawn open (highlighted) like the real one while its panel shows.
+        let itemRect = NSRect(
+            x: (rightX - 10 - 28).rounded(),
+            y: (menuBarRect.midY - 11).rounded(),
+            width: 28,
+            height: 22
         )
         if pulsePhase > 0.01 {
-            let haloInset = -4.0 * pulsePhase
-            let haloRect = pillRect.insetBy(dx: haloInset, dy: haloInset)
-            let haloPath = NSBezierPath(roundedRect: haloRect, xRadius: haloRect.height / 2, yRadius: haloRect.height / 2)
-            blue.withAlphaComponent(0.45 * pulsePhase).setStroke()
+            let haloRect = itemRect.insetBy(dx: -3 * pulsePhase, dy: -3 * pulsePhase)
+            let haloPath = NSBezierPath(roundedRect: haloRect, xRadius: 8, yRadius: 8)
+            blue.withAlphaComponent(0.9 * pulsePhase).setStroke()
             haloPath.lineWidth = 2
             haloPath.stroke()
         }
-        let pillPath = NSBezierPath(roundedRect: pillRect, xRadius: pillHeight / 2, yRadius: pillHeight / 2)
-        blue.withAlphaComponent(0.92 + 0.08 * pulsePhase).setFill()
-        pillPath.fill()
-
-        if let symbol = ConsoleChrome.symbol("rectangle.split.3x1", size: 11, weight: .semibold, color: .white) {
-            symbol.draw(in: NSRect(x: pillRect.minX + 8, y: pillRect.midY - 6, width: 14, height: 12))
-        }
-        let zbAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-            .foregroundColor: NSColor.white,
-        ]
-        ("ZoneBox" as NSString).draw(at: NSPoint(x: pillRect.minX + 26, y: pillRect.midY - 6.5), withAttributes: zbAttrs)
-
-        // Subtle Wi-Fi / Battery icons to the left of ZoneBox pill
-        if let wifi = ConsoleChrome.symbol("wifi", size: 11, weight: .medium, color: NSColor.white.withAlphaComponent(0.65)) {
-            wifi.draw(in: NSRect(x: pillRect.minX - 24, y: menuBarRect.midY - 6, width: 14, height: 12))
-        }
-        if let battery = ConsoleChrome.symbol("battery.100", size: 11, weight: .medium, color: NSColor.white.withAlphaComponent(0.65)) {
-            battery.draw(in: NSRect(x: pillRect.minX - 48, y: menuBarRect.midY - 6, width: 18, height: 12))
+        NSColor.white.withAlphaComponent(0.22).setFill()
+        NSBezierPath(roundedRect: itemRect, xRadius: 6, yRadius: 6).fill()
+        if let icon = Self.menuBarIcon(color: .white) {
+            icon.draw(in: NSRect(x: itemRect.midX - 8, y: itemRect.midY - 8, width: 16, height: 16))
         }
 
         // Desktop Workspace Canvas (Left: 3 Zones with Snapped Window; Right: Mini Console Popover under ZoneBox icon)
         let desktopRect = NSRect(x: outer.minX + 18, y: outer.minY + 16, width: outer.width - 36, height: outer.height - menuBarHeight - 30)
-        let leftCanvasWidth = desktopRect.width * 0.62
+        let leftCanvasWidth = desktopRect.width * 0.44
         let gap: CGFloat = 10
         let leftZoneWidth = (leftCanvasWidth - gap) * 0.56
         let rightZoneWidth = leftCanvasWidth - gap - leftZoneWidth
@@ -521,7 +512,7 @@ private final class WelcomeDesktopStageView: NSView {
         let popWidth: CGFloat = min(210, desktopRect.width - leftCanvasWidth - 18)
         let popHeight: CGFloat = desktopRect.height + 4
         let popRect = NSRect(
-            x: outer.maxX - 18 - popWidth,
+            x: min(outer.maxX - 10 - popWidth, max(desktopRect.minX + leftCanvasWidth + 12, itemRect.midX - popWidth / 2)),
             y: desktopRect.minY,
             width: popWidth,
             height: popHeight
@@ -532,16 +523,6 @@ private final class WelcomeDesktopStageView: NSView {
         blue.withAlphaComponent(dark ? 0.45 : 0.30).setStroke()
         popPath.lineWidth = 1.2
         popPath.stroke()
-
-        // Pointer triangle from popover to ZoneBox menu bar pill
-        let arrowX = min(popRect.maxX - 20, max(popRect.minX + 20, pillRect.midX))
-        let arrow = NSBezierPath()
-        arrow.move(to: NSPoint(x: arrowX - 6, y: popRect.maxY))
-        arrow.line(to: NSPoint(x: arrowX, y: popRect.maxY + 6))
-        arrow.line(to: NSPoint(x: arrowX + 6, y: popRect.maxY))
-        arrow.close()
-        (dark ? NSColor(srgbRed: 0.15, green: 0.16, blue: 0.20, alpha: 0.96) : NSColor.white.withAlphaComponent(0.96)).setFill()
-        arrow.fill()
 
         // Mini popover header & layout thumbnails
         let popHeaderAttrs: [NSAttributedString.Key: Any] = [
@@ -596,6 +577,28 @@ private final class WelcomeDesktopStageView: NSView {
         ConsoleChrome.surfaceBorder(dark: dark).setStroke()
         screenPath.lineWidth = 1
         screenPath.stroke()
+    }
+
+    /// The same template asset MenuBarController installs, filled with a solid color.
+    private static func menuBarIcon(color: NSColor) -> NSImage? {
+        guard let template = NSImage(named: "MenuBarIcon") else { return nil }
+        let size = NSSize(width: 16, height: 16)
+        return NSImage(size: size, flipped: false) { rect in
+            template.draw(in: rect)
+            color.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+    }
+
+    /// A fixed "9:41" with today's localized weekday and date, formatted like the system clock.
+    private static func menuBarClockText() -> String {
+        let locale = LanguageCenter.language.locale
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate("MMMdEEE")
+        let date = formatter.string(from: Date()).replacingOccurrences(of: ",", with: "")
+        return "\(date) 9:41"
     }
 }
 
