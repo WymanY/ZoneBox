@@ -936,7 +936,7 @@ final class AppRuntime {
                 tone: outcome == .unavailable ? .error : .warning,
                 title: title,
                 detail: detail,
-                displayDuration: 7,
+                displayDuration: outcome == .sizeLimited ? 2 : 7,
                 detailLineLimit: 0
             ),
             on: screen
