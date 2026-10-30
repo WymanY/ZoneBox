@@ -230,11 +230,14 @@ final class WelcomeFirstSnapPage: NSView, WelcomePage {
         }
     }
 
+    /// Long enough to take in the zone layout and numbers, short of feeling stuck.
+    private static let zonePreviewDuration: TimeInterval = 2.5
+
     @objc private func tapShowZones() {
         if let id = runtime.welcomeDisplayID() {
-            runtime.previewZones(on: id)
+            runtime.previewZones(on: id, duration: Self.zonePreviewDuration)
         } else {
-            runtime.previewZones()
+            runtime.previewZones(duration: Self.zonePreviewDuration)
         }
     }
 

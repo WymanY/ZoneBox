@@ -2586,7 +2586,7 @@ private final class SettingsFlippedView: NSView { override var isFlipped: Bool {
             didSet { needsDisplay = true }
         }
 
-        var gutterPoints = 16 {
+        var gutterPoints = AppSettings.default.gutterPoints {
             didSet { needsDisplay = true }
         }
 

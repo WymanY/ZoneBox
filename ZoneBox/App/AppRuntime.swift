@@ -646,18 +646,18 @@ final class AppRuntime {
         divider.refresh()
     }
 
-    func previewZones() {
+    func previewZones(duration: TimeInterval = 1.6) {
         guard let area = displays.area(containingAppKit: NSEvent.mouseLocation),
               let layout = document.layout(for: area.display.id)
         else { return }
-        flashZones(area: area, layout: layout, duration: 1.6)
+        flashZones(area: area, layout: layout, duration: duration, asPreview: true)
     }
 
-    func previewZones(on displayID: DisplayIdentity.ID) {
+    func previewZones(on displayID: DisplayIdentity.ID, duration: TimeInterval = 1.6) {
         guard let area = displays.workAreas.first(where: { $0.display.id == displayID }),
               let layout = document.layout(for: displayID)
         else { return }
-        flashZones(area: area, layout: layout, duration: 1.6)
+        flashZones(area: area, layout: layout, duration: duration, asPreview: true)
     }
 
     private func previewAssignedLayoutIfNeeded(_ layout: Layout, on area: WorkArea) {
@@ -1124,7 +1124,8 @@ final class AppRuntime {
         layout: Layout,
         duration: TimeInterval,
         workAreaAX: CGRect? = nil,
-        showName: Bool = false
+        showName: Bool = false,
+        asPreview: Bool = false
     ) {
         let workAX = workAreaAX ?? CoordinateConverter.axRect(
             fromAppKit: area.visibleFrameAppKit,
@@ -1135,7 +1136,7 @@ final class AppRuntime {
             zones: zones,
             on: area.display.id,
             duration: duration,
-            showName: showName,
+            asPreview: showName || asPreview,
             layoutName: showName ? L10n.layoutDisplayName(layout.name) : nil,
             showNumbers: nil
         )
@@ -1145,7 +1146,7 @@ final class AppRuntime {
         zones: [ResolvedZone],
         on displayID: DisplayIdentity.ID,
         duration: TimeInterval,
-        showName: Bool,
+        asPreview: Bool,
         layoutName: String?,
         showNumbers: Bool?
     ) {
@@ -1157,7 +1158,7 @@ final class AppRuntime {
         let present: () -> Void = { [weak self] in
             guard let self else { return }
             self.divider.hideAll()
-            if showName {
+            if asPreview {
                 self.overlay.showPreview(
                     displayID: displayID,
                     zones: zones,
@@ -1174,20 +1175,20 @@ final class AppRuntime {
             }
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                if showName {
-                    if self.overlay.isPreviewVisible {
-                        self.overlay.hideAll()
-                    }
-                } else if !self.engine.isSessionActive {
-                    self.overlay.hideAll()
-                }
-                self.divider.refresh()
                 self.previewHideWorkItem = nil
+                let shouldHide = asPreview ? self.overlay.isPreviewVisible : !self.engine.isSessionActive
+                guard shouldHide else {
+                    self.divider.refresh()
+                    return
+                }
+                self.overlay.fadeOutAll { [weak self] in
+                    self?.divider.refresh()
+                }
             }
             self.previewHideWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
         }
-        if showName {
+        if asPreview {
             DispatchQueue.main.async { present() }
         } else {
             present()
@@ -1205,7 +1206,7 @@ final class AppRuntime {
             zones: zones,
             on: area.display.id,
             duration: 1.2,
-            showName: false,
+            asPreview: false,
             layoutName: nil,
             showNumbers: false
         )
