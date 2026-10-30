@@ -87,6 +87,10 @@ final class MenuBarConsoleController: NSObject, NSWindowDelegate {
         }
     }
 
+    func refreshWorkspaceCaptureSetting() {
+        workspaceCaptureOption?.refresh(isOn: runtime.settings.captureFullyOccludedWindows)
+    }
+
     func windowWillClose(_ notification: Notification) {
         stopDismissMonitors()
         stopActivationObservers()

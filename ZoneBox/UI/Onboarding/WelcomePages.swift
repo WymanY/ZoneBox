@@ -261,6 +261,7 @@ final class WelcomeFinishPage: NSView, WelcomePage {
         bodyLabel.stringValue = L10n.text(.welcomeFinishBody)
         reopenLabel.stringValue = L10n.text(.welcomeFinishReopen)
         loginLabel.stringValue = L10n.text(.settingsLaunchAtLogin)
+        loginSwitch.setAccessibilityLabel(L10n.text(.settingsLaunchAtLogin))
         openSettings.title = L10n.text(.welcomeFinishOpenSettings)
         loginSwitch.state = runtime.settings.launchAtLogin ? .on : .off
         rebuildShortcuts()

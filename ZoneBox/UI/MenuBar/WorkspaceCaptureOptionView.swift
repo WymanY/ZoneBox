@@ -5,7 +5,7 @@ import ZoneBoxCore
 @MainActor
 final class WorkspaceCaptureOptionView: NSView {
     private let label = NSTextField(labelWithString: "")
-    private let help = NSImageView()
+    private let help = HoverHelpButton()
     private let toggle = NSSwitch()
     var onChange: ((Bool) -> Void)?
 
@@ -16,11 +16,6 @@ final class WorkspaceCaptureOptionView: NSView {
         label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .secondaryLabelColor
         label.setContentHuggingPriority(.required, for: .horizontal)
-
-        help.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: nil)
-        help.symbolConfiguration = .init(pointSize: 11, weight: .regular)
-        help.contentTintColor = .tertiaryLabelColor
-        help.imageScaling = .scaleProportionallyDown
 
         toggle.controlSize = .mini
         toggle.target = self
@@ -35,10 +30,10 @@ final class WorkspaceCaptureOptionView: NSView {
             heightAnchor.constraint(equalToConstant: 24),
             label.leadingAnchor.constraint(equalTo: leadingAnchor),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            help.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 5),
+            help.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 2),
             help.centerYAnchor.constraint(equalTo: centerYAnchor),
-            help.widthAnchor.constraint(equalToConstant: 14),
-            help.heightAnchor.constraint(equalToConstant: 14),
+            help.widthAnchor.constraint(equalToConstant: 20),
+            help.heightAnchor.constraint(equalToConstant: 20),
             help.trailingAnchor.constraint(lessThanOrEqualTo: toggle.leadingAnchor, constant: -12),
             toggle.trailingAnchor.constraint(equalTo: trailingAnchor),
             toggle.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -53,8 +48,7 @@ final class WorkspaceCaptureOptionView: NSView {
         let detail = L10n.text(.settingsCaptureFullyOccludedWindowsDetail)
         label.stringValue = title
         label.toolTip = detail
-        help.toolTip = detail
-        help.setAccessibilityLabel(detail)
+        help.helpText = detail
         toggle.toolTip = detail
         toggle.setAccessibilityLabel(L10n.text(.settingsCaptureFullyOccludedWindows))
         toggle.setAccessibilityHelp(detail)
@@ -62,6 +56,10 @@ final class WorkspaceCaptureOptionView: NSView {
     }
 
     @objc private func toggleChanged() {
-        onChange?(toggle.state == .on)
+        let enabled = toggle.state == .on
+        // Defer persistence so the system switch can finish its own animation first.
+        DispatchQueue.main.async { [weak self] in
+            self?.onChange?(enabled)
+        }
     }
 }

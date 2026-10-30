@@ -1308,10 +1308,13 @@ final class AppRuntime {
     }
 
     func setCaptureFullyOccludedWindows(_ enabled: Bool) {
+        guard settings.captureFullyOccludedWindows != enabled else { return }
         settings.captureFullyOccludedWindows = enabled
-        persistSettings()
+        // Save only — skip persistSettings()/reloadMenu() so the switch animation
+        // is not interrupted by preview refresh and a full console rebuild.
+        try? settingsStore.save(settings)
         settingsWindow?.refreshWorkspaceCaptureSetting()
-        reloadMenu()
+        menuBar?.refreshWorkspaceCaptureSetting()
     }
 
     /// Master switch for every snap entry point (drag, Quick Snapper, hotkeys).
