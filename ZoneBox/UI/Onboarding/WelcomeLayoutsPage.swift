@@ -6,10 +6,10 @@ final class WelcomeLayoutsPage: NSView, WelcomePage {
     private unowned let runtime: AppRuntime
     private let displayID: () -> DisplayIdentity.ID?
     private let titleLabel = NSTextField(labelWithString: "")
-    private let bodyLabel = NSTextField(wrappingLabelWithString: "")
+    private let bodyLabel = WelcomeAutoWrapLabel(font: .systemFont(ofSize: 13.5), color: .secondaryLabelColor)
     private let footnote = NSTextField(labelWithString: "")
     private let currentLabel = NSTextField(labelWithString: "")
-    private var buttons: [NSButton] = []
+    private var cards: [WelcomeLayoutPresetCard] = []
     private var selectedIndex: Int?
 
     init(runtime: AppRuntime, displayID: @escaping () -> DisplayIdentity.ID?) {
@@ -40,80 +40,108 @@ final class WelcomeLayoutsPage: NSView, WelcomePage {
         titleLabel.stringValue = L10n.text(.welcomeLayoutsTitle)
         bodyLabel.stringValue = L10n.text(.welcomeLayoutsBody)
         footnote.stringValue = L10n.text(.welcomeLayoutsPerDisplay)
-        for (index, button) in buttons.enumerated() {
-            let preset = LayoutTemplates.editorPresets()[index]
-            button.title = L10n.layoutDisplayName(preset.name)
-            button.setAccessibilityLabel(L10n.layoutDisplayName(preset.name))
+        let presets = LayoutTemplates.editorPresets()
+        for (index, card) in cards.enumerated() where index < presets.count {
+            let preset = presets[index]
+            card.update(
+                title: L10n.layoutDisplayName(preset.name),
+                selected: index == selectedIndex,
+                gutterPoints: CGFloat(runtime.settings.gutterPoints)
+            )
         }
         updateCurrentLabel()
     }
 
     private func build() {
-        titleLabel.font = .systemFont(ofSize: 22, weight: .semibold)
-        bodyLabel.font = .systemFont(ofSize: 13)
-        bodyLabel.textColor = .secondaryLabelColor
-        bodyLabel.preferredMaxLayoutWidth = 680
-        footnote.font = .systemFont(ofSize: 12)
-        footnote.textColor = .tertiaryLabelColor
-        currentLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        currentLabel.textColor = .secondaryLabelColor
+        titleLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        titleLabel.textColor = .labelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let headerStack = NSStackView(views: [titleLabel, bodyLabel])
+        headerStack.orientation = .vertical
+        headerStack.alignment = .leading
+        headerStack.spacing = 4
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
 
         let presets = LayoutTemplates.editorPresets()
-        let grid = NSGridView()
-        grid.rowSpacing = 12
-        grid.columnSpacing = 12
-        for row in 0..<2 {
-            var cells: [NSView] = []
-            for column in 0..<3 {
-                let index = row * 3 + column
-                cells.append(makeCell(preset: presets[index], index: index))
+        var builtCards: [WelcomeLayoutPresetCard] = []
+        for (index, preset) in presets.enumerated() {
+            let card = WelcomeLayoutPresetCard(
+                preset: preset,
+                title: L10n.layoutDisplayName(preset.name),
+                gutterPoints: CGFloat(runtime.settings.gutterPoints)
+            ) { [weak self] in
+                self?.selectPreset(at: index)
             }
-            grid.addRow(with: cells)
+            builtCards.append(card)
         }
+        self.cards = builtCards
 
-        let stack = NSStackView(views: [titleLabel, bodyLabel, grid, currentLabel, footnote])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 12
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        let row1 = NSStackView(views: Array(builtCards.prefix(3)))
+        row1.orientation = .horizontal
+        row1.distribution = .fillEqually
+        row1.spacing = 12
+        row1.translatesAutoresizingMaskIntoConstraints = false
+
+        let row2 = NSStackView(views: Array(builtCards.suffix(from: min(3, builtCards.count))))
+        row2.orientation = .horizontal
+        row2.distribution = .fillEqually
+        row2.spacing = 12
+        row2.translatesAutoresizingMaskIntoConstraints = false
+
+        // Footer bar
+        let footerCard = WelcomeCardView(style: .surface, cornerRadius: 10)
+        let displayIcon = NSImageView()
+        displayIcon.image = NSImage(systemSymbolName: "display.2", accessibilityDescription: nil)
+        displayIcon.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
+        displayIcon.contentTintColor = .controlAccentColor
+        displayIcon.translatesAutoresizingMaskIntoConstraints = false
+        displayIcon.setContentHuggingPriority(.required, for: .horizontal)
+
+        footnote.font = .systemFont(ofSize: 12.5, weight: .medium)
+        footnote.textColor = .secondaryLabelColor
+        footnote.translatesAutoresizingMaskIntoConstraints = false
+
+        currentLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        currentLabel.textColor = .controlAccentColor
+        currentLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let footerRow = NSStackView(views: [displayIcon, footnote, spacer, currentLabel])
+        footerRow.orientation = .horizontal
+        footerRow.alignment = .centerY
+        footerRow.spacing = 8
+        footerRow.detachesHiddenViews = true
+        footerRow.translatesAutoresizingMaskIntoConstraints = false
+        footerCard.addSubview(footerRow)
+
+        let mainStack = NSStackView(views: [headerStack, row1, row2, footerCard])
+        mainStack.orientation = .vertical
+        mainStack.alignment = .leading
+        mainStack.spacing = 14
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(mainStack)
+
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            grid.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            headerStack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            row1.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            row2.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            row1.heightAnchor.constraint(equalToConstant: 144),
+            row2.heightAnchor.constraint(equalToConstant: 144),
+
+            footerCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            footerRow.topAnchor.constraint(equalTo: footerCard.topAnchor, constant: 10),
+            footerRow.bottomAnchor.constraint(equalTo: footerCard.bottomAnchor, constant: -10),
+            footerRow.leadingAnchor.constraint(equalTo: footerCard.leadingAnchor, constant: 14),
+            footerRow.trailingAnchor.constraint(equalTo: footerCard.trailingAnchor, constant: -14),
+
+            mainStack.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
         ])
-    }
-
-    private func makeCell(preset: Layout, index: Int) -> NSView {
-        let image = NSImageView()
-        image.image = LayoutThumbnailRenderer.image(
-            for: preset,
-            size: NSSize(width: 148, height: 92),
-            fill: .controlAccentColor,
-            stroke: .white,
-            gutterPoints: CGFloat(runtime.settings.gutterPoints),
-            showNumbers: true
-        )
-        image.imageScaling = .scaleProportionallyUpOrDown
-        image.translatesAutoresizingMaskIntoConstraints = false
-
-        let button = NSButton(title: L10n.layoutDisplayName(preset.name), target: self, action: #selector(selectPreset(_:)))
-        button.tag = index
-        button.bezelStyle = .recessed
-        button.setButtonType(.toggle)
-        button.setAccessibilityLabel(L10n.layoutDisplayName(preset.name))
-        buttons.append(button)
-
-        let stack = NSStackView(views: [image, button])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 6
-        NSLayoutConstraint.activate([
-            image.widthAnchor.constraint(equalToConstant: 148),
-            image.heightAnchor.constraint(equalToConstant: 92),
-        ])
-        return stack
     }
 
     private func targetArea() -> WorkArea? {
@@ -128,12 +156,12 @@ final class WelcomeLayoutsPage: NSView, WelcomePage {
     private func updateSelection() {
         guard let area = targetArea(), let assigned = runtime.document.layout(for: area.display.id) else {
             selectedIndex = nil
-            syncButtons()
+            syncCards()
             updateCurrentLabel()
             return
         }
         selectedIndex = LayoutTemplates.matchingEditorPresetIndex(for: assigned, workAreaAX: workAreaAX(for: area))
-        syncButtons()
+        syncCards()
         updateCurrentLabel()
     }
 
@@ -146,16 +174,21 @@ final class WelcomeLayoutsPage: NSView, WelcomePage {
         currentLabel.stringValue = L10n.welcomeLayoutsCurrent(L10n.layoutDisplayName(assigned.name))
     }
 
-    private func syncButtons() {
-        for (index, button) in buttons.enumerated() {
-            button.state = index == selectedIndex ? .on : .off
+    private func syncCards() {
+        let presets = LayoutTemplates.editorPresets()
+        for (index, card) in cards.enumerated() where index < presets.count {
+            card.update(
+                title: L10n.layoutDisplayName(presets[index].name),
+                selected: index == selectedIndex,
+                gutterPoints: CGFloat(runtime.settings.gutterPoints)
+            )
         }
     }
 
-    @objc private func selectPreset(_ sender: NSButton) {
+    private func selectPreset(at index: Int) {
         let presets = LayoutTemplates.editorPresets()
-        guard sender.tag >= 0, sender.tag < presets.count, let area = targetArea() else { return }
-        let preset = presets[sender.tag]
+        guard index >= 0, index < presets.count, let area = targetArea() else { return }
+        let preset = presets[index]
         let workAX = workAreaAX(for: area)
         let presetIndex = LayoutTemplates.matchingEditorPresetIndex(for: preset, workAreaAX: workAX)
         if let existing = runtime.document.layouts.first(where: {
@@ -166,8 +199,137 @@ final class WelcomeLayoutsPage: NSView, WelcomePage {
             _ = runtime.saveLayout(preset, to: area.display.id)
         }
         runtime.previewZones(on: area.display.id)
-        selectedIndex = sender.tag
-        syncButtons()
+        selectedIndex = index
+        syncCards()
         updateCurrentLabel()
+    }
+}
+
+private final class WelcomeLayoutPresetCard: ConsoleInteractiveView {
+    private let preset: Layout
+    private var title: String
+    private var selected = false
+    private var gutterPoints: CGFloat
+    private let onSelect: () -> Void
+
+    init(
+        preset: Layout,
+        title: String,
+        gutterPoints: CGFloat,
+        onSelect: @escaping () -> Void
+    ) {
+        self.preset = preset
+        self.title = title
+        self.gutterPoints = gutterPoints
+        self.onSelect = onSelect
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func update(title: String, selected: Bool, gutterPoints: CGFloat) {
+        self.title = title
+        self.selected = selected
+        self.gutterPoints = gutterPoints
+        setAccessibilityLabel(title)
+        setAccessibilitySelected(selected)
+        toolTip = title
+        needsDisplay = true
+    }
+
+    override func performPrimaryAction() {
+        onSelect()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let dark = ConsoleChrome.isDark(effectiveAppearance)
+        let blue = ConsoleChrome.brandBlue(dark: dark)
+        let outer = bounds.insetBy(dx: 1, dy: 1)
+        let cardPath = NSBezierPath(roundedRect: outer, xRadius: 12, yRadius: 12)
+
+        ConsoleChrome.surface(dark: dark).setFill()
+        cardPath.fill()
+
+        if isPressed {
+            ConsoleChrome.pressedWash(dark: dark).setFill()
+            cardPath.fill()
+        } else if isHovering {
+            ConsoleChrome.hoverWash(dark: dark).setFill()
+            cardPath.fill()
+        } else if selected {
+            blue.withAlphaComponent(dark ? 0.14 : 0.07).setFill()
+            cardPath.fill()
+        }
+
+        let border: NSColor
+        let borderWidth: CGFloat
+        if selected {
+            border = blue.withAlphaComponent(dark ? 0.85 : 0.72)
+            borderWidth = 1.8
+        } else if isHovering || isPressed {
+            border = ConsoleChrome.hoverBorder(dark: dark)
+            borderWidth = 1.2
+        } else {
+            border = ConsoleChrome.surfaceBorder(dark: dark)
+            borderWidth = 1
+        }
+        border.setStroke()
+        cardPath.lineWidth = borderWidth
+        cardPath.stroke()
+
+        // Screen plate
+        let plateInset: CGFloat = 10
+        let labelAreaHeight: CGFloat = 34
+        let plateRect = NSRect(
+            x: bounds.minX + plateInset,
+            y: bounds.minY + labelAreaHeight,
+            width: max(20, bounds.width - plateInset * 2),
+            height: max(20, bounds.height - labelAreaHeight - plateInset)
+        )
+        ConsoleChrome.screenPlate(dark: dark).setFill()
+        NSBezierPath(roundedRect: plateRect, xRadius: 8, yRadius: 8).fill()
+
+        let active = selected || isHovering || isPressed
+        let previewRect = plateRect.insetBy(dx: 6, dy: 6)
+        let image = LayoutThumbnailRenderer.image(
+            for: preset,
+            size: previewRect.size,
+            fill: active ? ConsoleChrome.zoneActive(dark: dark) : ConsoleChrome.zoneIdle(dark: dark),
+            stroke: .clear,
+            gutterPoints: max(3, min(6, gutterPoints * 0.35)),
+            showNumbers: true,
+            numberColor: .white,
+            cornerRadius: 4,
+            lineWidth: 0,
+            minimumNumberSize: 9,
+            maximumNumberSize: 15
+        )
+        image.draw(in: previewRect)
+
+        // Bottom title + checkmark badge
+        let font = NSFont.systemFont(ofSize: 12.5, weight: selected ? .semibold : .medium)
+        let textColor = selected ? blue : NSColor.labelColor
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor,
+        ]
+        let textSize = (title as NSString).size(withAttributes: attrs)
+        let iconSpace: CGFloat = selected ? 18 : 0
+        let totalWidth = textSize.width + iconSpace
+        let startX = (bounds.midX - totalWidth / 2).rounded()
+        let textY = ((labelAreaHeight - textSize.height) / 2).rounded()
+
+        if selected, let check = ConsoleChrome.symbol("checkmark.circle.fill", size: 12.5, weight: .semibold, color: blue) {
+            check.draw(in: NSRect(x: startX, y: ((labelAreaHeight - 14) / 2).rounded(), width: 14, height: 14))
+        }
+        (title as NSString).draw(
+            at: NSPoint(x: startX + iconSpace, y: textY),
+            withAttributes: attrs
+        )
     }
 }

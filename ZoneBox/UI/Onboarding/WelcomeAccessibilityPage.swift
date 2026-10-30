@@ -53,19 +53,22 @@ final class WelcomeAccessibilityPage: NSView, WelcomePage {
     }
 
     private func build() {
-        titleLabel.font = .systemFont(ofSize: 22, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        titleLabel.textColor = .labelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
         guide.translatesAutoresizingMaskIntoConstraints = false
         let stack = NSStackView(views: [titleLabel, guide])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 8
+        stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 6),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor),
             guide.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
     }
