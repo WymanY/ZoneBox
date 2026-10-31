@@ -77,10 +77,11 @@ final class OverlayController {
         captureKeys: Bool = false,
         presentation: OverlayPresentation = .empty,
         isPreview: Bool,
-        showNumbers numbersOverride: Bool? = nil
+        showNumbers numbersOverride: Bool? = nil,
+        cancelsFade: Bool = true
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
-        cancelFade()
+        if cancelsFade { cancelFade() }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
         let showNumbers = numbersOverride ?? settings.showZoneNumbers
         var needsDisplay = false
@@ -159,12 +160,15 @@ final class OverlayController {
 
     func refreshVisible(zones: [ResolvedZone]? = nil) {
         guard let visibleDisplayID else { return }
-        show(
+        // A settings refresh is the same presentation, including its lifetime.
+        present(
             displayID: visibleDisplayID,
             zones: zones ?? visibleZones,
             highlight: visibleHighlight,
             captureKeys: visibleCaptureKeys,
-            presentation: views[visibleDisplayID]?.presentation ?? .empty
+            presentation: views[visibleDisplayID]?.presentation ?? .empty,
+            isPreview: isPreviewVisible,
+            cancelsFade: false
         )
     }
 

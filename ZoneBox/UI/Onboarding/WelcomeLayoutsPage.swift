@@ -246,6 +246,39 @@ private final class WelcomeLayoutPresetCard: ConsoleInteractiveView {
         onSelect()
     }
 
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        needsDisplay = true
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        needsDisplay = true
+        return true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        super.mouseDown(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
+        if event.keyCode == 49, modifiers.isEmpty {
+            if !event.isARepeat { performPrimaryAction() }
+        } else if event.keyCode == 48, modifiers.isEmpty || modifiers == .shift {
+            if modifiers.contains(.shift) {
+                window?.selectPreviousKeyView(self)
+            } else {
+                window?.selectNextKeyView(self)
+            }
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let dark = ConsoleChrome.isDark(effectiveAppearance)
         let blue = ConsoleChrome.brandBlue(dark: dark)
@@ -331,5 +364,11 @@ private final class WelcomeLayoutPresetCard: ConsoleInteractiveView {
             at: NSPoint(x: startX + iconSpace, y: textY),
             withAttributes: attrs
         )
+        if window?.firstResponder === self {
+            NSGraphicsContext.saveGraphicsState()
+            NSFocusRingPlacement.only.set()
+            cardPath.fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
     }
 }
