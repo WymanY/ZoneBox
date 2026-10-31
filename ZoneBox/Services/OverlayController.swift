@@ -14,6 +14,7 @@ final class OverlayController {
     var primaryFlipHeight: CGFloat = 0
     var isVisible: Bool { visibleDisplayID != nil }
     private(set) var isPreviewVisible = false
+    private var fadeGeneration = 0
 
     func rebuild(workAreas: [WorkArea], screens: [NSScreen]) {
         hideAll()
@@ -76,9 +77,11 @@ final class OverlayController {
         captureKeys: Bool = false,
         presentation: OverlayPresentation = .empty,
         isPreview: Bool,
-        showNumbers numbersOverride: Bool? = nil
+        showNumbers numbersOverride: Bool? = nil,
+        cancelsFade: Bool = true
     ) {
         guard let panel = panels[displayID], let view = views[displayID] else { return }
+        if cancelsFade { cancelFade() }
         let isAlreadyVisible = visibleDisplayID == displayID && panel.isVisible
         let showNumbers = numbersOverride ?? settings.showZoneNumbers
         var needsDisplay = false
@@ -157,12 +160,15 @@ final class OverlayController {
 
     func refreshVisible(zones: [ResolvedZone]? = nil) {
         guard let visibleDisplayID else { return }
-        show(
+        // A settings refresh is the same presentation, including its lifetime.
+        present(
             displayID: visibleDisplayID,
             zones: zones ?? visibleZones,
             highlight: visibleHighlight,
             captureKeys: visibleCaptureKeys,
-            presentation: views[visibleDisplayID]?.presentation ?? .empty
+            presentation: views[visibleDisplayID]?.presentation ?? .empty,
+            isPreview: isPreviewVisible,
+            cancelsFade: false
         )
     }
 
@@ -189,6 +195,42 @@ final class OverlayController {
         return true
     }
 
+    /// Fades the visible overlay out before hiding it. A new presentation or
+    /// `hideAll()` during the fade cancels it.
+    func fadeOutAll(duration: TimeInterval = 0.3, completion: (() -> Void)? = nil) {
+        guard let visibleDisplayID, let panel = panels[visibleDisplayID], panel.isVisible else {
+            hideAll()
+            completion?()
+            return
+        }
+        fadeGeneration += 1
+        let generation = fadeGeneration
+        let finish = { [weak self] in
+            guard let self, generation == self.fadeGeneration else { return }
+            self.hideAll()
+            completion?()
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        }, completionHandler: {
+            Task { @MainActor in finish() }
+        })
+        // Window animations stall while the display sleeps; never leave the overlay up.
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.2, execute: finish)
+    }
+
+    private func cancelFade() {
+        fadeGeneration += 1
+        for panel in panels.values where panel.alphaValue < 1 {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                panel.animator().alphaValue = 1
+            }
+        }
+    }
+
     func hideAll() {
         isPreviewVisible = false
         if let visibleDisplayID {
@@ -206,6 +248,7 @@ final class OverlayController {
             view.presentation = .empty
         }
         releaseKeys()
+        cancelFade()
     }
 
     func hideSessionOverlay() {

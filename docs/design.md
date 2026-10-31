@@ -690,7 +690,7 @@ struct SnapMouseEvent: Equatable, Sendable {
 | `snapEnabled` | `true` |
 | `snapOnShiftDrag` | `true` |
 | `snapOnRightClickDrag` | `true` |
-| `gutterPoints` | `16` |
+| `gutterPoints` | `8` |
 | `overlapPolicy` | `.smallestArea` |
 | `showZoneNumbers` | `true` |
 | `inactiveFillOpacity` | `0.20` |

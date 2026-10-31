@@ -224,7 +224,7 @@ public enum OnboardingNavigation {
 **P1 欢迎（`.welcome`）**
 
 - 视觉：应用图标（`NSApp.applicationIconImage`）+ 一行价值主张 + 一条**模拟菜单栏**（深色圆角条，右端放 `MenuBarIcon` 模板图与一个时钟文字），图标下方标注"ZoneBox 在这里"。
-- 文案：`welcomeIntroTitle`（"欢迎使用 ZoneBox"）、`welcomeIntroSubtitle`（"在屏幕上划出分区，拖一下或按个快捷键，窗口就吸附进去。"）、`welcomeIntroMenuBar`（"ZoneBox 常驻菜单栏（时钟旁边），没有 Dock 图标。左键点图标打开面板，右键打开菜单。"）。
+- 文案：`welcomeIntroTitle`（"欢迎使用 ZoneBox"）、`welcomeIntroSubtitle`（"在屏幕上划出分区，拖一下或按个快捷键，窗口就吸附进去。"）、`welcomeIntroMenuBar`（"ZoneBox 常驻右上角菜单栏，没有 Dock 图标。左键点图标打开面板，右键打开菜单。"）。
 - 交互：`welcomeIntroLocate` 按钮（"指给我看"）→ `runtime.menuBar?.pulseStatusItem()`：状态项按钮 `alphaValue` 1 → 0.2 → 1 三次（`NSAnimationContext`，共 1.2s）。新增 `MenuBarController.pulseStatusItem()` 一个方法。
 
 **P2 分区与布局（`.layouts`）**
@@ -412,7 +412,7 @@ public var onboardingCompletedVersion: Int      // default 0；decodeIfPresent ?
 | `welcomeStepOf` | Step %d of %d | 第 %d 步，共 %d 步 |
 | `welcomeIntroTitle` | Welcome to ZoneBox | 欢迎使用 ZoneBox |
 | `welcomeIntroSubtitle` | Draw zones on your screen, then snap windows into them with a drag or a keystroke. | 在屏幕上划出分区，拖一下或按个快捷键，窗口就吸附进去。 |
-| `welcomeIntroMenuBar` | ZoneBox lives in the menu bar, next to the clock. There is no Dock icon. Left-click the icon for the panel, right-click for the menu. | ZoneBox 常驻菜单栏（时钟旁边），没有 Dock 图标。左键点图标打开面板，右键打开菜单。 |
+| `welcomeIntroMenuBar` | ZoneBox lives in the menu bar at the top right. There is no Dock icon. Left-click the icon for the panel, right-click for the menu. | ZoneBox 常驻右上角菜单栏，没有 Dock 图标。左键点图标打开面板，右键打开菜单。 |
 | `welcomeIntroLocate` | Show Me | 指给我看 |
 | `welcomeLayoutsTitle` | Zones are where windows land | 分区就是窗口的落点 |
 | `welcomeLayoutsBody` | A layout is a set of numbered zones for one display. Pick a starting layout. You can change it or draw your own later. | 一套布局就是一个显示器上的一组带编号分区。先选一个起始布局，之后随时可以改，或者自己画。 |

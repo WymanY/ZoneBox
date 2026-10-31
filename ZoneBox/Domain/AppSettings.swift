@@ -71,7 +71,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         quickSnapperEnabled: true,
         magneticResizeEnabled: true,
         magneticThresholdPoints: 12,
-        gutterPoints: 16,
+        gutterPoints: 8,
         overlapPolicy: .smallestArea,
         showZoneNumbers: true,
         inactiveFillOpacity: 0.20,

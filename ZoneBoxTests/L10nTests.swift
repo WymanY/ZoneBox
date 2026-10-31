@@ -126,7 +126,6 @@ final class L10nTests: XCTestCase {
             L10n.text(.settingsSnappingSubtitle, language: .chineseSimplified),
             "选择窗口如何进入分区，以及离开吸附时如何恢复。"
         )
-        XCTAssertEqual(L10n.text(.settingsSnappingPreviewTitle, language: .english), "Snapping preview")
         XCTAssertEqual(L10n.text(.settingsAccessGranted, language: .chineseSimplified), "辅助功能权限：已授权")
         XCTAssertEqual(L10n.text(.settingsSnappingTriggersSection, language: .english), "Snap triggers")
         XCTAssertEqual(L10n.text(.settingsSnappingBehaviorSection, language: .chineseSimplified), "窗口行为")
@@ -279,7 +278,7 @@ final class L10nTests: XCTestCase {
         )
         XCTAssertEqual(
             L10n.text(.settingsCaptureFullyOccludedWindowsDetail, language: .chineseSimplified),
-            "保存工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。"
+            "保存或更新工作区时，也包含当前桌面上被其他窗口完全遮挡的窗口。"
         )
         XCTAssertEqual(
             L10n.text(.settingsCaptureFullyOccludedWindows, language: .english),

@@ -71,16 +71,20 @@ final class AccessibilityGuideWindowController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 640),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 470),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = L10n.text(.onboardingWindowTitle)
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.center()
         window.isMovableByWindowBackground = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
 
         let view = AccessibilityGuideView(showsHeader: true)
         view.onOpenSettings = { [weak self] in self?.model.openSettings() }

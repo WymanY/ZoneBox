@@ -19,6 +19,7 @@ final class OverlayPanel: NSPanel {
         becomesKeyOnlyIfNeeded = false
         hidesOnDeactivate = false
         isFloatingPanel = true
+        animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         applyStacking(.liveSnap)
         setFrame(screen.frame, display: false)

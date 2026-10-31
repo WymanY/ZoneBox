@@ -133,6 +133,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         installApplicationMenu()
     }
 
+    func refreshWorkspaceCaptureSetting() {
+        console?.refreshWorkspaceCaptureSetting()
+    }
+
     private var usesFallbackMenu: Bool {
         NSWorkspace.shared.isVoiceOverEnabled
     }
