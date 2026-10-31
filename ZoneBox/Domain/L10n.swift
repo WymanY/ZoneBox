@@ -215,8 +215,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsSectionWorkspaces
     case settingsSectionLicense
     case settingsLicenseSubtitle
-    case settingsLicensePreviewTitle
-    case settingsLicensePreviewDescription
     case licenseStatusTrial
     case licenseStatusLicensed
     case licenseStatusOffline
@@ -261,7 +259,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case licenseUnlockedHeading
     case licenseUnlockedList
     case settingsLicenseSubtitleActive
-    case settingsLicensePreviewDescriptionActive
     case settingsGeneralSubtitle
     case settingsSnappingSubtitle
     case settingsOverlaySubtitle
@@ -338,16 +335,6 @@ public enum L10nKey: String, Sendable, CaseIterable {
     case settingsPreviewLayoutOnSelectDetail
     case settingsSnappingTriggersSection
     case settingsSnappingBehaviorSection
-    case settingsGeneralPreviewTitle
-    case settingsSnappingPreviewTitle
-    case settingsOverlayPreviewTitle
-    case settingsKeyboardPreviewTitle
-    case settingsWorkspacesPreviewTitle
-    case settingsGeneralPreviewDescription
-    case settingsSnappingPreviewDescription
-    case settingsOverlayPreviewDescription
-    case settingsKeyboardPreviewDescription
-    case settingsWorkspacesPreviewDescription
     case settingsWorkspaceEmpty
     case settingsWorkspaceLaunchMissing
     case settingsWorkspaceRename
@@ -1011,8 +998,6 @@ public enum L10n {
         .settingsSectionWorkspaces: "Workspaces",
         .settingsSectionLicense: "License",
         .settingsLicenseSubtitle: "Activate a lifetime license or start the 14-day trial.",
-        .settingsLicensePreviewTitle: "ZoneBox Pro",
-        .settingsLicensePreviewDescription: "Workspaces, hover pin, and Quick Snapper stay in the trial, then need a license.",
         .licenseStatusTrial: "Trial: %d days left. Core snapping stays free after that.",
         .licenseStatusLicensed: "Licensed on this Mac (%@).",
         .licenseStatusOffline: "License is cached while this Mac is offline.",
@@ -1057,7 +1042,6 @@ public enum L10n {
         .licenseUnlockedHeading: "Unlocked on this Mac",
         .licenseUnlockedList: "Workspaces, hover pin, and Quick Snapper.",
         .settingsLicenseSubtitleActive: "This Mac is licensed. Pro features stay unlocked.",
-        .settingsLicensePreviewDescriptionActive: "Workspaces, hover pin, and Quick Snapper are included with this license.",
         .settingsGeneralSubtitle: "Choose the language, startup, and how ZoneBox checks for updates.",
         .settingsSnappingSubtitle: "Choose how windows enter zones and what happens when they leave.",
         .settingsOverlaySubtitle: "Tune the information and spacing shown while snapping.",
@@ -1130,16 +1114,6 @@ public enum L10n {
         .settingsPreviewLayoutOnSelectDetail: "Close the picker and briefly show the assigned layout on screen.",
         .settingsSnappingTriggersSection: "Snap triggers",
         .settingsSnappingBehaviorSection: "Window behavior",
-        .settingsGeneralPreviewTitle: "General overview",
-        .settingsSnappingPreviewTitle: "Snapping preview",
-        .settingsOverlayPreviewTitle: "Overlay preview",
-        .settingsKeyboardPreviewTitle: "Keyboard control",
-        .settingsWorkspacesPreviewTitle: "Saved workspaces",
-        .settingsGeneralPreviewDescription: "Language, startup, and update checks apply across ZoneBox.",
-        .settingsSnappingPreviewDescription: "Drag, right-click, or shake a title bar to place a window in a zone.",
-        .settingsOverlayPreviewDescription: "Zone labels and spacing stay visible only while you need them.",
-        .settingsKeyboardPreviewDescription: "Move, cycle, and restore windows without leaving the keyboard.",
-        .settingsWorkspacesPreviewDescription: "Restore a complete app layout once and launch missing applications when needed.",
         .settingsWorkspaceEmpty: "No workspaces saved yet. Save the current arrangement from the menu bar.",
         .settingsWorkspaceLaunchMissing: "Launch missing applications",
         .settingsWorkspaceRename: "Rename…",
@@ -1573,8 +1547,6 @@ public enum L10n {
         .settingsSectionWorkspaces: "工作区",
         .settingsSectionLicense: "许可",
         .settingsLicenseSubtitle: "激活终身授权，或使用 14 天试用。",
-        .settingsLicensePreviewTitle: "ZoneBox Pro",
-        .settingsLicensePreviewDescription: "工作区、悬停置顶和快速吸附在试用期内可用，之后需要授权。",
         .licenseStatusTrial: "试用剩余 %d 天。试用结束后，核心吸附仍然免费。",
         .licenseStatusLicensed: "已在这台 Mac 上激活（%@）。",
         .licenseStatusOffline: "当前离线，使用本机缓存的授权。",
@@ -1619,7 +1591,6 @@ public enum L10n {
         .licenseUnlockedHeading: "这台 Mac 已解锁",
         .licenseUnlockedList: "工作区方案、标题栏置顶、快速吸附。",
         .settingsLicenseSubtitleActive: "这台 Mac 已授权，Pro 功能保持可用。",
-        .settingsLicensePreviewDescriptionActive: "工作区、悬停置顶和快速吸附已包含在当前授权里。",
         .settingsGeneralSubtitle: "设置语言、启动方式，以及如何检查更新。",
         .settingsSnappingSubtitle: "选择窗口如何进入分区，以及离开吸附时如何恢复。",
         .settingsOverlaySubtitle: "调整吸附时显示的信息和分区间距。",
@@ -1692,16 +1663,6 @@ public enum L10n {
         .settingsPreviewLayoutOnSelectDetail: "收起选择面板，并在屏幕上短暂显示当前布局。",
         .settingsSnappingTriggersSection: "吸附触发方式",
         .settingsSnappingBehaviorSection: "窗口行为",
-        .settingsGeneralPreviewTitle: "通用概览",
-        .settingsSnappingPreviewTitle: "吸附预览",
-        .settingsOverlayPreviewTitle: "覆盖层预览",
-        .settingsKeyboardPreviewTitle: "键盘控制",
-        .settingsWorkspacesPreviewTitle: "已保存的工作区",
-        .settingsGeneralPreviewDescription: "语言、启动和更新检查会应用到整个 ZoneBox。",
-        .settingsSnappingPreviewDescription: "通过拖动、右键或晃动标题栏，将窗口快速吸附到分区。",
-        .settingsOverlayPreviewDescription: "分区编号和间距只在需要吸附时出现。",
-        .settingsKeyboardPreviewDescription: "不用离开键盘，即可移动、切换和恢复窗口。",
-        .settingsWorkspacesPreviewDescription: "一次性恢复整套应用布局，并按需启动缺失应用。",
         .settingsWorkspaceEmpty: "还没有工作区。请从菜单栏保存当前排布。",
         .settingsWorkspaceLaunchMissing: "启动缺失应用",
         .settingsWorkspaceRename: "重命名…",
