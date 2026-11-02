@@ -53,6 +53,12 @@ Each JSON line includes a timestamp, app-run ID, drag-session ID, and technical 
 
 Writes run off the main thread. The current file and four rotated files (`snap.1.jsonl` through `snap.4.jsonl`) retain up to 10 MiB total; older entries are replaced as the files fill. When reporting an intermittent snap failure, note the approximate time and the intended versus actual pane. Keep the rotated files too, since the relevant drag may have crossed a rotation.
 
+## Layout recovery
+
+Each successful layout save updates `store.json.backup` beside `store.json` in the app's Application Support directory. If the primary file is damaged, ZoneBox keeps the original as `store.json.corrupt-<timestamp>`, restores the latest usable backup, and shows a recovery notice with **Show Files**. If no backup can be restored, the notice explains that default layouts are being used. Files that cannot be safely read or preserved, including a newer schema, disable layout/workspace saves for that session instead of being overwritten.
+
+License validation runs while the app remains open, with checks on a timer, wake, activation, and network availability. Successful validations are reused for six hours; failed requests retain the existing offline entitlement and retry with rate limiting.
+
 ## Identifiers
 
 | | |
