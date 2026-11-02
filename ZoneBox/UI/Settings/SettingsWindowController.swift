@@ -16,6 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
     private var accessStatusIcon: NSImageView?
     private var accessStatusLabel: NSTextField?
     private var accessButton: NSButton?
+    private var accessCard: SettingsGroupSurfaceView?
 
     private var localizedLabels: [(NSTextField, L10nKey)] = []
     private var localizedButtons: [(NSButton, L10nKey)] = []
@@ -330,7 +331,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
         stack.edgeInsets = NSEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
         status.translatesAutoresizingMaskIntoConstraints = false
         status.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
-        return SettingsGroupSurfaceView(content: stack, cornerRadius: 10)
+        let card = SettingsGroupSurfaceView(content: stack, cornerRadius: 10)
+        accessCard = card
+        return card
     }
 
     private func makePage(for category: SettingsCategory) -> NSView {
@@ -1753,10 +1756,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTextFieldDel
             systemSymbolName: trusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
             accessibilityDescription: nil
         )
-        accessStatusIcon?.symbolConfiguration = .init(pointSize: 14, weight: .semibold)
+        accessStatusIcon?.symbolConfiguration = .init(pointSize: trusted ? 12 : 14, weight: .semibold)
         accessStatusIcon?.contentTintColor = trusted ? .systemGreen : .systemOrange
         accessStatusLabel?.stringValue = L10n.text(trusted ? .settingsAccessGranted : .settingsAccessRequired)
+        accessStatusLabel?.font = .systemFont(ofSize: 11, weight: trusted ? .regular : .medium)
+        accessStatusLabel?.textColor = trusted ? .secondaryLabelColor : .labelColor
         accessButton?.title = L10n.text(.settingsManageAccess)
+        accessButton?.isHidden = trusted
+        accessCard?.showsSurface = !trusted
     }
 
     func refreshLoginSwitch() {
@@ -2874,6 +2881,8 @@ private final class SettingsBetaBadgeView: NSView {
 }
 
 private final class SettingsGroupSurfaceView: NSView {
+    var showsSurface = true { didSet { updateColors() } }
+
     init(content: NSView, cornerRadius: CGFloat = 12) {
         super.init(frame: .zero)
         wantsLayer = true
@@ -2896,9 +2905,9 @@ private final class SettingsGroupSurfaceView: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); updateColors() }
     private func updateColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = SettingsPalette.groupFill.cgColor
+            layer?.backgroundColor = showsSurface ? SettingsPalette.groupFill.cgColor : NSColor.clear.cgColor
             layer?.borderColor = SettingsPalette.groupBorder.cgColor
-            layer?.borderWidth = 1
+            layer?.borderWidth = showsSurface ? 1 : 0
         }
     }
 }
