@@ -192,6 +192,11 @@ final class DividerController {
         var displayFrames = targetFrames
         for window in windows {
             if let zoneID = occupancy.first(where: { $0.value.contains(window.identity) })?.key {
+                // A newly opened window can happen to overlap a zone, but it
+                // must not move an existing divider until it has been recorded
+                // as snapped. Otherwise the 0.5s census makes the handle jump
+                // when unrelated windows appear.
+                guard preferred[window.identity] == zoneID else { continue }
                 let clipped = window.frameAX.intersection(workAX)
                 displayFrames[zoneID] = clipped.isNull || clipped.isInfinite ? window.frameAX : clipped
             }
