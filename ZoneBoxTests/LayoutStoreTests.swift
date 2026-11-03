@@ -39,6 +39,140 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertTrue(names.contains { $0.hasPrefix("store.json.corrupt-") }, "original should be kept: \(names)")
     }
 
+    func testCorruptStoreFileRecoversLatestBackup() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        var saved = StoreDocument()
+        saved.layouts = [LayoutTemplates.columns(2)]
+        try store.save(saved)
+        saved.layouts = [LayoutTemplates.rows(2)]
+        try store.save(saved)
+        try Data("{broken".utf8).write(to: store.fileURL)
+
+        let loaded = try store.load()
+
+        XCTAssertEqual(loaded.layouts.first?.name, saved.layouts.first?.name)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.fileURL.appendingPathExtension("backup").path))
+    }
+
+    func testRecoveryReportsPreservedOriginalAndKeepsWorkspaces() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let profile = WorkspaceProfile(name: "Recovered workspace", sections: [
+            ProfileSection(space: SpaceKey(displayID: UUID()), rules: [
+                AppPlacementRule(bundleID: "com.example.Editor", frame: NormalizedRect(x: 0, y: 0, width: 0.5, height: 1)),
+            ]),
+        ])
+        let saved = StoreDocument(layouts: [LayoutTemplates.focus()], profiles: [profile])
+        try store.save(saved)
+        let damaged = Data("{damaged".utf8)
+        try damaged.write(to: store.fileURL)
+
+        let loaded = try store.loadWithRecovery()
+
+        let recovery = try XCTUnwrap(loaded.recovery)
+        XCTAssertTrue(recovery.restoredBackup)
+        XCTAssertEqual(try Data(contentsOf: recovery.originalFile), damaged)
+        XCTAssertEqual(loaded.document.layouts.first?.id, saved.layouts.first?.id)
+        XCTAssertEqual(try store.load().layouts.first?.id, saved.layouts.first?.id)
+        XCTAssertEqual(loaded.document.profiles.first?.id, profile.id)
+        XCTAssertEqual(try store.load().profiles.first?.sections.first?.rules.first?.bundleID, "com.example.Editor")
+        XCTAssertNil(try store.loadWithRecovery().recovery)
+    }
+
+    func testCorruptBackupFallsBackAndReportsRecoveryFailure() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        try store.save(StoreDocument())
+        let damaged = Data("not json".utf8)
+        try damaged.write(to: store.fileURL)
+        try damaged.write(to: store.backupURL)
+
+        let result = try store.loadWithRecovery()
+
+        XCTAssertEqual(result.recovery?.restoredBackup, false)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(result.recovery?.originalFile)), damaged)
+        XCTAssertEqual(try Data(contentsOf: store.backupURL), damaged)
+    }
+
+    func testNewerSchemaIsPreservedInsteadOfResetOrBackupRecovery() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        try store.save(StoreDocument())
+        let backup = try Data(contentsOf: store.backupURL)
+        var newer = StoreDocument()
+        newer.schemaVersion = 2
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(newer)
+        try data.write(to: store.fileURL)
+
+        XCTAssertThrowsError(try store.loadWithRecovery())
+        XCTAssertEqual(try Data(contentsOf: store.fileURL), data)
+        XCTAssertEqual(try Data(contentsOf: store.backupURL), backup)
+    }
+
+    func testFailedPrimaryRestorePreservesValidBackupForRetry() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let saved = StoreDocument(layouts: [LayoutTemplates.focus()])
+        try store.save(saved)
+        let backup = try Data(contentsOf: store.backupURL)
+        try FileManager.default.removeItem(at: store.fileURL)
+        // A nonempty directory blocks the atomic write's temporary file without
+        // preventing reads or quarantine moves in the parent directory.
+        let blocker = dir.appendingPathComponent("store.json.tmp", isDirectory: true)
+        try FileManager.default.createDirectory(at: blocker, withIntermediateDirectories: true)
+        try Data([1]).write(to: blocker.appendingPathComponent("keep"))
+
+        XCTAssertThrowsError(try store.loadWithRecovery())
+        XCTAssertEqual(try Data(contentsOf: store.backupURL), backup)
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertFalse(names.contains { $0.contains(".corrupt-") })
+
+        try FileManager.default.removeItem(at: blocker)
+        let loaded = try store.loadWithRecovery()
+        XCTAssertEqual(loaded.recovery?.restoredBackup, true)
+        XCTAssertEqual(loaded.document.layouts.map(\.id), saved.layouts.map(\.id))
+    }
+
+    func testBackupReadFailurePreservesBothFilesAndThrows() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let damaged = Data("{damaged".utf8)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try damaged.write(to: store.fileURL)
+        try FileManager.default.createDirectory(at: store.backupURL, withIntermediateDirectories: true)
+
+        XCTAssertThrowsError(try store.loadWithRecovery())
+        XCTAssertEqual(try Data(contentsOf: store.fileURL), damaged)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.backupURL.path))
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertFalse(names.contains { $0.contains(".corrupt-") })
+    }
+
+    func testMissingPrimaryRecoversBackup() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let saved = StoreDocument(layouts: [LayoutTemplates.focus()])
+        try store.save(saved)
+        try FileManager.default.removeItem(at: store.fileURL)
+
+        let loaded = try store.loadWithRecovery()
+
+        XCTAssertEqual(loaded.recovery?.restoredBackup, true)
+        XCTAssertEqual(loaded.document.layouts.map(\.id), saved.layouts.map(\.id))
+        XCTAssertEqual(try store.load().layouts.map(\.id), saved.layouts.map(\.id))
+    }
+
     func testGridWeights() throws {
         let layout = LayoutTemplates.columns(3)
         XCTAssertEqual(layout.grid?.columnWeights.reduce(0, +), 10_000)

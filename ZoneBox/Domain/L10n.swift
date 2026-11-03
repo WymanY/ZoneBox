@@ -31,6 +31,14 @@ public enum AppLanguage: String, Sendable, Equatable, CaseIterable {
 }
 
 public enum L10nKey: String, Sendable, CaseIterable {
+    case storeRecoveredTitle
+    case storeRecoveredDetail
+    case storeResetTitle
+    case storeResetDetail
+    case storeUnavailableTitle
+    case storeUnavailableDetail
+    case storeRecoveryContinue
+    case storeRecoveryReveal
     case statusTooltip
     case statusTooltipNeedsAccess
     case menuEnableAccessibility
@@ -810,6 +818,15 @@ public enum L10n {
     }
 
     private static let english: [L10nKey: String] = [
+        .storeRecoveredTitle: "Layouts and workspaces restored",
+        .storeRecoveredDetail: "The saved layout file could not be read. ZoneBox restored the most recent available backup. Your original file has been kept for inspection.",
+        .storeResetTitle: "Saved layouts could not be restored",
+        .storeResetDetail: "The saved layout file is damaged and no usable backup was found. ZoneBox is using default layouts. The original file has been kept; choose Show Files to locate it.",
+        .storeUnavailableTitle: "Saved layouts are unavailable",
+        .storeUnavailableDetail: "ZoneBox could not safely load your layouts. The file may be unreadable or belong to a newer version. Your original files are preserved. Changes to layouts and workspaces will not be saved in this session. Check the files or reopen the newer version, then restart ZoneBox.",
+        .storeRecoveryContinue: "Continue",
+        .storeRecoveryReveal: "Show Files",
+
         .statusTooltip: "ZoneBox",
         .statusTooltipNeedsAccess: "ZoneBox needs Accessibility to snap windows",
         .menuEnableAccessibility: "Enable Accessibility to Snap Windows…",
@@ -1359,6 +1376,15 @@ public enum L10n {
     ]
 
     private static let chinese: [L10nKey: String] = [
+        .storeRecoveredTitle: "布局和工作区已恢复",
+        .storeRecoveredDetail: "保存的布局文件无法读取，ZoneBox 已恢复最近可用的备份。原文件已保留，可查看并核对。",
+        .storeResetTitle: "无法恢复已保存的布局",
+        .storeResetDetail: "布局文件已损坏，且没有可用备份。ZoneBox 正在使用默认布局。原文件已保留，点击“查看文件”可找到它。",
+        .storeUnavailableTitle: "无法读取已保存的布局",
+        .storeUnavailableDetail: "ZoneBox 无法安全读取布局文件，可能是文件不可读或由更新版本创建。原文件已保留，本次运行中的布局和工作区更改不会保存。请检查文件或使用更新版本打开，然后重新启动 ZoneBox。",
+        .storeRecoveryContinue: "继续",
+        .storeRecoveryReveal: "查看文件",
+
         .statusTooltip: "ZoneBox",
         .statusTooltipNeedsAccess: "ZoneBox 需要辅助功能才能吸附窗口",
         .menuEnableAccessibility: "开启辅助功能以吸附窗口…",

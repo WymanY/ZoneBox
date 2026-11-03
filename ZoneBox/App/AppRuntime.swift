@@ -51,6 +51,7 @@ final class AppRuntime {
     private var lastOrganizeSnapshot: [WindowIdentity: (window: AXWindow, frame: CGRect)] = [:]
     private var resolvedLayoutCache: [ResolvedLayoutCacheKey: [ResolvedZone]] = [:]
     private let snappableOwnWindowAllowlist = WindowNumberAllowlist()
+    private var canPersistLayouts = true
 
     init() {
         ax = AccessibilityClientLive(
@@ -68,7 +69,17 @@ final class AppRuntime {
     func start(resume: OnboardingPage? = nil, forceTour: Bool = false, suppressTour: Bool = false) {
         mutations.force(.idle)
         settings = (try? settingsStore.load()) ?? .default
-        document = (try? layoutStore.load()) ?? StoreDocument()
+        var recovery: LayoutStore.Recovery?
+        canPersistLayouts = true
+        do {
+            let loaded = try layoutStore.loadWithRecovery()
+            document = loaded.document
+            recovery = loaded.recovery
+        } catch {
+            canPersistLayouts = false
+            document = StoreDocument()
+            Log.store.error("Layout load failed; preserving original and disabling saves error=\(error.localizedDescription, privacy: .public)")
+        }
         ax = rebindAX()
 
         engine.runtime = self
@@ -141,6 +152,11 @@ final class AppRuntime {
         )
         presentLaunchOnboarding(resume: resume, forceTour: forceTour, suppressTour: suppressTour)
 
+        if recovery != nil || !canPersistLayouts {
+            DispatchQueue.main.async { [weak self] in
+                self?.showLayoutRecovery(recovery)
+            }
+        }
         Log.app.info("ZoneBox started")
     }
 
@@ -159,6 +175,7 @@ final class AppRuntime {
     }
 
     func teardown() {
+        license.invalidate()
         workspace.stop()
         workspaceSwitcher.hide()
         pinHover.stop()
@@ -1419,9 +1436,27 @@ final class AppRuntime {
         }
     }
 
+    private func showLayoutRecovery(_ recovery: LayoutStore.Recovery?) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        if let recovery {
+            alert.messageText = L10n.text(recovery.restoredBackup ? .storeRecoveredTitle : .storeResetTitle)
+            alert.informativeText = L10n.text(recovery.restoredBackup ? .storeRecoveredDetail : .storeResetDetail)
+        } else {
+            alert.messageText = L10n.text(.storeUnavailableTitle)
+            alert.informativeText = L10n.text(.storeUnavailableDetail)
+        }
+        alert.addButton(withTitle: L10n.text(.storeRecoveryContinue))
+        alert.addButton(withTitle: L10n.text(.storeRecoveryReveal))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSWorkspace.shared.activateFileViewerSelecting([recovery?.originalFile ?? layoutStore.fileURL])
+        }
+    }
+
     func persist() {
         invalidateResolvedLayoutCache()
-        try? layoutStore.save(document)
+        if canPersistLayouts { try? layoutStore.save(document) }
         persistSettings()
         divider.refresh()
     }
