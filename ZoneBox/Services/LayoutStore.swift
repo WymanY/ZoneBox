@@ -33,10 +33,9 @@ public struct LayoutStore: Sendable {
             // A backup can survive an interrupted write or a missing primary file.
             if fm.fileExists(atPath: backupURL.path) {
                 let data = try Data(contentsOf: backupURL)
+                let document: StoreDocument
                 do {
-                    let document = try decode(data)
-                    try JSONCoding.atomicWrite(data, to: fileURL)
-                    return LoadResult(document: document, recovery: Recovery(restoredBackup: true, originalFile: backupURL))
+                    document = try decode(data)
                 } catch LoadError.unsupportedSchema {
                     throw LoadError.unsupportedSchema
                 } catch {
@@ -47,6 +46,8 @@ public struct LayoutStore: Sendable {
                     try JSONCoding.atomicWrite(try JSONCoding.encoder().encode(document), to: fileURL)
                     return LoadResult(document: document, recovery: Recovery(restoredBackup: false, originalFile: original))
                 }
+                try JSONCoding.atomicWrite(data, to: fileURL)
+                return LoadResult(document: document, recovery: Recovery(restoredBackup: true, originalFile: backupURL))
             }
             let document = StoreDocument()
             try save(document)

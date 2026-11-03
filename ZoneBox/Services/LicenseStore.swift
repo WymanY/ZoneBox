@@ -17,14 +17,9 @@ public struct LicenseStore: Sendable {
             return fresh
         }
         let data = try Data(contentsOf: fileURL)
+        var record: LicenseRecord
         do {
-            var record = try JSONCoding.decoder().decode(LicenseRecord.self, from: data)
-            let anchor = trialAnchor(now: record.trialStartedAt)
-            if record.trialStartedAt > anchor {
-                record.trialStartedAt = anchor
-                try save(record)
-            }
-            return record
+            record = try JSONCoding.decoder().decode(LicenseRecord.self, from: data)
         } catch {
             Log.store.error(
                 "License decode failed; starting a new trial path=\(self.fileURL.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
@@ -34,6 +29,18 @@ public struct LicenseStore: Sendable {
             try save(fresh)
             return fresh
         }
+        let anchor = trialAnchor(now: record.trialStartedAt)
+        if record.trialStartedAt > anchor {
+            record.trialStartedAt = anchor
+            do {
+                try save(record)
+            } catch {
+                // The record is valid. Keep its entitlement even if migration
+                // cannot be persisted; retry the clamp on the next load.
+                Log.store.error("License trial migration save failed error=\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return record
     }
 
     public func save(_ record: LicenseRecord) throws {

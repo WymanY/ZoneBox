@@ -117,6 +117,31 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: store.backupURL), backup)
     }
 
+    func testFailedPrimaryRestorePreservesValidBackupForRetry() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let saved = StoreDocument(layouts: [LayoutTemplates.focus()])
+        try store.save(saved)
+        let backup = try Data(contentsOf: store.backupURL)
+        try FileManager.default.removeItem(at: store.fileURL)
+        // A nonempty directory blocks the atomic write's temporary file without
+        // preventing reads or quarantine moves in the parent directory.
+        let blocker = dir.appendingPathComponent("store.json.tmp", isDirectory: true)
+        try FileManager.default.createDirectory(at: blocker, withIntermediateDirectories: true)
+        try Data([1]).write(to: blocker.appendingPathComponent("keep"))
+
+        XCTAssertThrowsError(try store.loadWithRecovery())
+        XCTAssertEqual(try Data(contentsOf: store.backupURL), backup)
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertFalse(names.contains { $0.contains(".corrupt-") })
+
+        try FileManager.default.removeItem(at: blocker)
+        let loaded = try store.loadWithRecovery()
+        XCTAssertEqual(loaded.recovery?.restoredBackup, true)
+        XCTAssertEqual(loaded.document.layouts.map(\.id), saved.layouts.map(\.id))
+    }
+
     func testMissingPrimaryRecoversBackup() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
