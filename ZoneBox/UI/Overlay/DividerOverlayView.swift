@@ -146,8 +146,8 @@ private enum DividerGlyph {
     static func drawSystemDivider(at center: CGPoint, verticalSeam: Bool, emphasized: Bool) {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.shouldAntialias = true
-        let pillWidth: CGFloat = verticalSeam ? (emphasized ? 8 : 6) : (emphasized ? 36 : 28)
-        let pillHeight: CGFloat = verticalSeam ? (emphasized ? 36 : 28) : (emphasized ? 8 : 6)
+        let pillWidth: CGFloat = verticalSeam ? (emphasized ? 8 : 5) : (emphasized ? 36 : 24)
+        let pillHeight: CGFloat = verticalSeam ? (emphasized ? 36 : 24) : (emphasized ? 8 : 5)
         let pill = CGRect(
             x: center.x - pillWidth / 2,
             y: center.y - pillHeight / 2,
@@ -159,33 +159,35 @@ private enum DividerGlyph {
             xRadius: min(pillWidth, pillHeight) / 2,
             yRadius: min(pillWidth, pillHeight) / 2
         )
-        NSColor.black.withAlphaComponent(emphasized ? 0.28 : 0.22).setStroke()
-        path.lineWidth = 1.5
+        NSColor.black.withAlphaComponent(emphasized ? 0.28 : 0.12).setStroke()
+        path.lineWidth = emphasized ? 1.5 : 1
         path.stroke()
-        NSColor.white.withAlphaComponent(emphasized ? 1 : 0.92).setFill()
+        NSColor.white.withAlphaComponent(emphasized ? 1 : 0.42).setFill()
         path.fill()
         // Keep the emphasized ticks inside the handle-sized panel. Window-level
         // hit testing is rectangular, so growing the panel would steal clicks
         // outside the advertised hit target.
-        let tickOffset: CGFloat = 13
+        let tickOffset: CGFloat = emphasized ? 13 : 9
         if verticalSeam {
-            drawTick(at: CGPoint(x: center.x - tickOffset, y: center.y), pointing: CGPoint(x: -1, y: 0))
-            drawTick(at: CGPoint(x: center.x + tickOffset, y: center.y), pointing: CGPoint(x: 1, y: 0))
+            drawTick(at: CGPoint(x: center.x - tickOffset, y: center.y), pointing: CGPoint(x: -1, y: 0), emphasized: emphasized)
+            drawTick(at: CGPoint(x: center.x + tickOffset, y: center.y), pointing: CGPoint(x: 1, y: 0), emphasized: emphasized)
         } else {
-            drawTick(at: CGPoint(x: center.x, y: center.y - tickOffset), pointing: CGPoint(x: 0, y: -1))
-            drawTick(at: CGPoint(x: center.x, y: center.y + tickOffset), pointing: CGPoint(x: 0, y: 1))
+            drawTick(at: CGPoint(x: center.x, y: center.y - tickOffset), pointing: CGPoint(x: 0, y: -1), emphasized: emphasized)
+            drawTick(at: CGPoint(x: center.x, y: center.y + tickOffset), pointing: CGPoint(x: 0, y: 1), emphasized: emphasized)
         }
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    static func drawTick(at center: CGPoint, pointing dir: CGPoint) {
+    static func drawTick(at center: CGPoint, pointing dir: CGPoint, emphasized: Bool) {
         let len = max(hypot(dir.x, dir.y), 0.001)
         let d = CGPoint(x: dir.x / len, y: dir.y / len)
         let p = CGPoint(x: -d.y, y: d.x)
-        let tip = CGPoint(x: center.x + d.x * tickLength * 0.62, y: center.y + d.y * tickLength * 0.62)
-        let back = CGPoint(x: center.x - d.x * tickLength * 0.38, y: center.y - d.y * tickLength * 0.38)
-        let a = CGPoint(x: back.x + p.x * tickBase * 0.5, y: back.y + p.y * tickBase * 0.5)
-        let b = CGPoint(x: back.x - p.x * tickBase * 0.5, y: back.y - p.y * tickBase * 0.5)
+        let length = emphasized ? tickLength : 4.2
+        let base = emphasized ? tickBase : 5.0
+        let tip = CGPoint(x: center.x + d.x * length * 0.62, y: center.y + d.y * length * 0.62)
+        let back = CGPoint(x: center.x - d.x * length * 0.38, y: center.y - d.y * length * 0.38)
+        let a = CGPoint(x: back.x + p.x * base * 0.5, y: back.y + p.y * base * 0.5)
+        let b = CGPoint(x: back.x - p.x * base * 0.5, y: back.y - p.y * base * 0.5)
 
         let path = NSBezierPath()
         path.move(to: tip)
@@ -195,10 +197,10 @@ private enum DividerGlyph {
         path.lineJoinStyle = .round
         path.lineCapStyle = .round
 
-        NSColor.white.setStroke()
-        path.lineWidth = 1.4
+        NSColor.white.withAlphaComponent(emphasized ? 1 : 0.35).setStroke()
+        path.lineWidth = emphasized ? 1.4 : 1
         path.stroke()
-        NSColor.black.setFill()
+        NSColor.black.withAlphaComponent(emphasized ? 1 : 0.35).setFill()
         path.fill()
     }
 }
