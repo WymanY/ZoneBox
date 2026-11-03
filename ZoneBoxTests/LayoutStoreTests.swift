@@ -142,6 +142,22 @@ final class LayoutStoreTests: XCTestCase {
         XCTAssertEqual(loaded.document.layouts.map(\.id), saved.layouts.map(\.id))
     }
 
+    func testBackupReadFailurePreservesBothFilesAndThrows() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LayoutStore(directory: dir)
+        let damaged = Data("{damaged".utf8)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try damaged.write(to: store.fileURL)
+        try FileManager.default.createDirectory(at: store.backupURL, withIntermediateDirectories: true)
+
+        XCTAssertThrowsError(try store.loadWithRecovery())
+        XCTAssertEqual(try Data(contentsOf: store.fileURL), damaged)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.backupURL.path))
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertFalse(names.contains { $0.contains(".corrupt-") })
+    }
+
     func testMissingPrimaryRecoversBackup() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }

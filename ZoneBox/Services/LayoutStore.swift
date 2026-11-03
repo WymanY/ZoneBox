@@ -63,8 +63,11 @@ public struct LayoutStore: Sendable {
             Log.store.error("Store decode failed; attempting backup recovery error=\(error.localizedDescription, privacy: .public)")
             let backup: StoreDocument?
             if fm.fileExists(atPath: backupURL.path) {
+                // A backup read failure is an I/O failure, not evidence that the
+                // backup is corrupt. Propagate it so the caller disables saves.
+                let backupData = try Data(contentsOf: backupURL)
                 do {
-                    backup = try decode(Data(contentsOf: backupURL))
+                    backup = try decode(backupData)
                 } catch LoadError.unsupportedSchema {
                     throw LoadError.unsupportedSchema
                 } catch {
