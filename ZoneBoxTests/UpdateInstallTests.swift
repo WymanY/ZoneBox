@@ -2,7 +2,10 @@ import XCTest
 @testable import ZoneBoxCore
 
 final class UpdateInstallTests: XCTestCase {
-    private let fixtureApp = URL(fileURLWithPath: "/tmp/zonebox-update-audit-20261027/mount/ZoneBox.app")
+    private var fixtureApp: URL {
+        URL(fileURLWithPath: ProcessInfo.processInfo.environment["ZONEBOX_UPDATE_FIXTURE_APP"]
+            ?? "/tmp/zonebox-update-audit-20261027/mount/ZoneBox.app")
+    }
     private let scratchRoot = URL(fileURLWithPath: "/tmp/zonebox update tests " + UUID().uuidString)
 
     override func tearDown() {
@@ -370,7 +373,8 @@ final class UpdateInstallTests: XCTestCase {
     }
 
     func testHelperReplacesOfficial03With051AfterParentExit() throws {
-        let oldFixture = URL(fileURLWithPath: "/tmp/zonebox-update-audit-20261027/old-mount/ZoneBox.app").resolvingSymlinksInPath()
+        let oldFixture = URL(fileURLWithPath: ProcessInfo.processInfo.environment["ZONEBOX_UPDATE_OLD_FIXTURE_APP"]
+            ?? "/tmp/zonebox-update-audit-20261027/old-mount/ZoneBox.app").resolvingSymlinksInPath()
         try XCTSkipUnless(FileManager.default.fileExists(atPath: oldFixture.path), "0.3 fixture missing")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: fixtureApp.path), "0.5.1 fixture missing")
         try FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)

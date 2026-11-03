@@ -109,6 +109,36 @@ final class LicenseEntitlementTests: XCTestCase {
         XCTAssertEqual(reloaded.instanceID, "inst_2")
     }
 
+    func testCorruptLicenseCannotRestartTrial() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ZoneBoxLicense-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LicenseStore(directory: dir)
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = try store.load(now: started)
+        try Data("{broken".utf8).write(to: store.fileURL)
+
+        let recovered = try store.load(now: started.addingTimeInterval(10 * 86_400))
+
+        XCTAssertEqual(recovered.trialStartedAt, started)
+        XCTAssertEqual(LicenseAccess.snapshot(recovered, now: started.addingTimeInterval(15 * 86_400)).kind, .expired)
+    }
+
+    func testEditedLaterTrialStartIsClampedToKeychainAnchor() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ZoneBoxLicense-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = LicenseStore(directory: dir)
+        let started = Date(timeIntervalSince1970: 1_700_100_000)
+        _ = try store.load(now: started)
+        try store.save(LicenseRecord(trialStartedAt: started.addingTimeInterval(90 * 86_400)))
+
+        let loaded = try store.load(now: started.addingTimeInterval(91 * 86_400))
+
+        XCTAssertEqual(loaded.trialStartedAt, started)
+        XCTAssertEqual(LicenseAccess.snapshot(loaded, now: started.addingTimeInterval(15 * 86_400)).kind, .expired)
+    }
+
     func testPayloadParsesInstanceObjectAndFractionalDate() {
         let json: [String: Any] = [
             "status": "active",

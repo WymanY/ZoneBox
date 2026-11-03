@@ -1,4 +1,4 @@
-.PHONY: project build test
+.PHONY: project build test audit-update-install
 
 # Unsigned verification must not replace the signed app used by build_and_run.sh.
 VERIFY_DERIVED_DATA := .build/VerificationDerivedData
@@ -17,3 +17,6 @@ test:
 	bash script/run_update_check_restore_regression.sh
 	bash script/run_native_controls_regression.sh
 	@! grep -R --include='*.swift' -n 'import SwiftUI' ZoneBox
+
+audit-update-install:
+	bash script/run_update_install_audit.sh

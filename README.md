@@ -59,6 +59,8 @@ Each successful layout save updates `store.json.backup` beside `store.json` in t
 
 License validation runs while the app remains open, with checks on a timer, wake, activation, and network availability. Successful validations are reused for six hours; failed requests retain the existing offline entitlement and retry with rate limiting.
 
+The signed in-place update path has an additional machine-bound audit. Run `make audit-update-install` with `ZONEBOX_UPDATE_FIXTURE_APP` pointing to a signed 0.5.1 `ZoneBox.app` and `ZONEBOX_UPDATE_OLD_FIXTURE_APP` pointing to a signed 0.3.0 copy. The command fails when either fixture is missing instead of silently treating those tests as complete.
+
 ## Identifiers
 
 | | |
